@@ -313,6 +313,7 @@ import EcommerceConnections from "@/pages/ecommerce/ecommerce-connections";
 import OrderImport from "@/pages/ecommerce/order-import";
 import GrabFoodConnect from "@/pages/ecommerce/grab-food-connect";
 import EcommerceDocuments from "@/pages/ecommerce/ecommerce-documents";
+import EcommerceQuickInvoice from "@/pages/ecommerce/ecommerce-quick-invoice";
 import EcommerceOrders from "@/pages/ecommerce/ecommerce-orders";
 import EcommerceInventory from "@/pages/ecommerce/ecommerce-inventory";
 import EcommerceInventoryBom from "@/pages/ecommerce/ecommerce-inventory-bom";
@@ -830,6 +831,7 @@ function Router() {
       <Route path="/ecommerce/grab-food" component={GrabFoodConnect} />
       <Route path="/ecommerce/orders" component={EcommerceOrders} />
       <Route path="/ecommerce/documents" component={EcommerceDocuments} />
+      <Route path="/ecommerce/quick-invoice" component={EcommerceQuickInvoice} />
       <Route path="/ecommerce/inventory/bom" component={EcommerceInventoryBom} />
       <Route path="/ecommerce/inventory/manufacturing" component={EcommerceInventoryManufacturing} />
       <Route path="/ecommerce/inventory/bundles" component={EcommerceInventoryBundles} />
