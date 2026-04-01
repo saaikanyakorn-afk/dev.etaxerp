@@ -86,8 +86,10 @@ export default function ChatWidget() {
 
   const pathname = window.location.pathname;
   const isPublicPage = pathname === "/" || pathname === "/landing" || pathname === "/about" || pathname === "/register" || pathname === "/login" || pathname.startsWith("/pricing") || pathname.startsWith("/ecommerce-pricing") || pathname.startsWith("/food-delivery-pricing") || pathname.startsWith("/accounting-pricing");
-  const showButtons = true;
-  const showContactIcons = isPublicPage;
+  const isLanding = pathname === "/" || pathname === "/landing";
+  const showButtons = isLanding ? pastHero : true;
+  const showContactIcons = isPublicPage && !isLanding ? true : (isLanding && pastHero);
+  const showChatButton = !isPublicPage;
 
   const { data: messages = [] } = useQuery<ChatMessage[]>({
     queryKey: ["/api/chat/messages"],
@@ -336,7 +338,7 @@ export default function ChatWidget() {
         </div>
       )}
 
-      {user && (
+      {showChatButton && user && (
         <a
           href="/user-guide"
           data-testid="btn-help-guide"
@@ -348,19 +350,21 @@ export default function ChatWidget() {
         </a>
       )}
 
-      <button
-        data-testid="button-open-chat"
-        onClick={() => setOpen(!open)}
-        className="relative w-12 h-12 rounded-full text-white shadow-lg hover:shadow-xl transition-all flex items-center justify-center hover:scale-105 active:scale-95" style={{ background: "#03c9d7" }}
-        title={open ? "ปิดแชท" : "แชทกับฝ่ายสนับสนุน"}
-      >
-        {open ? <X className="h-5 w-5" /> : <MessageCircle className="h-5 w-5" />}
-        {!open && unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center">
-            {unreadCount > 9 ? "9+" : unreadCount}
-          </span>
-        )}
-      </button>
+      {showChatButton && (
+        <button
+          data-testid="button-open-chat"
+          onClick={() => setOpen(!open)}
+          className="relative w-12 h-12 rounded-full text-white shadow-lg hover:shadow-xl transition-all flex items-center justify-center hover:scale-105 active:scale-95" style={{ background: "#03c9d7" }}
+          title={open ? "ปิดแชท" : "แชทกับฝ่ายสนับสนุน"}
+        >
+          {open ? <X className="h-5 w-5" /> : <MessageCircle className="h-5 w-5" />}
+          {!open && unreadCount > 0 && (
+            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center">
+              {unreadCount > 9 ? "9+" : unreadCount}
+            </span>
+          )}
+        </button>
+      )}
 
       <ScrollToTopButton />
     </div>
