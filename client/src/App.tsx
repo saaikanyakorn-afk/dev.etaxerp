@@ -414,6 +414,7 @@ import PosBundles from "@/pages/pos/pos-bundles";
 import PosBundleForm from "@/pages/pos/pos-bundle-form";
 import PosStock from "@/pages/pos/pos-stock";
 import PosStockCard from "@/pages/pos/pos-stock-card";
+import PosStockTransfer from "@/pages/pos/pos-stock-transfer";
 import PosTaxInvoices from "@/pages/pos/pos-tax-invoices";
 import PosSettings from "@/pages/pos/pos-settings";
 import JobCostingProjectList from "@/pages/job-costing/project-list";
@@ -951,6 +952,7 @@ function Router() {
       <Route path="/pos/bundles/edit/:id" component={PosBundleForm} />
       <Route path="/pos/stock" component={PosStock} />
       <Route path="/pos/stock-card" component={PosStockCard} />
+      <Route path="/pos/stock-transfer" component={PosStockTransfer} />
       <Route path="/pos/tax-invoices" component={PosTaxInvoices} />
       <Route path="/pos/settings" component={PosSettings} />
       <Route path="/loyalty/signup" component={LoyaltySignup} />

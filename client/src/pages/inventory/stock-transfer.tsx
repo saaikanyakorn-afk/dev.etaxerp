@@ -21,7 +21,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import type { Product } from "@shared/schema";
 
-export default function StockTransfer() {
+export default function StockTransfer(props: { Wrapper?: React.ComponentType<{ children: React.ReactNode }> } & Record<string, any>) {
+  const LayoutComponent = props.Wrapper || Layout;
   const { selectedCompanyId } = useCompany();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -212,7 +213,7 @@ export default function StockTransfer() {
   const completedCount = transfers.filter((t: any) => t.status === "completed").length;
 
   return (
-    <Layout>
+    <LayoutComponent>
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -529,6 +530,6 @@ export default function StockTransfer() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </Layout>
+    </LayoutComponent>
   );
 }
