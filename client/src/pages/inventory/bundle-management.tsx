@@ -85,7 +85,7 @@ export default function BundleManagement(props: { Wrapper?: React.ComponentType<
                 <Button
                   variant="outline"
                   data-testid="button-goto-create-product"
-                  onClick={() => navigate(`${basePath}/products/new?type=bundle`)}
+                  onClick={() => navigate(`${basePath}/list/new?type=bundle`)}
                 >
                   <Package className="h-4 w-4 mr-1.5" />
                   สร้างสินค้าจัดชุด
