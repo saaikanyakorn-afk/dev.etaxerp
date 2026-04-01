@@ -177,6 +177,7 @@ const ECOMMERCE_NAV: NavItem[] = [
       { label: "API Credentials", href: "/ecommerce/platform-credentials", icon: Key },
       { label: "ตั้งค่ากล้อง CCTV", href: "/ecommerce/packing-cameras", icon: Camera },
       { label: "Supplier Portal", href: "/ecommerce/supplier-portal", icon: Key },
+      { label: "เชื่อมสำนักงานบัญชี", href: "/settings/firm-link", icon: Link2 },
     ],
   },
 ];

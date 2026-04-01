@@ -256,6 +256,7 @@ import UserManagement from "@/pages/settings/user-management";
 import AccountingFormulas from "@/pages/accounting-formulas";
 import DocumentTemplates from "@/pages/settings/document-templates";
 import UserProfile from "@/pages/settings/user-profile";
+import FirmLinkPage from "@/pages/settings/firm-link";
 import CompanyInfo from "@/pages/settings/company-info";
 import PaymentMethodSettings from "@/pages/settings/payment-methods";
 import MySubscription from "@/pages/settings/my-subscription";
@@ -811,6 +812,7 @@ function Router() {
       <Route path="/settings/users" component={UserManagement} />
       <Route path="/settings/document-templates" component={DocumentTemplates} />
       <Route path="/settings/profile" component={UserProfile} />
+      <Route path="/settings/firm-link" component={FirmLinkPage} />
       <Route path="/settings/company-info" component={CompanyInfo} />
       <Route path="/settings/payment-methods" component={PaymentMethodSettings} />
       <Route path="/settings/my-subscription" component={MySubscription} />

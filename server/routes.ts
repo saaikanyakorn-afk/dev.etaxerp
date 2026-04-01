@@ -20,6 +20,7 @@ import { registerPosRoutes } from "./routes/pos-routes";
 import { registerDeliveryNoteRoutes } from "./routes/delivery-note-routes";
 import { registerRestaurantRoutes } from "./routes/restaurant-routes";
 import { registerModuleSyncRoutes } from "./routes/module-sync-routes";
+import { registerFirmLinkRoutes } from "./routes/firm-link-routes";
 import { registerLiveSellingRoutes } from "./routes/live-selling-routes";
 import { registerEtaxRoutes } from "./routes/etax-routes";
 import { registerInstallmentRoutes } from "./routes/installment-routes";
@@ -153,6 +154,7 @@ export async function registerRoutes(
   registerDeliveryNoteRoutes(app);
   registerRestaurantRoutes(app);
   registerModuleSyncRoutes(app);
+  registerFirmLinkRoutes(app);
   registerLiveSellingRoutes(app);
   registerGasStationRoutes(app);
   registerEtaxRoutes(app);
