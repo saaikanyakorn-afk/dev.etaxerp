@@ -81,7 +81,15 @@ export default function BundleManagement(props: { Wrapper?: React.ComponentType<
               <div className="text-center py-12 text-gray-400" data-testid="text-empty">
                 <Package className="h-12 w-12 mx-auto mb-3 opacity-30" />
                 <p>ยังไม่มีสินค้าประเภทจัดชุด</p>
-                <p className="text-xs mt-1">สร้างสินค้าประเภท "สินค้าจัดชุด" ในหน้าคลังสินค้าก่อน</p>
+                <p className="text-xs mt-1 mb-4">สร้างสินค้าประเภท "สินค้าจัดชุด" ในหน้ารายการสินค้าก่อน</p>
+                <Button
+                  variant="outline"
+                  data-testid="button-goto-create-product"
+                  onClick={() => navigate(`${basePath}/products/new?type=bundle`)}
+                >
+                  <Package className="h-4 w-4 mr-1.5" />
+                  สร้างสินค้าจัดชุด
+                </Button>
               </div>
             ) : (
               <Table data-testid="table-bundle-list">
