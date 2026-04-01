@@ -26,7 +26,7 @@ export function registerPosRoutes(app: Express) {
       let resolvedBranchName = branchName || "สำนักงานใหญ่";
       let resolvedWarehouseId: number | null = null;
       if (storeId) {
-        const [branch] = await db.select().from(branches).where(and(eq(branches.id, Number(storeId)), eq(branches.companyId, Number(companyId))));
+        const [branch] = await posDb.select().from(branches).where(and(eq(branches.id, Number(storeId)), eq(branches.companyId, Number(companyId))));
         if (!branch) return res.status(400).json({ message: "สาขาไม่ถูกต้องหรือไม่ได้อยู่ในบริษัทนี้" });
         if (branch) {
           resolvedBranchName = branch.name;
@@ -253,7 +253,7 @@ export function registerPosRoutes(app: Express) {
 
             console.log(`[POS] Summary tax invoice ${summaryTivNo} created (${abbrevCount} abbreviated invoices → 1 summary for sales tax report)`);
 
-            const pmRows = await db.select().from(paymentMethods)
+            const pmRows = await posDb.select().from(paymentMethods)
               .where(eq(paymentMethods.companyId, session.companyId));
             const pmAccountMap: Record<string, string> = {};
             for (const pm of pmRows) {
@@ -901,7 +901,7 @@ export function registerPosRoutes(app: Express) {
       const amount = parseFloat(req.query.amount as string) || 0;
       if (!companyId) return res.status(400).json({ message: "กรุณาระบุบริษัท" });
 
-      const [settings] = await db.select().from(documentSettings)
+      const [settings] = await posDb.select().from(documentSettings)
         .where(eq(documentSettings.companyId, companyId)).limit(1);
 
       if (!settings?.promptpayEnabled || !settings?.promptpayId) {
@@ -924,7 +924,7 @@ export function registerPosRoutes(app: Express) {
     try {
       const companyId = Number(req.query.companyId);
       if (!companyId) return res.status(400).json({ message: "กรุณาระบุบริษัท" });
-      const branchList = await db.select().from(branches)
+      const branchList = await posDb.select().from(branches)
         .where(and(eq(branches.companyId, companyId), eq(branches.active, true)))
         .orderBy(branches.code);
       const warehouseList = await posDb.select().from(warehouses)
@@ -944,7 +944,7 @@ export function registerPosRoutes(app: Express) {
       const { companyId, code, name, address, taxId, phone, manager } = req.body;
       if (!companyId || !name) return res.status(400).json({ message: "กรุณาระบุชื่อสาขา" });
 
-      const branchCode = code || String(await db.select({ cnt: count() }).from(branches).where(eq(branches.companyId, Number(companyId))).then(r => (r[0]?.cnt || 0) + 1)).padStart(5, "0");
+      const branchCode = code || String(await posDb.select({ cnt: count() }).from(branches).where(eq(branches.companyId, Number(companyId))).then(r => (r[0]?.cnt || 0) + 1)).padStart(5, "0");
 
       const [wh] = await posDb.insert(warehouses).values({
         companyId: Number(companyId),
@@ -954,7 +954,7 @@ export function registerPosRoutes(app: Express) {
         active: true,
       }).returning();
 
-      const [branch] = await db.insert(branches).values({
+      const [branch] = await posDb.insert(branches).values({
         companyId: Number(companyId),
         code: branchCode,
         name,
@@ -975,7 +975,7 @@ export function registerPosRoutes(app: Express) {
       const user = req.user as any;
       const id = Number(req.params.id);
       const { name, code, address, phone, manager } = req.body;
-      const [existing] = await db.select().from(branches).where(eq(branches.id, id));
+      const [existing] = await posDb.select().from(branches).where(eq(branches.id, id));
       if (!existing) return res.status(404).json({ message: "ไม่พบสาขา" });
 
       const [company] = await db.select().from(companies).where(eq(companies.id, existing.companyId));
@@ -990,7 +990,7 @@ export function registerPosRoutes(app: Express) {
       if (phone !== undefined) updateData.phone = phone;
       if (manager !== undefined) updateData.manager = manager;
 
-      const [updated] = await db.update(branches).set(updateData).where(eq(branches.id, id)).returning();
+      const [updated] = await posDb.update(branches).set(updateData).where(eq(branches.id, id)).returning();
 
       if (updated.warehouseId && name) {
         await posDb.update(warehouses).set({ name: `คลัง ${name}` }).where(eq(warehouses.id, updated.warehouseId));
@@ -1004,7 +1004,7 @@ export function registerPosRoutes(app: Express) {
     try {
       const user = req.user as any;
       const id = Number(req.params.id);
-      const [existing] = await db.select().from(branches).where(eq(branches.id, id));
+      const [existing] = await posDb.select().from(branches).where(eq(branches.id, id));
       if (!existing) return res.status(404).json({ message: "ไม่พบสาขา" });
 
       const [company] = await db.select().from(companies).where(eq(companies.id, existing.companyId));
@@ -1017,7 +1017,7 @@ export function registerPosRoutes(app: Express) {
         return res.status(400).json({ message: "ไม่สามารถลบสาขาที่มีประวัติกะขายได้" });
       }
 
-      await db.delete(branches).where(eq(branches.id, id));
+      await posDb.delete(branches).where(eq(branches.id, id));
       res.json({ message: "ลบสาขาสำเร็จ" });
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
