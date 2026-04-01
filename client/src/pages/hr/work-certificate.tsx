@@ -1,4 +1,4 @@
-import Layout from "@/components/layout";
+import HRLayout from "@/components/hr-layout";
 import { objectPathToUrl } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -149,7 +149,7 @@ export default function WorkCertificate() {
   }
 
   return (
-    <Layout>
+    <HRLayout>
       <div className="space-y-6">
         <Card className="flexy-card">
           <CardHeader>
@@ -252,6 +252,6 @@ export default function WorkCertificate() {
           </DialogContent>
         </Dialog>
       </div>
-    </Layout>
+    </HRLayout>
   );
 }

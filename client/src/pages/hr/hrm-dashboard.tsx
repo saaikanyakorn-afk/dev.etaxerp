@@ -1,4 +1,4 @@
-import Layout from "@/components/layout";
+import HRLayout from "@/components/hr-layout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -76,7 +76,7 @@ export default function HRMDashboard() {
   });
 
   return (
-    <Layout>
+    <HRLayout>
       <div className="space-y-6">
         <div className="rounded-2xl overflow-hidden relative" style={{ background: "var(--theme-primary)" }}>
           <div className="flex items-center justify-between px-8 py-6">
@@ -283,6 +283,6 @@ export default function HRMDashboard() {
           </Card>
         </div>
       </div>
-    </Layout>
+    </HRLayout>
   );
 }

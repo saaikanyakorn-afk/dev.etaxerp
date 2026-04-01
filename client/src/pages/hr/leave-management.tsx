@@ -1,4 +1,4 @@
-import Layout from "@/components/layout";
+import HRLayout from "@/components/hr-layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -231,7 +231,7 @@ export default function LeaveManagement() {
   const totalDays = leaves.filter((l: any) => l.status === "approved").reduce((s: number, l: any) => s + Number(l.days || 0), 0);
 
   return (
-    <Layout>
+    <HRLayout>
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -531,6 +531,6 @@ export default function LeaveManagement() {
           </DialogContent>
         </Dialog>
       </div>
-    </Layout>
+    </HRLayout>
   );
 }

@@ -1,4 +1,4 @@
-import Layout from "@/components/layout";
+import HRLayout from "@/components/hr-layout";
 import ThaiDateInput from "@/components/thai-date-input";
 import { useDateSettings } from "@/hooks/use-date-settings";
 import { objectPathToUrl } from "@/lib/utils";
@@ -1876,7 +1876,7 @@ export default function PayrollTaxPage() {
   };
 
   return (
-    <Layout>
+    <HRLayout>
       <div className="space-y-6">
         <div className="flex items-center justify-between flex-wrap gap-4">
           <div className="flex items-center gap-2">
@@ -3067,6 +3067,6 @@ export default function PayrollTaxPage() {
           </DialogContent>
         </Dialog>
       </div>
-    </Layout>
+    </HRLayout>
   );
 }

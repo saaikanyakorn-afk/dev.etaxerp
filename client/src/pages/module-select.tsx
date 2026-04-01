@@ -24,7 +24,7 @@ const MODULE_CARDS: ModuleCard[] = [
   { key: "accounting", label: "ระบบบัญชี", labelEn: "Accounting", icon: Calculator, color: "#539BFF", bgColor: "bg-blue-50", href: "/dashboard/analytical", requiredModule: "accounting" },
   { key: "ecommerce", label: "อีคอมเมิร์ซ", labelEn: "E-Commerce", icon: ShoppingCart, color: "#fb9678", bgColor: "bg-orange-50", href: "/ecommerce/dashboard", requiredModule: "ecommerce" },
   { key: "pos", label: "ขายหน้าร้าน", labelEn: "POS", icon: Monitor, color: "#03c9d7", bgColor: "bg-cyan-50", href: "/pos-hub/dashboard", requiredModule: "pos" },
-  { key: "hr", label: "ทรัพยากรบุคคล", labelEn: "HR", icon: Users, color: "#7c3aed", bgColor: "bg-violet-50", href: "/hr/employees", requiredModule: "hr" },
+  { key: "hr", label: "ทรัพยากรบุคคล", labelEn: "HR", icon: Users, color: "#05b187", bgColor: "bg-green-50", href: "/hr/dashboard", requiredModule: "hr" },
   { key: "gas-station", label: "ปั๊มน้ำมัน", labelEn: "Gas Station", icon: Fuel, color: "#f59e0b", bgColor: "bg-amber-50", href: "/gas-station/daily-sales", requiredModule: "gas-station" },
   { key: "ci", label: "วิเคราะห์ข้อมูล", labelEn: "Intelligence", icon: BarChart3, color: "#6366f1", bgColor: "bg-indigo-50", href: "/ci/executive", requiredModule: "ci" },
   { key: "delivery", label: "ระบบจัดส่ง", labelEn: "Delivery", icon: Truck, color: "#10b981", bgColor: "bg-emerald-50", href: "/ecommerce/delivery", requiredModule: "delivery" },

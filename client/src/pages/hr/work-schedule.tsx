@@ -1,4 +1,4 @@
-import Layout from "@/components/layout";
+import HRLayout from "@/components/hr-layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -296,7 +296,7 @@ export default function WorkSchedulePage() {
   };
 
   return (
-    <Layout>
+    <HRLayout>
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -780,6 +780,6 @@ export default function WorkSchedulePage() {
           </Card>
         )}
       </div>
-    </Layout>
+    </HRLayout>
   );
 }

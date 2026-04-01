@@ -1,4 +1,4 @@
-import Layout from "@/components/layout";
+import HRLayout from "@/components/hr-layout";
 import { objectPathToUrl } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -533,7 +533,7 @@ export default function FiftyTawiPage() {
   };
 
   return (
-    <Layout>
+    <HRLayout>
       <div className="space-y-6">
         <div className="flex items-center justify-between flex-wrap gap-4">
           <div className="flex items-center gap-2">
@@ -616,6 +616,6 @@ export default function FiftyTawiPage() {
           </CardContent>
         </Card>
       </div>
-    </Layout>
+    </HRLayout>
   );
 }
