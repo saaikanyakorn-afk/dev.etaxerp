@@ -261,7 +261,7 @@ export default function DocumentRenderer({
       ? `สาขาที่ ${sellerBranchCode}${sellerBranchName ? ` ${sellerBranchName}` : ""}`
       : `สาขาที่ ${companyBranch}`;
 
-  const isTaxDoc = documentType === "taxInvoice" || documentType === "receipt";
+  const isTaxDoc = documentType === "tax_invoice" || documentType === "receipt" || documentType === "tax_invoice_receipt";
   const era: DateEra = isTaxDoc ? "BE" : ((settings.dateEra as DateEra) || "CE");
 
   const totalAmount = typeof quotation.totalAmount === "string"
@@ -434,7 +434,7 @@ export default function DocumentRenderer({
 
         <table className="w-full border-collapse mb-4" style={{ fontFamily: "'Sarabun', 'Inter', sans-serif", fontVariantNumeric: "tabular-nums" }}>
           <thead>
-            <tr style={{ backgroundColor: theme.light + "40" }}>
+            <tr style={{ backgroundColor: theme.bg }}>
               <th className="text-center py-1.5 px-1 text-[10px] font-semibold border-b w-8" style={{ color: accent, borderColor: theme.light }}>
                 <div>ลำดับ</div>
                 <div className="text-[8px] font-normal opacity-70">No.</div>
