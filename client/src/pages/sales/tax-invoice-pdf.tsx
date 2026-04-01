@@ -227,7 +227,7 @@ function ServerErrorScreen({ onRetry, onGoBack }: { onRetry: () => void; onGoBac
             <ul className="text-sm text-amber-700 space-y-1 list-disc list-inside">
               <li>สาย LAN / WiFi เชื่อมต่ออยู่หรือไม่</li>
               <li>เซิร์ฟเวอร์อาจกำลังรีสตาร์ท — รอ 30 วินาทีแล้วลองใหม่</li>
-              <li>ลองเปิดหน้าเว็บใหม่ (F5)</li>
+              <li>ลองเปิดหน้าเว็บใหม่ (รีเฟรชหน้าจอ)</li>
             </ul>
           </div>
         </div>
