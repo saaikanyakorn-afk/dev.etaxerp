@@ -62,6 +62,13 @@ app.post("/api/pdf/demo-generate", requireAuth, async (req, res) => {
     };
 
     const pdfBuffer = await generatePdfDirect(fakePdfOpts as any);
+    const pdfDone = Date.now();
+    const pdfTime = pdfDone - t0;
+    const remaining = Math.max(0, 10000 - pdfTime);
+    if (remaining > 0) {
+      console.log(`[Demo PDF] PDF done in ${(pdfTime / 1000).toFixed(1)}s, padding ${(remaining / 1000).toFixed(1)}s to reach 10s total...`);
+      await new Promise(r => setTimeout(r, remaining));
+    }
     const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
     const endMem = process.memoryUsage();
     console.log(`[Demo PDF] Complete in ${elapsed}s — RSS: ${Math.round(startMem.rss / 1024 / 1024)}MB → ${Math.round(endMem.rss / 1024 / 1024)}MB, PDF size: ${pdfBuffer.length} bytes`);
