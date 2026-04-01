@@ -86,8 +86,7 @@ export default function ChatWidget() {
 
   const pathname = window.location.pathname;
   const isPublicPage = pathname === "/" || pathname === "/landing" || pathname === "/about" || pathname === "/register" || pathname === "/login" || pathname.startsWith("/pricing") || pathname.startsWith("/ecommerce-pricing") || pathname.startsWith("/food-delivery-pricing") || pathname.startsWith("/accounting-pricing");
-  const isLanding = pathname === "/landing" || pathname === "/";
-  const showButtons = !isLanding || pastHero;
+  const showButtons = true;
   const showContactIcons = isPublicPage;
 
   const { data: messages = [] } = useQuery<ChatMessage[]>({
