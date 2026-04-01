@@ -1,5 +1,6 @@
 import type { Express, Request, Response } from "express";
 import { db } from "../db";
+import { ecomDb } from "../ecom-db";
 import { eq, desc, and, or, asc, ilike, inArray, count, sum , sql } from "drizzle-orm";
 import { companies, ecommerceOrders } from "@shared/schema";
 import { requireAuth, checkDocOwnership } from "../route-middleware";
@@ -71,7 +72,7 @@ app.get("/api/crm/customers/:id", requireAuth, async (req, res) => {
       );
     }
 
-    const orders = await db.select().from(ecommerceOrders)
+    const orders = await ecomDb.select().from(ecommerceOrders)
       .where(and(...orderConditions))
       .orderBy(desc(ecommerceOrders.orderDate))
       .limit(50);
@@ -189,7 +190,7 @@ app.post("/api/crm/sync-from-orders", requireAuth, async (req, res) => {
       return res.status(403).json({ message: "ไม่มีสิทธิ์" });
     }
 
-    const orders = await db.select().from(ecommerceOrders).where(eq(ecommerceOrders.companyId, companyId));
+    const orders = await ecomDb.select().from(ecommerceOrders).where(eq(ecommerceOrders.companyId, companyId));
     const customerMap = new Map<string, { name: string; phone: string | null; email: string | null; platform: string | null; totalSpend: number; orderCount: number; lastOrderDate: Date | null }>();
 
     for (const order of orders) {

@@ -555,6 +555,15 @@ The test/backup database (`db_rp_tst`) is temporarily on tax-gateway because dee
 - **Dismiss API:** `POST /api/platform/clone-dismiss-incomplete` — marks error tables as dismissed + cancels timeout.
 - **Timeout:** `startHalfBakedTimeout()` / `cancelHalfBakedTimeout()` in `server/maintenance.ts` — configurable timer (default 30min).
 
+### E-Commerce Database Separation (Crash Isolation)
+- **Purpose:** Isolate e-commerce from accounting so if ecommerce DB crashes/slows, accounting system continues working.
+- **Architecture:** Separate connection pool (`ecomDb`) in `server/ecom-db.ts`. Uses `DATABASE_URL_ECOM` env var — falls back to main `DATABASE_URL` if not set.
+- **18 files updated:** All ecommerce table queries use `ecomDb` instead of `db`. Accounting queries (companies, taxInvoices, journalEntries, etc.) remain on `db`.
+- **Schema sync:** `db-schema-sync.ts` auto-syncs ecommerce tables to ecom DB on startup when `DATABASE_URL_ECOM` is set.
+- **Ecom tables list:** ecommerce_connections/orders/order_items/product_mappings/settlements/settlement_items/returns/return_items, sync_logs, oauth_states, facebook_chat_orders/pages, chat_orders/keywords, platform_chat_threads, stock_sync_logs, archive_ecommerce_orders, shop_stat_sync_logs, vat_product_dictionary, live_sessions/products/orders/comments, lucky_draw_*, ad_budgets/campaigns.
+- **Bridge pattern:** Routes that create tax invoices from orders read from `ecomDb`, write to `db`.
+- **Production setup:** พี่ช้าง sets `DATABASE_URL_ECOM` pointing to a separate PostgreSQL database for full crash isolation.
+
 ### Database Server Landscape (5 machines)
 | # | Machine | OS | Remote DB | Role |
 |---|---------|-----|-----------|------|

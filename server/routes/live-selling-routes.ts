@@ -1,5 +1,6 @@
 import type { Express } from "express";
 import { db } from "../db";
+import { ecomDb } from "../ecom-db";
 import { storage } from "../storage";
 import { eq, and, desc, asc, sql, count, inArray, not, sum } from "drizzle-orm";
 import { liveCfOrders, liveCfItems, liveSessionProducts, products, companies, ecommerceOrders, ecommerceOrderItems, luckyDrawCampaigns, luckyDrawPrizes, luckyDrawEntries, insertLuckyDrawCampaignSchema, insertLuckyDrawPrizeSchema, insertLuckyDrawEntrySchema, ecommerceConnections } from "@shared/schema";
@@ -282,12 +283,12 @@ export function registerLiveSellingRoutes(app: Express) {
 
         try {
           const cfItems = await db.select().from(liveCfItems).where(eq(liveCfItems.cfOrderId, cfOrder.id));
-          const session = await db.select().from(liveSessions).where(eq(liveSessions.id, cfOrder.sessionId)).then(r => r[0]);
+          const session = await ecomDb.select().from(liveSessions).where(eq(liveSessions.id, cfOrder.sessionId)).then(r => r[0]);
 
-          let [conn] = await db.select().from(ecommerceConnections)
+          let [conn] = await ecomDb.select().from(ecommerceConnections)
             .where(and(eq(ecommerceConnections.companyId, cfOrder.companyId), eq(ecommerceConnections.platform, "live")));
           if (!conn) {
-            [conn] = await db.insert(ecommerceConnections).values({
+            [conn] = await ecomDb.insert(ecommerceConnections).values({
               companyId: cfOrder.companyId, platform: "live", shopName: "Live Selling", status: "connected",
             }).returning();
           }
@@ -297,7 +298,7 @@ export function registerLiveSellingRoutes(app: Express) {
 
           const livePaymentMethod = aiResult.bank || payment.bankName || "โอนเงิน";
 
-          const [ecomOrder] = await db.insert(ecommerceOrders).values({
+          const [ecomOrder] = await ecomDb.insert(ecommerceOrders).values({
             companyId: cfOrder.companyId,
             connectionId: conn.id,
             platform: "live",
@@ -317,7 +318,7 @@ export function registerLiveSellingRoutes(app: Express) {
 
           if (cfItems.length > 0) {
             for (const item of cfItems) {
-              await db.insert(ecommerceOrderItems).values({
+              await ecomDb.insert(ecommerceOrderItems).values({
                 orderId: ecomOrder.id,
                 productId: item.productId,
                 name: (await db.select({ name: products.name }).from(products).where(eq(products.id, item.productId)).then(r => r[0]?.name)) || "สินค้า",
@@ -405,10 +406,10 @@ export function registerLiveSellingRoutes(app: Express) {
         if (!cfOrder.ecommerceOrderId) {
           try {
             const cfItems = await db.select().from(liveCfItems).where(eq(liveCfItems.cfOrderId, cfOrder.id));
-            let [conn] = await db.select().from(ecommerceConnections)
+            let [conn] = await ecomDb.select().from(ecommerceConnections)
               .where(and(eq(ecommerceConnections.companyId, cfOrder.companyId), eq(ecommerceConnections.platform, "live")));
             if (!conn) {
-              [conn] = await db.insert(ecommerceConnections).values({
+              [conn] = await ecomDb.insert(ecommerceConnections).values({
                 companyId: cfOrder.companyId, platform: "live", shopName: "Live Selling", status: "connected",
               }).returning();
             }
@@ -417,7 +418,7 @@ export function registerLiveSellingRoutes(app: Express) {
             const totalAmount = Number(cfOrder.totalAmount) || 0;
             const manualPaymentMethod = payment.aiVerifyBank || payment.bankName || "โอนเงิน";
 
-            const [ecomOrder] = await db.insert(ecommerceOrders).values({
+            const [ecomOrder] = await ecomDb.insert(ecommerceOrders).values({
               companyId: cfOrder.companyId,
               connectionId: conn.id,
               platform: "live",
@@ -437,7 +438,7 @@ export function registerLiveSellingRoutes(app: Express) {
 
             if (cfItems.length > 0) {
               for (const item of cfItems) {
-                await db.insert(ecommerceOrderItems).values({
+                await ecomDb.insert(ecommerceOrderItems).values({
                   orderId: ecomOrder.id,
                   productId: item.productId,
                   name: (await db.select({ name: products.name }).from(products).where(eq(products.id, item.productId)).then(r => r[0]?.name)) || "สินค้า",
@@ -499,10 +500,10 @@ export function registerLiveSellingRoutes(app: Express) {
   app.get("/api/live/sessions/:id/stats", requireAuth, requireModule("ecommerce"), async (req, res) => {
     try {
       const sessionId = Number(req.params.id);
-      const session = await db.select().from(liveSessions).where(eq(liveSessions.id, sessionId)).then(r => r[0]);
+      const session = await ecomDb.select().from(liveSessions).where(eq(liveSessions.id, sessionId)).then(r => r[0]);
       if (!session) return res.status(404).json({ message: "ไม่พบเซสชัน" });
 
-      const products = await db.select().from(liveSessionProducts).where(eq(liveSessionProducts.sessionId, sessionId));
+      const products = await ecomDb.select().from(liveSessionProducts).where(eq(liveSessionProducts.sessionId, sessionId));
       const cfOrders = await db.select().from(liveCfOrders).where(eq(liveCfOrders.sessionId, sessionId));
       const cfItems = [];
       for (const o of cfOrders) {
@@ -578,9 +579,9 @@ export function registerLiveSellingRoutes(app: Express) {
       const productsData = await db.select().from(products).where(inArray(products.id, productIds));
       const added = [];
       for (const p of productsData) {
-        const existing = await db.select().from(liveSessionProducts).where(and(eq(liveSessionProducts.sessionId, sessionId), eq(liveSessionProducts.productId, p.id))).then(r => r[0]);
+        const existing = await ecomDb.select().from(liveSessionProducts).where(and(eq(liveSessionProducts.sessionId, sessionId), eq(liveSessionProducts.productId, p.id))).then(r => r[0]);
         if (!existing) {
-          const [created] = await db.insert(liveSessionProducts).values({
+          const [created] = await ecomDb.insert(liveSessionProducts).values({
             sessionId,
             productId: p.id,
             sku: p.code || "",
@@ -627,7 +628,7 @@ export function registerLiveSellingRoutes(app: Express) {
         .where(eq(luckyDrawEntries.campaignId, campaign.id))
         .orderBy(desc(luckyDrawEntries.totalSpending));
       const session = campaign.sessionId
-        ? await db.select().from(liveSessions).where(eq(liveSessions.id, campaign.sessionId)).then(r => r[0])
+        ? await ecomDb.select().from(liveSessions).where(eq(liveSessions.id, campaign.sessionId)).then(r => r[0])
         : null;
       res.json({ ...campaign, prizes, entries, session });
     } catch (err: any) { res.status(400).json({ message: err.message }); }

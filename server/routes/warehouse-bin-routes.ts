@@ -1,5 +1,6 @@
 import type { Express, Request, Response } from "express";
 import { db } from "../db";
+import { ecomDb } from "../ecom-db";
 import { eq, desc, and, asc , sql } from "drizzle-orm";
 import { warehouseZones, warehouseBins, ecommerceOrders, ecommerceOrderItems } from "@shared/schema";
 import { requireAuth, requireModule } from "../route-middleware";
@@ -316,7 +317,7 @@ app.post("/api/ecommerce/picking/waves/auto-create", requireAuth, requireModule(
   try {
     const companyId = Number(req.query.companyId || req.body.companyId);
     if (!companyId) return res.status(400).json({ message: "companyId required" });
-    const pendingOrders = await db.select().from(ecommerceOrders).where(and(eq(ecommerceOrders.companyId, companyId), eq(ecommerceOrders.status, "pending")));
+    const pendingOrders = await ecomDb.select().from(ecommerceOrders).where(and(eq(ecommerceOrders.companyId, companyId), eq(ecommerceOrders.status, "pending")));
     if (pendingOrders.length === 0) return res.json({ message: "No pending orders", waves: [] });
     const groups: Record<string, typeof pendingOrders> = {};
     for (const order of pendingOrders) {
@@ -340,7 +341,7 @@ app.post("/api/ecommerce/picking/waves/auto-create", requireAuth, requireModule(
       seq++;
       const orderItems = [];
       for (const order of orders) {
-        const items = await db.select().from(ecommerceOrderItems).where(eq(ecommerceOrderItems.orderId, order.id));
+        const items = await ecomDb.select().from(ecommerceOrderItems).where(eq(ecommerceOrderItems.orderId, order.id));
         for (const item of items) {
           orderItems.push({ orderId: order.id, orderNo: order.orderNo, productName: item.productName, sku: item.sku, qty: item.quantity || 1 });
         }

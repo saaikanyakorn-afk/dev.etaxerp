@@ -1,6 +1,7 @@
 import { getTableConfig, PgTable } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { db } from "./db";
+import { ecomDb, isEcomSeparateDb } from "./ecom-db";
 import * as schema from "@shared/schema";
 
 function getAllSchemaTableObjects(): PgTable[] {
@@ -233,6 +234,106 @@ export async function syncMissingColumns(): Promise<{ added: string[]; errors: s
   return { added, errors: columnErrors };
 }
 
+const ECOM_TABLE_NAMES = new Set([
+  'ecommerce_connections', 'ecommerce_orders', 'ecommerce_order_items',
+  'ecommerce_product_mappings', 'ecommerce_settlements', 'ecommerce_settlement_items',
+  'ecommerce_returns', 'ecommerce_return_items', 'sync_logs', 'oauth_states',
+  'facebook_chat_orders', 'facebook_pages', 'chat_order_keywords', 'chat_orders',
+  'platform_chat_threads', 'stock_sync_logs', 'archive_ecommerce_orders',
+  'shop_stat_sync_logs', 'vat_product_dictionary',
+  'live_sessions', 'live_session_products', 'live_session_orders', 'live_session_comments',
+  'lucky_draw_sessions', 'lucky_draw_participants', 'lucky_draw_winners',
+  'ad_budgets', 'ad_campaigns',
+]);
+
+function getEcomSchemaTableObjects(): PgTable[] {
+  const tables: PgTable[] = [];
+  for (const val of Object.values(schema)) {
+    try {
+      const config = getTableConfig(val as any);
+      if (config && config.name && ECOM_TABLE_NAMES.has(config.name)) {
+        tables.push(val as PgTable);
+      }
+    } catch {}
+  }
+  return tables;
+}
+
+async function syncEcomSchema(): Promise<void> {
+  if (!isEcomSeparateDb()) {
+    console.log("[ecom-schema-sync] Same DB — skipping (tables already synced by main sync)");
+    return;
+  }
+
+  console.log("[ecom-schema-sync] Separate DB detected — syncing ecommerce tables...");
+  const t0 = Date.now();
+  let created = 0;
+  let added = 0;
+  let errors = 0;
+
+  try {
+    const existingResult = await ecomDb.execute(sql.raw(
+      `SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'`
+    ));
+    const existing = new Set((existingResult.rows as any[]).map(r => r.table_name));
+    const ecomTables = getEcomSchemaTableObjects();
+
+    const missing = ecomTables.filter(t => !existing.has(getTableConfig(t).name));
+    if (missing.length > 0) {
+      const sorted = topologicalSort(missing);
+      for (const table of sorted) {
+        const config = getTableConfig(table);
+        try {
+          const ddl = generateCreateTableDDL(table);
+          await ecomDb.execute(sql.raw(ddl));
+          created++;
+          console.log(`[ecom-schema-sync] ✓ Created table: ${config.name}`);
+        } catch (err: any) {
+          if (!err.message.includes('already exists')) {
+            errors++;
+            console.error(`[ecom-schema-sync] ✗ Failed: ${config.name}: ${err.message}`);
+          }
+        }
+      }
+    }
+
+    for (const table of ecomTables) {
+      const config = getTableConfig(table);
+      if (!existing.has(config.name)) continue;
+      try {
+        const colResult = await ecomDb.execute(sql.raw(
+          `SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = '${config.name}'`
+        ));
+        const existingCols = new Set((colResult.rows as any[]).map(r => r.column_name));
+        for (const col of config.columns) {
+          if (!existingCols.has(col.name)) {
+            const sqlType = (col as any).getSQLType?.() || "text";
+            let alterSql = `ALTER TABLE "${config.name}" ADD COLUMN "${col.name}" ${sqlType}`;
+            if (col.hasDefault && col.default !== undefined) {
+              const def = col.default;
+              if (typeof def === "string") alterSql += ` DEFAULT '${def.replace(/'/g, "''")}'`;
+              else if (typeof def === "number" || typeof def === "boolean") alterSql += ` DEFAULT ${def}`;
+            } else if (col.hasDefault && col.defaultFn && col.columnType === "PgTimestamp") {
+              alterSql += ` DEFAULT NOW()`;
+            }
+            try {
+              await ecomDb.execute(sql.raw(alterSql));
+              added++;
+              console.log(`[ecom-schema-sync] ✓ Added column: ${config.name}.${col.name}`);
+            } catch {}
+          }
+        }
+      } catch {}
+    }
+  } catch (err: any) {
+    console.error("[ecom-schema-sync] Fatal error:", err.message);
+    errors++;
+  }
+
+  const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
+  console.log(`[ecom-schema-sync] Complete (${elapsed}s) — ${created} tables, ${added} columns, ${errors} errors`);
+}
+
 export async function fullSchemaSync(): Promise<void> {
   console.log("[schema-sync] Starting full schema sync...");
   const t0 = Date.now();
@@ -249,4 +350,6 @@ export async function fullSchemaSync(): Promise<void> {
   } else {
     console.log(`[schema-sync] Complete (${elapsed}s) — ${totalChanges} change(s), ${totalErrors} error(s)`);
   }
+
+  await syncEcomSchema();
 }

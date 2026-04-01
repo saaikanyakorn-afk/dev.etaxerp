@@ -1,4 +1,5 @@
 import { db } from "./db";
+import { ecomDb } from "./ecom-db";
 import { syncJobQueue, ecommerceConnections, companies, tenantPlatformCredentials, syncLogs } from "@shared/schema";
 import { eq, and, lte, sql, asc } from "drizzle-orm";
 
@@ -76,7 +77,7 @@ async function processJob(jobId: number) {
       return;
     }
 
-    const [conn] = await db.select().from(ecommerceConnections).where(eq(ecommerceConnections.id, job.connectionId));
+    const [conn] = await ecomDb.select().from(ecommerceConnections).where(eq(ecommerceConnections.id, job.connectionId));
     if (!conn || conn.status !== "connected" || !conn.accessToken) {
       await db.update(syncJobQueue).set({
         status: "failed",
@@ -161,9 +162,9 @@ async function processJob(jobId: number) {
 
     const recordCount = Array.isArray(result?.data) ? result.data.length : (result ? 1 : 0);
 
-    await db.update(ecommerceConnections).set({ lastSyncAt: new Date() }).where(eq(ecommerceConnections.id, conn.id));
+    await ecomDb.update(ecommerceConnections).set({ lastSyncAt: new Date() }).where(eq(ecommerceConnections.id, conn.id));
 
-    await db.insert(syncLogs).values({
+    await ecomDb.insert(syncLogs).values({
       connectionId: conn.id,
       companyId: conn.companyId,
       platform: conn.platform,

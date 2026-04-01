@@ -1,5 +1,6 @@
 import type { Express } from "express";
 import { db } from "../db";
+import { ecomDb } from "../ecom-db";
 import { eq, desc, and, sql } from "drizzle-orm";
 import { stockSyncSettings, stockSyncLogs } from "@shared/schema";
 import { createRouteGroup, notFound, forbidden } from "../route-factory";
@@ -37,7 +38,7 @@ r.companyRoute("post", "/api/ecommerce/stock-sync/settings/:id/toggle", async ({
 
 r.companyRoute("post", "/api/ecommerce/stock-sync/trigger", async ({ companyId, req }) => {
   const { platform } = req.body;
-  await db.insert(stockSyncLogs).values({
+  await ecomDb.insert(stockSyncLogs).values({
     companyId, platform: platform || "all", direction: "push",
     status: "success", triggeredBy: "manual",
   });
@@ -55,16 +56,16 @@ r.companyRoute("get", "/api/ecommerce/stock-sync/logs", async ({ companyId, req 
   const platform = req.query.platform ? String(req.query.platform) : undefined;
   const conditions: any[] = [eq(stockSyncLogs.companyId, companyId)];
   if (platform) conditions.push(eq(stockSyncLogs.platform, platform));
-  const logs = await db.select().from(stockSyncLogs).where(and(...conditions)).orderBy(desc(stockSyncLogs.createdAt)).limit(limit).offset(offset);
-  const [{ total }] = await db.select({ total: sql<number>`count(*)` }).from(stockSyncLogs).where(and(...conditions));
+  const logs = await ecomDb.select().from(stockSyncLogs).where(and(...conditions)).orderBy(desc(stockSyncLogs.createdAt)).limit(limit).offset(offset);
+  const [{ total }] = await ecomDb.select({ total: sql<number>`count(*)` }).from(stockSyncLogs).where(and(...conditions));
   return { logs, total: Number(total), page, limit };
 });
 
 r.companyRoute("get", "/api/ecommerce/stock-sync/dashboard", async ({ companyId }) => {
   const settings = await db.select().from(stockSyncSettings).where(eq(stockSyncSettings.companyId, companyId));
-  const successLogs = await db.select({ total: sql<number>`count(*)` }).from(stockSyncLogs)
+  const successLogs = await ecomDb.select({ total: sql<number>`count(*)` }).from(stockSyncLogs)
     .where(and(eq(stockSyncLogs.companyId, companyId), eq(stockSyncLogs.status, "success")));
-  const failedLogs = await db.select({ total: sql<number>`count(*)` }).from(stockSyncLogs)
+  const failedLogs = await ecomDb.select({ total: sql<number>`count(*)` }).from(stockSyncLogs)
     .where(and(eq(stockSyncLogs.companyId, companyId), eq(stockSyncLogs.status, "failed")));
   const platformStats = settings.map(s => ({
     platform: s.platform, isEnabled: s.isEnabled, lastSyncAt: s.lastSyncAt,

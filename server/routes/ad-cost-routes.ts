@@ -1,5 +1,6 @@
 import type { Express, Request, Response } from "express";
 import { db } from "../db";
+import { ecomDb } from "../ecom-db";
 import { eq, desc, and, gte, lte, count, sum , sql } from "drizzle-orm";
 import { companies, ecommerceOrders, activityLogs, products, adCampaigns, adSpendEntries, ecommerceConnections, ecommerceProductMappings } from "@shared/schema";
 import { requireAuth, requireModule, checkDocOwnership } from "../route-middleware";
@@ -16,7 +17,7 @@ app.get("/api/ads/campaigns", requireAuth, async (req, res) => {
     if (!company || (company.tenantId && user.tenantId && company.tenantId !== user.tenantId)) {
       return res.status(403).json({ message: "ไม่มีสิทธิ์" });
     }
-    const list = await db.select().from(adCampaigns).where(eq(adCampaigns.companyId, companyId)).orderBy(desc(adCampaigns.createdAt));
+    const list = await ecomDb.select().from(adCampaigns).where(eq(adCampaigns.companyId, companyId)).orderBy(desc(adCampaigns.createdAt));
     res.json(list);
   } catch (err: any) { res.status(500).json({ message: err.message }); }
 });
@@ -29,7 +30,7 @@ app.post("/api/ads/campaigns", requireAuth, async (req, res) => {
     if (!company || (company.tenantId && user.tenantId && company.tenantId !== user.tenantId)) {
       return res.status(403).json({ message: "ไม่มีสิทธิ์" });
     }
-    const [created] = await db.insert(adCampaigns).values(data).returning();
+    const [created] = await ecomDb.insert(adCampaigns).values(data).returning();
     res.json(created);
   } catch (err: any) { res.status(400).json({ message: err.message }); }
 });
@@ -38,7 +39,7 @@ app.put("/api/ads/campaigns/:id", requireAuth, async (req, res) => {
   try {
     const user = req.user as any;
     const id = Number(req.params.id);
-    const [existing] = await db.select().from(adCampaigns).where(eq(adCampaigns.id, id));
+    const [existing] = await ecomDb.select().from(adCampaigns).where(eq(adCampaigns.id, id));
     if (!existing) return res.status(404).json({ message: "ไม่พบแคมเปญ" });
     { const ac = await checkDocOwnership(existing.companyId, req.user); if (!ac.allowed) return res.status(403).json({ message: ac.message }); }
     const [company] = await db.select().from(companies).where(eq(companies.id, existing.companyId));
@@ -46,7 +47,7 @@ app.put("/api/ads/campaigns/:id", requireAuth, async (req, res) => {
       return res.status(403).json({ message: "ไม่มีสิทธิ์" });
     }
     const { companyId, tenantId, ...updateData } = req.body;
-    const [updated] = await db.update(adCampaigns).set(updateData).where(eq(adCampaigns.id, id)).returning();
+    const [updated] = await ecomDb.update(adCampaigns).set(updateData).where(eq(adCampaigns.id, id)).returning();
     res.json(updated);
   } catch (err: any) { res.status(400).json({ message: err.message }); }
 });
@@ -55,7 +56,7 @@ app.delete("/api/ads/campaigns/:id", requireAuth, async (req, res) => {
   try {
     const user = req.user as any;
     const id = Number(req.params.id);
-    const [existing] = await db.select().from(adCampaigns).where(eq(adCampaigns.id, id));
+    const [existing] = await ecomDb.select().from(adCampaigns).where(eq(adCampaigns.id, id));
     if (!existing) return res.status(404).json({ message: "ไม่พบแคมเปญ" });
     { const ac = await checkDocOwnership(existing.companyId, req.user); if (!ac.allowed) return res.status(403).json({ message: ac.message }); }
     const [company] = await db.select().from(companies).where(eq(companies.id, existing.companyId));
@@ -63,7 +64,7 @@ app.delete("/api/ads/campaigns/:id", requireAuth, async (req, res) => {
       return res.status(403).json({ message: "ไม่มีสิทธิ์" });
     }
     await db.delete(adSpendEntries).where(eq(adSpendEntries.campaignId, id));
-    await db.delete(adCampaigns).where(eq(adCampaigns.id, id));
+    await ecomDb.delete(adCampaigns).where(eq(adCampaigns.id, id));
     res.json({ success: true });
   } catch (err: any) { res.status(500).json({ message: err.message }); }
 });
@@ -167,7 +168,7 @@ app.get("/api/ads/summary", requireAuth, async (req, res) => {
     if (startDate) orderConditions.push(gte(ecommerceOrders.orderDate, startDate));
     if (endDate) orderConditions.push(lte(ecommerceOrders.orderDate, endDate));
 
-    const [orderTotals] = await db.select({
+    const [orderTotals] = await ecomDb.select({
       totalOrderRevenue: sql<string>`COALESCE(sum(${ecommerceOrders.totalAmount}::numeric), 0)`,
       totalOrderCount: sql<number>`count(*)::int`,
     }).from(ecommerceOrders).where(and(...orderConditions));
@@ -253,7 +254,7 @@ app.get("/api/ecommerce/clone/connections", requireAuth, requireModule("ecommerc
     if (!company || (company.tenantId && user.tenantId && company.tenantId !== user.tenantId)) {
       return res.status(403).json({ message: "ไม่มีสิทธิ์เข้าถึง" });
     }
-    const connections = await db.select().from(ecommerceConnections)
+    const connections = await ecomDb.select().from(ecommerceConnections)
       .where(eq(ecommerceConnections.companyId, companyId))
       .orderBy(ecommerceConnections.platform, ecommerceConnections.shopName);
     res.json(connections);
@@ -270,7 +271,7 @@ app.get("/api/ecommerce/clone/products", requireAuth, requireModule("ecommerce")
     if (!company || (company.tenantId && user.tenantId && company.tenantId !== user.tenantId)) {
       return res.status(403).json({ message: "ไม่มีสิทธิ์เข้าถึง" });
     }
-    const conn = await db.select().from(ecommerceConnections)
+    const conn = await ecomDb.select().from(ecommerceConnections)
       .where(and(eq(ecommerceConnections.id, connectionId), eq(ecommerceConnections.companyId, companyId)))
       .then(r => r[0]);
     if (!conn) return res.status(404).json({ message: "ไม่พบร้านค้า" });
@@ -329,7 +330,7 @@ app.post("/api/ecommerce/clone", requireAuth, requireModule("ecommerce"), async 
     if (!company || (company.tenantId && user.tenantId && company.tenantId !== user.tenantId)) {
       return res.status(403).json({ message: "ไม่มีสิทธิ์เข้าถึง" });
     }
-    const targetConn = await db.select().from(ecommerceConnections)
+    const targetConn = await ecomDb.select().from(ecommerceConnections)
       .where(and(eq(ecommerceConnections.id, targetConnectionId), eq(ecommerceConnections.companyId, companyId)))
       .then(r => r[0]);
     if (!targetConn) return res.status(404).json({ message: "ไม่พบร้านค้าปลายทาง" });
@@ -348,7 +349,7 @@ app.post("/api/ecommerce/clone", requireAuth, requireModule("ecommerce"), async 
 
       const sku = item.platformSku || prod.code || `SKU-${productId}-${targetConn.platform}`;
 
-      const existingByProduct = await db.select().from(ecommerceProductMappings)
+      const existingByProduct = await ecomDb.select().from(ecommerceProductMappings)
         .where(and(
           eq(ecommerceProductMappings.companyId, companyId),
           eq(ecommerceProductMappings.connectionId, targetConnectionId),
@@ -356,7 +357,7 @@ app.post("/api/ecommerce/clone", requireAuth, requireModule("ecommerce"), async 
         )).then(r => r[0]);
       if (existingByProduct) { skipped++; continue; }
 
-      const existingBySku = await db.select().from(ecommerceProductMappings)
+      const existingBySku = await ecomDb.select().from(ecommerceProductMappings)
         .where(and(
           eq(ecommerceProductMappings.companyId, companyId),
           eq(ecommerceProductMappings.connectionId, targetConnectionId),
@@ -364,7 +365,7 @@ app.post("/api/ecommerce/clone", requireAuth, requireModule("ecommerce"), async 
         )).then(r => r[0]);
       if (existingBySku) { skipped++; continue; }
 
-      await db.insert(ecommerceProductMappings).values({
+      await ecomDb.insert(ecommerceProductMappings).values({
         companyId,
         productId,
         connectionId: targetConnectionId,

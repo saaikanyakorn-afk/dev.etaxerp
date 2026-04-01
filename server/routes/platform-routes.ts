@@ -1,5 +1,6 @@
 import type { Express, Request, Response } from "express";
 import { db, pool, activeDbInfo } from "../db";
+import { ecomDb } from "../ecom-db";
 import { storage } from "../storage";
 import { eq, desc, and, notInArray, count , sql } from "drizzle-orm";
 import { users, tenants, companies, cloneHistory, ecommerceOrders, ecommerceOrderItems, invoices, products } from "@shared/schema";
@@ -1550,7 +1551,7 @@ app.post("/api/seed-demo", requireAuth, requireAdmin, async (_req, res) => {
     ];
     const connectionIds: Record<string, number> = {};
     for (const p of platforms) {
-      const [conn] = await db.insert(ecommerceConnections).values({
+      const [conn] = await ecomDb.insert(ecommerceConnections).values({
         companyId: demoCompany.id,
         platform: p.platform,
         shopName: p.shopName,
@@ -1589,7 +1590,7 @@ app.post("/api/seed-demo", requireAuth, requireAdmin, async (_req, res) => {
         const dayOffset = Math.floor(Math.random() * 30);
         const placedAt = new Date(Date.now() - dayOffset * 86400000);
 
-        const [order] = await db.insert(ecommerceOrders).values({
+        const [order] = await ecomDb.insert(ecommerceOrders).values({
           companyId: demoCompany.id,
           connectionId: connId,
           platform: platform,
@@ -1614,7 +1615,7 @@ app.post("/api/seed-demo", requireAuth, requireAdmin, async (_req, res) => {
           settlementStatus: status === "delivered" ? "settled" : "pending",
         }).returning();
 
-        await db.insert(ecommerceOrderItems).values({
+        await ecomDb.insert(ecommerceOrderItems).values({
           orderId: order.id,
           productId: product.id,
           platformSku: product.sku,

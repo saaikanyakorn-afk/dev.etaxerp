@@ -1,4 +1,5 @@
 import { db } from "./db";
+import { ecomDb } from "./ecom-db";
 import { eq } from "drizzle-orm";
 import {
   customers, ecommerceOrders, ecommerceOrderItems, ecommerceReturns, ecommerceReturnItems,
@@ -36,7 +37,7 @@ export async function seedDemoExtraData(
     createdCustomers.push(cust);
   }
 
-  const deliveredOrders = await db.select().from(ecommerceOrders)
+  const deliveredOrders = await ecomDb.select().from(ecommerceOrders)
     .where(eq(ecommerceOrders.companyId, companyId))
     .limit(100);
   const deliveredOnly = deliveredOrders.filter(o => o.status === "delivered");
@@ -48,7 +49,7 @@ export async function seedDemoExtraData(
     const reason = returnReasons[Math.floor(Math.random() * returnReasons.length)];
     const rStatus = returnStatuses[Math.floor(Math.random() * returnStatuses.length)];
     const requestedAt = new Date(Date.now() - Math.floor(Math.random() * 14) * 86400000);
-    const [ret] = await db.insert(ecommerceReturns).values({
+    const [ret] = await ecomDb.insert(ecommerceReturns).values({
       companyId,
       orderId: order.id,
       platform: order.platform!,
@@ -69,9 +70,9 @@ export async function seedDemoExtraData(
       completedAt: rStatus === "completed" ? new Date(requestedAt.getTime() + 5 * 86400000) : null,
     }).returning();
 
-    const orderItems = await db.select().from(ecommerceOrderItems).where(eq(ecommerceOrderItems.orderId, order.id));
+    const orderItems = await ecomDb.select().from(ecommerceOrderItems).where(eq(ecommerceOrderItems.orderId, order.id));
     for (const item of orderItems) {
-      await db.insert(ecommerceReturnItems).values({
+      await ecomDb.insert(ecommerceReturnItems).values({
         returnId: ret.id,
         orderItemId: item.id,
         productId: item.productId,
@@ -99,7 +100,7 @@ export async function seedDemoExtraData(
       const netAmount = totalSales - commission - serviceFee - shippingCost - paymentFee;
       const walletStatus = week >= 2 ? "withdrawn" : "in_wallet";
 
-      await db.insert(ecommerceSettlements).values({
+      await ecomDb.insert(ecommerceSettlements).values({
         companyId,
         connectionId: connId,
         platform,
