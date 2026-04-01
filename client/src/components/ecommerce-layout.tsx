@@ -54,6 +54,7 @@ import {
   Users,
   FileCheck,
   Receipt,
+  ReceiptText,
   FileBadge,
   Sparkles,
   Calculator,
@@ -100,12 +101,11 @@ const ECOMMERCE_NAV: NavItem[] = [
     ],
   },
   {
-    label: "เอกสารขาย", icon: FileCheck, href: "/sales/quote",
+    label: "เอกสารขาย", icon: FileCheck, href: "/ecommerce/quick-invoice",
     children: [
-      { label: "ใบเสนอราคา [QO]", href: "/sales/quote", icon: FileText },
-      { label: "ใบแจ้งหนี้ [IV]", href: "/sales/invoice", icon: FileBadge },
-      { label: "ใบกำกับภาษี [TX]", href: "/sales/tax-invoice", icon: FileCheck },
-      { label: "ใบเสร็จรับเงิน [RC]", href: "/sales/receipt", icon: Receipt },
+      { label: "ออกบิลหน้าร้าน [WK]", href: "/ecommerce/quick-invoice", icon: ReceiptText },
+      { label: "ใบเสนอราคา [QO]", href: "/ecommerce/quotes", icon: FileText },
+      { label: "ใบกำกับภาษี [TIV]", href: "/ecommerce/documents", icon: FileCheck },
     ],
   },
   {
