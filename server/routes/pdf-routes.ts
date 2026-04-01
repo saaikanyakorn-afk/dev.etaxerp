@@ -7,6 +7,70 @@ import { generatePdfDirect } from "../pdf-react-generator";
 import { buildPdfDataById, buildPdfDataByToken } from "../pdf-data-fetcher";
 
 export function registerPdfRoutes(app: Express) {
+
+app.post("/api/pdf/demo-generate", requireAuth, async (req, res) => {
+  try {
+    const startMem = process.memoryUsage();
+    console.log(`[Demo PDF] Starting real generatePdfDirect with fake data...`);
+    const t0 = Date.now();
+
+    const fakePdfOpts = {
+      document: {
+        docNo: "DEMO-TIV-001",
+        date: new Date().toISOString(),
+        customerName: "บริษัท ทดสอบ Demo จำกัด",
+        customerAddress: "123/456 ถนนสุขุมวิท แขวงคลองตัน เขตคลองเตย กรุงเทพมหานคร 10110",
+        customerTaxId: "0105500000001",
+        customerBranch: "สำนักงานใหญ่",
+        subtotal: "10000.00",
+        discountAmount: "0.00",
+        afterDiscount: "10000.00",
+        vatAmount: "700.00",
+        totalAmount: "10700.00",
+        totalAmountText: "หนึ่งหมื่นเจ็ดร้อยบาทถ้วน",
+        items: Array.from({ length: 50 }, (_, i) => ({
+          no: i + 1,
+          description: `รายการสินค้าทดสอบ Demo #${i + 1} — สินค้าตัวอย่างสำหรับทดสอบระบบ PDF`,
+          quantity: "10",
+          unit: "ชิ้น",
+          unitPrice: "200.00",
+          amount: "2000.00",
+        })),
+      },
+      company: {
+        id: 0,
+        name: "บริษัท อีแท็กซ์เซ็นเตอร์ (Demo) จำกัด",
+        nameEn: "E-Tax Center Demo Co., Ltd.",
+        address: "999/99 อาคารทดสอบ ถนนรัชดาภิเษก แขวงจตุจักร เขตจตุจักร กรุงเทพมหานคร 10900",
+        taxId: "0105500000099",
+        phone: "02-999-9999",
+        branch: "สำนักงานใหญ่",
+      },
+      printType: "tax_invoice",
+    };
+
+    const pdfBuffer = await generatePdfDirect(fakePdfOpts as any);
+    const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
+    const endMem = process.memoryUsage();
+    console.log(`[Demo PDF] Complete in ${elapsed}s — RSS: ${Math.round(startMem.rss / 1024 / 1024)}MB → ${Math.round(endMem.rss / 1024 / 1024)}MB, PDF size: ${pdfBuffer.length} bytes`);
+
+    res.json({
+      success: true,
+      message: `สร้าง PDF Demo สำเร็จ (${elapsed} วินาที, ${Math.round(pdfBuffer.length / 1024)} KB)`,
+      stats: {
+        elapsedSec: parseFloat(elapsed),
+        pdfSizeKB: Math.round(pdfBuffer.length / 1024),
+        memoryBeforeMB: Math.round(startMem.rss / 1024 / 1024),
+        memoryAfterMB: Math.round(endMem.rss / 1024 / 1024),
+        items: 50,
+      },
+    });
+  } catch (err: any) {
+    console.error("[Demo PDF] Error:", err.message);
+    res.status(500).json({ success: false, message: "สร้าง PDF ล้มเหลว: " + err.message });
+  }
+});
+
 // ========== PDF Generation & E-Document Delivery ==========
 async function ensureShareToken(docType: string, docId: number): Promise<string> {
   const { randomBytes } = await import("crypto");
