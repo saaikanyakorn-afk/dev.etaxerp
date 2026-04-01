@@ -32,13 +32,13 @@ export function registerPosRoutes(app: Express) {
           resolvedBranchName = branch.name;
           resolvedWarehouseId = branch.warehouseId || null;
           if (!resolvedWarehouseId) {
-            const [defaultWh] = await db.select().from(warehouses)
+            const [defaultWh] = await posDb.select().from(warehouses)
               .where(and(eq(warehouses.companyId, Number(companyId)), eq(warehouses.isDefault, true)));
             resolvedWarehouseId = defaultWh?.id || null;
           }
         }
       } else {
-        const [defaultWh] = await db.select().from(warehouses)
+        const [defaultWh] = await posDb.select().from(warehouses)
           .where(and(eq(warehouses.companyId, Number(companyId)), eq(warehouses.isDefault, true)));
         resolvedWarehouseId = defaultWh?.id || null;
       }
@@ -524,12 +524,12 @@ export function registerPosRoutes(app: Express) {
             ).catch(e => console.error(`POS stock deduction failed for product ${pi.productId}:`, e.message));
             if (sessionWarehouseId) {
               try {
-                const [wsl] = await db.select().from(warehouseStockLevels)
+                const [wsl] = await posDb.select().from(warehouseStockLevels)
                   .where(and(eq(warehouseStockLevels.warehouseId, sessionWarehouseId), eq(warehouseStockLevels.productId, Number(pi.productId))));
                 const currentQty = Number(wsl?.quantity || "0");
                 const newQty = Math.max(0, currentQty - qty);
                 if (wsl) {
-                  await db.update(warehouseStockLevels).set({ quantity: String(newQty) }).where(eq(warehouseStockLevels.id, wsl.id));
+                  await posDb.update(warehouseStockLevels).set({ quantity: String(newQty) }).where(eq(warehouseStockLevels.id, wsl.id));
                 }
               } catch (e: any) { console.error(`POS warehouse stock deduction failed:`, e.message); }
             }
@@ -660,7 +660,7 @@ export function registerPosRoutes(app: Express) {
       const limit = Math.min(Number(req.query.limit) || 500, 1000);
       const offset = Math.max(Number(req.query.offset) || 0, 0);
 
-      const result = await db.select().from(products)
+      const result = await posDb.select().from(products)
         .where(and(...conditions))
         .orderBy(asc(products.name))
         .limit(limit)
@@ -672,11 +672,11 @@ export function registerPosRoutes(app: Express) {
   app.get("/api/pos/bundles/:productId", requireAuth, requireModule("pos"), async (req, res) => {
     try {
       const productId = Number(req.params.productId);
-      const bundles = await db.select().from(productBundles).where(eq(productBundles.bundleProductId, productId));
+      const bundles = await posDb.select().from(productBundles).where(eq(productBundles.bundleProductId, productId));
       if (req.query.enriched === "1") {
         const productIds = [...new Set(bundles.map(b => b.componentProductId))];
         const prods = productIds.length > 0
-          ? await db.select().from(products).where(sql`${products.id} IN (${sql.join(productIds.map(id => sql`${id}`), sql`,`)})`)
+          ? await posDb.select().from(products).where(sql`${products.id} IN (${sql.join(productIds.map(id => sql`${id}`), sql`,`)})`)
           : [];
         const prodMap = new Map(prods.map(p => [p.id, p]));
         const enriched = bundles.map(b => {
@@ -927,7 +927,7 @@ export function registerPosRoutes(app: Express) {
       const branchList = await db.select().from(branches)
         .where(and(eq(branches.companyId, companyId), eq(branches.active, true)))
         .orderBy(branches.code);
-      const warehouseList = await db.select().from(warehouses)
+      const warehouseList = await posDb.select().from(warehouses)
         .where(and(eq(warehouses.companyId, companyId), eq(warehouses.active, true)));
       const whMap = new Map(warehouseList.map(w => [w.id, w]));
       const result = branchList.map(b => ({
@@ -946,7 +946,7 @@ export function registerPosRoutes(app: Express) {
 
       const branchCode = code || String(await db.select({ cnt: count() }).from(branches).where(eq(branches.companyId, Number(companyId))).then(r => (r[0]?.cnt || 0) + 1)).padStart(5, "0");
 
-      const [wh] = await db.insert(warehouses).values({
+      const [wh] = await posDb.insert(warehouses).values({
         companyId: Number(companyId),
         code: `WH-${branchCode}`,
         name: `คลัง ${name}`,
@@ -993,7 +993,7 @@ export function registerPosRoutes(app: Express) {
       const [updated] = await db.update(branches).set(updateData).where(eq(branches.id, id)).returning();
 
       if (updated.warehouseId && name) {
-        await db.update(warehouses).set({ name: `คลัง ${name}` }).where(eq(warehouses.id, updated.warehouseId));
+        await posDb.update(warehouses).set({ name: `คลัง ${name}` }).where(eq(warehouses.id, updated.warehouseId));
       }
 
       res.json(updated);
@@ -1051,7 +1051,7 @@ export function registerPosRoutes(app: Express) {
       if (!companyId) return res.status(400).json({ message: "กรุณาระบุบริษัท" });
 
       if (warehouseId) {
-        const levels = await db.select({
+        const levels = await posDb.select({
           productId: warehouseStockLevels.productId,
           quantity: warehouseStockLevels.quantity,
         }).from(warehouseStockLevels).where(eq(warehouseStockLevels.warehouseId, warehouseId));
