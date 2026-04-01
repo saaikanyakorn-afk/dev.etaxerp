@@ -5993,5 +5993,124 @@ app.get("/api/ecommerce/summary-invoice/:id/details", requireAuth, requireModule
   } catch (err: any) { res.status(500).json({ message: err.message }); }
 });
 
-// Live Selling routes registered via registerLiveSellingRoutes(app)
+app.post("/api/ecommerce/quick-invoice", requireAuth, requireModule("ecommerce"), async (req, res) => {
+  try {
+    const companyId = Number(req.query.companyId || (req.user as any)?.primaryCompanyId);
+    if (!companyId) return res.status(400).json({ message: "กรุณาเลือกบริษัท" });
+
+    const {
+      customerName, customerTaxId, customerAddress, customerPhone,
+      items, paymentMethod, notes, docDate,
+    } = req.body;
+
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ message: "กรุณาเพิ่มรายการสินค้าอย่างน้อย 1 รายการ" });
+    }
+
+    const [company] = await db.select().from(companies).where(eq(companies.id, companyId));
+    if (!company) return res.status(404).json({ message: "ไม่พบบริษัท" });
+
+    const isVat = company.vatRegistered !== false;
+    const invoiceDate = docDate || new Date().toISOString().split("T")[0];
+
+    let subtotal = 0;
+    let totalVat = 0;
+    const processedItems = items.map((item: any, idx: number) => {
+      const qty = parseFloat(item.qty || "1");
+      const unitPrice = parseFloat(item.unitPrice || "0");
+      const discount = parseFloat(item.discount || "0");
+      const lineTotal = qty * unitPrice - discount;
+      const vatType = item.vatType || (isVat ? "vat7" : "vat0");
+
+      let itemVat = 0;
+      let itemBeforeVat = lineTotal;
+      if (vatType === "vat7" && isVat) {
+        itemBeforeVat = lineTotal / 1.07;
+        itemVat = lineTotal - itemBeforeVat;
+      }
+
+      subtotal += lineTotal;
+      totalVat += itemVat;
+
+      return {
+        productCode: item.productCode || null,
+        productName: item.productName || `สินค้า #${idx + 1}`,
+        qty: String(qty),
+        unit: item.unit || "ชิ้น",
+        unitPrice: unitPrice.toFixed(2),
+        discount: discount.toFixed(2),
+        total: lineTotal.toFixed(2),
+        vatType,
+      };
+    });
+
+    const totalAmount = subtotal;
+    const subtotalBeforeVat = subtotal - totalVat;
+
+    const taxInvoiceNo = await getNextDocNo(
+      companyId, "WK", taxInvoices, taxInvoices.taxInvoiceNo, taxInvoices.companyId,
+      invoiceDate, "tax_invoice", ecomDb
+    );
+
+    const result = await ecomDb.transaction(async (tx: any) => {
+      const [doc] = await tx.insert(taxInvoices).values({
+        companyId,
+        taxInvoiceNo,
+        taxInvoiceDate: invoiceDate,
+        customerName: customerName || "ลูกค้าทั่วไป",
+        customerTaxId: customerTaxId || null,
+        customerAddress: customerAddress || null,
+        customerPhone: customerPhone || null,
+        subtotal: subtotalBeforeVat.toFixed(2),
+        vatAmount: totalVat.toFixed(2),
+        totalAmount: totalAmount.toFixed(2),
+        paymentMethod: paymentMethod || "เงินสด",
+        notes: notes || "ขายหน้าร้าน (Quick Invoice)",
+        status: "approved",
+        docPrefix: "WK",
+        refDoc: "Walk-in",
+        createdBy: (req.user as any)?.id,
+      }).returning();
+
+      for (const item of processedItems) {
+        await tx.insert(taxInvoiceItems).values({
+          taxInvoiceId: doc.id,
+          ...item,
+        });
+      }
+
+      return doc;
+    });
+
+    res.json({
+      success: true,
+      taxInvoice: result,
+      message: `ออกใบกำกับภาษี ${taxInvoiceNo} สำเร็จ`,
+    });
+  } catch (err: any) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+app.get("/api/ecommerce/quick-invoice/recent", requireAuth, requireModule("ecommerce"), async (req, res) => {
+  try {
+    const companyId = Number(req.query.companyId || (req.user as any)?.primaryCompanyId);
+    if (!companyId) return res.status(400).json({ message: "กรุณาเลือกบริษัท" });
+
+    const limit = Math.min(Number(req.query.limit) || 20, 100);
+    const docs = await ecomDb.select().from(taxInvoices)
+      .where(and(
+        eq(taxInvoices.companyId, companyId),
+        eq(taxInvoices.docPrefix, "WK"),
+      ))
+      .orderBy(desc(taxInvoices.id))
+      .limit(limit);
+
+    res.json(docs);
+  } catch (err: any) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 }
+
