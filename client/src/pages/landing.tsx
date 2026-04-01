@@ -829,17 +829,17 @@ export default function LandingPage() {
               <h1 className="text-4xl sm:text-5xl lg:text-[60px] font-extrabold text-gray-900 leading-tight sm:leading-tight lg:leading-tight mb-6 tracking-tight">
                 <span className="text-[#03c9d7]">E-Tax Center</span>
                 <br />
-                <span className="bg-clip-text text-transparent bg-[linear-gradient(135deg,#03c9d7_0%,#05b187_100%)]">บริหารจัดการธุรกิจ</span>
+                ระบบบริหารจัดการธุรกิจ
                 <br />
-                ครบวงจร
+                <span className="bg-clip-text text-transparent bg-[linear-gradient(135deg,#03c9d7_0%,#05b187_100%)]">ที่ทรงพลังที่สุด</span>
               </h1>
             </AnimateOnScroll>
 
             <AnimateOnScroll delay={0.3}>
               <p className="text-lg sm:text-xl text-gray-500 mb-8 max-w-2xl mx-auto leading-relaxed">
-                อีคอมเมิร์ซ · บัญชี · POS · HR · คลังสินค้า · จัดส่ง
+                ระบบบริหารจัดการธุรกิจครบวงจรที่ออกแบบมาเพื่อ SME ไทย
                 <br className="hidden sm:block" />
-                เลือกซื้อเฉพาะโมดูลที่ต้องการ ธุรกิจโตก็เพิ่มได้ทันที ไม่ต้องเปลี่ยนระบบ
+                อีคอมเมิร์ซ · บัญชี · POS · HR · คลังสินค้า · จัดส่ง — ไม่ต้องใช้ 10 โปรแกรม
               </p>
             </AnimateOnScroll>
 
