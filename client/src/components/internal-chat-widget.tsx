@@ -527,9 +527,10 @@ export default function InternalChatWidget() {
     setSelectedUserIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
   };
 
-  if (!user) return null;
-
   const pathname = window.location.pathname;
+  const isPublicPage = pathname === "/" || pathname === "/landing" || pathname === "/about" || pathname === "/register" || pathname === "/login" || pathname.startsWith("/pricing") || pathname.startsWith("/ecommerce-pricing") || pathname.startsWith("/food-delivery-pricing") || pathname.startsWith("/accounting-pricing");
+
+  if (!user || isPublicPage) return null;
   if (pathname === "/office/chat") return null;
 
   return (
