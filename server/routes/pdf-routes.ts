@@ -29,11 +29,15 @@ app.post("/api/pdf/demo-generate", requireAuth, async (req, res) => {
         withholdingTax: 0,
         items: Array.from({ length: 50 }, (_, i) => ({
           no: i + 1,
+          productCode: `DEMO-${String(i + 1).padStart(3, "0")}`,
+          productName: `สินค้าทดสอบ Demo #${i + 1}`,
           description: `รายการสินค้าทดสอบ Demo #${i + 1} — สินค้าตัวอย่างสำหรับทดสอบระบบ PDF Generation`,
-          quantity: 10,
+          qty: 10,
           unit: "ชิ้น",
           unitPrice: 200,
-          amount: 2000,
+          discount: 0,
+          discountType: "amount",
+          total: 2000,
         })),
       },
       company: {
