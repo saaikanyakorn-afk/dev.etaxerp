@@ -3,9 +3,13 @@ import { db } from "../db";
 import { posDb } from "../pos-db";
 import { storage } from "../storage";
 import { eq, and, desc, asc, sql, count, ilike, inArray, or } from "drizzle-orm";
-import { posSessions, posTransactions, posTransactionItems, products, productBundles, companies, taxInvoices, taxInvoiceItems, documentSettings, branches, warehouses, warehouseStockLevels, paymentMethods } from "@shared/schema";
+import { posSessions, posTransactions, posTransactionItems, products, productBundles, companies, taxInvoices, taxInvoiceItems, documentSettings, branches, warehouses, warehouseStockLevels, paymentMethods, users } from "@shared/schema";
 import { requireAuth, requireModule , checkDocOwnership} from "../route-middleware";
 import { getNextDocNo, createAutoJournalEntry } from "../route-helpers";
+import { hashPassword } from "../auth";
+import multer from "multer";
+import * as XLSX from "xlsx";
+const staffUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
 import { generatePromptPayQRData } from "../utils/promptpay-qr";
 import QRCode from "qrcode";
 
@@ -1471,6 +1475,166 @@ export function registerPosRoutes(app: Express) {
         .orderBy(sql`EXTRACT(HOUR FROM ${posTransactions.createdAt})`);
 
       res.json({ summary: sales[0], sessions, hourly });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // ==================== POS STAFF MANAGEMENT ====================
+
+  app.get("/api/pos/staff", requireAuth, requireModule("pos"), async (req, res) => {
+    try {
+      const currentUser = req.user as any;
+      const tenantId = currentUser.tenantId;
+      if (!tenantId) return res.status(403).json({ message: "ไม่มีสิทธิ์" });
+
+      const allUsers = await db.select({
+        id: users.id,
+        username: users.username,
+        fullName: users.fullName,
+        role: users.role,
+        active: users.active,
+        allowedCompanyIds: users.allowedCompanyIds,
+        allowedBranchIds: users.allowedBranchIds,
+      }).from(users).where(eq(users.tenantId, tenantId));
+
+      const allBranches = await db.select().from(branches);
+
+      const staffList = allUsers.map(u => ({
+        ...u,
+        branchNames: u.allowedBranchIds?.map(bid => {
+          const b = allBranches.find(br => br.id === bid);
+          return b ? b.name : `สาขา #${bid}`;
+        }) || [],
+      }));
+
+      res.json(staffList);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.post("/api/pos/staff", requireAuth, requireModule("pos"), async (req, res) => {
+    try {
+      const currentUser = req.user as any;
+      const tenantId = currentUser.tenantId;
+      if (!tenantId) return res.status(403).json({ message: "ไม่มีสิทธิ์" });
+
+      const { username, password, fullName, role, allowedCompanyIds, allowedBranchIds } = req.body;
+      if (!username || !password || !fullName) return res.status(400).json({ message: "กรุณากรอกข้อมูลให้ครบ" });
+
+      const existing = await db.select().from(users).where(eq(users.username, username));
+      if (existing.length > 0) return res.status(400).json({ message: `ชื่อผู้ใช้ "${username}" ถูกใช้แล้ว` });
+
+      const hashed = await hashPassword(password);
+      const [newUser] = await db.insert(users).values({
+        username,
+        password: hashed,
+        fullName,
+        role: role || "staff",
+        active: true,
+        tenantId,
+        allowedCompanyIds: allowedCompanyIds || [],
+        allowedBranchIds: allowedBranchIds || [],
+      }).returning();
+
+      res.json(newUser);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.put("/api/pos/staff/:id", requireAuth, requireModule("pos"), async (req, res) => {
+    try {
+      const currentUser = req.user as any;
+      const tenantId = currentUser.tenantId;
+      const staffId = Number(req.params.id);
+
+      const [target] = await db.select().from(users).where(and(eq(users.id, staffId), eq(users.tenantId, tenantId)));
+      if (!target) return res.status(404).json({ message: "ไม่พบพนักงาน" });
+
+      const { fullName, role, active, allowedCompanyIds, allowedBranchIds, password } = req.body;
+      const updates: any = {};
+      if (fullName !== undefined) updates.fullName = fullName;
+      if (role !== undefined) updates.role = role;
+      if (active !== undefined) updates.active = active;
+      if (allowedCompanyIds !== undefined) updates.allowedCompanyIds = allowedCompanyIds;
+      if (allowedBranchIds !== undefined) updates.allowedBranchIds = allowedBranchIds;
+      if (password) updates.password = await hashPassword(password);
+
+      const [updated] = await db.update(users).set(updates).where(eq(users.id, staffId)).returning();
+      res.json(updated);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.get("/api/pos/staff/template", requireAuth, requireModule("pos"), async (_req, res) => {
+    try {
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.aoa_to_sheet([
+        ["ชื่อ-นามสกุล", "ชื่อผู้ใช้ (username)", "รหัสผ่าน", "ตำแหน่ง (staff/branch_manager)", "รหัสสาขา (คั่นด้วย ,)"],
+        ["สมชาย ใจดี", "somchai", "1234", "staff", "1,2"],
+        ["สมหญิง แก้วใส", "somying", "1234", "branch_manager", "3"],
+      ]);
+      ws["!cols"] = [{ wch: 25 }, { wch: 20 }, { wch: 15 }, { wch: 25 }, { wch: 20 }];
+      XLSX.utils.book_append_sheet(wb, ws, "พนักงาน POS");
+      const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
+      res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+      res.setHeader("Content-Disposition", "attachment; filename=pos_staff_template.xlsx");
+      res.send(buf);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.post("/api/pos/staff/import", requireAuth, requireModule("pos"), staffUpload.single("file"), async (req, res) => {
+    try {
+      const currentUser = req.user as any;
+      const tenantId = currentUser.tenantId;
+      if (!tenantId) return res.status(403).json({ message: "ไม่มีสิทธิ์" });
+      if (!req.file) return res.status(400).json({ message: "กรุณาอัปโหลดไฟล์" });
+
+      const companyIds = req.body.companyIds ? JSON.parse(req.body.companyIds) : [];
+
+      const wb = XLSX.read(req.file.buffer, { type: "buffer" });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows: any[] = XLSX.utils.sheet_to_json(ws, { header: 1 });
+
+      if (rows.length < 2) return res.status(400).json({ message: "ไฟล์ว่างหรือไม่มีข้อมูล" });
+
+      const results = { created: 0, skipped: 0, errors: [] as string[] };
+
+      for (let i = 1; i < rows.length; i++) {
+        const row = rows[i];
+        if (!row || !row[0]) continue;
+
+        const fullName = String(row[0]).trim();
+        const username = String(row[1] || "").trim();
+        const password = String(row[2] || "").trim();
+        const role = String(row[3] || "staff").trim();
+        const branchIdsStr = String(row[4] || "").trim();
+
+        if (!username || !password || !fullName) {
+          results.errors.push(`แถว ${i + 1}: ข้อมูลไม่ครบ`);
+          results.skipped++;
+          continue;
+        }
+
+        const existing = await db.select().from(users).where(eq(users.username, username));
+        if (existing.length > 0) {
+          results.errors.push(`แถว ${i + 1}: ชื่อผู้ใช้ "${username}" ซ้ำ`);
+          results.skipped++;
+          continue;
+        }
+
+        const branchIds = branchIdsStr ? branchIdsStr.split(",").map(s => Number(s.trim())).filter(n => !isNaN(n)) : [];
+        const hashed = await hashPassword(password);
+
+        await db.insert(users).values({
+          username,
+          password: hashed,
+          fullName,
+          role: role === "branch_manager" ? "branch_manager" : "staff",
+          active: true,
+          tenantId,
+          allowedCompanyIds: companyIds,
+          allowedBranchIds: branchIds,
+        });
+        results.created++;
+      }
+
+      res.json(results);
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
