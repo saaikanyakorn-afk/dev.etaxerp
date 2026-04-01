@@ -1,5 +1,6 @@
 import type { Express, Request, Response } from "express";
 import { db } from "../db";
+import { ecomDb } from "../ecom-db";
 import { storage } from "../storage";
 import { eq, desc, and, isNull, isNotNull, asc, inArray, count , sql } from "drizzle-orm";
 import { companies, employees, firmClients, users, tenants, platformChatThreads, otRecords } from "@shared/schema";
@@ -386,7 +387,7 @@ app.post("/api/line/webhook", async (req, res) => {
             let targetCompanyId: number | null = null;
 
             // First: check if there's an existing thread for this LINE user
-            const [existingAnyThread] = await db.select({ companyId: platformChatThreads.companyId })
+            const [existingAnyThread] = await ecomDb.select({ companyId: platformChatThreads.companyId })
               .from(platformChatThreads)
               .where(and(
                 eq(platformChatThreads.platform, "line"),
@@ -417,7 +418,7 @@ app.post("/api/line/webhook", async (req, res) => {
             }
 
             if (targetCompanyId) {
-              const [existingThread] = await db.select().from(platformChatThreads)
+              const [existingThread] = await ecomDb.select().from(platformChatThreads)
                 .where(and(
                   eq(platformChatThreads.companyId, targetCompanyId),
                   eq(platformChatThreads.platform, "line"),
@@ -426,14 +427,14 @@ app.post("/api/line/webhook", async (req, res) => {
               let threadId: number;
               if (existingThread) {
                 threadId = existingThread.id;
-                await db.update(platformChatThreads).set({
+                await ecomDb.update(platformChatThreads).set({
                   lastMessage: msgText.substring(0, 200),
                   lastMessageAt: new Date(),
                   unreadCount: (existingThread.unreadCount || 0) + 1,
                   buyerName: userName || existingThread.buyerName,
                 }).where(eq(platformChatThreads.id, threadId));
               } else {
-                const [newThread] = await db.insert(platformChatThreads).values({
+                const [newThread] = await ecomDb.insert(platformChatThreads).values({
                   companyId: targetCompanyId,
                   platform: "line",
                   platformThreadId: userId,

@@ -1,5 +1,6 @@
 import type { Express } from "express";
 import { db } from "../db";
+import { ecomDb } from "../ecom-db";
 import { eq, and, sql, gte, lte, desc, asc, inArray } from "drizzle-orm";
 import {
   ecommerceOrders,
@@ -93,7 +94,7 @@ export function registerCommerceIntelligenceRoutes(app: Express) {
       const margin = revenue > 0 ? (profit / revenue) * 100 : 0;
       const aov = orderCount > 0 ? revenue / orderCount : 0;
 
-      const channelStats = await db.select({
+      const channelStats = await ecomDb.select({
         platform: ecommerceOrders.platform,
         revenue: sql<string>`COALESCE(SUM(CAST(${ecommerceOrders.totalAmount} AS numeric)), 0)`,
         orders: sql<number>`COUNT(*)`,
@@ -109,7 +110,7 @@ export function registerCommerceIntelligenceRoutes(app: Express) {
       }
       const topSkuWhere = topSkuConditions.length > 0 ? and(...topSkuConditions) : undefined;
 
-      const topSkus = await db.select({
+      const topSkus = await ecomDb.select({
         sku: ecommerceOrderItems.platformSku,
         name: ecommerceOrderItems.name,
         totalQty: sql<string>`COALESCE(SUM(CAST(${ecommerceOrderItems.qty} AS numeric)), 0)`,
@@ -205,7 +206,7 @@ export function registerCommerceIntelligenceRoutes(app: Express) {
       const connectionIds = Array.from(new Set(channelData.map(c => c.connectionId)));
       let connectionNames: Record<number, string> = {};
       if (connectionIds.length > 0) {
-        const conns = await db.select({ id: ecommerceConnections.id, shopName: ecommerceConnections.shopName })
+        const conns = await ecomDb.select({ id: ecommerceConnections.id, shopName: ecommerceConnections.shopName })
           .from(ecommerceConnections)
           .where(inArray(ecommerceConnections.id, connectionIds));
         connectionNames = Object.fromEntries(conns.map(c => [c.id, c.shopName]));
@@ -222,7 +223,7 @@ export function registerCommerceIntelligenceRoutes(app: Express) {
       refundConditions.push(eq(ecommerceOrders.status, "returned"));
       const refundWhere = and(...refundConditions);
 
-      const refundData = await db.select({
+      const refundData = await ecomDb.select({
         platform: ecommerceOrders.platform,
         refundCount: sql<number>`COUNT(*)`,
       }).from(ecommerceOrders)
@@ -241,7 +242,7 @@ export function registerCommerceIntelligenceRoutes(app: Express) {
       }
       const trendWhere = trendConditions.length > 0 ? and(...trendConditions) : undefined;
 
-      const dailyTrend = await db.select({
+      const dailyTrend = await ecomDb.select({
         date: sql<string>`TO_CHAR(${ecommerceOrders.createdAt}, 'YYYY-MM-DD')`,
         platform: ecommerceOrders.platform,
         revenue: sql<string>`COALESCE(SUM(CAST(${ecommerceOrders.totalAmount} AS numeric)), 0)`,
@@ -298,7 +299,7 @@ export function registerCommerceIntelligenceRoutes(app: Express) {
       if (filters.platform) itemConditions.push(eq(ecommerceOrders.platform, filters.platform));
       const itemWhere = itemConditions.length > 0 ? and(...itemConditions) : undefined;
 
-      const skuStats = await db.select({
+      const skuStats = await ecomDb.select({
         productId: ecommerceOrderItems.productId,
         sku: ecommerceOrderItems.platformSku,
         name: ecommerceOrderItems.name,
@@ -408,7 +409,7 @@ export function registerCommerceIntelligenceRoutes(app: Express) {
       if (filters.companyId) campaignConditions.push(eq(adCampaigns.companyId, filters.companyId));
       const campaignWhere = campaignConditions.length > 0 ? and(...campaignConditions) : undefined;
 
-      const campaigns = await db.select().from(adCampaigns).where(campaignWhere);
+      const campaigns = await ecomDb.select().from(adCampaigns).where(campaignWhere);
 
       const spendConditions: any[] = [];
       if (filters.companyId) spendConditions.push(eq(adSpendEntries.companyId, filters.companyId));
@@ -503,7 +504,7 @@ export function registerCommerceIntelligenceRoutes(app: Express) {
       }
       const sessionWhere = sessionConditions.length > 0 ? and(...sessionConditions) : undefined;
 
-      const sessions = await db.select().from(liveSessions)
+      const sessions = await ecomDb.select().from(liveSessions)
         .where(sessionWhere)
         .orderBy(desc(liveSessions.startedAt))
         .limit(50);
@@ -633,7 +634,7 @@ export function registerCommerceIntelligenceRoutes(app: Express) {
 
       const orderWhere = buildOrderConditions(filters);
       if (orderWhere) {
-        const revenueResult = await db.select({
+        const revenueResult = await ecomDb.select({
           totalRevenue: sql<string>`COALESCE(SUM(CAST(${ecommerceOrders.totalAmount} AS numeric)), 0)`,
           totalNetIncome: sql<string>`COALESCE(SUM(CAST(${ecommerceOrders.netIncome} AS numeric)), 0)`,
           totalOrders: sql<number>`COUNT(*)`,
@@ -653,7 +654,7 @@ export function registerCommerceIntelligenceRoutes(app: Express) {
           });
         }
 
-        const refundResult = await db.select({
+        const refundResult = await ecomDb.select({
           refundCount: sql<number>`COUNT(*)`,
         }).from(ecommerceOrders).where(and(orderWhere, eq(ecommerceOrders.status, "returned")));
 

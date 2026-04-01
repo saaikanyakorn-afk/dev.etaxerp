@@ -1,5 +1,6 @@
 import type { Express, Request, Response } from "express";
 import { db } from "../db";
+import { ecomDb } from "../ecom-db";
 import { storage } from "../storage";
 import { eq, desc, and, or, isNull, asc, ilike, inArray, notInArray, gte, lte, count, sum , sql } from "drizzle-orm";
 import { companies, ecommerceOrders, productStock, products, ecommerceReturns, taxInvoices, taxInvoiceItems, accounts, journalEntries, journalLines, ecommerceOrderItems, workBoards, workBoardColumns, workBoardItems, firmFolders, receipts, oauthStates, syncLogs, facebookChatOrders, chatOrderKeywords, chatOrders, productBundles, ecommerceReturnItems, salesCreditNotes, salesCreditNoteItems, paymentMethods, facebookPages, platformChatThreads, ecommerceConnections, ecommerceProductMappings } from "@shared/schema";
@@ -68,7 +69,7 @@ app.post("/api/ecommerce/connections", requireAuth, requireModule("ecommerce"), 
 app.patch("/api/ecommerce/connections/:id", requireAuth, requireModule("ecommerce"), async (req, res) => {
   try {
     const user = req.user as any;
-    const [existing] = await db.select().from(ecommerceConnections).where(eq(ecommerceConnections.id, Number(req.params.id)));
+    const [existing] = await ecomDb.select().from(ecommerceConnections).where(eq(ecommerceConnections.id, Number(req.params.id)));
     if (!existing) return res.status(404).json({ message: "ไม่พบการเชื่อมต่อ" });
     const [comp] = await db.select().from(companies).where(eq(companies.id, existing.companyId));
     if (comp && user.role !== "super_admin" && comp.tenantId && comp.tenantId !== user.tenantId)
@@ -82,7 +83,7 @@ app.patch("/api/ecommerce/connections/:id", requireAuth, requireModule("ecommerc
 app.delete("/api/ecommerce/connections/:id", requireAuth, requireModule("ecommerce"), async (req, res) => {
   try {
     const user = req.user as any;
-    const [existing] = await db.select().from(ecommerceConnections).where(eq(ecommerceConnections.id, Number(req.params.id)));
+    const [existing] = await ecomDb.select().from(ecommerceConnections).where(eq(ecommerceConnections.id, Number(req.params.id)));
     if (!existing) return res.status(404).json({ message: "ไม่พบการเชื่อมต่อ" });
     const [comp] = await db.select().from(companies).where(eq(companies.id, existing.companyId));
     if (comp && user.role !== "super_admin" && comp.tenantId && comp.tenantId !== user.tenantId)
@@ -107,7 +108,7 @@ app.get("/api/ecommerce/dashboard", requireAuth, requireModule("ecommerce"), asy
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
 
-    const [todayStats] = await db.select({
+    const [todayStats] = await ecomDb.select({
       count: sql<number>`count(*)::int`,
       revenue: sql<string>`coalesce(sum(${ecommerceOrders.totalAmount}), 0)`,
     }).from(ecommerceOrders).where(and(
@@ -116,7 +117,7 @@ app.get("/api/ecommerce/dashboard", requireAuth, requireModule("ecommerce"), asy
       sql`${ecommerceOrders.platform} NOT IN ('grab_food', 'line_man', 'robinhood')`,
     ));
 
-    const [pendingStats] = await db.select({
+    const [pendingStats] = await ecomDb.select({
       count: sql<number>`count(*)::int`,
     }).from(ecommerceOrders).where(and(
       eq(ecommerceOrders.companyId, companyId),
@@ -124,7 +125,7 @@ app.get("/api/ecommerce/dashboard", requireAuth, requireModule("ecommerce"), asy
       sql`${ecommerceOrders.platform} NOT IN ('grab_food', 'line_man', 'robinhood')`,
     ));
 
-    const [shippedStats] = await db.select({
+    const [shippedStats] = await ecomDb.select({
       count: sql<number>`count(*)::int`,
     }).from(ecommerceOrders).where(and(
       eq(ecommerceOrders.companyId, companyId),
@@ -132,7 +133,7 @@ app.get("/api/ecommerce/dashboard", requireAuth, requireModule("ecommerce"), asy
       sql`${ecommerceOrders.platform} NOT IN ('grab_food', 'line_man', 'robinhood')`,
     ));
 
-    const platformBreakdown = await db.select({
+    const platformBreakdown = await ecomDb.select({
       platform: ecommerceOrders.platform,
       orderCount: sql<number>`count(*)::int`,
       revenue: sql<string>`coalesce(sum(${ecommerceOrders.totalAmount}), 0)`,
@@ -164,7 +165,7 @@ app.get("/api/ecommerce/dashboard", requireAuth, requireModule("ecommerce"), asy
         sql`${productStock.quantity}::numeric < ${products.lowStockThreshold}::numeric`,
       ));
 
-    const [pendingReturnsResult] = await db.select({
+    const [pendingReturnsResult] = await ecomDb.select({
       count: sql<number>`count(*)::int`,
     }).from(ecommerceReturns).where(and(
       eq(ecommerceReturns.companyId, companyId),
@@ -217,20 +218,20 @@ app.get("/api/ecommerce/orders", requireAuth, requireModule("ecommerce"), async 
     }
     if (statusFilter) summaryConditions.push(eq(ecommerceOrders.status, statusFilter));
     const summaryWhere = and(...summaryConditions);
-    const settlementSummary = await db.select({
+    const settlementSummary = await ecomDb.select({
       status: ecommerceOrders.settlementStatus,
       count: count(),
       totalAmount: sql<string>`COALESCE(SUM(${ecommerceOrders.totalAmount}::numeric), 0)`,
     }).from(ecommerceOrders).where(summaryWhere).groupBy(ecommerceOrders.settlementStatus);
 
     if (req.query.page) {
-      const [{ total }] = await db.select({ total: count() }).from(ecommerceOrders).where(whereClause);
-      const orders = await db.select().from(ecommerceOrders).where(whereClause).orderBy(desc(ecommerceOrders.placedAt)).limit(pageSize).offset(offset);
+      const [{ total }] = await ecomDb.select({ total: count() }).from(ecommerceOrders).where(whereClause);
+      const orders = await ecomDb.select().from(ecommerceOrders).where(whereClause).orderBy(desc(ecommerceOrders.placedAt)).limit(pageSize).offset(offset);
       const paginated = paginatedResponse(orders, Number(total), { page, pageSize, offset });
       (paginated as any).settlementSummary = settlementSummary;
       res.json(paginated);
     } else {
-      const orders = await db.select().from(ecommerceOrders).where(whereClause).orderBy(desc(ecommerceOrders.placedAt));
+      const orders = await ecomDb.select().from(ecommerceOrders).where(whereClause).orderBy(desc(ecommerceOrders.placedAt));
       res.json({ data: orders, settlementSummary });
     }
   } catch (err: any) { res.status(400).json({ message: err.message }); }
@@ -256,7 +257,7 @@ app.patch("/api/ecommerce/orders/:id", requireAuth, requireModule("ecommerce"), 
     const user = req.user as any;
     const orderId = Number(req.params.id);
 
-    const [existingOrder] = await db.select().from(ecommerceOrders).where(eq(ecommerceOrders.id, orderId));
+    const [existingOrder] = await ecomDb.select().from(ecommerceOrders).where(eq(ecommerceOrders.id, orderId));
     if (!existingOrder) return res.status(404).json({ message: "ไม่พบออเดอร์" });
 
     const order = await storage.updateEcommerceOrder(orderId, req.body);
@@ -310,7 +311,7 @@ app.post("/api/ecommerce/orders/:id/generate-document", requireAuth, requireModu
     const user = req.user as any;
     const orderId = Number(req.params.id);
 
-    const [order] = await db.select().from(ecommerceOrders).where(eq(ecommerceOrders.id, orderId));
+    const [order] = await ecomDb.select().from(ecommerceOrders).where(eq(ecommerceOrders.id, orderId));
     if (!order) return res.status(404).json({ message: "ไม่พบคำสั่งซื้อ" });
 
     const [company] = await db.select().from(companies).where(eq(companies.id, order.companyId));
@@ -388,7 +389,7 @@ app.post("/api/ecommerce/orders/batch-generate-documents", requireAuth, requireM
 
     for (const orderId of orderIds) {
       try {
-        const [order] = await db.select().from(ecommerceOrders).where(eq(ecommerceOrders.id, Number(orderId)));
+        const [order] = await ecomDb.select().from(ecommerceOrders).where(eq(ecommerceOrders.id, Number(orderId)));
         if (!order) { results.push({ orderId, success: false, error: "ไม่พบคำสั่งซื้อ" }); continue; }
         if (order.companyId !== Number(companyId)) { results.push({ orderId, success: false, error: "คำสั่งซื้อไม่ตรงกับกิจการ" }); continue; }
         if (order.taxInvoiceId) { results.push({ orderId, success: false, error: "ออกเอกสารแล้ว" }); continue; }
@@ -402,14 +403,14 @@ app.post("/api/ecommerce/orders/batch-generate-documents", requireAuth, requireM
         const existingTiv = await db.select({ id: taxInvoices.id }).from(taxInvoices)
           .where(and(eq(taxInvoices.companyId, order.companyId), eq(taxInvoices.refDoc, refDoc)));
         if (existingTiv.length > 0) {
-          await db.update(ecommerceOrders).set({ taxInvoiceId: existingTiv[0].id }).where(eq(ecommerceOrders.id, Number(orderId)));
+          await ecomDb.update(ecommerceOrders).set({ taxInvoiceId: existingTiv[0].id }).where(eq(ecommerceOrders.id, Number(orderId)));
           results.push({ orderId, success: true, taxInvoiceId: existingTiv[0].id, taxInvoiceNo: "" });
           continue;
         }
 
         let connPrefix = PLATFORM_DOC_PREFIX[platformLower] || "TIV";
         if (order.connectionId) {
-          const [conn] = await db.select().from(ecommerceConnections).where(eq(ecommerceConnections.id, order.connectionId));
+          const [conn] = await ecomDb.select().from(ecommerceConnections).where(eq(ecommerceConnections.id, order.connectionId));
           if (conn?.docPrefix) connPrefix = conn.docPrefix;
         }
         const prefix = connPrefix;
@@ -535,7 +536,7 @@ app.post("/api/ecommerce/orders/bulk-status", requireAuth, requireModule("ecomme
     if (user.role !== "super_admin" && company.tenantId && company.tenantId !== user.tenantId) {
       return res.status(403).json({ message: "ไม่มีสิทธิ์เข้าถึงกิจการนี้" });
     }
-    const result = await db.update(ecommerceOrders)
+    const result = await ecomDb.update(ecommerceOrders)
       .set({ status })
       .where(and(
         inArray(ecommerceOrders.id, orderIds.map(Number)),
@@ -557,7 +558,7 @@ app.post("/api/ecommerce/orders/bulk-print-tiv", requireAuth, requireModule("eco
     if (user.role !== "super_admin" && company.tenantId && company.tenantId !== user.tenantId) {
       return res.status(403).json({ message: "ไม่มีสิทธิ์เข้าถึงกิจการนี้" });
     }
-    const matchedOrders = await db.select({ id: ecommerceOrders.id, taxInvoiceId: ecommerceOrders.taxInvoiceId })
+    const matchedOrders = await ecomDb.select({ id: ecommerceOrders.id, taxInvoiceId: ecommerceOrders.taxInvoiceId })
       .from(ecommerceOrders)
       .where(and(
         inArray(ecommerceOrders.id, orderIds.map(Number)),
@@ -606,8 +607,8 @@ app.get("/api/ecommerce/settlements", requireAuth, requireModule("ecommerce"), a
 
     const { page, pageSize, offset } = parsePagination(req, { pageSize: 50 });
     const whereClause = and(...conditions);
-    const [{ total }] = await db.select({ total: count() }).from(ecommerceOrders).where(whereClause);
-    const orders = await db.select().from(ecommerceOrders)
+    const [{ total }] = await ecomDb.select({ total: count() }).from(ecommerceOrders).where(whereClause);
+    const orders = await ecomDb.select().from(ecommerceOrders)
       .where(whereClause)
       .orderBy(desc(ecommerceOrders.placedAt))
       .limit(pageSize).offset(offset);
@@ -666,13 +667,13 @@ app.post("/api/ecommerce/settlements/mark", requireAuth, requireModule("ecommerc
 
     const results = [];
     for (const id of orderIds) {
-      const [order] = await db.select().from(ecommerceOrders).where(eq(ecommerceOrders.id, Number(id)));
+      const [order] = await ecomDb.select().from(ecommerceOrders).where(eq(ecommerceOrders.id, Number(id)));
       if (!order) continue;
 
       const [comp] = await db.select().from(companies).where(eq(companies.id, order.companyId));
       if (user.role !== "super_admin" && comp?.tenantId && comp.tenantId !== user.tenantId) continue;
 
-      const [updated] = await db.update(ecommerceOrders)
+      const [updated] = await ecomDb.update(ecommerceOrders)
         .set(updateData)
         .where(eq(ecommerceOrders.id, Number(id)))
         .returning();
@@ -692,7 +693,7 @@ app.patch("/api/ecommerce/orders/:id/shipping-cost", requireAuth, requireModule(
     if (!parsed.success) return res.status(400).json({ message: "ค่าส่งต้องเป็นตัวเลข" });
     const { actualShippingCost } = parsed.data;
 
-    const [order] = await db.select().from(ecommerceOrders).where(eq(ecommerceOrders.id, orderId));
+    const [order] = await ecomDb.select().from(ecommerceOrders).where(eq(ecommerceOrders.id, orderId));
     if (!order) return res.status(404).json({ message: "ไม่พบออเดอร์" });
 
     const [comp] = await db.select().from(companies).where(eq(companies.id, order.companyId));
@@ -700,7 +701,7 @@ app.patch("/api/ecommerce/orders/:id/shipping-cost", requireAuth, requireModule(
       return res.status(403).json({ message: "ไม่มีสิทธิ์" });
     }
 
-    const [updated] = await db.update(ecommerceOrders)
+    const [updated] = await ecomDb.update(ecommerceOrders)
       .set({ actualShippingCost: String(actualShippingCost) })
       .where(eq(ecommerceOrders.id, orderId))
       .returning();
@@ -730,8 +731,8 @@ app.get("/api/ecommerce/settlement-batches", requireAuth, requireModule("ecommer
 
     const { page, pageSize, offset } = parsePagination(req, { pageSize: 50 });
     const whereClause = and(...conditions);
-    const [{ total }] = await db.select({ total: count() }).from(ecommerceSettlements).where(whereClause);
-    const settlements = await db.select().from(ecommerceSettlements)
+    const [{ total }] = await ecomDb.select({ total: count() }).from(ecommerceSettlements).where(whereClause);
+    const settlements = await ecomDb.select().from(ecommerceSettlements)
       .where(whereClause)
       .orderBy(desc(ecommerceSettlements.settlementDate))
       .limit(pageSize).offset(offset);
@@ -759,13 +760,13 @@ app.get("/api/ecommerce/settlement-batches/:id", requireAuth, requireModule("eco
   try {
     const user = req.user as any;
     const id = Number(req.params.id);
-    const [settlement] = await db.select().from(ecommerceSettlements).where(eq(ecommerceSettlements.id, id));
+    const [settlement] = await ecomDb.select().from(ecommerceSettlements).where(eq(ecommerceSettlements.id, id));
     if (!settlement) return res.status(404).json({ message: "ไม่พบรายการ Settlement" });
     const [comp] = await db.select().from(companies).where(eq(companies.id, settlement.companyId));
     if (user.role !== "super_admin" && comp?.tenantId && comp.tenantId !== user.tenantId) {
       return res.status(403).json({ message: "ไม่มีสิทธิ์" });
     }
-    const items = await db.select().from(ecommerceSettlementItems)
+    const items = await ecomDb.select().from(ecommerceSettlementItems)
       .where(eq(ecommerceSettlementItems.settlementId, id));
     res.json({ ...settlement, items });
   } catch (err: any) { res.status(400).json({ message: err.message }); }
@@ -1377,7 +1378,7 @@ app.post("/api/ecommerce/settlement-batches/:id/withdraw", requireAuth, requireM
     const parsed = schema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ message: "ข้อมูลไม่ถูกต้อง" });
 
-    const [settlement] = await db.select().from(ecommerceSettlements).where(eq(ecommerceSettlements.id, id));
+    const [settlement] = await ecomDb.select().from(ecommerceSettlements).where(eq(ecommerceSettlements.id, id));
     if (!settlement) return res.status(404).json({ message: "ไม่พบรายการ Settlement" });
     const user = req.user as any;
     const [comp] = await db.select().from(companies).where(eq(companies.id, settlement.companyId));
@@ -1578,7 +1579,7 @@ app.post("/api/ecommerce/settlement-batches/:id/record-invoice", requireAuth, re
 
     const { taxInvoiceNo, taxInvoiceDate, taxInvoiceAmount, taxInvoiceVat } = parsed.data;
 
-    const [settlement] = await db.select().from(ecommerceSettlements).where(eq(ecommerceSettlements.id, id));
+    const [settlement] = await ecomDb.select().from(ecommerceSettlements).where(eq(ecommerceSettlements.id, id));
     if (!settlement) return res.status(404).json({ message: "ไม่พบรายการ Settlement" });
 
     const [comp] = await db.select().from(companies).where(eq(companies.id, settlement.companyId));
@@ -1713,7 +1714,7 @@ app.post("/api/ecommerce/settlement-batches/:id/record-invoice", requireAuth, re
       });
     }
 
-    await db.update(ecommerceSettlements)
+    await ecomDb.update(ecommerceSettlements)
       .set({
         invoiceStatus,
         taxInvoiceNo,
@@ -1741,7 +1742,7 @@ app.delete("/api/ecommerce/settlement-batches/:id", requireAuth, requireModule("
   try {
     const user = req.user as any;
     const id = Number(req.params.id);
-    const [settlement] = await db.select().from(ecommerceSettlements).where(eq(ecommerceSettlements.id, id));
+    const [settlement] = await ecomDb.select().from(ecommerceSettlements).where(eq(ecommerceSettlements.id, id));
     if (!settlement) return res.status(404).json({ message: "ไม่พบรายการ" });
     const [comp] = await db.select().from(companies).where(eq(companies.id, settlement.companyId));
     if (user.role !== "super_admin" && comp?.tenantId && comp.tenantId !== user.tenantId) {
@@ -1749,7 +1750,7 @@ app.delete("/api/ecommerce/settlement-batches/:id", requireAuth, requireModule("
     }
 
     // Clear FK references first, then delete journal entries
-    await db.update(ecommerceSettlements).set({
+    await ecomDb.update(ecommerceSettlements).set({
       settleJournalId: null,
       withdrawJournalId: null,
       reversalJournalId: null,
@@ -1769,11 +1770,11 @@ app.delete("/api/ecommerce/settlement-batches/:id", requireAuth, requireModule("
     }
 
     // Reset matched orders
-    const items = await db.select().from(ecommerceSettlementItems)
+    const items = await ecomDb.select().from(ecommerceSettlementItems)
       .where(eq(ecommerceSettlementItems.settlementId, id));
     for (const item of items) {
       if (item.orderId) {
-        const [resetOrder] = await db.update(ecommerceOrders).set({
+        const [resetOrder] = await ecomDb.update(ecommerceOrders).set({
           settlementStatus: "pending",
           settlementDate: null,
           settlementAmount: null,
@@ -1787,8 +1788,8 @@ app.delete("/api/ecommerce/settlement-batches/:id", requireAuth, requireModule("
       }
     }
 
-    await db.delete(ecommerceSettlementItems).where(eq(ecommerceSettlementItems.settlementId, id));
-    await db.delete(ecommerceSettlements).where(eq(ecommerceSettlements.id, id));
+    await ecomDb.delete(ecommerceSettlementItems).where(eq(ecommerceSettlementItems.settlementId, id));
+    await ecomDb.delete(ecommerceSettlements).where(eq(ecommerceSettlements.id, id));
 
     res.json({ success: true });
   } catch (err: any) { res.status(400).json({ message: err.message }); }
@@ -1808,12 +1809,12 @@ app.get("/api/ecommerce/sku-mapping/unmapped", requireAuth, requireModule("ecomm
     if (user.role !== "super_admin" && comp.tenantId && comp.tenantId !== user.tenantId)
       return res.status(403).json({ message: "ไม่มีสิทธิ์" });
 
-    const existingMappings = await db.select({
+    const existingMappings = await ecomDb.select({
       platformSku: ecommerceProductMappings.platformSku,
     }).from(ecommerceProductMappings).where(eq(ecommerceProductMappings.companyId, companyId));
     const mappedSkus = new Set(existingMappings.map(m => m.platformSku));
 
-    let ordersQuery = db.select({
+    let ordersQuery = ecomDb.select({
       orderId: ecommerceOrderItems.orderId,
       platformSku: ecommerceOrderItems.platformSku,
       name: ecommerceOrderItems.name,
@@ -1933,24 +1934,24 @@ app.post("/api/ecommerce/sku-mapping/save", requireAuth, requireModule("ecommerc
     if (user.role !== "super_admin" && comp.tenantId && comp.tenantId !== user.tenantId)
       return res.status(403).json({ message: "ไม่มีสิทธิ์" });
 
-    const connections = await db.select().from(ecommerceConnections)
+    const connections = await ecomDb.select().from(ecommerceConnections)
       .where(and(
         eq(ecommerceConnections.companyId, companyId),
         platform ? eq(ecommerceConnections.platform, platform) : undefined
       ));
     const connectionId = connections[0]?.id || 0;
 
-    const existing = await db.select().from(ecommerceProductMappings).where(and(
+    const existing = await ecomDb.select().from(ecommerceProductMappings).where(and(
       eq(ecommerceProductMappings.companyId, companyId),
       eq(ecommerceProductMappings.platformSku, platformSku),
     ));
     if (existing.length > 0) {
-      await db.update(ecommerceProductMappings).set({
+      await ecomDb.update(ecommerceProductMappings).set({
         productId,
         conversionRate: String(conversionRate || 1),
       }).where(eq(ecommerceProductMappings.id, existing[0].id));
     } else {
-      await db.insert(ecommerceProductMappings).values({
+      await ecomDb.insert(ecommerceProductMappings).values({
         companyId,
         productId,
         connectionId: connectionId || 1,
@@ -1962,7 +1963,7 @@ app.post("/api/ecommerce/sku-mapping/save", requireAuth, requireModule("ecommerc
       });
     }
 
-    const updatedItems = await db.update(ecommerceOrderItems).set({ productId })
+    const updatedItems = await ecomDb.update(ecommerceOrderItems).set({ productId })
       .where(and(
         eq(ecommerceOrderItems.platformSku, platformSku),
         sql`${ecommerceOrderItems.orderId} IN (SELECT id FROM ecommerce_orders WHERE company_id = ${companyId})`
@@ -2000,14 +2001,14 @@ app.post("/api/ecommerce/sku-mapping/create-and-map", requireAuth, requireModule
       isActive: true,
     }).returning();
 
-    const connections = await db.select().from(ecommerceConnections)
+    const connections = await ecomDb.select().from(ecommerceConnections)
       .where(and(
         eq(ecommerceConnections.companyId, companyId),
         platform ? eq(ecommerceConnections.platform, platform) : undefined
       ));
     const connectionId = connections[0]?.id || 1;
 
-    await db.insert(ecommerceProductMappings).values({
+    await ecomDb.insert(ecommerceProductMappings).values({
       companyId,
       productId: newProd.id,
       connectionId,
@@ -2018,7 +2019,7 @@ app.post("/api/ecommerce/sku-mapping/create-and-map", requireAuth, requireModule
       syncStatus: "synced",
     });
 
-    await db.update(ecommerceOrderItems).set({ productId: newProd.id })
+    await ecomDb.update(ecommerceOrderItems).set({ productId: newProd.id })
       .where(and(
         eq(ecommerceOrderItems.platformSku, platformSku),
         sql`${ecommerceOrderItems.orderId} IN (SELECT id FROM ecommerce_orders WHERE company_id = ${companyId})`
@@ -2039,10 +2040,10 @@ app.post("/api/ecommerce/sku-mapping/auto-match", requireAuth, requireModule("ec
       return res.status(403).json({ message: "ไม่มีสิทธิ์" });
 
     const companyProds = await db.select().from(products).where(eq(products.companyId, companyId));
-    const existingMappings = await db.select().from(ecommerceProductMappings).where(eq(ecommerceProductMappings.companyId, companyId));
+    const existingMappings = await ecomDb.select().from(ecommerceProductMappings).where(eq(ecommerceProductMappings.companyId, companyId));
     const mappedSkus = new Set(existingMappings.map(m => m.platformSku));
 
-    const orderItems = await db.select({
+    const orderItems = await ecomDb.select({
       platformSku: ecommerceOrderItems.platformSku,
       name: ecommerceOrderItems.name,
       productId: ecommerceOrderItems.productId,
@@ -2059,7 +2060,7 @@ app.post("/api/ecommerce/sku-mapping/auto-match", requireAuth, requireModule("ec
     }
 
     let matched = 0;
-    const connections = await db.select().from(ecommerceConnections).where(eq(ecommerceConnections.companyId, companyId));
+    const connections = await ecomDb.select().from(ecommerceConnections).where(eq(ecommerceConnections.companyId, companyId));
     const defaultConnectionId = connections[0]?.id || 1;
 
     for (const [sku, info] of unmappedSkuMap) {
@@ -2071,7 +2072,7 @@ app.post("/api/ecommerce/sku-mapping/auto-match", requireAuth, requireModule("ec
       if (!match) continue;
 
       const connForPlatform = connections.find(c => c.platform === info.platform);
-      await db.insert(ecommerceProductMappings).values({
+      await ecomDb.insert(ecommerceProductMappings).values({
         companyId,
         productId: match.id,
         connectionId: connForPlatform?.id || defaultConnectionId,
@@ -2082,7 +2083,7 @@ app.post("/api/ecommerce/sku-mapping/auto-match", requireAuth, requireModule("ec
         syncStatus: "synced",
       });
 
-      await db.update(ecommerceOrderItems).set({ productId: match.id })
+      await ecomDb.update(ecommerceOrderItems).set({ productId: match.id })
         .where(and(
           eq(ecommerceOrderItems.platformSku, sku),
           sql`${ecommerceOrderItems.orderId} IN (SELECT id FROM ecommerce_orders WHERE company_id = ${companyId})`
@@ -2506,7 +2507,7 @@ app.get("/api/ecommerce/oauth/:platform/start", requireAuth, requireModule("ecom
     const state = crypto.randomBytes(32).toString("hex");
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
-    await db.insert(oauthStates).values({
+    await ecomDb.insert(oauthStates).values({
       state,
       tenantId,
       companyId,
@@ -2540,10 +2541,10 @@ app.get("/api/ecommerce/oauth/:platform/callback", async (req, res) => {
 
     if (!code || !state) return res.status(400).send("Missing code or state");
 
-    const [oauthState] = await db.select().from(oauthStates).where(eq(oauthStates.state, state));
+    const [oauthState] = await ecomDb.select().from(oauthStates).where(eq(oauthStates.state, state));
     if (!oauthState) return res.status(400).send("Invalid state - expired or already used");
     if (new Date() > oauthState.expiresAt) {
-      await db.delete(oauthStates).where(eq(oauthStates.id, oauthState.id));
+      await ecomDb.delete(oauthStates).where(eq(oauthStates.id, oauthState.id));
       return res.status(400).send("OAuth state expired");
     }
     if (oauthState.platform !== platform) return res.status(400).send("Platform mismatch");
@@ -2575,7 +2576,7 @@ app.get("/api/ecommerce/oauth/:platform/callback", async (req, res) => {
     const tokenExpiresAt = new Date(Date.now() + (tokenResult.expiresIn || 3600) * 1000);
 
     if (oauthState.connectionId) {
-      await db.update(ecommerceConnections).set({
+      await ecomDb.update(ecommerceConnections).set({
         accessToken: tokenResult.accessToken,
         refreshToken: tokenResult.refreshToken,
         tokenExpiresAt,
@@ -2586,7 +2587,7 @@ app.get("/api/ecommerce/oauth/:platform/callback", async (req, res) => {
         lastSyncAt: new Date(),
       }).where(eq(ecommerceConnections.id, oauthState.connectionId));
     } else {
-      await db.insert(ecommerceConnections).values({
+      await ecomDb.insert(ecommerceConnections).values({
         companyId: oauthState.companyId,
         platform,
         shopName: tokenResult.shopName || `${PLATFORM_INFO[platform]?.name || platform} Shop`,
@@ -2599,7 +2600,7 @@ app.get("/api/ecommerce/oauth/:platform/callback", async (req, res) => {
       });
     }
 
-    await db.delete(oauthStates).where(eq(oauthStates.id, oauthState.id));
+    await ecomDb.delete(oauthStates).where(eq(oauthStates.id, oauthState.id));
 
     res.redirect(`/ecommerce/connections?oauth=success&platform=${platform}`);
   } catch (err: any) {
@@ -2612,7 +2613,7 @@ app.post("/api/ecommerce/connections/:id/refresh-token", requireAuth, requireMod
   try {
     const user = req.user as any;
     const id = Number(req.params.id);
-    const [conn] = await db.select().from(ecommerceConnections).where(eq(ecommerceConnections.id, id));
+    const [conn] = await ecomDb.select().from(ecommerceConnections).where(eq(ecommerceConnections.id, id));
     if (!conn) return res.status(404).json({ message: "ไม่พบการเชื่อมต่อ" });
 
     const [comp] = await db.select().from(companies).where(eq(companies.id, conn.companyId));
@@ -2647,7 +2648,7 @@ app.post("/api/ecommerce/connections/:id/refresh-token", requireAuth, requireMod
     const tokenResult = await adapter.refreshToken(credentials, conn.refreshToken, conn.shopId || undefined);
     const tokenExpiresAt = new Date(Date.now() + (tokenResult.expiresIn || 3600) * 1000);
 
-    const [updated] = await db.update(ecommerceConnections).set({
+    const [updated] = await ecomDb.update(ecommerceConnections).set({
       accessToken: tokenResult.accessToken,
       refreshToken: tokenResult.refreshToken || conn.refreshToken,
       tokenExpiresAt,
@@ -2670,7 +2671,7 @@ app.post("/api/ecommerce/connections/:id/sync", requireAuth, requireModule("ecom
     const page = req.body.page || 1;
     const pageSize = req.body.pageSize || 50;
 
-    const [conn] = await db.select().from(ecommerceConnections).where(eq(ecommerceConnections.id, id));
+    const [conn] = await ecomDb.select().from(ecommerceConnections).where(eq(ecommerceConnections.id, id));
     if (!conn) return res.status(404).json({ message: "ไม่พบการเชื่อมต่อ" });
     if (conn.status !== "connected") return res.status(400).json({ message: "การเชื่อมต่อยังไม่พร้อม กรุณาเชื่อมต่อใหม่" });
     if (!conn.accessToken) return res.status(400).json({ message: "ไม่มี access token" });
@@ -2725,9 +2726,9 @@ app.post("/api/ecommerce/connections/:id/sync", requireAuth, requireModule("ecom
         return res.status(400).json({ message: `ไม่รองรับประเภท sync: ${syncType}` });
     }
 
-    await db.update(ecommerceConnections).set({ lastSyncAt: new Date() }).where(eq(ecommerceConnections.id, id));
+    await ecomDb.update(ecommerceConnections).set({ lastSyncAt: new Date() }).where(eq(ecommerceConnections.id, id));
 
-    await db.insert(syncLogs).values({
+    await ecomDb.insert(syncLogs).values({
       connectionId: id,
       companyId: conn.companyId,
       platform: conn.platform,
@@ -2755,7 +2756,7 @@ app.get("/api/ecommerce/connections/:id/logistics/:orderId", requireAuth, requir
     const id = Number(req.params.id);
     const orderId = req.params.orderId;
 
-    const [conn] = await db.select().from(ecommerceConnections).where(eq(ecommerceConnections.id, id));
+    const [conn] = await ecomDb.select().from(ecommerceConnections).where(eq(ecommerceConnections.id, id));
     if (!conn) return res.status(404).json({ message: "ไม่พบการเชื่อมต่อ" });
     if (!conn.accessToken) return res.status(400).json({ message: "ไม่มี access token" });
 
@@ -2898,7 +2899,7 @@ app.get("/api/ecommerce/analytics", requireAuth, requireModule("ecommerce"), asy
     else if (period === "365d") startDate.setDate(now.getDate() - 365);
     else startDate.setDate(now.getDate() - 30);
 
-    const allOrders = await db.select().from(ecommerceOrders)
+    const allOrders = await ecomDb.select().from(ecommerceOrders)
       .where(and(
         eq(ecommerceOrders.companyId, companyId),
         gte(ecommerceOrders.placedAt, startDate),
@@ -2929,7 +2930,7 @@ app.get("/api/ecommerce/analytics", requireAuth, requireModule("ecommerce"), asy
       dailySales[d].netIncome += Number(o.netIncome || 0);
     });
 
-    const orderItems = await db.select().from(ecommerceOrderItems)
+    const orderItems = await ecomDb.select().from(ecommerceOrderItems)
       .where(inArray(ecommerceOrderItems.orderId, allOrders.map(o => o.id).length > 0 ? allOrders.map(o => o.id) : [0]));
 
     const productSales: Record<string, { name: string; qty: number; revenue: number; count: number }> = {};
@@ -3186,7 +3187,7 @@ app.get("/api/fulfillment/batches/:id", requireAuth, requireModule("ecommerce"),
     const orderIds = items.map(i => i.orderId);
     let orders: any[] = [];
     if (orderIds.length > 0) {
-      orders = await db.select().from(ecommerceOrders).where(inArray(ecommerceOrders.id, orderIds));
+      orders = await ecomDb.select().from(ecommerceOrders).where(inArray(ecommerceOrders.id, orderIds));
     }
     const orderMap: Record<number, any> = {};
     orders.forEach(o => { orderMap[o.id] = o; });
@@ -3252,7 +3253,7 @@ app.patch("/api/fulfillment/items/:id/ship", requireAuth, requireModule("ecommer
         .where(eq(fulfillmentBatches.id, updated.batchId));
 
       if (updated.orderId) {
-        await db.update(ecommerceOrders)
+        await ecomDb.update(ecommerceOrders)
           .set({ trackingNo, shippingProvider, status: "shipping", shippedAt: new Date() })
           .where(eq(ecommerceOrders.id, updated.orderId));
       }
@@ -3267,7 +3268,7 @@ app.get("/api/ecommerce/sync-logs", requireAuth, requireModule("ecommerce"), asy
   try {
     const companyId = Number(req.query.companyId);
     if (!companyId) return res.status(400).json({ message: "companyId required" });
-    const logs = await db.select().from(syncLogs).where(eq(syncLogs.companyId, companyId)).orderBy(desc(syncLogs.startedAt)).limit(100);
+    const logs = await ecomDb.select().from(syncLogs).where(eq(syncLogs.companyId, companyId)).orderBy(desc(syncLogs.startedAt)).limit(100);
     res.json(logs);
   } catch (err: any) { res.status(400).json({ message: err.message }); }
 });
@@ -3275,12 +3276,12 @@ app.get("/api/ecommerce/sync-logs", requireAuth, requireModule("ecommerce"), asy
 app.post("/api/ecommerce/sync/trigger", requireAuth, requireModule("ecommerce"), async (req, res) => {
   try {
     const { companyId, connectionId, platform } = req.body;
-    const [log] = await db.insert(syncLogs).values({
+    const [log] = await ecomDb.insert(syncLogs).values({
       companyId, connectionId, platform, syncType: "orders", status: "running",
     }).returning();
 
     setTimeout(async () => {
-      await db.update(syncLogs)
+      await ecomDb.update(syncLogs)
         .set({ status: "completed", completedAt: new Date(), totalRecords: 0, newRecords: 0, updatedRecords: 0 })
         .where(eq(syncLogs.id, log.id));
     }, 2000);
@@ -3293,7 +3294,7 @@ app.patch("/api/ecommerce/connections/:id/sync-settings", requireAuth, requireMo
   try {
     const id = Number(req.params.id);
     const { settings } = req.body;
-    const [updated] = await db.update(ecommerceConnections)
+    const [updated] = await ecomDb.update(ecommerceConnections)
       .set({ settings: JSON.stringify(settings) })
       .where(eq(ecommerceConnections.id, id))
       .returning();
@@ -3307,7 +3308,7 @@ app.get("/api/ecommerce/chat/unread-total", requireAuth, async (req, res) => {
   try {
     const companyId = Number(req.query.companyId);
     if (!companyId) return res.json({ count: 0 });
-    const result = await db.select({ total: sql<number>`COALESCE(SUM(${platformChatThreads.unreadCount}), 0)` })
+    const result = await ecomDb.select({ total: sql<number>`COALESCE(SUM(${platformChatThreads.unreadCount}), 0)` })
       .from(platformChatThreads)
       .where(eq(platformChatThreads.companyId, companyId));
     res.json({ count: Number(result[0]?.total || 0) });
@@ -3319,10 +3320,10 @@ app.get("/api/ecommerce/chat/threads", requireAuth, requireModule("ecommerce"), 
     const companyId = Number(req.query.companyId);
     if (!companyId) return res.status(400).json({ message: "companyId required" });
     const platform = req.query.platform as string;
-    let query = db.select().from(platformChatThreads).where(eq(platformChatThreads.companyId, companyId));
+    let query = ecomDb.select().from(platformChatThreads).where(eq(platformChatThreads.companyId, companyId));
     const threads = platform
-      ? await db.select().from(platformChatThreads).where(and(eq(platformChatThreads.companyId, companyId), eq(platformChatThreads.platform, platform))).orderBy(desc(platformChatThreads.lastMessageAt))
-      : await db.select().from(platformChatThreads).where(eq(platformChatThreads.companyId, companyId)).orderBy(desc(platformChatThreads.lastMessageAt));
+      ? await ecomDb.select().from(platformChatThreads).where(and(eq(platformChatThreads.companyId, companyId), eq(platformChatThreads.platform, platform))).orderBy(desc(platformChatThreads.lastMessageAt))
+      : await ecomDb.select().from(platformChatThreads).where(eq(platformChatThreads.companyId, companyId)).orderBy(desc(platformChatThreads.lastMessageAt));
     res.json(threads);
   } catch (err: any) { res.status(400).json({ message: err.message }); }
 });
@@ -3331,7 +3332,7 @@ app.get("/api/ecommerce/chat/threads/:id/messages", requireAuth, requireModule("
   try {
     const threadId = Number(req.params.id);
     const messages = await db.select().from(platformChatMessages).where(eq(platformChatMessages.threadId, threadId)).orderBy(asc(platformChatMessages.createdAt));
-    await db.update(platformChatThreads).set({ unreadCount: 0 }).where(eq(platformChatThreads.id, threadId));
+    await ecomDb.update(platformChatThreads).set({ unreadCount: 0 }).where(eq(platformChatThreads.id, threadId));
     res.json(messages);
   } catch (err: any) { res.status(400).json({ message: err.message }); }
 });
@@ -3344,7 +3345,7 @@ app.post("/api/ecommerce/chat/threads/:id/messages", requireAuth, requireModule(
     const [msg] = await db.insert(platformChatMessages).values({
       threadId, senderType: "seller", senderName: user.fullName, content, messageType: "text",
     }).returning();
-    await db.update(platformChatThreads).set({ lastMessage: content, lastMessageAt: new Date() }).where(eq(platformChatThreads.id, threadId));
+    await ecomDb.update(platformChatThreads).set({ lastMessage: content, lastMessageAt: new Date() }).where(eq(platformChatThreads.id, threadId));
     res.json(msg);
   } catch (err: any) { res.status(400).json({ message: err.message }); }
 });
@@ -3478,10 +3479,10 @@ app.post("/api/public/v1/orders", async (req, res) => {
     const data = parsed.data;
 
     // Find or create a "website" connection for this company
-    let [conn] = await db.select().from(ecommerceConnections)
+    let [conn] = await ecomDb.select().from(ecommerceConnections)
       .where(and(eq(ecommerceConnections.companyId, key.companyId), eq(ecommerceConnections.platform, "website")));
     if (!conn) {
-      [conn] = await db.insert(ecommerceConnections).values({
+      [conn] = await ecomDb.insert(ecommerceConnections).values({
         companyId: key.companyId,
         platform: "website",
         shopName: "เว็บไซต์ของฉัน",
@@ -3490,7 +3491,7 @@ app.post("/api/public/v1/orders", async (req, res) => {
     }
 
     // Check for duplicate order
-    const [existing] = await db.select().from(ecommerceOrders)
+    const [existing] = await ecomDb.select().from(ecommerceOrders)
       .where(and(
         eq(ecommerceOrders.companyId, key.companyId),
         eq(ecommerceOrders.platformOrderId, data.orderNo),
@@ -3585,10 +3586,10 @@ app.post("/api/public/v1/orders/bulk", async (req, res) => {
     const parsed = bulkSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: "Validation failed", details: parsed.error.issues });
 
-    let [conn] = await db.select().from(ecommerceConnections)
+    let [conn] = await ecomDb.select().from(ecommerceConnections)
       .where(and(eq(ecommerceConnections.companyId, key.companyId), eq(ecommerceConnections.platform, "website")));
     if (!conn) {
-      [conn] = await db.insert(ecommerceConnections).values({
+      [conn] = await ecomDb.insert(ecommerceConnections).values({
         companyId: key.companyId, platform: "website", shopName: "เว็บไซต์ของฉัน", status: "connected",
       }).returning();
     }
@@ -3597,14 +3598,14 @@ app.post("/api/public/v1/orders/bulk", async (req, res) => {
 
     for (const orderData of parsed.data.orders) {
       try {
-        const [existing] = await db.select().from(ecommerceOrders)
+        const [existing] = await ecomDb.select().from(ecommerceOrders)
           .where(and(eq(ecommerceOrders.companyId, key.companyId), eq(ecommerceOrders.platformOrderId, orderData.orderNo), eq(ecommerceOrders.platform, "website")));
         if (existing) {
           results.push({ orderNo: orderData.orderNo, success: false, error: "duplicate" });
           continue;
         }
 
-        const [order] = await db.insert(ecommerceOrders).values({
+        const [order] = await ecomDb.insert(ecommerceOrders).values({
           companyId: key.companyId, connectionId: conn.id, platform: "website",
           platformOrderId: orderData.orderNo, orderNo: orderData.orderNo,
           status: orderData.status, buyerName: orderData.buyerName, buyerPhone: orderData.buyerPhone,
@@ -3617,7 +3618,7 @@ app.post("/api/public/v1/orders/bulk", async (req, res) => {
         }).returning();
 
         if (orderData.items && orderData.items.length > 0) {
-          await db.insert(ecommerceOrderItems).values(orderData.items.map(item => ({
+          await ecomDb.insert(ecommerceOrderItems).values(orderData.items.map(item => ({
             orderId: order.id, name: item.name, platformSku: item.sku || "",
             qty: item.qty, price: item.price, total: String(Number(item.qty) * Number(item.price)),
           })));
@@ -3681,7 +3682,7 @@ app.post("/api/facebook/pages", requireAuth, requireModule("ecommerce"), async (
     if (!company || (user.role !== "super_admin" && company.tenantId !== user.tenantId)) {
       return res.status(403).json({ message: "ไม่มีสิทธิ์" });
     }
-    const [page] = await db.insert(facebookPages).values({
+    const [page] = await ecomDb.insert(facebookPages).values({
       ...parsed.data,
       status: parsed.data.pageAccessToken ? "connected" : "pending",
       createdBy: user.id,
@@ -3694,7 +3695,7 @@ app.patch("/api/facebook/pages/:id", requireAuth, requireModule("ecommerce"), as
   try {
     const id = Number(req.params.id);
     const user = req.user as any;
-    const [page] = await db.select().from(facebookPages).where(eq(facebookPages.id, id));
+    const [page] = await ecomDb.select().from(facebookPages).where(eq(facebookPages.id, id));
     if (!page) return res.status(404).json({ message: "ไม่พบเพจ" });
     const [company] = await db.select().from(companies).where(eq(companies.id, page.companyId));
     if (!company || (user.role !== "super_admin" && company.tenantId !== user.tenantId)) {
@@ -3708,7 +3709,7 @@ app.patch("/api/facebook/pages/:id", requireAuth, requireModule("ecommerce"), as
     }
     if (req.body.cfKeywords) updateData.cfKeywords = req.body.cfKeywords;
     if (req.body.autoCreateOrders !== undefined) updateData.autoCreateOrders = req.body.autoCreateOrders;
-    const [updated] = await db.update(facebookPages).set(updateData).where(eq(facebookPages.id, id)).returning();
+    const [updated] = await ecomDb.update(facebookPages).set(updateData).where(eq(facebookPages.id, id)).returning();
     res.json(updated);
   } catch (err: any) { res.status(400).json({ message: err.message }); }
 });
@@ -3717,14 +3718,14 @@ app.delete("/api/facebook/pages/:id", requireAuth, requireModule("ecommerce"), a
   try {
     const id = Number(req.params.id);
     const user = req.user as any;
-    const [page] = await db.select().from(facebookPages).where(eq(facebookPages.id, id));
+    const [page] = await ecomDb.select().from(facebookPages).where(eq(facebookPages.id, id));
     if (!page) return res.status(404).json({ message: "ไม่พบเพจ" });
     const [company] = await db.select().from(companies).where(eq(companies.id, page.companyId));
     if (!company || (user.role !== "super_admin" && company.tenantId !== user.tenantId)) {
       return res.status(403).json({ message: "ไม่มีสิทธิ์" });
     }
-    await db.delete(facebookChatOrders).where(eq(facebookChatOrders.pageId, id));
-    await db.delete(facebookPages).where(eq(facebookPages.id, id));
+    await ecomDb.delete(facebookChatOrders).where(eq(facebookChatOrders.pageId, id));
+    await ecomDb.delete(facebookPages).where(eq(facebookPages.id, id));
     res.json({ success: true });
   } catch (err: any) { res.status(400).json({ message: err.message }); }
 });
@@ -3734,7 +3735,7 @@ app.post("/api/facebook/pages/:id/sync", requireAuth, requireModule("ecommerce")
   try {
     const id = Number(req.params.id);
     const user = req.user as any;
-    const [page] = await db.select().from(facebookPages).where(eq(facebookPages.id, id));
+    const [page] = await ecomDb.select().from(facebookPages).where(eq(facebookPages.id, id));
     if (!page) return res.status(404).json({ message: "ไม่พบเพจ" });
     const [company] = await db.select().from(companies).where(eq(companies.id, page.companyId));
     if (!company || (user.role !== "super_admin" && company.tenantId !== user.tenantId)) {
@@ -3766,14 +3767,14 @@ app.post("/api/facebook/pages/:id/sync", requireAuth, requireModule("ecommerce")
       const sender = cfMessages[0]?.from;
       if (!sender) continue;
       
-      const [existing] = await db.select().from(facebookChatOrders)
+      const [existing] = await ecomDb.select().from(facebookChatOrders)
         .where(and(eq(facebookChatOrders.companyId, page.companyId), eq(facebookChatOrders.conversationId, conv.id)));
       if (existing) continue;
       
       const rawMsgText = cfMessages.map((m: any) => `[${m.from?.name || ""}] ${m.message}`).join("\n");
       const parsed = parseCfMessages(cfMessages.map((m: any) => m.message || ""), cfKeywordsList);
       
-      await db.insert(facebookChatOrders).values({
+      await ecomDb.insert(facebookChatOrders).values({
         companyId: page.companyId,
         pageId: page.id,
         conversationId: conv.id,
@@ -3788,7 +3789,7 @@ app.post("/api/facebook/pages/:id/sync", requireAuth, requireModule("ecommerce")
       newOrders++;
     }
     
-    await db.update(facebookPages).set({ lastSyncAt: new Date() }).where(eq(facebookPages.id, id));
+    await ecomDb.update(facebookPages).set({ lastSyncAt: new Date() }).where(eq(facebookPages.id, id));
     res.json({ success: true, newOrders, totalConversations: conversations.length });
   } catch (err: any) { res.status(400).json({ message: err.message }); }
 });
@@ -3812,7 +3813,7 @@ app.post("/api/facebook/parse-messages", requireAuth, requireModule("ecommerce")
     if (!company || (user.role !== "super_admin" && company.tenantId !== user.tenantId)) {
       return res.status(403).json({ message: "ไม่มีสิทธิ์" });
     }
-    const [page] = await db.select().from(facebookPages).where(eq(facebookPages.id, parsed.data.pageId));
+    const [page] = await ecomDb.select().from(facebookPages).where(eq(facebookPages.id, parsed.data.pageId));
     if (!page) return res.status(404).json({ message: "ไม่พบเพจ" });
     if (page.companyId !== parsed.data.companyId) return res.status(403).json({ message: "ไม่มีสิทธิ์" });
     
@@ -3820,7 +3821,7 @@ app.post("/api/facebook/parse-messages", requireAuth, requireModule("ecommerce")
     const lines = parsed.data.messages.split("\n").filter(l => l.trim());
     const result = parseCfMessages(lines, cfKeywordsList);
     
-    const [chatOrder] = await db.insert(facebookChatOrders).values({
+    const [chatOrder] = await ecomDb.insert(facebookChatOrders).values({
       companyId: parsed.data.companyId,
       pageId: parsed.data.pageId,
       senderName: parsed.data.senderName,
@@ -3853,12 +3854,12 @@ app.get("/api/facebook/chat-orders", requireAuth, requireModule("ecommerce"), as
     if (pageIdFilter) conditions.push(eq(facebookChatOrders.pageId, pageIdFilter));
     if (statusFilter) conditions.push(eq(facebookChatOrders.status, statusFilter));
     
-    const orders = await db.select().from(facebookChatOrders)
+    const orders = await ecomDb.select().from(facebookChatOrders)
       .where(and(...conditions))
       .orderBy(desc(facebookChatOrders.createdAt));
     
     // Join page names for display
-    const allPages = await db.select({ id: facebookPages.id, pageName: facebookPages.pageName }).from(facebookPages).where(eq(facebookPages.companyId, companyId));
+    const allPages = await ecomDb.select({ id: facebookPages.id, pageName: facebookPages.pageName }).from(facebookPages).where(eq(facebookPages.companyId, companyId));
     const pageMap: Record<number, string> = {};
     allPages.forEach(p => { pageMap[p.id] = p.pageName; });
     
@@ -3872,7 +3873,7 @@ app.post("/api/facebook/chat-orders/:id/confirm", requireAuth, requireModule("ec
   try {
     const id = Number(req.params.id);
     const user = req.user as any;
-    const [chatOrder] = await db.select().from(facebookChatOrders).where(eq(facebookChatOrders.id, id));
+    const [chatOrder] = await ecomDb.select().from(facebookChatOrders).where(eq(facebookChatOrders.id, id));
     if (!chatOrder) return res.status(404).json({ message: "ไม่พบรายการ" });
     const [company] = await db.select().from(companies).where(eq(companies.id, chatOrder.companyId));
     if (!company || (user.role !== "super_admin" && company.tenantId !== user.tenantId)) {
@@ -3880,7 +3881,7 @@ app.post("/api/facebook/chat-orders/:id/confirm", requireAuth, requireModule("ec
     }
     if (chatOrder.status === "confirmed") return res.status(400).json({ message: "ออเดอร์นี้ยืนยันแล้ว" });
 
-    const [updated] = await db.update(facebookChatOrders).set({
+    const [updated] = await ecomDb.update(facebookChatOrders).set({
       status: "pending_payment",
       paymentStatus: "pending",
     }).where(eq(facebookChatOrders.id, id)).returning();
@@ -3894,13 +3895,13 @@ app.patch("/api/facebook/chat-orders/:id/reject", requireAuth, requireModule("ec
   try {
     const id = Number(req.params.id);
     const user = req.user as any;
-    const [chatOrder] = await db.select().from(facebookChatOrders).where(eq(facebookChatOrders.id, id));
+    const [chatOrder] = await ecomDb.select().from(facebookChatOrders).where(eq(facebookChatOrders.id, id));
     if (!chatOrder) return res.status(404).json({ message: "ไม่พบรายการ" });
     const [company] = await db.select().from(companies).where(eq(companies.id, chatOrder.companyId));
     if (!company || (user.role !== "super_admin" && company.tenantId !== user.tenantId)) {
       return res.status(403).json({ message: "ไม่มีสิทธิ์" });
     }
-    const [updated] = await db.update(facebookChatOrders)
+    const [updated] = await ecomDb.update(facebookChatOrders)
       .set({ status: "rejected", notes: req.body.reason || "ปฏิเสธ" })
       .where(eq(facebookChatOrders.id, id)).returning();
     if (!updated) return res.status(404).json({ message: "ไม่พบรายการ" });
@@ -3914,7 +3915,7 @@ app.post("/api/facebook/chat-orders/:id/upload-slip", requireAuth, requireModule
   try {
     const id = Number(req.params.id);
     const user = req.user as any;
-    const [chatOrder] = await db.select().from(facebookChatOrders).where(eq(facebookChatOrders.id, id));
+    const [chatOrder] = await ecomDb.select().from(facebookChatOrders).where(eq(facebookChatOrders.id, id));
     if (!chatOrder) return res.status(404).json({ message: "ไม่พบรายการ" });
     const [company] = await db.select().from(companies).where(eq(companies.id, chatOrder.companyId));
     if (!company || (user.role !== "super_admin" && company.tenantId !== user.tenantId)) {
@@ -4008,17 +4009,17 @@ app.post("/api/facebook/chat-orders/:id/upload-slip", requireAuth, requireModule
       updateData.status = "confirmed";
     }
 
-    const [updated] = await db.update(facebookChatOrders)
+    const [updated] = await ecomDb.update(facebookChatOrders)
       .set(updateData)
       .where(eq(facebookChatOrders.id, id)).returning();
 
     if (aiResult.match && chatOrder.status === "pending") {
       try {
         const products: Array<{ name: string; qty: number; price: number }> = JSON.parse(chatOrder.parsedProducts || "[]");
-        let [conn] = await db.select().from(ecommerceConnections)
+        let [conn] = await ecomDb.select().from(ecommerceConnections)
           .where(and(eq(ecommerceConnections.companyId, chatOrder.companyId), eq(ecommerceConnections.platform, "facebook")));
         if (!conn) {
-          [conn] = await db.insert(ecommerceConnections).values({
+          [conn] = await ecomDb.insert(ecommerceConnections).values({
             companyId: chatOrder.companyId, platform: "facebook", shopName: "Facebook Page", status: "connected",
           }).returning();
         }
@@ -4074,7 +4075,7 @@ app.patch("/api/facebook/chat-orders/:id/verify-payment", requireAuth, requireMo
   try {
     const id = Number(req.params.id);
     const user = req.user as any;
-    const [chatOrder] = await db.select().from(facebookChatOrders).where(eq(facebookChatOrders.id, id));
+    const [chatOrder] = await ecomDb.select().from(facebookChatOrders).where(eq(facebookChatOrders.id, id));
     if (!chatOrder) return res.status(404).json({ message: "ไม่พบรายการ" });
     const [company] = await db.select().from(companies).where(eq(companies.id, chatOrder.companyId));
     if (!company || (user.role !== "super_admin" && company.tenantId !== user.tenantId)) {
@@ -4083,17 +4084,17 @@ app.patch("/api/facebook/chat-orders/:id/verify-payment", requireAuth, requireMo
 
     const { action } = req.body;
     if (action === "approve") {
-      const [updated] = await db.update(facebookChatOrders)
+      const [updated] = await ecomDb.update(facebookChatOrders)
         .set({ paymentStatus: "verified", paymentVerifiedAt: new Date(), paymentVerifyNote: "ยืนยันโดยผู้ดูแล", status: "confirmed" })
         .where(eq(facebookChatOrders.id, id)).returning();
 
       if (chatOrder.status === "pending" && !chatOrder.ecommerceOrderId) {
         try {
           const products: Array<{ name: string; qty: number; price: number }> = JSON.parse(chatOrder.parsedProducts || "[]");
-          let [conn] = await db.select().from(ecommerceConnections)
+          let [conn] = await ecomDb.select().from(ecommerceConnections)
             .where(and(eq(ecommerceConnections.companyId, chatOrder.companyId), eq(ecommerceConnections.platform, "facebook")));
           if (!conn) {
-            [conn] = await db.insert(ecommerceConnections).values({
+            [conn] = await ecomDb.insert(ecommerceConnections).values({
               companyId: chatOrder.companyId, platform: "facebook", shopName: "Facebook Page", status: "connected",
             }).returning();
           }
@@ -4136,7 +4137,7 @@ app.patch("/api/facebook/chat-orders/:id/verify-payment", requireAuth, requireMo
 
       res.json(updated);
     } else if (action === "reject") {
-      const [updated] = await db.update(facebookChatOrders)
+      const [updated] = await ecomDb.update(facebookChatOrders)
         .set({ paymentStatus: "rejected", paymentVerifyNote: req.body.reason || "สลิปไม่ถูกต้อง" })
         .where(eq(facebookChatOrders.id, id)).returning();
       res.json(updated);
@@ -4234,7 +4235,7 @@ function parseCfMessages(messages: string[], cfKeywords: string[]): { products: 
 // ============ Chat Orders (LINE + Facebook Messenger) ============
 
 async function getCompanyCfKeywords(companyId: number): Promise<string[]> {
-  const rows = await db.select().from(chatOrderKeywords)
+  const rows = await ecomDb.select().from(chatOrderKeywords)
     .where(and(eq(chatOrderKeywords.companyId, companyId), eq(chatOrderKeywords.active, true)));
   if (rows.length === 0) return ["CF", "cf", "สั่ง", "order"];
   return rows.map(r => r.keyword);
@@ -4253,7 +4254,7 @@ async function detectAndCreateChatOrder(
   const result = parseCfMessages([messageText], keywords);
   if (result.products.length === 0) return null;
 
-  const [order] = await db.insert(chatOrders).values({
+  const [order] = await ecomDb.insert(chatOrders).values({
     companyId,
     platform,
     threadId,
@@ -4279,7 +4280,7 @@ app.get("/api/chat-orders", requireAuth, requireModule("ecommerce"), async (req,
     let conditions = [eq(chatOrders.companyId, companyId)];
     if (platform && platform !== "all") conditions.push(eq(chatOrders.platform, platform));
     if (status && status !== "all") conditions.push(eq(chatOrders.status, status));
-    const orders = await db.select().from(chatOrders).where(and(...conditions)).orderBy(desc(chatOrders.createdAt));
+    const orders = await ecomDb.select().from(chatOrders).where(and(...conditions)).orderBy(desc(chatOrders.createdAt));
     res.json(orders);
   } catch (err: any) { res.status(400).json({ message: err.message }); }
 });
@@ -4288,7 +4289,7 @@ app.get("/api/chat-orders/:id", requireAuth, requireModule("ecommerce"), async (
   try {
     const id = Number(req.params.id);
     const user = req.user as any;
-    const [order] = await db.select().from(chatOrders).where(eq(chatOrders.id, id));
+    const [order] = await ecomDb.select().from(chatOrders).where(eq(chatOrders.id, id));
     if (!order) return res.status(404).json({ message: "ไม่พบคำสั่งซื้อ" });
     if (!(await verifyCompanyAccess(user, order.companyId))) return res.status(403).json({ message: "ไม่มีสิทธิ์เข้าถึง" });
     res.json(order);
@@ -4299,7 +4300,7 @@ app.patch("/api/chat-orders/:id/confirm", requireAuth, requireModule("ecommerce"
   try {
     const id = Number(req.params.id);
     const user = req.user as any;
-    const [order] = await db.select().from(chatOrders).where(eq(chatOrders.id, id));
+    const [order] = await ecomDb.select().from(chatOrders).where(eq(chatOrders.id, id));
     if (!order) return res.status(404).json({ message: "ไม่พบคำสั่งซื้อ" });
     if (!(await verifyCompanyAccess(user, order.companyId))) return res.status(403).json({ message: "ไม่มีสิทธิ์เข้าถึง" });
     if (order.status === "confirmed") return res.status(400).json({ message: "คำสั่งซื้อนี้ยืนยันแล้ว" });
@@ -4364,10 +4365,10 @@ app.patch("/api/chat-orders/:id/cancel", requireAuth, requireModule("ecommerce")
   try {
     const id = Number(req.params.id);
     const user = req.user as any;
-    const [order] = await db.select().from(chatOrders).where(eq(chatOrders.id, id));
+    const [order] = await ecomDb.select().from(chatOrders).where(eq(chatOrders.id, id));
     if (!order) return res.status(404).json({ message: "ไม่พบคำสั่งซื้อ" });
     if (!(await verifyCompanyAccess(user, order.companyId))) return res.status(403).json({ message: "ไม่มีสิทธิ์เข้าถึง" });
-    const [updated] = await db.update(chatOrders)
+    const [updated] = await ecomDb.update(chatOrders)
       .set({ status: "cancelled" })
       .where(eq(chatOrders.id, id)).returning();
     res.json(updated);
@@ -4378,7 +4379,7 @@ app.patch("/api/chat-orders/:id", requireAuth, requireModule("ecommerce"), async
   try {
     const id = Number(req.params.id);
     const user = req.user as any;
-    const [order] = await db.select().from(chatOrders).where(eq(chatOrders.id, id));
+    const [order] = await ecomDb.select().from(chatOrders).where(eq(chatOrders.id, id));
     if (!order) return res.status(404).json({ message: "ไม่พบคำสั่งซื้อ" });
     if (!(await verifyCompanyAccess(user, order.companyId))) return res.status(403).json({ message: "ไม่มีสิทธิ์เข้าถึง" });
     const { parsedProducts, totalAmount, notes } = req.body;
@@ -4386,7 +4387,7 @@ app.patch("/api/chat-orders/:id", requireAuth, requireModule("ecommerce"), async
     if (parsedProducts !== undefined) updates.parsedProducts = typeof parsedProducts === "string" ? parsedProducts : JSON.stringify(parsedProducts);
     if (totalAmount !== undefined) updates.totalAmount = String(totalAmount);
     if (notes !== undefined) updates.notes = notes;
-    const [updated] = await db.update(chatOrders).set(updates).where(eq(chatOrders.id, id)).returning();
+    const [updated] = await ecomDb.update(chatOrders).set(updates).where(eq(chatOrders.id, id)).returning();
     res.json(updated);
   } catch (err: any) { res.status(400).json({ message: err.message }); }
 });
@@ -4395,7 +4396,7 @@ app.get("/api/chat-order-keywords", requireAuth, requireModule("ecommerce"), asy
   try {
     const companyId = Number(req.query.companyId);
     if (!companyId) return res.status(400).json({ message: "companyId required" });
-    const keywords = await db.select().from(chatOrderKeywords).where(eq(chatOrderKeywords.companyId, companyId)).orderBy(asc(chatOrderKeywords.createdAt));
+    const keywords = await ecomDb.select().from(chatOrderKeywords).where(eq(chatOrderKeywords.companyId, companyId)).orderBy(asc(chatOrderKeywords.createdAt));
     res.json(keywords);
   } catch (err: any) { res.status(400).json({ message: err.message }); }
 });
@@ -4404,7 +4405,7 @@ app.post("/api/chat-order-keywords", requireAuth, requireModule("ecommerce"), as
   try {
     const { companyId, keyword, platform } = req.body;
     if (!companyId || !keyword) return res.status(400).json({ message: "companyId and keyword required" });
-    const [kw] = await db.insert(chatOrderKeywords).values({
+    const [kw] = await ecomDb.insert(chatOrderKeywords).values({
       companyId, keyword: keyword.trim(), platform: platform || "all",
     }).returning();
     res.json(kw);
@@ -4414,7 +4415,7 @@ app.post("/api/chat-order-keywords", requireAuth, requireModule("ecommerce"), as
 app.delete("/api/chat-order-keywords/:id", requireAuth, requireModule("ecommerce"), async (req, res) => {
   try {
     const id = Number(req.params.id);
-    await db.delete(chatOrderKeywords).where(eq(chatOrderKeywords.id, id));
+    await ecomDb.delete(chatOrderKeywords).where(eq(chatOrderKeywords.id, id));
     res.json({ success: true });
   } catch (err: any) { res.status(400).json({ message: err.message }); }
 });
@@ -4514,7 +4515,7 @@ app.get("/api/ecommerce/shipping-labels/orders", requireAuth, requireModule("eco
     let searchOrderIds: number[] | null = null;
     if (search) {
       const searchPattern = `%${search}%`;
-      const directMatches = await db.select({ id: ecommerceOrders.id })
+      const directMatches = await ecomDb.select({ id: ecommerceOrders.id })
         .from(ecommerceOrders)
         .where(and(
           eq(ecommerceOrders.companyId, companyId),
@@ -4566,7 +4567,7 @@ app.get("/api/ecommerce/shipping-labels/orders", requireAuth, requireModule("eco
       conditions.push(inArray(ecommerceOrders.id, pIds));
     }
 
-    const itemCountSub = db.select({
+    const itemCountSub = ecomDb.select({
       orderId: ecommerceOrderItems.orderId,
       cnt: count().as("cnt"),
       itemNames: sql<string>`string_agg(${ecommerceOrderItems.name}, '||')`.as("item_names"),
@@ -4687,7 +4688,7 @@ app.post("/api/ecommerce/shipping-labels/generate", requireAuth, requireModule("
     if (!Array.isArray(orderIds) || orderIds.length === 0 || !carrier) {
       return res.status(400).json({ message: "orderIds (array) and carrier are required" });
     }
-    await db.update(ecommerceOrders).set({
+    await ecomDb.update(ecommerceOrders).set({
       labelStatus: "printed",
       labelPrintCount: sql`${ecommerceOrders.labelPrintCount} + 1`,
       labelPrintedAt: new Date(),
@@ -4712,7 +4713,7 @@ app.post("/api/ecommerce/shipping-labels/expand-bundles", requireAuth, requireMo
       return res.status(400).json({ message: "companyId and orderIds required" });
     }
 
-    const validOrders = await db.select({ id: ecommerceOrders.id })
+    const validOrders = await ecomDb.select({ id: ecommerceOrders.id })
       .from(ecommerceOrders)
       .where(and(inArray(ecommerceOrders.id, orderIds), eq(ecommerceOrders.companyId, companyId)));
     const validOrderIds = validOrders.map(o => o.id);
@@ -4979,7 +4980,7 @@ app.post("/api/ecommerce/packing/recordings/start", requireAuth, requireModule("
     const { companyId, cameraId, orderNo, operatorName } = req.body;
     if (!companyId || !cameraId) return res.status(400).json({ message: "companyId and cameraId required" });
 
-    const order = orderNo ? await db.select().from(ecommerceOrders)
+    const order = orderNo ? await ecomDb.select().from(ecommerceOrders)
       .where(and(
         eq(ecommerceOrders.companyId, companyId),
         or(
@@ -5083,7 +5084,7 @@ app.get("/api/ecommerce/reconciliation", requireAuth, requireModule("ecommerce")
       conditions.push(lte(ecommerceOrders.placedAt, endDate));
     }
 
-    const allOrders = await db.select().from(ecommerceOrders)
+    const allOrders = await ecomDb.select().from(ecommerceOrders)
       .where(and(...conditions))
       .orderBy(desc(ecommerceOrders.placedAt));
 
@@ -5153,7 +5154,7 @@ app.get("/api/ecommerce/returns", requireAuth, requireModule("ecommerce"), async
     if (status && status !== "all") conditions.push(eq(ecommerceReturns.status, status));
     const platform = req.query.platform as string;
     if (platform && platform !== "all") conditions.push(eq(ecommerceReturns.platform, platform));
-    const returns = await db.select().from(ecommerceReturns)
+    const returns = await ecomDb.select().from(ecommerceReturns)
       .where(and(...conditions))
       .orderBy(desc(ecommerceReturns.createdAt));
     res.json(returns);
@@ -5166,10 +5167,10 @@ app.get("/api/ecommerce/returns/report", requireAuth, requireModule("ecommerce")
     if (!companyId) return res.status(400).json({ message: "companyId required" });
     const FOOD_PLATFORMS = ['grab_food', 'line_man', 'robinhood'];
 
-    const allReturns = await db.select().from(ecommerceReturns)
+    const allReturns = await ecomDb.select().from(ecommerceReturns)
       .where(and(eq(ecommerceReturns.companyId, companyId), notInArray(ecommerceReturns.platform, FOOD_PLATFORMS)));
     const allItems = allReturns.length > 0
-      ? await db.select().from(ecommerceReturnItems).where(inArray(ecommerceReturnItems.returnId, allReturns.map(r => r.id)))
+      ? await ecomDb.select().from(ecommerceReturnItems).where(inArray(ecommerceReturnItems.returnId, allReturns.map(r => r.id)))
       : [];
 
     const totalReturns = allReturns.length;
@@ -5246,7 +5247,7 @@ app.get("/api/ecommerce/returns/summary", requireAuth, requireModule("ecommerce"
     const companyId = Number(req.query.companyId);
     if (!companyId) return res.status(400).json({ message: "companyId required" });
     const FOOD_PLATFORMS = ['grab_food', 'line_man', 'robinhood'];
-    const results = await db.select({
+    const results = await ecomDb.select({
       returnStatus: ecommerceReturns.returnStatus,
       count: sql<number>`count(*)`,
       totalRefund: sql<string>`coalesce(sum(${ecommerceReturns.refundAmount}), 0)`,
@@ -5276,16 +5277,16 @@ app.get("/api/ecommerce/returns/scan-lookup", requireAuth, requireModule("ecomme
     const code = req.query.code as string;
     if (!companyId || !code) return res.status(400).json({ message: "companyId and code required" });
     const trimmed = code.trim();
-    const matchedItems = await db.select({ item: ecommerceReturnItems, ret: ecommerceReturns })
+    const matchedItems = await ecomDb.select({ item: ecommerceReturnItems, ret: ecommerceReturns })
       .from(ecommerceReturnItems)
       .innerJoin(ecommerceReturns, eq(ecommerceReturnItems.returnId, ecommerceReturns.id))
       .where(and(eq(ecommerceReturns.companyId, companyId), sql`(${ecommerceReturnItems.barcode} = ${trimmed} OR ${ecommerceReturnItems.sku} = ${trimmed} OR ${ecommerceReturns.returnNo} = ${trimmed})`))
       .orderBy(desc(ecommerceReturns.createdAt));
     if (matchedItems.length === 0) {
-      const productMatch = await db.select().from(products).where(and(eq(products.companyId, companyId), sql`(${products.barcode} = ${trimmed} OR ${products.code} = ${trimmed})`)).limit(1);
+      const productMatch = await ecomDb.select().from(products).where(and(eq(products.companyId, companyId), sql`(${products.barcode} = ${trimmed} OR ${products.code} = ${trimmed})`)).limit(1);
       if (productMatch.length > 0) {
         const p = productMatch[0];
-        const returnItemsByProduct = await db.select({ item: ecommerceReturnItems, ret: ecommerceReturns })
+        const returnItemsByProduct = await ecomDb.select({ item: ecommerceReturnItems, ret: ecommerceReturns })
           .from(ecommerceReturnItems).innerJoin(ecommerceReturns, eq(ecommerceReturnItems.returnId, ecommerceReturns.id))
           .where(and(eq(ecommerceReturns.companyId, companyId), eq(ecommerceReturnItems.productId, p.id), eq(ecommerceReturns.returnStatus, "in_transit")))
           .orderBy(desc(ecommerceReturns.createdAt));
@@ -5302,7 +5303,7 @@ app.get("/api/ecommerce/returns/zone-summary", requireAuth, requireModule("ecomm
     const companyId = Number(req.query.companyId);
     if (!companyId) return res.status(400).json({ message: "companyId required" });
     const FOOD_PLATFORMS = ['grab_food', 'line_man', 'robinhood'];
-    const results = await db.select({
+    const results = await ecomDb.select({
       zone: ecommerceReturnItems.zone, qcStatus: ecommerceReturnItems.qcStatus,
       count: sql<number>`count(*)`,
       totalQty: sql<string>`coalesce(sum(CAST(${ecommerceReturnItems.receivedQty} AS numeric)), 0)`,
@@ -5327,7 +5328,7 @@ app.get("/api/ecommerce/returns/qc-pending", requireAuth, requireModule("ecommer
     const companyId = Number(req.query.companyId);
     if (!companyId) return res.status(400).json({ message: "companyId required" });
     const FOOD_PLATFORMS = ['grab_food', 'line_man', 'robinhood'];
-    const items = await db.select({
+    const items = await ecomDb.select({
       item: ecommerceReturnItems, returnNo: ecommerceReturns.returnNo,
       platform: ecommerceReturns.platform, buyerName: ecommerceReturns.buyerName, returnId: ecommerceReturns.id,
     }).from(ecommerceReturnItems)
@@ -5344,9 +5345,9 @@ app.get("/api/ecommerce/returns/qc-pending", requireAuth, requireModule("ecommer
 
 app.get("/api/ecommerce/returns/:id", requireAuth, requireModule("ecommerce"), async (req, res) => {
   try {
-    const [ret] = await db.select().from(ecommerceReturns).where(eq(ecommerceReturns.id, Number(req.params.id)));
+    const [ret] = await ecomDb.select().from(ecommerceReturns).where(eq(ecommerceReturns.id, Number(req.params.id)));
     if (!ret) return res.status(404).json({ message: "ไม่พบรายการคืนสินค้า" });
-    const items = await db.select().from(ecommerceReturnItems).where(eq(ecommerceReturnItems.returnId, ret.id));
+    const items = await ecomDb.select().from(ecommerceReturnItems).where(eq(ecommerceReturnItems.returnId, ret.id));
     res.json({ ...ret, items });
   } catch (err: any) { res.status(400).json({ message: err.message }); }
 });
@@ -5356,12 +5357,12 @@ app.post("/api/ecommerce/returns", requireAuth, requireModule("ecommerce"), asyn
     const { items, ...returnData } = req.body;
     const companyId = Number(returnData.companyId);
     if (!companyId) return res.status(400).json({ message: "companyId required" });
-    const count = await db.select({ count: sql<number>`count(*)` }).from(ecommerceReturns).where(eq(ecommerceReturns.companyId, companyId));
+    const count = await ecomDb.select({ count: sql<number>`count(*)` }).from(ecommerceReturns).where(eq(ecommerceReturns.companyId, companyId));
     const nextNum = Number(count[0]?.count || 0) + 1;
     const returnNo = `RT-${String(nextNum).padStart(5, "0")}`;
-    const [newReturn] = await db.insert(ecommerceReturns).values({ ...returnData, companyId, returnNo, status: "requested" }).returning();
+    const [newReturn] = await ecomDb.insert(ecommerceReturns).values({ ...returnData, companyId, returnNo, status: "requested" }).returning();
     if (items && Array.isArray(items) && items.length > 0) {
-      await db.insert(ecommerceReturnItems).values(items.map((item: any) => ({ ...item, returnId: newReturn.id })));
+      await ecomDb.insert(ecommerceReturnItems).values(items.map((item: any) => ({ ...item, returnId: newReturn.id })));
     }
     res.json(newReturn);
   } catch (err: any) { res.status(400).json({ message: err.message }); }
@@ -5378,11 +5379,11 @@ app.patch("/api/ecommerce/returns/:id/status", requireAuth, requireModule("ecomm
       updateData.completedAt = new Date();
     }
     if (notes) updateData.notes = notes;
-    const [updated] = await db.update(ecommerceReturns).set(updateData).where(eq(ecommerceReturns.id, Number(req.params.id))).returning();
+    const [updated] = await ecomDb.update(ecommerceReturns).set(updateData).where(eq(ecommerceReturns.id, Number(req.params.id))).returning();
     if (status === "completed" && updated) {
-      await db.update(ecommerceOrders).set({ status: "returned" }).where(eq(ecommerceOrders.id, updated.orderId));
+      await ecomDb.update(ecommerceOrders).set({ status: "returned" }).where(eq(ecommerceOrders.id, updated.orderId));
 
-      const [order] = await db.select().from(ecommerceOrders).where(eq(ecommerceOrders.id, updated.orderId));
+      const [order] = await ecomDb.select().from(ecommerceOrders).where(eq(ecommerceOrders.id, updated.orderId));
       if (order && order.taxInvoiceId && !order.creditNoteId) {
         try {
           const [originalTiv] = await db.select().from(taxInvoices).where(eq(taxInvoices.id, order.taxInvoiceId));
@@ -5505,7 +5506,7 @@ app.patch("/api/ecommerce/returns/:id/ship", requireAuth, requireModule("ecommer
   try {
     const { trackingNo, shipper } = req.body;
     if (!trackingNo) return res.status(400).json({ message: "กรุณาระบุหมายเลขพัสดุ" });
-    const [updated] = await db.update(ecommerceReturns).set({
+    const [updated] = await ecomDb.update(ecommerceReturns).set({
       returnStatus: "in_transit",
       returnTrackingNo: trackingNo,
       returnShipper: shipper || null,
@@ -5599,7 +5600,7 @@ app.patch("/api/ecommerce/returns/items/:itemId/qc", requireAuth, requireModule(
     const userId = (req.user as any)?.id;
     const { qcCondition, qcNotes, disposition, zone } = req.body;
     if (!qcCondition) return res.status(400).json({ message: "กรุณาระบุสภาพสินค้า" });
-    const [item] = await db.select().from(ecommerceReturnItems).where(eq(ecommerceReturnItems.id, itemId));
+    const [item] = await ecomDb.select().from(ecommerceReturnItems).where(eq(ecommerceReturnItems.id, itemId));
     if (!item) return res.status(404).json({ message: "ไม่พบรายการสินค้า" });
     let autoDisposition = disposition;
     let autoZone = zone;
@@ -5653,7 +5654,7 @@ app.patch("/api/ecommerce/returns/items/:itemId/zone", requireAuth, requireModul
     const itemId = Number(req.params.itemId);
     const { zone } = req.body;
     if (!zone) return res.status(400).json({ message: "กรุณาระบุโซน" });
-    const [updated] = await db.update(ecommerceReturnItems).set({ zone }).where(eq(ecommerceReturnItems.id, itemId)).returning();
+    const [updated] = await ecomDb.update(ecommerceReturnItems).set({ zone }).where(eq(ecommerceReturnItems.id, itemId)).returning();
     if (!updated) return res.status(404).json({ message: "ไม่พบรายการ" });
     res.json(updated);
   } catch (err: any) { res.status(400).json({ message: err.message }); }
@@ -5711,7 +5712,7 @@ app.get("/api/ecommerce/stock-summary", requireAuth, requireModule("ecommerce"),
 app.post("/api/ecommerce/orders/:id/send-tracking", requireAuth, requireModule("ecommerce"), async (req, res) => {
   try {
     const orderId = Number(req.params.id);
-    const [order] = await db.select().from(ecommerceOrders).where(eq(ecommerceOrders.id, orderId));
+    const [order] = await ecomDb.select().from(ecommerceOrders).where(eq(ecommerceOrders.id, orderId));
     if (!order) return res.status(404).json({ message: "ไม่พบคำสั่งซื้อ" });
     if (!order.trackingNo) return res.status(400).json({ message: "ยังไม่มีเลขพัสดุ" });
 

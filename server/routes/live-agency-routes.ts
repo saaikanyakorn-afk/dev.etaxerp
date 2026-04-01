@@ -1,5 +1,6 @@
 import type { Express, Request, Response } from "express";
 import { db } from "../db";
+import { ecomDb } from "../ecom-db";
 import { eq, desc, and, asc, inArray, gte } from "drizzle-orm";
 import { liveAgencyClients, budgets } from "@shared/schema";
 import { requireAuth, checkDocOwnership } from "../route-middleware";
@@ -65,7 +66,7 @@ app.get("/api/live-agency/sessions", requireAuth, async (req, res) => {
     if (agencyClientId) {
       conditions.push(eq(liveSessions.agencyClientId, agencyClientId));
     }
-    const sessions = await db.select().from(liveSessions)
+    const sessions = await ecomDb.select().from(liveSessions)
       .where(and(...conditions))
       .orderBy(desc(liveSessions.createdAt));
     res.json(sessions);
@@ -77,7 +78,7 @@ app.get("/api/live-agency/sessions/:id/dashboard", requireAuth, async (req, res)
     const sessionId = Number(req.params.id);
     const companyId = Number(req.query.companyId);
     if (!companyId) return res.status(400).json({ message: "companyId is required" });
-    const [session] = await db.select().from(liveSessions).where(eq(liveSessions.id, sessionId));
+    const [session] = await ecomDb.select().from(liveSessions).where(eq(liveSessions.id, sessionId));
     if (!session) return res.status(404).json({ message: "ไม่พบเซสชัน" });
     if (session.companyId !== companyId) return res.status(403).json({ message: "ไม่มีสิทธิ์เข้าถึง" });
     const metrics = await db.select().from(liveSessionMetrics)
@@ -101,7 +102,7 @@ app.post("/api/live-agency/sessions/:id/metrics", requireAuth, async (req, res) 
     const sessionId = Number(req.params.id);
     const companyId = Number(req.query.companyId);
     if (!companyId) return res.status(400).json({ message: "companyId is required" });
-    const [session] = await db.select().from(liveSessions).where(eq(liveSessions.id, sessionId));
+    const [session] = await ecomDb.select().from(liveSessions).where(eq(liveSessions.id, sessionId));
     if (!session) return res.status(404).json({ message: "ไม่พบเซสชัน" });
     if (session.companyId !== companyId) return res.status(403).json({ message: "ไม่มีสิทธิ์เข้าถึง" });
     const parsed = insertLiveSessionMetricSchema.parse({ ...req.body, sessionId });
@@ -116,7 +117,7 @@ app.get("/api/live-agency/sessions/:id/aida-actions", requireAuth, async (req, r
     const sessionId = Number(req.params.id);
     const companyId = Number(req.query.companyId);
     if (!companyId) return res.status(400).json({ message: "companyId is required" });
-    const [session] = await db.select().from(liveSessions).where(eq(liveSessions.id, sessionId));
+    const [session] = await ecomDb.select().from(liveSessions).where(eq(liveSessions.id, sessionId));
     if (!session) return res.status(404).json({ message: "ไม่พบเซสชัน" });
     if (session.companyId !== companyId) return res.status(403).json({ message: "ไม่มีสิทธิ์เข้าถึง" });
     const actions = await db.select().from(liveAidaActions)
@@ -131,7 +132,7 @@ app.post("/api/live-agency/sessions/:id/aida-actions", requireAuth, async (req, 
     const sessionId = Number(req.params.id);
     const companyId = Number(req.query.companyId);
     if (!companyId) return res.status(400).json({ message: "companyId is required" });
-    const [session] = await db.select().from(liveSessions).where(eq(liveSessions.id, sessionId));
+    const [session] = await ecomDb.select().from(liveSessions).where(eq(liveSessions.id, sessionId));
     if (!session) return res.status(404).json({ message: "ไม่พบเซสชัน" });
     if (session.companyId !== companyId) return res.status(403).json({ message: "ไม่มีสิทธิ์เข้าถึง" });
     const parsed = insertLiveAidaActionSchema.parse({ ...req.body, sessionId });
@@ -145,7 +146,7 @@ app.patch("/api/live-agency/sessions/:id/aida-actions/:actionId", requireAuth, a
     const sessionId = Number(req.params.id);
     const companyId = Number(req.query.companyId);
     if (!companyId) return res.status(400).json({ message: "companyId is required" });
-    const [session] = await db.select().from(liveSessions).where(eq(liveSessions.id, sessionId));
+    const [session] = await ecomDb.select().from(liveSessions).where(eq(liveSessions.id, sessionId));
     if (!session) return res.status(404).json({ message: "ไม่พบเซสชัน" });
     if (session.companyId !== companyId) return res.status(403).json({ message: "ไม่มีสิทธิ์เข้าถึง" });
     const actionId = Number(req.params.actionId);
@@ -169,7 +170,7 @@ app.get("/api/live-agency/sessions/:id/ad-budgets", requireAuth, async (req, res
     const sessionId = Number(req.params.id);
     const companyId = Number(req.query.companyId);
     if (!companyId) return res.status(400).json({ message: "companyId is required" });
-    const [session] = await db.select().from(liveSessions).where(eq(liveSessions.id, sessionId));
+    const [session] = await ecomDb.select().from(liveSessions).where(eq(liveSessions.id, sessionId));
     if (!session) return res.status(404).json({ message: "ไม่พบเซสชัน" });
     if (session.companyId !== companyId) return res.status(403).json({ message: "ไม่มีสิทธิ์เข้าถึง" });
     const budgets = await db.select().from(liveAdBudgets)
@@ -184,7 +185,7 @@ app.post("/api/live-agency/sessions/:id/ad-budgets", requireAuth, async (req, re
     const sessionId = Number(req.params.id);
     const companyId = Number(req.query.companyId);
     if (!companyId) return res.status(400).json({ message: "companyId is required" });
-    const [session] = await db.select().from(liveSessions).where(eq(liveSessions.id, sessionId));
+    const [session] = await ecomDb.select().from(liveSessions).where(eq(liveSessions.id, sessionId));
     if (!session) return res.status(404).json({ message: "ไม่พบเซสชัน" });
     if (session.companyId !== companyId) return res.status(403).json({ message: "ไม่มีสิทธิ์เข้าถึง" });
     const parsed = insertLiveAdBudgetSchema.parse({ ...req.body, sessionId });
@@ -199,7 +200,7 @@ app.get("/api/live-agency/sessions/:id/report", requireAuth, async (req, res) =>
     const sessionId = Number(req.params.id);
     const companyId = Number(req.query.companyId);
     if (!companyId) return res.status(400).json({ message: "companyId is required" });
-    const [session] = await db.select().from(liveSessions).where(eq(liveSessions.id, sessionId));
+    const [session] = await ecomDb.select().from(liveSessions).where(eq(liveSessions.id, sessionId));
     if (!session) return res.status(404).json({ message: "ไม่พบเซสชัน" });
     if (session.companyId !== companyId) return res.status(403).json({ message: "ไม่มีสิทธิ์เข้าถึง" });
     const [report] = await db.select().from(liveSessionReports)
@@ -214,7 +215,7 @@ app.post("/api/live-agency/sessions/:id/report", requireAuth, async (req, res) =
     const sessionId = Number(req.params.id);
     const companyId = Number(req.query.companyId);
     if (!companyId) return res.status(400).json({ message: "companyId is required" });
-    const [session] = await db.select().from(liveSessions).where(eq(liveSessions.id, sessionId));
+    const [session] = await ecomDb.select().from(liveSessions).where(eq(liveSessions.id, sessionId));
     if (!session) return res.status(404).json({ message: "ไม่พบเซสชัน" });
     if (session.companyId !== companyId) return res.status(403).json({ message: "ไม่มีสิทธิ์เข้าถึง" });
 
@@ -230,7 +231,7 @@ app.post("/api/live-agency/sessions/:id/report", requireAuth, async (req, res) =
       items = await db.select().from(liveCfItems).where(inArray(liveCfItems.cfOrderId, orderIds));
     }
 
-    const sessionProducts = await db.select().from(liveSessionProducts)
+    const sessionProducts = await ecomDb.select().from(liveSessionProducts)
       .where(eq(liveSessionProducts.sessionId, sessionId));
 
     const productSales: Record<string, { name: string; qty: number; revenue: number }> = {};
@@ -311,7 +312,7 @@ app.post("/api/live-agency/sessions/:id/report", requireAuth, async (req, res) =
       [report] = await db.insert(liveSessionReports).values(reportData).returning();
     }
 
-    await db.update(liveSessions).set({ postReportSent: true }).where(eq(liveSessions.id, sessionId));
+    await ecomDb.update(liveSessions).set({ postReportSent: true }).where(eq(liveSessions.id, sessionId));
 
     res.json(report);
   } catch (err: any) { res.status(500).json({ message: err.message }); }
@@ -323,7 +324,7 @@ app.get("/api/live-agency/calendar", requireAuth, async (req, res) => {
     const companyId = Number(req.query.companyId);
     if (!companyId) return res.status(400).json({ message: "companyId is required" });
     const now = new Date();
-    const sessions = await db.select().from(liveSessions)
+    const sessions = await ecomDb.select().from(liveSessions)
       .where(and(
         eq(liveSessions.companyId, companyId),
         gte(liveSessions.scheduledAt, now)
@@ -339,10 +340,10 @@ app.post("/api/live-agency/sessions/:id/notify", requireAuth, async (req, res) =
     const sessionId = Number(req.params.id);
     const companyId = Number(req.query.companyId);
     if (!companyId) return res.status(400).json({ message: "companyId is required" });
-    const [session] = await db.select().from(liveSessions).where(eq(liveSessions.id, sessionId));
+    const [session] = await ecomDb.select().from(liveSessions).where(eq(liveSessions.id, sessionId));
     if (!session) return res.status(404).json({ message: "ไม่พบเซสชัน" });
     if (session.companyId !== companyId) return res.status(403).json({ message: "ไม่มีสิทธิ์เข้าถึง" });
-    await db.update(liveSessions).set({ preNotifySent: true }).where(eq(liveSessions.id, sessionId));
+    await ecomDb.update(liveSessions).set({ preNotifySent: true }).where(eq(liveSessions.id, sessionId));
     res.json({ success: true, message: "ส่งแจ้งเตือนเรียบร้อย" });
   } catch (err: any) { res.status(500).json({ message: err.message }); }
 });

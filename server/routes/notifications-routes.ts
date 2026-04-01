@@ -1,5 +1,6 @@
 import type { Express, Request, Response } from "express";
 import { db } from "../db";
+import { ecomDb } from "../ecom-db";
 import { eq, desc, and, or, gte, count , sql } from "drizzle-orm";
 import { notifications, products, productStock, ecommerceReturns, ecommerceOrders, invoices, taxInvoices, purchaseInvoices, expenses, budgets, accounts, receipts, receiptLinkedDocs, contacts, paymentVouchers, paymentVoucherLinkedDocs } from "@shared/schema";
 import { requireAuth, checkDocOwnership } from "../route-middleware";
@@ -110,7 +111,7 @@ app.get("/api/notifications/generate", requireAuth, async (req, res) => {
       }
     }
 
-    const pendingReturns = await db.select({
+    const pendingReturns = await ecomDb.select({
       id: ecommerceReturns.id,
       returnNo: ecommerceReturns.returnNo,
     }).from(ecommerceReturns)
@@ -173,7 +174,7 @@ app.get("/api/notifications/generate", requireAuth, async (req, res) => {
 
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
-    const [orderCount] = await db.select({ count: sql<number>`count(*)::int` })
+    const [orderCount] = await ecomDb.select({ count: sql<number>`count(*)::int` })
       .from(ecommerceOrders)
       .where(and(
         eq(ecommerceOrders.companyId, companyId),

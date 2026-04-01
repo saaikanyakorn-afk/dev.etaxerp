@@ -1,4 +1,5 @@
 import { db } from "../db";
+import { ecomDb } from "../ecom-db";
 import { eq, sql, and } from "drizzle-orm";
 import {
   companies, ecommerceConnections,
@@ -72,7 +73,7 @@ export async function ensureStoreFolderCode(connectionId: number): Promise<Store
 
   if (existing) return existing;
 
-  const [conn] = await db.select().from(ecommerceConnections)
+  const [conn] = await ecomDb.select().from(ecommerceConnections)
     .where(eq(ecommerceConnections.id, connectionId));
 
   if (!conn) throw new Error(`Connection ${connectionId} not found`);
@@ -204,7 +205,7 @@ export async function backfillFolderCodes(): Promise<{ companyCodes: number; sto
     }
   }
 
-  const allConnections = await db.select({ id: ecommerceConnections.id, companyId: ecommerceConnections.companyId })
+  const allConnections = await ecomDb.select({ id: ecommerceConnections.id, companyId: ecommerceConnections.companyId })
     .from(ecommerceConnections);
 
   for (const conn of allConnections) {

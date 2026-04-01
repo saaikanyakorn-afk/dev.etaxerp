@@ -1,4 +1,5 @@
 import { db } from "./db";
+import { ecomDb } from "./ecom-db";
 import {
   ecommerceOrders, ecommerceOrderItems,
   journalEntries, journalLines,
@@ -27,7 +28,7 @@ export async function archiveEcommerceOrdersForCompany(
   try {
     const cutoff = new Date(cutoffDate);
 
-    const oldOrders = await db.select()
+    const oldOrders = await ecomDb.select()
       .from(ecommerceOrders)
       .where(
         and(
@@ -54,7 +55,7 @@ export async function archiveEcommerceOrdersForCompany(
       const batch = oldOrders.slice(i, i + BATCH_SIZE);
       const orderIds = batch.map(o => o.id);
 
-      await db.transaction(async (tx) => {
+      await ecomDb.transaction(async (tx) => {
         const archiveValues = batch.map(o => ({
           originalId: o.id,
           companyId: o.companyId,

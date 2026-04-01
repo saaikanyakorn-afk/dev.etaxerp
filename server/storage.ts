@@ -1,5 +1,6 @@
 import { eq, and, desc, sql, inArray, count, ne, or, ilike, gte, lte, asc, isNull, isNotNull } from "drizzle-orm";
 import { db } from "./db";
+import { ecomDb } from "./ecom-db";
 import {
   tenants, users, companies, employees, attendanceRecords, otRecords, leaveRequests, firmClients, firmClientTeam, accounts, journalEntries, journalLines, rolePermissions, userSubPermissions,
   accountingFormulas, accountingFormulaLines, documentSettings, contacts, products, contactSettings,
@@ -1920,16 +1921,16 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getEcommerceConnections(companyId: number): Promise<EcommerceConnection[]> {
-    return db.select().from(ecommerceConnections).where(eq(ecommerceConnections.companyId, companyId)).orderBy(desc(ecommerceConnections.createdAt));
+    return ecomDb.select().from(ecommerceConnections).where(eq(ecommerceConnections.companyId, companyId)).orderBy(desc(ecommerceConnections.createdAt));
   }
 
   async getEcommerceConnection(id: number): Promise<EcommerceConnection | undefined> {
-    const [row] = await db.select().from(ecommerceConnections).where(eq(ecommerceConnections.id, id));
+    const [row] = await ecomDb.select().from(ecommerceConnections).where(eq(ecommerceConnections.id, id));
     return row;
   }
 
   async createEcommerceConnection(data: InsertEcommerceConnection): Promise<EcommerceConnection> {
-    const [created] = await db.insert(ecommerceConnections).values(data).returning();
+    const [created] = await ecomDb.insert(ecommerceConnections).values(data).returning();
     try {
       const { ensureStoreFolderCode } = await import("./services/folder-codes");
       await ensureStoreFolderCode(created.id);
@@ -1940,7 +1941,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateEcommerceConnection(id: number, data: Partial<InsertEcommerceConnection>): Promise<EcommerceConnection | undefined> {
-    const [updated] = await db.update(ecommerceConnections).set(data).where(eq(ecommerceConnections.id, id)).returning();
+    const [updated] = await ecomDb.update(ecommerceConnections).set(data).where(eq(ecommerceConnections.id, id)).returning();
     if (updated && (data.shopName !== undefined || data.platform !== undefined || data.status !== undefined)) {
       try {
         const { markStoreDirty } = await import("./services/folder-codes");
@@ -1953,7 +1954,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteEcommerceConnection(id: number): Promise<boolean> {
-    const result = await db.delete(ecommerceConnections).where(eq(ecommerceConnections.id, id));
+    const result = await ecomDb.delete(ecommerceConnections).where(eq(ecommerceConnections.id, id));
     return (result.rowCount ?? 0) > 0;
   }
 
@@ -1970,86 +1971,86 @@ export class DatabaseStorage implements IStorage {
     }
     if (options?.hasDocument === "yes") conditions.push(isNotNull(ecommerceOrders.taxInvoiceId));
     if (options?.hasDocument === "no") conditions.push(isNull(ecommerceOrders.taxInvoiceId));
-    const itemCountSub = db.select({ orderId: ecommerceOrderItems.orderId, cnt: count().as("cnt"), itemNames: sql<string>`string_agg(${ecommerceOrderItems.name}, '||')`.as("item_names") }).from(ecommerceOrderItems).groupBy(ecommerceOrderItems.orderId).as("item_counts");
-    const rows = await db.select({ order: ecommerceOrders, itemCount: sql<number>`coalesce(${itemCountSub.cnt}, 0)`, itemNames: itemCountSub.itemNames }).from(ecommerceOrders).leftJoin(itemCountSub, eq(ecommerceOrders.id, itemCountSub.orderId)).where(and(...conditions)).orderBy(desc(ecommerceOrders.placedAt));
+    const itemCountSub = ecomDb.select({ orderId: ecommerceOrderItems.orderId, cnt: count().as("cnt"), itemNames: sql<string>`string_agg(${ecommerceOrderItems.name}, '||')`.as("item_names") }).from(ecommerceOrderItems).groupBy(ecommerceOrderItems.orderId).as("item_counts");
+    const rows = await ecomDb.select({ order: ecommerceOrders, itemCount: sql<number>`coalesce(${itemCountSub.cnt}, 0)`, itemNames: itemCountSub.itemNames }).from(ecommerceOrders).leftJoin(itemCountSub, eq(ecommerceOrders.id, itemCountSub.orderId)).where(and(...conditions)).orderBy(desc(ecommerceOrders.placedAt));
     return rows.map(r => ({ ...r.order, itemCount: Number(r.itemCount) || 0, itemNames: r.itemNames ? String(r.itemNames).split("||") : [] }));
   }
 
   async getEcommerceOrder(id: number): Promise<EcommerceOrder | undefined> {
-    const [row] = await db.select().from(ecommerceOrders).where(eq(ecommerceOrders.id, id));
+    const [row] = await ecomDb.select().from(ecommerceOrders).where(eq(ecommerceOrders.id, id));
     return row;
   }
 
   async createEcommerceOrder(data: InsertEcommerceOrder): Promise<EcommerceOrder> {
-    const [created] = await db.insert(ecommerceOrders).values(data).returning();
+    const [created] = await ecomDb.insert(ecommerceOrders).values(data).returning();
     return created;
   }
 
   async updateEcommerceOrder(id: number, data: Partial<InsertEcommerceOrder>): Promise<EcommerceOrder | undefined> {
-    const [updated] = await db.update(ecommerceOrders).set(data).where(eq(ecommerceOrders.id, id)).returning();
+    const [updated] = await ecomDb.update(ecommerceOrders).set(data).where(eq(ecommerceOrders.id, id)).returning();
     return updated;
   }
 
   async getEcommerceOrderItems(orderId: number): Promise<EcommerceOrderItem[]> {
-    return db.select().from(ecommerceOrderItems).where(eq(ecommerceOrderItems.orderId, orderId));
+    return ecomDb.select().from(ecommerceOrderItems).where(eq(ecommerceOrderItems.orderId, orderId));
   }
 
   async createEcommerceOrderItem(data: InsertEcommerceOrderItem): Promise<EcommerceOrderItem> {
-    const [created] = await db.insert(ecommerceOrderItems).values(data).returning();
+    const [created] = await ecomDb.insert(ecommerceOrderItems).values(data).returning();
     return created;
   }
 
   async getEcommerceProductMappings(companyId: number, connectionId?: number): Promise<EcommerceProductMapping[]> {
     const conditions = [eq(ecommerceProductMappings.companyId, companyId)];
     if (connectionId) conditions.push(eq(ecommerceProductMappings.connectionId, connectionId));
-    return db.select().from(ecommerceProductMappings).where(and(...conditions));
+    return ecomDb.select().from(ecommerceProductMappings).where(and(...conditions));
   }
 
   async createEcommerceProductMapping(data: InsertEcommerceProductMapping): Promise<EcommerceProductMapping> {
-    const [created] = await db.insert(ecommerceProductMappings).values(data).returning();
+    const [created] = await ecomDb.insert(ecommerceProductMappings).values(data).returning();
     return created;
   }
 
   async deleteEcommerceProductMapping(id: number): Promise<boolean> {
-    const result = await db.delete(ecommerceProductMappings).where(eq(ecommerceProductMappings.id, id));
+    const result = await ecomDb.delete(ecommerceProductMappings).where(eq(ecommerceProductMappings.id, id));
     return (result.rowCount ?? 0) > 0;
   }
 
   async getLiveSessions(companyId: number): Promise<LiveSession[]> {
-    return db.select().from(liveSessions).where(eq(liveSessions.companyId, companyId)).orderBy(desc(liveSessions.createdAt));
+    return ecomDb.select().from(liveSessions).where(eq(liveSessions.companyId, companyId)).orderBy(desc(liveSessions.createdAt));
   }
 
   async getLiveSession(id: number): Promise<LiveSession | undefined> {
-    const [row] = await db.select().from(liveSessions).where(eq(liveSessions.id, id));
+    const [row] = await ecomDb.select().from(liveSessions).where(eq(liveSessions.id, id));
     return row;
   }
 
   async createLiveSession(data: InsertLiveSession): Promise<LiveSession> {
-    const [created] = await db.insert(liveSessions).values(data).returning();
+    const [created] = await ecomDb.insert(liveSessions).values(data).returning();
     return created;
   }
 
   async updateLiveSession(id: number, data: Partial<InsertLiveSession>): Promise<LiveSession | undefined> {
-    const [updated] = await db.update(liveSessions).set(data).where(eq(liveSessions.id, id)).returning();
+    const [updated] = await ecomDb.update(liveSessions).set(data).where(eq(liveSessions.id, id)).returning();
     return updated;
   }
 
   async getLiveSessionProducts(sessionId: number): Promise<LiveSessionProduct[]> {
-    return db.select().from(liveSessionProducts).where(eq(liveSessionProducts.sessionId, sessionId)).orderBy(liveSessionProducts.sortOrder);
+    return ecomDb.select().from(liveSessionProducts).where(eq(liveSessionProducts.sessionId, sessionId)).orderBy(liveSessionProducts.sortOrder);
   }
 
   async createLiveSessionProduct(data: InsertLiveSessionProduct): Promise<LiveSessionProduct> {
-    const [created] = await db.insert(liveSessionProducts).values(data).returning();
+    const [created] = await ecomDb.insert(liveSessionProducts).values(data).returning();
     return created;
   }
 
   async updateLiveSessionProduct(id: number, data: Partial<InsertLiveSessionProduct>): Promise<LiveSessionProduct | undefined> {
-    const [updated] = await db.update(liveSessionProducts).set(data).where(eq(liveSessionProducts.id, id)).returning();
+    const [updated] = await ecomDb.update(liveSessionProducts).set(data).where(eq(liveSessionProducts.id, id)).returning();
     return updated;
   }
 
   async deleteLiveSessionProduct(id: number): Promise<boolean> {
-    const result = await db.delete(liveSessionProducts).where(eq(liveSessionProducts.id, id));
+    const result = await ecomDb.delete(liveSessionProducts).where(eq(liveSessionProducts.id, id));
     return (result.rowCount ?? 0) > 0;
   }
 
@@ -2610,7 +2611,7 @@ export class DatabaseStorage implements IStorage {
     const tenantCompanyIds = db.select({ id: companies.id }).from(companies).where(eq(companies.tenantId, tenantId));
 
     const [productCount] = await db.select({ count: count() }).from(products).where(inArray(products.companyId, tenantCompanyIds));
-    const [ecomCount] = await db.select({ count: count() }).from(ecommerceConnections).where(inArray(ecommerceConnections.companyId, tenantCompanyIds));
+    const [ecomCount] = await ecomDb.select({ count: count() }).from(ecommerceConnections).where(inArray(ecommerceConnections.companyId, tenantCompanyIds));
 
     const now = new Date();
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split("T")[0];

@@ -1,5 +1,6 @@
 import type { Express, Request, Response } from "express";
 import { db } from "../db";
+import { ecomDb } from "../ecom-db";
 import { storage } from "../storage";
 import { eq, desc, and, inArray , sql } from "drizzle-orm";
 import { companies, invoices, taxInvoices, invoiceItems, taxInvoiceItems, accounts, products, ecommerceOrders, ecommerceOrderItems, stockMovements, journalEntries, journalLines, productStock, salesCreditNotes, salesCreditNoteItems, vatProductDictionary, taxReminderSettings, taxReminderLogs, ecommerceConnections } from "@shared/schema";
@@ -1027,18 +1028,18 @@ app.post("/api/ecommerce/import/create-shopee-batch", requireAuth, requireAnyMod
 
     let connection: any = null;
     if (reqConnectionId) {
-      const [c] = await db.select().from(ecommerceConnections)
+      const [c] = await ecomDb.select().from(ecommerceConnections)
         .where(and(eq(ecommerceConnections.id, Number(reqConnectionId)), eq(ecommerceConnections.companyId, Number(companyId))));
       connection = c || null;
     }
     if (!connection) {
-      const [c] = await db.select().from(ecommerceConnections)
+      const [c] = await ecomDb.select().from(ecommerceConnections)
         .where(and(eq(ecommerceConnections.companyId, Number(companyId)), eq(ecommerceConnections.platform, platform || "shopee")));
       connection = c || null;
     }
     if (!connection) {
       const PLATFORM_DEFAULT_PREFIX: Record<string, string> = { shopee: "SH01", lazada: "LZ01", tiktok: "TK01", amazon: "AZ01" };
-      const [newConn] = await db.insert(ecommerceConnections).values({
+      const [newConn] = await ecomDb.insert(ecommerceConnections).values({
         companyId: Number(companyId),
         platform: platform || "shopee",
         shopName: `${platform || "Shopee"} Import`,
@@ -1324,7 +1325,7 @@ app.post("/api/ecommerce/import/create-shopee-batch", requireAuth, requireAnyMod
       const t1 = Date.now();
       try {
         const t0 = Date.now();
-        const [existingOrder] = await db.select().from(ecommerceOrders)
+        const [existingOrder] = await ecomDb.select().from(ecommerceOrders)
           .where(and(eq(ecommerceOrders.companyId, Number(companyId)), eq(ecommerceOrders.platformOrderId, orderNo)));
         console.log(`[batch-import] [${orderNo}] dup check: ${Date.now()-t0}ms`);
         if (existingOrder) {
@@ -1630,7 +1631,7 @@ app.post("/api/ecommerce/import/create-shopee-batch", requireAuth, requireAnyMod
           const productQtyMap = new Map<number, { qty: number; unitCost: number; productName: string }>();
           for (const doc of createdDocs) {
             if (!doc.orderId) continue;
-            const items = await db.select().from(ecommerceOrderItems)
+            const items = await ecomDb.select().from(ecommerceOrderItems)
               .where(eq(ecommerceOrderItems.orderId, doc.orderId));
             for (const item of items) {
               if (!item.productId) continue;
@@ -1757,7 +1758,7 @@ app.post("/api/ecommerce/import/preview-returns", requireAuth, requireAnyModule(
       const trimmed = String(orderNo).trim();
       if (!trimmed) continue;
 
-      const [order] = await db.select().from(ecommerceOrders)
+      const [order] = await ecomDb.select().from(ecommerceOrders)
         .where(and(eq(ecommerceOrders.companyId, Number(companyId)), eq(ecommerceOrders.platformOrderId, trimmed)));
 
       if (!order) {
@@ -1845,7 +1846,7 @@ app.post("/api/ecommerce/import/create-return-batch", requireAuth, requireAnyMod
       if (!orderNo) { errors.push({ orderNo: "N/A", error: "ไม่มีเลขคำสั่งซื้อ" }); continue; }
 
       try {
-        const [existingOrder] = await db.select().from(ecommerceOrders)
+        const [existingOrder] = await ecomDb.select().from(ecommerceOrders)
           .where(and(eq(ecommerceOrders.companyId, Number(companyId)), eq(ecommerceOrders.platformOrderId, orderNo)));
 
         if (!existingOrder) {
@@ -2033,7 +2034,7 @@ app.delete("/api/ecommerce/import/batch/:id", requireAuth, requireAnyModule("sal
       }
     }
 
-    const batchOrders = await db.select().from(ecommerceOrders)
+    const batchOrders = await ecomDb.select().from(ecommerceOrders)
       .where(and(eq(ecommerceOrders.importBatchId, batchId), eq(ecommerceOrders.companyId, batch.companyId)));
 
     const journalEntryIds = batchOrders.map(o => o.journalEntryId).filter(Boolean) as number[];
@@ -2143,7 +2144,7 @@ app.get("/api/vat-dictionary", requireAuth, async (req, res) => {
   try {
     const companyId = Number(req.query.companyId);
     if (!companyId) return res.status(400).json({ message: "companyId required" });
-    const entries = await db.select().from(vatProductDictionary)
+    const entries = await ecomDb.select().from(vatProductDictionary)
       .where(eq(vatProductDictionary.companyId, companyId))
       .orderBy(vatProductDictionary.productName);
     res.json(entries);
@@ -2156,15 +2157,15 @@ app.post("/api/vat-dictionary", requireAuth, async (req, res) => {
     const { companyId, productName, vatType } = req.body;
     if (!companyId || !productName || !vatType) return res.status(400).json({ message: "ข้อมูลไม่ครบ" });
     const normalizedName = String(productName).trim().toLowerCase().replace(/\s+/g, " ");
-    const [existing] = await db.select().from(vatProductDictionary)
+    const [existing] = await ecomDb.select().from(vatProductDictionary)
       .where(and(eq(vatProductDictionary.companyId, Number(companyId)), eq(vatProductDictionary.normalizedName, normalizedName)));
     if (existing) {
-      const [updated] = await db.update(vatProductDictionary).set({
+      const [updated] = await ecomDb.update(vatProductDictionary).set({
         vatType, confirmedBy: user.id, confirmedAt: new Date(), source: "manual",
       }).where(eq(vatProductDictionary.id, existing.id)).returning();
       return res.json(updated);
     }
-    const [entry] = await db.insert(vatProductDictionary).values({
+    const [entry] = await ecomDb.insert(vatProductDictionary).values({
       companyId: Number(companyId), productName: String(productName).trim(),
       normalizedName, vatType, source: "manual",
       confirmedBy: user.id, confirmedAt: new Date(),
@@ -2181,15 +2182,15 @@ app.post("/api/vat-dictionary/bulk", requireAuth, async (req, res) => {
     const results = [];
     for (const item of items) {
       const normalizedName = String(item.productName).trim().toLowerCase().replace(/\s+/g, " ");
-      const [existing] = await db.select().from(vatProductDictionary)
+      const [existing] = await ecomDb.select().from(vatProductDictionary)
         .where(and(eq(vatProductDictionary.companyId, Number(companyId)), eq(vatProductDictionary.normalizedName, normalizedName)));
       if (existing) {
-        const [updated] = await db.update(vatProductDictionary).set({
+        const [updated] = await ecomDb.update(vatProductDictionary).set({
           vatType: item.vatType, confirmedBy: user.id, confirmedAt: new Date(), source: item.source || "confirmed",
         }).where(eq(vatProductDictionary.id, existing.id)).returning();
         results.push(updated);
       } else {
-        const [entry] = await db.insert(vatProductDictionary).values({
+        const [entry] = await ecomDb.insert(vatProductDictionary).values({
           companyId: Number(companyId), productName: String(item.productName).trim(),
           normalizedName, vatType: item.vatType, source: item.source || "confirmed",
           confirmedBy: user.id, confirmedAt: new Date(),
@@ -2203,7 +2204,7 @@ app.post("/api/vat-dictionary/bulk", requireAuth, async (req, res) => {
 
 app.delete("/api/vat-dictionary/:id", requireAuth, async (req, res) => {
   try {
-    await db.delete(vatProductDictionary).where(eq(vatProductDictionary.id, Number(req.params.id)));
+    await ecomDb.delete(vatProductDictionary).where(eq(vatProductDictionary.id, Number(req.params.id)));
     res.json({ success: true });
   } catch (err: any) { res.status(500).json({ message: err.message }); }
 });
@@ -2212,7 +2213,7 @@ app.post("/api/vat-dictionary/lookup", requireAuth, async (req, res) => {
   try {
     const { companyId, productNames } = req.body;
     if (!companyId || !productNames || !Array.isArray(productNames)) return res.status(400).json({ message: "ข้อมูลไม่ครบ" });
-    const dict = await db.select().from(vatProductDictionary)
+    const dict = await ecomDb.select().from(vatProductDictionary)
       .where(eq(vatProductDictionary.companyId, Number(companyId)));
     const dictMap = new Map(dict.map(d => [d.normalizedName, d]));
     const results: { productName: string; vatType: string | null; source: string; confidence: string }[] = [];
@@ -2557,7 +2558,7 @@ app.post("/api/vat-dictionary/ai-analyze", requireAuth, async (req, res) => {
     if (!companyId || !productNames || !Array.isArray(productNames) || productNames.length === 0) {
       return res.status(400).json({ message: "กรุณาระบุชื่อสินค้า" });
     }
-    const dict = await db.select().from(vatProductDictionary)
+    const dict = await ecomDb.select().from(vatProductDictionary)
       .where(eq(vatProductDictionary.companyId, Number(companyId)));
     const dictMap = new Map(dict.map(d => [d.normalizedName, d]));
     const known: { productName: string; vatType: string; source: string; confidence: string }[] = [];

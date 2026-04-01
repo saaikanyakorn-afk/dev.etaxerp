@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { requireAuth, requireAnyModule } from "../route-middleware";
 import { db } from "../db";
+import { ecomDb } from "../ecom-db";
 import { shopStats, shopStatSyncLogs, companies, ecommerceConnections } from "@shared/schema";
 import { eq, and, desc, sql, gte, lte } from "drizzle-orm";
 import multer from "multer";
@@ -388,7 +389,7 @@ router.post("/api/business-insights/sync", requireAuth, requireAnyModule("sales"
       return res.status(400).json({ message: `ยังไม่รองรับ API ของ ${platform}` });
     }
 
-    const [log] = await db.insert(shopStatSyncLogs).values({
+    const [log] = await ecomDb.insert(shopStatSyncLogs).values({
       companyId: Number(companyId),
       platform,
       connectionId: connectionId ? Number(connectionId) : null,
@@ -400,7 +401,7 @@ router.post("/api/business-insights/sync", requireAuth, requireAnyModule("sales"
     try {
       let connection = null;
       if (connectionId) {
-        const [conn] = await db.select().from(ecommerceConnections)
+        const [conn] = await ecomDb.select().from(ecommerceConnections)
           .where(eq(ecommerceConnections.id, Number(connectionId)));
         connection = conn;
       }
@@ -432,7 +433,7 @@ router.post("/api/business-insights/sync", requireAuth, requireAnyModule("sales"
         }
       }
 
-      await db.update(shopStatSyncLogs).set({
+      await ecomDb.update(shopStatSyncLogs).set({
         status: "completed",
         periodssynced: statsData.length,
         completedAt: new Date(),
@@ -440,7 +441,7 @@ router.post("/api/business-insights/sync", requireAuth, requireAnyModule("sales"
 
       res.json({ success: true, syncLogId: log.id, periodsSynced: statsData.length });
     } catch (syncError: any) {
-      await db.update(shopStatSyncLogs).set({
+      await ecomDb.update(shopStatSyncLogs).set({
         status: "failed",
         errorMessage: syncError.message,
         completedAt: new Date(),
@@ -459,7 +460,7 @@ router.get("/api/business-insights/sync-logs", requireAuth, requireAnyModule("sa
     const companyId = Number(req.query.companyId);
     if (!companyId) return res.status(400).json({ message: "companyId required" });
 
-    const logs = await db.select().from(shopStatSyncLogs)
+    const logs = await ecomDb.select().from(shopStatSyncLogs)
       .where(eq(shopStatSyncLogs.companyId, companyId))
       .orderBy(desc(shopStatSyncLogs.startedAt))
       .limit(20);

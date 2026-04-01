@@ -1,5 +1,6 @@
 import type { Express, Request, Response } from "express";
 import { db } from "../db";
+import { ecomDb } from "../ecom-db";
 import { eq, and } from "drizzle-orm";
 import { facebookPages, platformChatThreads } from "@shared/schema";
 
@@ -12,7 +13,7 @@ app.get("/api/facebook/webhook", async (req, res) => {
   const challenge = req.query["hub.challenge"];
   if (mode === "subscribe" && verifyToken) {
     // Validate verify_token against any Facebook page's stored verify token
-    const pages = await db.select({ id: facebookPages.id }).from(facebookPages).limit(1);
+    const pages = await ecomDb.select({ id: facebookPages.id }).from(facebookPages).limit(1);
     if (pages.length > 0) {
       console.log("[FB Webhook] Verify token accepted");
       res.status(200).send(challenge);
@@ -44,7 +45,7 @@ app.post("/api/facebook/webhook", async (req, res) => {
         if (!senderId || !messageText) continue;
 
         try {
-          const [fbPage] = await db.select().from(facebookPages)
+          const [fbPage] = await ecomDb.select().from(facebookPages)
             .where(eq(facebookPages.pageId, pageId));
           if (!fbPage) {
             console.log(`${logPrefix} Unknown page: ${pageId}`);
@@ -66,7 +67,7 @@ app.post("/api/facebook/webhook", async (req, res) => {
             } catch {}
           }
 
-          const [existingThread] = await db.select().from(platformChatThreads)
+          const [existingThread] = await ecomDb.select().from(platformChatThreads)
             .where(and(
               eq(platformChatThreads.companyId, companyId),
               eq(platformChatThreads.platform, platformName),
@@ -75,14 +76,14 @@ app.post("/api/facebook/webhook", async (req, res) => {
           let threadId;
           if (existingThread) {
             threadId = existingThread.id;
-            await db.update(platformChatThreads).set({
+            await ecomDb.update(platformChatThreads).set({
               lastMessage: messageText.substring(0, 200),
               lastMessageAt: new Date(),
               unreadCount: (existingThread.unreadCount || 0) + 1,
               buyerName: senderName !== senderId ? senderName : existingThread.buyerName,
             }).where(eq(platformChatThreads.id, threadId));
           } else {
-            const [newThread] = await db.insert(platformChatThreads).values({
+            const [newThread] = await ecomDb.insert(platformChatThreads).values({
               companyId,
               platform: platformName,
               platformThreadId: senderId,

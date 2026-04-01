@@ -1,5 +1,6 @@
 import type { Express, Request, Response } from "express";
 import { db } from "../db";
+import { ecomDb } from "../ecom-db";
 import { eq, desc, and } from "drizzle-orm";
 import { syncJobQueue, ecommerceConnections } from "@shared/schema";
 import { requireAuth, requireModule } from "../route-middleware";
@@ -54,7 +55,7 @@ app.post("/api/sync-queue/enqueue-all", requireAuth, requireModule("ecommerce"),
     const { companyId, syncType, options } = req.body;
     if (!companyId) return res.status(400).json({ message: "companyId required" });
 
-    const connections = await db.select().from(ecommerceConnections).where(
+    const connections = await ecomDb.select().from(ecommerceConnections).where(
       and(eq(ecommerceConnections.companyId, companyId), eq(ecommerceConnections.status, "connected"))
     );
 

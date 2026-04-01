@@ -1,4 +1,5 @@
 import { db } from "./db";
+import { ecomDb } from "./ecom-db";
 import { storage } from "./storage";
 import { eq, desc, and, sql, inArray } from "drizzle-orm";
 import { documentSettings, companies, accounts, accountingFormulas, accountingFormulaLines, journalEntries, journalLines, taxInvoices, taxInvoiceItems, ecommerceOrders, paymentMethods, activityLogs, vatProductDictionary, stockMovements, productStock, closedPeriods, employees, invoices, receipts, receiptLinkedDocs, purchaseInvoices, expenses, paymentVoucherLinkedDocs } from "@shared/schema";
@@ -775,7 +776,7 @@ export async function generateTivFromEcommerceOrder(params: GenerateTivFromOrder
     .where(and(eq(taxInvoices.companyId, params.companyId), eq(taxInvoices.refDoc, refDoc)));
 
   if (existingTiv.length > 0) {
-    await db.update(ecommerceOrders).set({ taxInvoiceId: existingTiv[0].id }).where(eq(ecommerceOrders.id, params.orderId));
+    await ecomDb.update(ecommerceOrders).set({ taxInvoiceId: existingTiv[0].id }).where(eq(ecommerceOrders.id, params.orderId));
     return { taxInvoiceId: existingTiv[0].id, taxInvoiceNo: existingTiv[0].taxInvoiceNo, isExisting: true };
   }
 
@@ -785,7 +786,7 @@ export async function generateTivFromEcommerceOrder(params: GenerateTivFromOrder
     ? new Date(params.placedAt).toISOString().split("T")[0]
     : (params.shippedAt ? new Date(params.shippedAt).toISOString().split("T")[0] : new Date().toISOString().split("T")[0]);
 
-  const dict = await db.select().from(vatProductDictionary)
+  const dict = await ecomDb.select().from(vatProductDictionary)
     .where(eq(vatProductDictionary.companyId, params.companyId));
   const dictMap = new Map(dict.map(d => [d.normalizedName, d.vatType]));
   for (const item of items) {
@@ -815,20 +816,20 @@ export async function generateTivFromEcommerceOrder(params: GenerateTivFromOrder
   }
   const fnDocLabel = isVatReg ? "ใบกำกับภาษี" : "ใบเสร็จรับเงิน";
 
+  const [alreadyLinked] = await ecomDb.select({ taxInvoiceId: ecommerceOrders.taxInvoiceId })
+    .from(ecommerceOrders).where(eq(ecommerceOrders.id, params.orderId));
+  if (alreadyLinked?.taxInvoiceId) return null;
+
+  const dupeCheck = await db.select({ id: taxInvoices.id, taxInvoiceNo: taxInvoices.taxInvoiceNo }).from(taxInvoices)
+    .where(and(eq(taxInvoices.companyId, params.companyId), eq(taxInvoices.refDoc, refDoc)));
+  if (dupeCheck.length > 0) {
+    await ecomDb.update(ecommerceOrders).set({ taxInvoiceId: dupeCheck[0].id }).where(eq(ecommerceOrders.id, params.orderId));
+    return { taxInvoiceId: dupeCheck[0].id, taxInvoiceNo: dupeCheck[0].taxInvoiceNo, isExisting: true };
+  }
+
+  const taxInvoiceNo = await getNextDocNo(params.companyId, prefix, taxInvoices, taxInvoices.taxInvoiceNo, taxInvoices.companyId, docDate);
+
   const result = await db.transaction(async (tx) => {
-    const [alreadyLinked] = await tx.select({ taxInvoiceId: ecommerceOrders.taxInvoiceId })
-      .from(ecommerceOrders).where(eq(ecommerceOrders.id, params.orderId));
-    if (alreadyLinked?.taxInvoiceId) return null;
-
-    const dupeCheck = await tx.select({ id: taxInvoices.id, taxInvoiceNo: taxInvoices.taxInvoiceNo }).from(taxInvoices)
-      .where(and(eq(taxInvoices.companyId, params.companyId), eq(taxInvoices.refDoc, refDoc)));
-    if (dupeCheck.length > 0) {
-      await tx.update(ecommerceOrders).set({ taxInvoiceId: dupeCheck[0].id }).where(eq(ecommerceOrders.id, params.orderId));
-      return { id: dupeCheck[0].id, taxInvoiceNo: dupeCheck[0].taxInvoiceNo, isExisting: true } as any;
-    }
-
-    const taxInvoiceNo = await getNextDocNo(params.companyId, prefix, taxInvoices, taxInvoices.taxInvoiceNo, taxInvoices.companyId, docDate);
-
     const [doc] = await tx.insert(taxInvoices).values({
       companyId: params.companyId,
       taxInvoiceNo,
@@ -877,9 +878,10 @@ export async function generateTivFromEcommerceOrder(params: GenerateTivFromOrder
       });
     }
 
-    await tx.update(ecommerceOrders).set({ taxInvoiceId: doc.id }).where(eq(ecommerceOrders.id, params.orderId));
     return doc;
   });
+
+  await ecomDb.update(ecommerceOrders).set({ taxInvoiceId: result.id }).where(eq(ecommerceOrders.id, params.orderId));
 
   if (!result) return null;
 
@@ -952,15 +954,15 @@ export async function deleteJournalEntriesForDoc(tx: any, sourceDocType: string,
   const entryIds = entries.map((e: any) => e.id);
   const idsList = entryIds.join(",");
   await tx.execute(sql.raw(`UPDATE bank_statements SET matched_journal_id = NULL WHERE matched_journal_id IN (${idsList})`));
-  await tx.execute(sql.raw(`UPDATE ecommerce_orders SET journal_entry_id = NULL WHERE journal_entry_id IN (${idsList})`));
   await tx.execute(sql.raw(`UPDATE manufacturing_orders SET journal_entry_id = NULL WHERE journal_entry_id IN (${idsList})`));
   await tx.execute(sql.raw(`UPDATE payroll_records SET journal_entry_id = NULL WHERE journal_entry_id IN (${idsList})`));
   await tx.execute(sql.raw(`UPDATE petty_cash_transactions SET journal_entry_id = NULL WHERE journal_entry_id IN (${idsList})`));
   await tx.execute(sql.raw(`UPDATE petty_cash_funds SET journal_entry_id = NULL WHERE journal_entry_id IN (${idsList})`));
   await tx.execute(sql.raw(`UPDATE live_cf_orders SET journal_entry_id = NULL WHERE journal_entry_id IN (${idsList})`));
-  await tx.execute(sql.raw(`UPDATE ecommerce_settlements SET settle_journal_id = NULL WHERE settle_journal_id IN (${idsList})`));
-  await tx.execute(sql.raw(`UPDATE ecommerce_settlements SET withdraw_journal_id = NULL WHERE withdraw_journal_id IN (${idsList})`));
-  await tx.execute(sql.raw(`UPDATE ecommerce_settlements SET reversal_journal_id = NULL WHERE reversal_journal_id IN (${idsList})`));
+  await ecomDb.execute(sql.raw(`UPDATE ecommerce_orders SET journal_entry_id = NULL WHERE journal_entry_id IN (${idsList})`));
+  await ecomDb.execute(sql.raw(`UPDATE ecommerce_settlements SET settle_journal_id = NULL WHERE settle_journal_id IN (${idsList})`));
+  await ecomDb.execute(sql.raw(`UPDATE ecommerce_settlements SET withdraw_journal_id = NULL WHERE withdraw_journal_id IN (${idsList})`));
+  await ecomDb.execute(sql.raw(`UPDATE ecommerce_settlements SET reversal_journal_id = NULL WHERE reversal_journal_id IN (${idsList})`));
   await tx.delete(journalLines).where(inArray(journalLines.journalEntryId, entryIds));
   await tx.delete(journalEntries).where(inArray(journalEntries.id, entryIds));
 }

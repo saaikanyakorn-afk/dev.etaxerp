@@ -1,5 +1,6 @@
 import type { Express } from "express";
 import { db } from "../db";
+import { ecomDb } from "../ecom-db";
 import { eq, desc, and, sql } from "drizzle-orm";
 import { ecommerceOrders, ecommerceOrderItems, demandForecasts } from "@shared/schema";
 import { createRouteGroup } from "../route-factory";
@@ -14,10 +15,10 @@ r.companyRoute("get", "/api/ecommerce/analytics/demand-forecast", async ({ compa
 
 r.companyRoute("post", "/api/ecommerce/analytics/demand-forecast/generate", async ({ companyId, req }) => {
   const weeks = Number(req.body.weeks || 4);
-  const orders = await db.select().from(ecommerceOrders).where(and(eq(ecommerceOrders.companyId, companyId), sql`${ecommerceOrders.status} != 'cancelled'`));
+  const orders = await ecomDb.select().from(ecommerceOrders).where(and(eq(ecommerceOrders.companyId, companyId), sql`${ecommerceOrders.status} != 'cancelled'`));
   const orderIds = orders.map(o => o.id);
   if (orderIds.length === 0) return { message: "No orders to analyze", forecasts: [] };
-  const allItems = await db.select().from(ecommerceOrderItems).where(sql`${ecommerceOrderItems.orderId} IN (${sql.join(orderIds.map(id => sql`${id}`), sql`, `)})`);
+  const allItems = await ecomDb.select().from(ecommerceOrderItems).where(sql`${ecommerceOrderItems.orderId} IN (${sql.join(orderIds.map(id => sql`${id}`), sql`, `)})`);
   const orderMap = new Map(orders.map(o => [o.id, o]));
   const productWeekly: Record<string, { productId: number | null; productName: string; sku: string | null; weeklyQty: Record<string, number> }> = {};
   for (const item of allItems) {
@@ -54,10 +55,10 @@ r.companyRoute("post", "/api/ecommerce/analytics/demand-forecast/generate", asyn
 
 r.companyRoute("get", "/api/ecommerce/analytics/top-products", async ({ companyId, req }) => {
   const limit = Math.min(Number(req.query.limit || 20), 100);
-  const orders = await db.select().from(ecommerceOrders).where(and(eq(ecommerceOrders.companyId, companyId), sql`${ecommerceOrders.status} != 'cancelled'`));
+  const orders = await ecomDb.select().from(ecommerceOrders).where(and(eq(ecommerceOrders.companyId, companyId), sql`${ecommerceOrders.status} != 'cancelled'`));
   const orderIds = orders.map(o => o.id);
   if (orderIds.length === 0) return [];
-  const allItems = await db.select().from(ecommerceOrderItems).where(sql`${ecommerceOrderItems.orderId} IN (${sql.join(orderIds.map(id => sql`${id}`), sql`, `)})`);
+  const allItems = await ecomDb.select().from(ecommerceOrderItems).where(sql`${ecommerceOrderItems.orderId} IN (${sql.join(orderIds.map(id => sql`${id}`), sql`, `)})`);
   const productSales: Record<string, { productName: string; sku: string | null; totalQty: number; totalRevenue: number }> = {};
   for (const item of allItems) {
     const key = item.sku || item.productName || "unknown";
@@ -69,7 +70,7 @@ r.companyRoute("get", "/api/ecommerce/analytics/top-products", async ({ companyI
 });
 
 r.companyRoute("get", "/api/ecommerce/analytics/platform-comparison", async ({ companyId }) => {
-  const orders = await db.select().from(ecommerceOrders).where(and(eq(ecommerceOrders.companyId, companyId), sql`${ecommerceOrders.status} != 'cancelled'`));
+  const orders = await ecomDb.select().from(ecommerceOrders).where(and(eq(ecommerceOrders.companyId, companyId), sql`${ecommerceOrders.status} != 'cancelled'`));
   const platformStats: Record<string, { platform: string; orderCount: number; totalRevenue: number; avgOrderValue: number }> = {};
   for (const order of orders) {
     const platform = order.platform || "unknown";

@@ -1,4 +1,5 @@
 import { db } from "./db";
+import { ecomDb } from "./ecom-db";
 import { ecommerceConnections, tenantPlatformCredentials, syncLogs, companies, otRecords } from "@shared/schema";
 import { eq, and, lt, isNotNull, sql } from "drizzle-orm";
 import { getAdapter } from "./platforms";
@@ -14,7 +15,7 @@ export async function refreshExpiringTokens() {
     const now = new Date();
     const threshold = new Date(now.getTime() + TOKEN_REFRESH_THRESHOLD);
 
-    const expiringConns = await db.select()
+    const expiringConns = await ecomDb.select()
       .from(ecommerceConnections)
       .where(and(
         eq(ecommerceConnections.status, "connected"),
@@ -55,7 +56,7 @@ export async function refreshExpiringTokens() {
         const tokenResult = await adapter.refreshToken(credentials, conn.refreshToken, conn.shopId || undefined);
         const tokenExpiresAt = new Date(Date.now() + (tokenResult.expiresIn || 3600) * 1000);
 
-        await db.update(ecommerceConnections).set({
+        await ecomDb.update(ecommerceConnections).set({
           accessToken: tokenResult.accessToken,
           refreshToken: tokenResult.refreshToken || conn.refreshToken,
           tokenExpiresAt,
@@ -66,7 +67,7 @@ export async function refreshExpiringTokens() {
       } catch (err: any) {
         console.error(`[Platform Scheduler] Failed to refresh token for connection #${conn.id}: ${err.message}`);
 
-        await db.update(ecommerceConnections).set({
+        await ecomDb.update(ecommerceConnections).set({
           status: "error",
         }).where(eq(ecommerceConnections.id, conn.id));
       }
