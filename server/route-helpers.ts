@@ -94,8 +94,10 @@ export async function getNextDocNo(
   companyIdColumn: any,
   docDate?: string,
   docTypeKey?: string,
+  dbConn?: any,
 ): Promise<string> {
-  const [settings] = await db.select().from(documentSettings).where(eq(documentSettings.companyId, companyId));
+  const conn = dbConn || db;
+  const [settings] = await conn.select().from(documentSettings).where(eq(documentSettings.companyId, companyId));
   const format = (settings?.docNumberFormat || "YM_SEQ") as DocNumberFormat;
   const digits = settings?.docNumberDigits || 5;
   const era = (settings?.dateEra || "BE") as DateEra;
@@ -141,7 +143,7 @@ export async function getNextDocNo(
       break;
   }
 
-  const existing = await db.select({ docNo: noColumn })
+  const existing = await conn.select({ docNo: noColumn })
     .from(table)
     .where(and(
       eq(companyIdColumn, companyId),
@@ -772,7 +774,7 @@ export async function generateTivFromEcommerceOrder(params: GenerateTivFromOrder
   const orderNo = params.orderNo || params.platformOrderId;
   const refDoc = `${platformDisplay} #${orderNo}`;
 
-  const existingTiv = await db.select({ id: taxInvoices.id, taxInvoiceNo: taxInvoices.taxInvoiceNo }).from(taxInvoices)
+  const existingTiv = await ecomDb.select({ id: taxInvoices.id, taxInvoiceNo: taxInvoices.taxInvoiceNo }).from(taxInvoices)
     .where(and(eq(taxInvoices.companyId, params.companyId), eq(taxInvoices.refDoc, refDoc)));
 
   if (existingTiv.length > 0) {
@@ -820,16 +822,16 @@ export async function generateTivFromEcommerceOrder(params: GenerateTivFromOrder
     .from(ecommerceOrders).where(eq(ecommerceOrders.id, params.orderId));
   if (alreadyLinked?.taxInvoiceId) return null;
 
-  const dupeCheck = await db.select({ id: taxInvoices.id, taxInvoiceNo: taxInvoices.taxInvoiceNo }).from(taxInvoices)
+  const dupeCheck = await ecomDb.select({ id: taxInvoices.id, taxInvoiceNo: taxInvoices.taxInvoiceNo }).from(taxInvoices)
     .where(and(eq(taxInvoices.companyId, params.companyId), eq(taxInvoices.refDoc, refDoc)));
   if (dupeCheck.length > 0) {
     await ecomDb.update(ecommerceOrders).set({ taxInvoiceId: dupeCheck[0].id }).where(eq(ecommerceOrders.id, params.orderId));
     return { taxInvoiceId: dupeCheck[0].id, taxInvoiceNo: dupeCheck[0].taxInvoiceNo, isExisting: true };
   }
 
-  const taxInvoiceNo = await getNextDocNo(params.companyId, prefix, taxInvoices, taxInvoices.taxInvoiceNo, taxInvoices.companyId, docDate);
+  const taxInvoiceNo = await getNextDocNo(params.companyId, prefix, taxInvoices, taxInvoices.taxInvoiceNo, taxInvoices.companyId, docDate, undefined, ecomDb);
 
-  const result = await db.transaction(async (tx) => {
+  const result = await ecomDb.transaction(async (tx) => {
     const [doc] = await tx.insert(taxInvoices).values({
       companyId: params.companyId,
       taxInvoiceNo,
