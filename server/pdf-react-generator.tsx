@@ -19,6 +19,14 @@ Font.register({
   ],
 });
 
+Font.registerHyphenationCallback((word: string) => {
+  const thaiRange = /[\u0E00-\u0E7F]/;
+  if (thaiRange.test(word)) {
+    return [word];
+  }
+  return [word];
+});
+
 export interface PdfLineItem {
   productCode?: string;
   productName?: string;
