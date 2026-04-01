@@ -35,7 +35,9 @@ function fmt(val: string | number | null | undefined): string {
   return n.toLocaleString("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-export default function GoodsReceivingList() {
+export default function GoodsReceivingList(props: { Wrapper?: React.ComponentType<{ children: React.ReactNode }>; basePath?: string } & Record<string, any>) {
+  const LayoutComponent = props.Wrapper || Layout;
+  const recvBasePath = props.basePath ? `${props.basePath}/receiving` : "/inventory/receiving";
   const { selectedCompany } = useCompany();
   const companyId = selectedCompany?.id;
   const { toast } = useToast();
@@ -98,7 +100,7 @@ export default function GoodsReceivingList() {
   });
 
   return (
-    <Layout>
+    <LayoutComponent>
       <div className="space-y-4" data-testid="goods-receiving-list-page">
         <div className="rounded-lg p-6 shadow-sm border" style={{ background: "#d1fae5" }}>
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
@@ -116,7 +118,7 @@ export default function GoodsReceivingList() {
             </div>
             <Button
               data-testid="button-create"
-              onClick={() => navigate("/inventory/receiving/form")}
+              onClick={() => navigate(`${recvBasePath}/form`)}
               className="bg-white text-emerald-700 hover:bg-emerald-50 border-emerald-300 h-9 font-medium"
             >
               <Plus className="h-4 w-4 mr-1" />
@@ -166,7 +168,7 @@ export default function GoodsReceivingList() {
               <div className="text-center py-12 text-muted-foreground">
                 <Package className="h-12 w-12 mx-auto mb-3 text-slate-300" />
                 <p className="text-sm">ยังไม่มีใบรับสินค้า</p>
-                <Button variant="outline" className="mt-3" onClick={() => navigate("/inventory/receiving/form")} data-testid="button-create-first">
+                <Button variant="outline" className="mt-3" onClick={() => navigate(`${recvBasePath}/form`)} data-testid="button-create-first">
                   <Plus className="h-4 w-4 mr-1" /> สร้างรายการแรก
                 </Button>
               </div>
@@ -197,7 +199,7 @@ export default function GoodsReceivingList() {
                             <button
                               data-testid={`link-gr-${gr.id}`}
                               className="text-sm text-[#03c9d7] hover:underline font-medium"
-                              onClick={() => navigate(`/inventory/receiving/form/${gr.id}`)}
+                              onClick={() => navigate(`${recvBasePath}/form/${gr.id}`)}
                             >
                               {gr.grNo || gr.documentNo || `-`}
                             </button>
@@ -223,7 +225,7 @@ export default function GoodsReceivingList() {
                               <DropdownMenuContent align="end" className="w-48 text-sm">
                                 <DropdownMenuItem
                                   data-testid={`action-view-${gr.id}`}
-                                  onClick={() => navigate(`/inventory/receiving/form/${gr.id}`)}
+                                  onClick={() => navigate(`${recvBasePath}/form/${gr.id}`)}
                                   className="flex gap-2"
                                 >
                                   <Eye className="h-3.5 w-3.5" /> ดูรายละเอียด
@@ -231,7 +233,7 @@ export default function GoodsReceivingList() {
                                 {gr.status === "draft" && (
                                   <DropdownMenuItem
                                     data-testid={`action-edit-${gr.id}`}
-                                    onClick={() => navigate(`/inventory/receiving/form/${gr.id}`)}
+                                    onClick={() => navigate(`${recvBasePath}/form/${gr.id}`)}
                                     className="flex gap-2"
                                   >
                                     <Edit2 className="h-3.5 w-3.5" /> แก้ไข
@@ -278,6 +280,6 @@ export default function GoodsReceivingList() {
           </CardContent>
         </Card>
       </div>
-    </Layout>
+    </LayoutComponent>
   );
 }

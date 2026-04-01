@@ -27,7 +27,9 @@ const SOURCE_MAP: Record<string, string> = {
   invoice: "ใบแจ้งหนี้ (IV)",
 };
 
-export default function DeliveryNotesPage() {
+export default function DeliveryNotesPage(props: { Wrapper?: React.ComponentType<{ children: React.ReactNode }>; basePath?: string } & Record<string, any>) {
+  const LayoutComponent = props.Wrapper || Layout;
+  const dnBasePath = props.basePath ? `${props.basePath}/delivery-notes` : "/delivery-notes";
   const { selectedCompanyId } = useCompany();
   const [, navigate] = useLocation();
   const { toast } = useToast();
@@ -98,7 +100,7 @@ export default function DeliveryNotesPage() {
   };
 
   return (
-    <Layout>
+    <LayoutComponent>
     <div className="p-4 w-full overflow-x-hidden">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
@@ -106,7 +108,7 @@ export default function DeliveryNotesPage() {
           <h1 className="text-xl font-bold">ใบส่งของ (Delivery Note)</h1>
           {total > 0 && <Badge variant="secondary" className="ml-2">{total} รายการ</Badge>}
         </div>
-        <Button onClick={() => navigate("/delivery-notes/new")} style={{ background: "#fb9678" }} data-testid="btn-new-delivery-note">
+        <Button onClick={() => navigate(`${dnBasePath}/new`)} style={{ background: "#fb9678" }} data-testid="btn-new-delivery-note">
           <Plus className="h-4 w-4 mr-1" /> สร้างใบส่งของ
         </Button>
       </div>
@@ -144,7 +146,7 @@ export default function DeliveryNotesPage() {
         <Card className="text-center py-12">
           <Package className="h-12 w-12 mx-auto mb-3 text-gray-300" />
           <p className="text-gray-500">ยังไม่มีใบส่งของ</p>
-          <Button variant="outline" className="mt-3" onClick={() => navigate("/delivery-notes/new")} style={{ borderColor: "#fb9678", color: "#fb9678" }}>
+          <Button variant="outline" className="mt-3" onClick={() => navigate(`${dnBasePath}/new`)} style={{ borderColor: "#fb9678", color: "#fb9678" }}>
             <Plus className="h-4 w-4 mr-1" /> สร้างใบแรก
           </Button>
         </Card>
@@ -156,7 +158,7 @@ export default function DeliveryNotesPage() {
             return (
               <Card key={row.id} className="p-3 hover:shadow-md transition-shadow cursor-pointer" data-testid={`card-delivery-${row.id}`}>
                 <div className="flex items-center justify-between">
-                  <div className="flex-1" onClick={() => navigate(`/delivery-notes/${row.id}`)}>
+                  <div className="flex-1" onClick={() => navigate(`${dnBasePath}/${row.id}`)}>
                     <div className="flex items-center gap-2 mb-1">
                       <span className="font-semibold text-sm" style={{ color: "#fb9678" }}>{row.deliveryNo}</span>
                       <Badge className={`${st.color} text-xs`}>
@@ -196,7 +198,7 @@ export default function DeliveryNotesPage() {
                       </Button>
                     )}
                     {row.status === "delivered" && row.signatureDataUrl && (
-                      <Button size="sm" variant="outline" onClick={() => navigate(`/delivery-notes/${row.id}`)}
+                      <Button size="sm" variant="outline" onClick={() => navigate(`${dnBasePath}/${row.id}`)}
                         style={{ borderColor: "#05b187", color: "#05b187" }} title="ดูลายเซ็น">
                         <Eye className="h-4 w-4" />
                       </Button>
@@ -252,6 +254,6 @@ export default function DeliveryNotesPage() {
         </DialogContent>
       </Dialog>
     </div>
-    </Layout>
+    </LayoutComponent>
   );
 }

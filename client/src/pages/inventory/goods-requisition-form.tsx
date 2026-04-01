@@ -46,10 +46,12 @@ const STATUS_MAP: Record<string, { label: string; color: string }> = {
   approved: { label: "อนุมัติ", color: "bg-emerald-100 text-emerald-700 border-emerald-200" },
 };
 
-export default function GoodsRequisitionForm() {
+export default function GoodsRequisitionForm(props: { Wrapper?: React.ComponentType<{ children: React.ReactNode }>; basePath?: string } & Record<string, any>) {
+  const LayoutComponent = props.Wrapper || Layout;
+  const reqBasePath = props.basePath ? `${props.basePath}/requisition` : "/inventory/requisition";
   const [, navigate] = useLocation();
-  const [matchCreate] = useRoute("/inventory/requisition/form");
-  const [matchEdit, paramsEdit] = useRoute("/inventory/requisition/form/:id");
+  const [matchCreate] = useRoute(`${reqBasePath}/form`);
+  const [matchEdit, paramsEdit] = useRoute(`${reqBasePath}/form/:id`);
   const editingId = matchEdit ? Number(paramsEdit?.id) : null;
   const isNew = !!matchCreate && !editingId;
 
@@ -129,7 +131,7 @@ export default function GoodsRequisitionForm() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/goods-requisitions"] });
       toast({ title: "สร้างใบเบิกสินค้าสำเร็จ", variant: "success" as any });
-      navigate("/inventory/requisition");
+      navigate(reqBasePath);
     },
     onError: (err: any) => toast({ title: "เกิดข้อผิดพลาด", description: err.message, variant: "destructive" }),
   });
@@ -142,7 +144,7 @@ export default function GoodsRequisitionForm() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/goods-requisitions"] });
       toast({ title: "อัพเดทใบเบิกสินค้าสำเร็จ", variant: "success" as any });
-      navigate("/inventory/requisition");
+      navigate(reqBasePath);
     },
     onError: (err: any) => toast({ title: "เกิดข้อผิดพลาด", description: err.message, variant: "destructive" }),
   });
@@ -223,14 +225,14 @@ export default function GoodsRequisitionForm() {
   const statusInfo = STATUS_MAP[form.status] || STATUS_MAP.draft;
 
   return (
-    <Layout>
+    <LayoutComponent>
       <div className="space-y-4" data-testid="goods-requisition-form-page">
         <div className="flex items-center gap-3 mb-2">
           <Button
             variant="ghost"
             size="icon"
             className="h-8 w-8"
-            onClick={() => navigate("/inventory/requisition")}
+            onClick={() => navigate(reqBasePath)}
             data-testid="button-back"
           >
             <ArrowLeft className="h-4 w-4" />
@@ -454,7 +456,7 @@ export default function GoodsRequisitionForm() {
           <Button
             variant="outline"
             className="h-9 text-sm"
-            onClick={() => navigate("/inventory/requisition")}
+            onClick={() => navigate(reqBasePath)}
             data-testid="button-cancel"
           >
             ยกเลิก
@@ -471,6 +473,6 @@ export default function GoodsRequisitionForm() {
           </Button>
         </div>
       </div>
-    </Layout>
+    </LayoutComponent>
   );
 }

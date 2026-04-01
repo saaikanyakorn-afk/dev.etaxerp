@@ -33,7 +33,9 @@ function fmtToday() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-export default function DeliveryNoteFormPage() {
+export default function DeliveryNoteFormPage(props: { Wrapper?: React.ComponentType<{ children: React.ReactNode }>; basePath?: string } & Record<string, any>) {
+  const LayoutComponent = props.Wrapper || Layout;
+  const dnBasePath = props.basePath ? `${props.basePath}/delivery-notes` : "/delivery-notes";
   const { selectedCompanyId } = useCompany();
   const [, navigate] = useLocation();
   const params = useParams<{ id: string }>();
@@ -172,7 +174,7 @@ export default function DeliveryNoteFormPage() {
     },
     onSuccess: (doc) => {
       toast({ title: isEdit ? "บันทึกสำเร็จ" : `สร้างใบส่งของ ${doc.deliveryNo} สำเร็จ` });
-      navigate("/delivery-notes");
+      navigate(dnBasePath);
     },
     onError: (e: any) => toast({ title: "เกิดข้อผิดพลาด", description: e.message, variant: "destructive" }),
   });
@@ -228,10 +230,10 @@ export default function DeliveryNoteFormPage() {
   const isDelivered = existingDoc?.status === "delivered";
 
   return (
-    <Layout>
+    <LayoutComponent>
     <div className="p-4 w-full overflow-x-hidden max-w-4xl mx-auto">
       <div className="flex items-center gap-2 mb-4">
-        <Button variant="ghost" size="sm" onClick={() => navigate("/delivery-notes")} data-testid="btn-back">
+        <Button variant="ghost" size="sm" onClick={() => navigate(dnBasePath)} data-testid="btn-back">
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <Truck className="h-5 w-5" style={{ color: "#fb9678" }} />
@@ -398,7 +400,7 @@ export default function DeliveryNoteFormPage() {
 
       {!isDelivered && (
         <div className="flex justify-end gap-2">
-          <Button variant="outline" onClick={() => navigate("/delivery-notes")}>ยกเลิก</Button>
+          <Button variant="outline" onClick={() => navigate(dnBasePath)}>ยกเลิก</Button>
           <Button onClick={handleSave} disabled={saveMutation.isPending} style={{ background: "#fb9678" }} data-testid="btn-save">
             <Save className="h-4 w-4 mr-1" /> {saveMutation.isPending ? "กำลังบันทึก..." : "บันทึก"}
           </Button>
@@ -442,6 +444,6 @@ export default function DeliveryNoteFormPage() {
         </DialogContent>
       </Dialog>
     </div>
-    </Layout>
+    </LayoutComponent>
   );
 }
