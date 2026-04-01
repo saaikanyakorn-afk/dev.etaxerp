@@ -11,7 +11,11 @@ import type {
 } from "./pdf-react-generator";
 
 import { createRequire } from "module";
-const _require = createRequire(import.meta.url);
+const _require = createRequire(
+  typeof __filename !== "undefined"
+    ? "file://" + __filename
+    : /* @vite-ignore */ import.meta.url
+);
 const PdfPrinter = _require("pdfmake/src/printer");
 
 const fontsDir = path.join(process.cwd(), "server/fonts");
