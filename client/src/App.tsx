@@ -257,6 +257,7 @@ import AccountingFormulas from "@/pages/accounting-formulas";
 import DocumentTemplates from "@/pages/settings/document-templates";
 import UserProfile from "@/pages/settings/user-profile";
 import FirmLinkPage from "@/pages/settings/firm-link";
+import ModuleSelectPage from "@/pages/module-select";
 import CompanyInfo from "@/pages/settings/company-info";
 import PaymentMethodSettings from "@/pages/settings/payment-methods";
 import MySubscription from "@/pages/settings/my-subscription";
@@ -464,6 +465,12 @@ function DashboardRedirect() {
   return null;
 }
 
+function ModuleSelectRedirect() {
+  const [, navigate] = useLocation();
+  useEffect(() => { navigate("/module-select", { replace: true }); }, [navigate]);
+  return null;
+}
+
 function ExternalUserGuard({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   if ((user as any)?.role === "client_external") return null;
@@ -479,8 +486,10 @@ function HomeRedirect() {
         navigate("/etax-hub/board", { replace: true });
       } else if (user && (user as any).role === "super_admin") {
         navigate("/platform", { replace: true });
+      } else if (user && (user as any).role === "employee") {
+        navigate("/ess", { replace: true });
       } else {
-        navigate(user ? "/dashboard" : "/landing", { replace: true });
+        navigate(user ? "/module-select" : "/landing", { replace: true });
       }
     }
   }, [user, loading, navigate]);
@@ -491,7 +500,7 @@ function HomeRedirect() {
 function TrialGuard({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
   const [location, setLocation] = useLocation();
-  const publicPaths = ["/landing", "/login", "/register", "/choose-plan", "/privacy-policy", "/terms-of-service", "/about", "/contact", "/user-guide", "/features", "/pricing", "/ecommerce-pricing", "/accounting-pricing", "/delivery-pricing", "/food-delivery-pricing", "/sign/", "/supplier-portal", "/share/", "/shared/", "/upload/", "/external-register", "/external-board", "/delivery-sign/", "/loyalty/signup"];
+  const publicPaths = ["/landing", "/login", "/register", "/choose-plan", "/module-select", "/privacy-policy", "/terms-of-service", "/about", "/contact", "/user-guide", "/features", "/pricing", "/ecommerce-pricing", "/accounting-pricing", "/delivery-pricing", "/food-delivery-pricing", "/sign/", "/supplier-portal", "/share/", "/shared/", "/upload/", "/external-register", "/external-board", "/delivery-sign/", "/loyalty/signup"];
   const isPublic = publicPaths.some(p => location.startsWith(p));
 
   useEffect(() => {
@@ -813,6 +822,7 @@ function Router() {
       <Route path="/settings/document-templates" component={DocumentTemplates} />
       <Route path="/settings/profile" component={UserProfile} />
       <Route path="/settings/firm-link" component={FirmLinkPage} />
+      <Route path="/module-select" component={ModuleSelectPage} />
       <Route path="/settings/company-info" component={CompanyInfo} />
       <Route path="/settings/payment-methods" component={PaymentMethodSettings} />
       <Route path="/settings/my-subscription" component={MySubscription} />
