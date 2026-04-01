@@ -179,10 +179,11 @@ export function registerPosRoutes(app: Express) {
               .filter((id): id is number => id !== null && id !== undefined);
 
             const summaryTivNo = await getNextDocNo(
-              session.companyId, "POSS", taxInvoices, taxInvoices.taxInvoiceNo, taxInvoices.companyId
+              session.companyId, "POSS", taxInvoices, taxInvoices.taxInvoiceNo, taxInvoices.companyId,
+              undefined, undefined, posDb
             );
 
-            const [summaryTiv] = await db.insert(taxInvoices).values({
+            const [summaryTiv] = await posDb.insert(taxInvoices).values({
               companyId: session.companyId,
               taxInvoiceNo: summaryTivNo,
               taxInvoiceDate: today,
@@ -202,7 +203,7 @@ export function registerPosRoutes(app: Express) {
             }).returning();
 
             if (abbreviatedTivIds.length > 0) {
-              await db.update(taxInvoices)
+              await posDb.update(taxInvoices)
                 .set({ summaryTaxInvoiceId: summaryTiv.id })
                 .where(inArray(taxInvoices.id, abbreviatedTivIds));
             }
@@ -233,7 +234,7 @@ export function registerPosRoutes(app: Express) {
 
               const summaryItems = Object.values(grouped);
               if (summaryItems.length > 0) {
-                await db.insert(taxInvoiceItems).values(
+                await posDb.insert(taxInvoiceItems).values(
                   summaryItems.map(si => ({
                     taxInvoiceId: summaryTiv.id,
                     productId: si.productId,
@@ -430,8 +431,8 @@ export function registerPosRoutes(app: Express) {
       const change = Math.round((paymentMethod === "เงินสด" ? cashRcv - total : 0) * 100) / 100;
 
       const [transactionNo, tivNo] = await Promise.all([
-        getNextDocNo(Number(companyId), "POS", posTransactions, posTransactions.transactionNo, posTransactions.companyId),
-        getNextDocNo(Number(companyId), "POS", taxInvoices, taxInvoices.taxInvoiceNo, taxInvoices.companyId),
+        getNextDocNo(Number(companyId), "POS", posTransactions, posTransactions.transactionNo, posTransactions.companyId, undefined, undefined, posDb),
+        getNextDocNo(Number(companyId), "POS", taxInvoices, taxInvoices.taxInvoiceNo, taxInvoices.companyId, undefined, undefined, posDb),
       ]);
 
       const today = new Date().toISOString().split("T")[0];
@@ -583,12 +584,12 @@ export function registerPosRoutes(app: Express) {
   app.get("/api/pos/receipt/:taxInvoiceId", requireAuth, requireModule("pos"), async (req, res) => {
     try {
       const taxInvoiceId = Number(req.params.taxInvoiceId);
-      const [doc] = await db.select().from(taxInvoices).where(eq(taxInvoices.id, taxInvoiceId));
+      const [doc] = await posDb.select().from(taxInvoices).where(eq(taxInvoices.id, taxInvoiceId));
       if (!doc) return res.status(404).json({ message: "ไม่พบเอกสาร" });
       const ac = await checkDocOwnership(doc.companyId, req.user);
       if (!ac.allowed) return res.status(403).json({ message: ac.message });
       const [items, [comp]] = await Promise.all([
-        db.select().from(taxInvoiceItems).where(eq(taxInvoiceItems.taxInvoiceId, doc.id)),
+        posDb.select().from(taxInvoiceItems).where(eq(taxInvoiceItems.taxInvoiceId, doc.id)),
         db.select().from(companies).where(eq(companies.id, doc.companyId)),
       ]);
       res.json({ doc: { ...doc, items }, company: comp || null });
@@ -632,7 +633,7 @@ export function registerPosRoutes(app: Express) {
       await posDb.update(posTransactions).set({ status: "voided" }).where(eq(posTransactions.id, id));
 
       if (txn.taxInvoiceId) {
-        await db.update(taxInvoices).set({ status: "cancelled" }).where(eq(taxInvoices.id, txn.taxInvoiceId));
+        await posDb.update(taxInvoices).set({ status: "cancelled" }).where(eq(taxInvoices.id, txn.taxInvoiceId));
       }
 
       res.json({ message: "ยกเลิกรายการสำเร็จ" });
@@ -867,7 +868,7 @@ export function registerPosRoutes(app: Express) {
     try {
       const companyId = Number(req.query.companyId);
       if (!companyId) return res.status(400).json({ message: "companyId required" });
-      const rows = await db.select().from(taxInvoices)
+      const rows = await posDb.select().from(taxInvoices)
         .where(and(
           eq(taxInvoices.companyId, companyId),
           sql`${taxInvoices.taxInvoiceNo} LIKE 'POS%'`
@@ -881,7 +882,7 @@ export function registerPosRoutes(app: Express) {
     try {
       const companyId = Number(req.query.companyId);
       if (!companyId) return res.status(400).json({ message: "companyId required" });
-      const [doc] = await db.select().from(taxInvoices).where(
+      const [doc] = await posDb.select().from(taxInvoices).where(
         and(
           eq(taxInvoices.id, Number(req.params.id)),
           eq(taxInvoices.companyId, companyId),
@@ -890,7 +891,7 @@ export function registerPosRoutes(app: Express) {
       );
       if (!doc) return res.status(404).json({ message: "ไม่พบเอกสาร" });
       { const ac = await checkDocOwnership(doc.companyId, req.user); if (!ac.allowed) return res.status(403).json({ message: ac.message }); }
-      const items = await db.select().from(taxInvoiceItems).where(eq(taxInvoiceItems.taxInvoiceId, doc.id));
+      const items = await posDb.select().from(taxInvoiceItems).where(eq(taxInvoiceItems.taxInvoiceId, doc.id));
       res.json({ ...doc, items });
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
@@ -1025,10 +1026,10 @@ export function registerPosRoutes(app: Express) {
   app.get("/api/pos/summary-invoice/:id/details", requireAuth, requireModule("pos"), async (req, res) => {
     try {
       const summaryId = Number(req.params.id);
-      const [summary] = await db.select().from(taxInvoices).where(eq(taxInvoices.id, summaryId));
+      const [summary] = await posDb.select().from(taxInvoices).where(eq(taxInvoices.id, summaryId));
       if (!summary || !summary.isSummaryInvoice) return res.status(404).json({ message: "ไม่พบใบสรุป" });
 
-      const details = await db.select({
+      const details = await posDb.select({
         id: taxInvoices.id,
         taxInvoiceNo: taxInvoices.taxInvoiceNo,
         taxInvoiceDate: taxInvoices.taxInvoiceDate,

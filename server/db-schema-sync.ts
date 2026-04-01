@@ -245,6 +245,8 @@ const ECOM_TABLE_NAMES = new Set([
   'live_sessions', 'live_session_products', 'live_session_orders', 'live_session_comments',
   'lucky_draw_sessions', 'lucky_draw_participants', 'lucky_draw_winners',
   'ad_budgets', 'ad_campaigns',
+  'tax_invoices', 'tax_invoice_items', 'sales_credit_notes', 'sales_credit_note_items',
+  'document_settings',
 ]);
 
 function getEcomSchemaTableObjects(): PgTable[] {
@@ -344,6 +346,7 @@ const POS_TABLE_NAMES = new Set([
   'stock_movements', 'warehouses', 'warehouse_stock_levels',
   'stock_transfers', 'stock_transfer_items',
   'branches', 'payment_methods', 'document_settings',
+  'tax_invoices', 'tax_invoice_items',
 ]);
 
 function getPosSchemaTableObjects(): PgTable[] {

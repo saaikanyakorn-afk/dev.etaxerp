@@ -400,7 +400,7 @@ app.post("/api/ecommerce/orders/batch-generate-documents", requireAuth, requireM
         const orderNo = order.orderNo || order.platformOrderId;
         const refDoc = `${platformDisplay} #${orderNo}`;
 
-        const existingTiv = await db.select({ id: taxInvoices.id }).from(taxInvoices)
+        const existingTiv = await ecomDb.select({ id: taxInvoices.id }).from(taxInvoices)
           .where(and(eq(taxInvoices.companyId, order.companyId), eq(taxInvoices.refDoc, refDoc)));
         if (existingTiv.length > 0) {
           await ecomDb.update(ecommerceOrders).set({ taxInvoiceId: existingTiv[0].id }).where(eq(ecommerceOrders.id, Number(orderId)));
@@ -415,7 +415,7 @@ app.post("/api/ecommerce/orders/batch-generate-documents", requireAuth, requireM
         }
         const prefix = connPrefix;
         const batchDocDate = order.placedAt ? new Date(order.placedAt).toISOString().split("T")[0] : new Date().toISOString().split("T")[0];
-        const taxInvoiceNo = await getNextDocNo(order.companyId, prefix, taxInvoices, taxInvoices.taxInvoiceNo, taxInvoices.companyId, batchDocDate);
+        const taxInvoiceNo = await getNextDocNo(order.companyId, prefix, taxInvoices, taxInvoices.taxInvoiceNo, taxInvoices.companyId, batchDocDate, undefined, ecomDb);
 
         const subtotal = items.length > 0
           ? items.reduce((sum: number, i: any) => sum + (parseFloat(i.total) || 0), 0)
@@ -431,7 +431,7 @@ app.post("/api/ecommerce/orders/batch-generate-documents", requireAuth, requireM
         }
         const apiDocLabel = isVatRegistered ? "ใบกำกับภาษี" : "ใบเสร็จรับเงิน";
 
-        const doc = await db.transaction(async (tx) => {
+        const doc = await ecomDb.transaction(async (tx) => {
           const [doc] = await tx.insert(taxInvoices).values({
             companyId: order.companyId,
             taxInvoiceNo,
@@ -1781,7 +1781,7 @@ app.delete("/api/ecommerce/settlement-batches/:id", requireAuth, requireModule("
         }).where(eq(ecommerceOrders.id, item.orderId)).returning();
 
         if (resetOrder?.taxInvoiceId) {
-          await db.update(taxInvoices)
+          await ecomDb.update(taxInvoices)
             .set({ paymentStatus: "unpaid" })
             .where(eq(taxInvoices.id, resetOrder.taxInvoiceId));
         }
@@ -5386,17 +5386,17 @@ app.patch("/api/ecommerce/returns/:id/status", requireAuth, requireModule("ecomm
       const [order] = await ecomDb.select().from(ecommerceOrders).where(eq(ecommerceOrders.id, updated.orderId));
       if (order && order.taxInvoiceId && !order.creditNoteId) {
         try {
-          const [originalTiv] = await db.select().from(taxInvoices).where(eq(taxInvoices.id, order.taxInvoiceId));
+          const [originalTiv] = await ecomDb.select().from(taxInvoices).where(eq(taxInvoices.id, order.taxInvoiceId));
           if (originalTiv) {
-            const originalItems = await db.select().from(taxInvoiceItems).where(eq(taxInvoiceItems.taxInvoiceId, originalTiv.id));
+            const originalItems = await ecomDb.select().from(taxInvoiceItems).where(eq(taxInvoiceItems.taxInvoiceId, originalTiv.id));
             const returnDate = new Date().toISOString().split("T")[0];
             const subtotal = parseFloat(originalTiv.subtotal || "0");
             const totalAmount = parseFloat(originalTiv.totalAmount || "0");
             const vatAmount = parseFloat(originalTiv.vatAmount || "0");
             const userId = (req.user as any)?.id;
 
-            const cnResult = await db.transaction(async (tx) => {
-              const creditNoteNo = await getNextDocNo(order.companyId, "CN", salesCreditNotes, salesCreditNotes.creditNoteNo, salesCreditNotes.companyId, returnDate);
+            const cnResult = await ecomDb.transaction(async (tx) => {
+              const creditNoteNo = await getNextDocNo(order.companyId, "CN", salesCreditNotes, salesCreditNotes.creditNoteNo, salesCreditNotes.companyId, returnDate, undefined, ecomDb);
 
               const [cn] = await tx.insert(salesCreditNotes).values({
                 companyId: order.companyId,
@@ -5435,56 +5435,6 @@ app.patch("/api/ecommerce/returns/:id/status", requireAuth, requireModule("ecomm
                 });
               }
 
-              const allAccounts = await db.select().from(accounts).where(eq(accounts.companyId, order.companyId));
-              const accountMap = new Map(allAccounts.map(a => [a.code, a]));
-              const salesAccount = accountMap.get("4001000");
-              const vatAccount = accountMap.get("2341000");
-              const arAccount = accountMap.get("1201000");
-
-              if (salesAccount && vatAccount && arAccount) {
-                const salesBeforeVat = subtotal - vatAmount;
-                const totalVat = vatAmount;
-                const entryNo = await getNextJournalEntryNo(order.companyId, "sales", returnDate);
-
-                const [je] = await tx.insert(journalEntries).values({
-                  companyId: order.companyId,
-                  entryNo,
-                  entryDate: returnDate,
-                  reference: creditNoteNo,
-                  description: `ใบลดหนี้ ${creditNoteNo} - คืนสินค้า ${order.platformOrderId}`,
-                  journalBook: "sales",
-                  contactName: originalTiv.customerName || null,
-                  createdBy: userId,
-                  status: "posted",
-                  sourceDocType: "sales_credit_note",
-                  sourceDocId: cn.id,
-                  currencyCode: "THB",
-                  exchangeRate: "1",
-                }).returning();
-
-                await tx.insert(journalLines).values({
-                  journalEntryId: je.id,
-                  accountId: salesAccount.id,
-                  description: "กลับรายการรายได้จากการขาย",
-                  debit: String(salesBeforeVat.toFixed(2)),
-                  credit: "0",
-                });
-                await tx.insert(journalLines).values({
-                  journalEntryId: je.id,
-                  accountId: vatAccount.id,
-                  description: "กลับรายการภาษีขาย",
-                  debit: String(totalVat.toFixed(2)),
-                  credit: "0",
-                });
-                await tx.insert(journalLines).values({
-                  journalEntryId: je.id,
-                  accountId: arAccount.id,
-                  description: "ลดยอดลูกหนี้การค้า",
-                  debit: "0",
-                  credit: String(subtotal.toFixed(2)),
-                });
-              }
-
               await tx.update(ecommerceOrders).set({
                 creditNoteId: cn.id,
                 returnReason: updated.reason || "คืนสินค้า",
@@ -5492,6 +5442,49 @@ app.patch("/api/ecommerce/returns/:id/status", requireAuth, requireModule("ecomm
 
               return cn;
             });
+
+            if (cnResult) {
+              try {
+                const allAccounts = await db.select().from(accounts).where(eq(accounts.companyId, order.companyId));
+                const accountMap = new Map(allAccounts.map(a => [a.code, a]));
+                const salesAccount = accountMap.get("4001000");
+                const vatAccount = accountMap.get("2341000");
+                const arAccount = accountMap.get("1201000");
+
+                if (salesAccount && vatAccount && arAccount) {
+                  const salesBeforeVat = subtotal - vatAmount;
+                  const totalVat = vatAmount;
+                  const entryNo = await getNextJournalEntryNo(order.companyId, "sales", returnDate);
+                  const userId = (req.user as any)?.id;
+
+                  await db.transaction(async (atx) => {
+                    const [je] = await atx.insert(journalEntries).values({
+                      companyId: order.companyId,
+                      entryNo,
+                      entryDate: returnDate,
+                      reference: creditNoteNo,
+                      description: `ใบลดหนี้ ${creditNoteNo} - คืนสินค้า ${order.platformOrderId}`,
+                      journalBook: "sales",
+                      contactName: originalTiv.customerName || null,
+                      createdBy: userId,
+                      status: "posted",
+                      sourceDocType: "sales_credit_note",
+                      sourceDocId: cnResult.id,
+                      currencyCode: "THB",
+                      exchangeRate: "1",
+                    }).returning();
+
+                    await atx.insert(journalLines).values([
+                      { journalEntryId: je.id, accountId: salesAccount.id, description: "กลับรายการรายได้จากการขาย", debit: String(salesBeforeVat.toFixed(2)), credit: "0" },
+                      { journalEntryId: je.id, accountId: vatAccount.id, description: "กลับรายการภาษีขาย", debit: String(totalVat.toFixed(2)), credit: "0" },
+                      { journalEntryId: je.id, accountId: arAccount.id, description: "ลดยอดลูกหนี้การค้า", debit: "0", credit: String(subtotal.toFixed(2)) },
+                    ]);
+                  });
+                }
+              } catch (jeErr: any) {
+                console.error("Credit note journal entry error (non-fatal):", jeErr.message);
+              }
+            }
           }
         } catch (cnErr: any) {
           console.error("Auto credit note error:", cnErr.message);
@@ -5821,7 +5814,7 @@ app.post("/api/ecommerce/daily-summary", requireAuth, requireModule("ecommerce")
 
     const ecPrefixes = Object.values(PLATFORM_DOC_PREFIX);
 
-    const dayInvoices = await db.select().from(taxInvoices)
+    const dayInvoices = await ecomDb.select().from(taxInvoices)
       .where(and(
         eq(taxInvoices.companyId, Number(companyId)),
         eq(taxInvoices.taxInvoiceDate, date),
@@ -5863,10 +5856,10 @@ app.post("/api/ecommerce/daily-summary", requireAuth, requireModule("ecommerce")
       }
 
       const summaryPrefix = prefix + "S";
-      const summaryNo = await getNextDocNo(Number(companyId), summaryPrefix, taxInvoices, taxInvoices.taxInvoiceNo, taxInvoices.companyId, date);
+      const summaryNo = await getNextDocNo(Number(companyId), summaryPrefix, taxInvoices, taxInvoices.taxInvoiceNo, taxInvoices.companyId, date, undefined, ecomDb);
       const summaryDesc = `สรุปยอดขาย ${platform} วันที่ ${date} (${invoices.length} บิล)`;
 
-      const [summaryTiv] = await db.insert(taxInvoices).values({
+      const [summaryTiv] = await ecomDb.insert(taxInvoices).values({
         companyId: Number(companyId),
         taxInvoiceNo: summaryNo,
         taxInvoiceDate: date,
@@ -5884,7 +5877,7 @@ app.post("/api/ecommerce/daily-summary", requireAuth, requireModule("ecommerce")
       }).returning();
 
       const abbrevIds = invoices.map(inv => inv.id);
-      await db.update(taxInvoices)
+      await ecomDb.update(taxInvoices)
         .set({ summaryTaxInvoiceId: summaryTiv.id })
         .where(inArray(taxInvoices.id, abbrevIds));
 
@@ -5942,7 +5935,7 @@ app.get("/api/ecommerce/daily-summary/status", requireAuth, requireModule("ecomm
     const ecPrefixes = Object.values(PLATFORM_DOC_PREFIX);
     const summaryPrefixes = ecPrefixes.map(p => p + "S");
 
-    const existingSummaries = await db.select().from(taxInvoices)
+    const existingSummaries = await ecomDb.select().from(taxInvoices)
       .where(and(
         eq(taxInvoices.companyId, companyId),
         eq(taxInvoices.taxInvoiceDate, date),
@@ -5950,7 +5943,7 @@ app.get("/api/ecommerce/daily-summary/status", requireAuth, requireModule("ecomm
         inArray(taxInvoices.docPrefix, summaryPrefixes),
       ));
 
-    const unsummarized = await db.select({ cnt: count() }).from(taxInvoices)
+    const unsummarized = await ecomDb.select({ cnt: count() }).from(taxInvoices)
       .where(and(
         eq(taxInvoices.companyId, companyId),
         eq(taxInvoices.taxInvoiceDate, date),
@@ -5979,7 +5972,7 @@ app.get("/api/ecommerce/daily-summary/status", requireAuth, requireModule("ecomm
 app.get("/api/ecommerce/summary-invoice/:id/details", requireAuth, requireModule("ecommerce"), async (req, res) => {
   try {
     const summaryId = Number(req.params.id);
-    const [summary] = await db.select().from(taxInvoices).where(eq(taxInvoices.id, summaryId));
+    const [summary] = await ecomDb.select().from(taxInvoices).where(eq(taxInvoices.id, summaryId));
     if (!summary || !summary.isSummaryInvoice) return res.status(404).json({ message: "ไม่พบใบสรุป" });
 
     const details = await db.select({
