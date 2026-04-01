@@ -359,6 +359,7 @@ import DeliveryTracking from "@/pages/delivery/delivery-tracking";
 import DeliveryLineNotify from "@/pages/delivery/delivery-line-notify";
 import DeliveryNotesPage from "@/pages/delivery/delivery-notes";
 import DeliveryNoteFormPage from "@/pages/delivery/delivery-note-form";
+import DeliveryHub from "@/pages/delivery-hub";
 import DeliverySignPublicPage from "@/pages/delivery/delivery-sign-public";
 import DeliveryShipments from "@/pages/delivery/delivery-shipments";
 import DeliveryScan from "@/pages/delivery/delivery-scan";
@@ -915,6 +916,7 @@ function Router() {
       <Route path="/delivery/shipments" component={DeliveryShipments} />
       <Route path="/delivery/scan" component={DeliveryScan} />
       <Route path="/delivery/settings" component={DeliverySettings} />
+      <Route path="/delivery-hub" component={DeliveryHub} />
       <Route path="/delivery-notes" component={DeliveryNotesPage} />
       <Route path="/delivery-notes/new" component={DeliveryNoteFormPage} />
       <Route path="/delivery-notes/:id" component={DeliveryNoteFormPage} />

@@ -3,7 +3,7 @@ import { db } from "../db";
 import { ecomDb } from "../ecom-db";
 import { storage } from "../storage";
 import { eq, desc, and, or, isNull, asc, ilike, inArray, notInArray, gte, lte, count, sum , sql } from "drizzle-orm";
-import { companies, ecommerceOrders, productStock, products, ecommerceReturns, taxInvoices, taxInvoiceItems, accounts, journalEntries, journalLines, ecommerceOrderItems, workBoards, workBoardColumns, workBoardItems, firmFolders, receipts, oauthStates, syncLogs, facebookChatOrders, chatOrderKeywords, chatOrders, productBundles, ecommerceReturnItems, salesCreditNotes, salesCreditNoteItems, paymentMethods, facebookPages, platformChatThreads, ecommerceConnections, ecommerceProductMappings } from "@shared/schema";
+import { companies, ecommerceOrders, productStock, products, ecommerceReturns, taxInvoices, taxInvoiceItems, accounts, journalEntries, journalLines, ecommerceOrderItems, workBoards, workBoardColumns, workBoardItems, firmFolders, receipts, oauthStates, syncLogs, facebookChatOrders, chatOrderKeywords, chatOrders, productBundles, ecommerceReturnItems, salesCreditNotes, salesCreditNoteItems, paymentMethods, facebookPages, platformChatThreads, ecommerceConnections, ecommerceProductMappings, deliveryNotes, stockTransfers, warehouses, fulfillmentBatches, fulfillmentItems } from "@shared/schema";
 import { requireAuth, requireModule, requireAnyModule, checkDocOwnership } from "../route-middleware";
 import { getNextDocNo, getNextJournalEntryNo, createAutoJournalEntry, generateTivFromEcommerceOrder, PLATFORM_DOC_PREFIX, PLATFORM_DISPLAY_NAME, logActivity, checkClosedPeriod } from "../route-helpers";
 import { parsePagination, paginatedResponse } from "./pagination";
@@ -3260,6 +3260,117 @@ app.patch("/api/fulfillment/items/:id/ship", requireAuth, requireModule("ecommer
     }
     res.json(updated);
   } catch (err: any) { res.status(400).json({ message: err.message }); }
+});
+
+app.patch("/api/fulfillment/items/:id/deliver", requireAuth, requireModule("ecommerce"), async (req, res) => {
+  try {
+    const user = req.user as any;
+    const id = Number(req.params.id);
+    const { lat, lng, signature, receiverName } = req.body || {};
+    if (!signature) return res.status(400).json({ message: "กรุณาลงลายเซ็นรับสินค้า" });
+    const [updated] = await db.update(fulfillmentItems)
+      .set({
+        status: "delivered", deliveredAt: new Date(), deliveredBy: user.id,
+        deliveryGpsLat: lat ? String(lat) : null, deliveryGpsLng: lng ? String(lng) : null,
+        receiverSignature: signature, receiverName: receiverName || null,
+      })
+      .where(eq(fulfillmentItems.id, id))
+      .returning();
+    if (updated && updated.orderId) {
+      await ecomDb.update(ecommerceOrders)
+        .set({ status: "delivered" })
+        .where(eq(ecommerceOrders.id, updated.orderId));
+    }
+    res.json(updated);
+  } catch (err: any) { res.status(400).json({ message: err.message }); }
+});
+
+// ============ Delivery Hub - Unified View ============
+
+app.get("/api/delivery-hub", requireAuth, async (req, res) => {
+  try {
+    const companyId = Number(req.query.companyId);
+    if (!companyId) return res.status(400).json({ message: "companyId required" });
+    const statusFilter = req.query.status as string || "all";
+
+    const pendingDeliveries: any[] = [];
+
+    const dnConditions: any[] = [eq(deliveryNotes.companyId, companyId)];
+    if (statusFilter === "pending") dnConditions.push(inArray(deliveryNotes.status, ["confirmed", "delivering"]));
+    else if (statusFilter === "delivered") dnConditions.push(eq(deliveryNotes.status, "delivered"));
+    const dns = await db.select().from(deliveryNotes).where(and(...dnConditions)).orderBy(desc(deliveryNotes.createdAt)).limit(100);
+    for (const dn of dns) {
+      pendingDeliveries.push({
+        id: dn.id, module: "accounting", type: "delivery_note",
+        docNo: dn.deliveryNo, date: dn.deliveryDate,
+        from: "สำนักงาน", to: dn.customerName || "ลูกค้า",
+        address: dn.deliveryAddress, status: dn.status,
+        driverName: dn.driverName,
+        hasGps: !!(dn.deliveryGpsLat), hasSignature: !!(dn.signatureDataUrl),
+        gpsLat: dn.deliveryGpsLat, gpsLng: dn.deliveryGpsLng,
+        signature: dn.signatureDataUrl, receiverName: dn.signedByName,
+        createdAt: dn.createdAt,
+      });
+    }
+
+    const stConditions: any[] = [eq(stockTransfers.companyId, companyId)];
+    if (statusFilter === "pending") stConditions.push(inArray(stockTransfers.status, ["approved", "shipped"]));
+    else if (statusFilter === "delivered") stConditions.push(eq(stockTransfers.status, "delivered"));
+    const sts = await db.select().from(stockTransfers).where(and(...stConditions)).orderBy(desc(stockTransfers.createdAt)).limit(100);
+    const whIds = [...new Set(sts.flatMap(s => [s.fromWarehouseId, s.toWarehouseId]))];
+    const whs = whIds.length > 0 ? await db.select().from(warehouses).where(inArray(warehouses.id, whIds)) : [];
+    const whMap: Record<number, string> = {};
+    for (const w of whs) whMap[w.id] = w.name;
+    for (const st of sts) {
+      pendingDeliveries.push({
+        id: st.id, module: "pos", type: "stock_transfer",
+        docNo: st.transferNo, date: st.createdAt,
+        from: whMap[st.fromWarehouseId] || "คลัง", to: whMap[st.toWarehouseId] || "สาขา",
+        status: st.status,
+        hasGps: !!(st.shipGpsLat || st.receiveGpsLat), hasSignature: !!(st.receiverSignature),
+        gpsLat: st.receiveGpsLat || st.shipGpsLat, gpsLng: st.receiveGpsLng || st.shipGpsLng,
+        signature: st.receiverSignature, receiverName: st.receiverName,
+        createdAt: st.createdAt,
+      });
+    }
+
+    const fbConditions: any[] = [];
+    const companyBatches = await db.select().from(fulfillmentBatches).where(eq(fulfillmentBatches.companyId, companyId));
+    if (companyBatches.length > 0) {
+      const batchIds = companyBatches.map(b => b.id);
+      const fiConditions: any[] = [inArray(fulfillmentItems.batchId, batchIds)];
+      if (statusFilter === "pending") fiConditions.push(eq(fulfillmentItems.status, "shipped"));
+      else if (statusFilter === "delivered") fiConditions.push(eq(fulfillmentItems.status, "delivered"));
+      const fis = await db.select().from(fulfillmentItems).where(and(...fiConditions)).limit(100);
+      const orderIds = fis.map(f => f.orderId).filter(Boolean);
+      const orders = orderIds.length > 0 ? await ecomDb.select().from(ecommerceOrders).where(inArray(ecommerceOrders.id, orderIds)) : [];
+      const orderMap: Record<number, any> = {};
+      for (const o of orders) orderMap[o.id] = o;
+      for (const fi of fis) {
+        const order = fi.orderId ? orderMap[fi.orderId] : null;
+        pendingDeliveries.push({
+          id: fi.id, module: "ecommerce", type: "fulfillment",
+          docNo: order?.orderNo || fi.trackingNo || `#${fi.id}`, date: fi.shippedAt,
+          from: "คลังสินค้า", to: order?.customerName || "ลูกค้า",
+          address: order?.shippingAddress,
+          trackingNo: fi.trackingNo, shippingProvider: fi.shippingProvider,
+          status: fi.status,
+          hasGps: !!(fi.deliveryGpsLat), hasSignature: !!(fi.receiverSignature),
+          gpsLat: fi.deliveryGpsLat, gpsLng: fi.deliveryGpsLng,
+          signature: fi.receiverSignature, receiverName: fi.receiverName,
+          createdAt: fi.shippedAt,
+        });
+      }
+    }
+
+    pendingDeliveries.sort((a, b) => {
+      const aDate = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const bDate = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return bDate - aDate;
+    });
+
+    res.json(pendingDeliveries);
+  } catch (err: any) { res.status(500).json({ message: err.message }); }
 });
 
 // ============ Sync Logs ============
