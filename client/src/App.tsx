@@ -293,6 +293,7 @@ import EtaxSentList from "@/pages/sales/etax-sent-list";
 import ReceiptList from "@/pages/sales/receipt-list";
 import ReceiptForm from "@/pages/sales/receipt-form";
 import CreditNoteList from "@/pages/sales/credit-note-list";
+import SalesCommission from "@/pages/sales/sales-commission";
 import CreditNoteForm from "@/pages/sales/credit-note-form";
 import WarehousePage from "@/pages/inventory/warehouse";
 import StockCardPage from "@/pages/inventory/stock-card";
@@ -636,6 +637,7 @@ function Router() {
       <Route path="/sales/receipt/pdf/:id" component={ReceiptPdf} />
       <Route path="/share/receipt/:token" component={ReceiptShare} />
       <Route path="/sales/credit-note" component={CreditNoteList} />
+      <Route path="/sales/commission" component={SalesCommission} />
       <Route path="/sales/credit-note/new" component={CreditNoteForm} />
       <Route path="/sales/credit-note/edit/:id" component={CreditNoteForm} />
       <Route path="/sales/deposit" component={DepositList} />

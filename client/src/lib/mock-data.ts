@@ -109,6 +109,7 @@ export const NAV_ITEMS = [
       { label: "ใบรับเงินมัดจำ [DP]", href: "/sales/deposit" },
       { label: "ใบลดหนี้ขาย [CN]", href: "/sales/credit-note" },
       { label: "รายงานภาษีขาย", href: "/sales/tax-report" },
+      { label: "คอมมิชชั่นเซลส์", href: "/sales/commission" },
     ]
   },
   { 
