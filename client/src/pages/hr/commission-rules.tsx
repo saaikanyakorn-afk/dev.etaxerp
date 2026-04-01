@@ -1,4 +1,4 @@
-import Layout from "@/components/layout";
+import HRLayout from "@/components/hr-layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -184,7 +184,7 @@ export default function CommissionRules() {
   }
 
   return (
-    <Layout>
+    <HRLayout>
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -332,6 +332,6 @@ export default function CommissionRules() {
           </DialogContent>
         </Dialog>
       </div>
-    </Layout>
+    </HRLayout>
   );
 }

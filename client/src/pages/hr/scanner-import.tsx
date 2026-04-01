@@ -1,4 +1,4 @@
-import Layout from "@/components/layout";
+import HRLayout from "@/components/hr-layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -94,7 +94,7 @@ export default function ScannerImport() {
   };
 
   return (
-    <Layout>
+    <HRLayout>
       <div className="space-y-6">
         <div className="flex items-center gap-2">
           <Upload className="h-6 w-6" style={{ color: "#03c9d7" }} />
@@ -280,6 +280,6 @@ export default function ScannerImport() {
           </CardContent>
         </Card>
       </div>
-    </Layout>
+    </HRLayout>
   );
 }

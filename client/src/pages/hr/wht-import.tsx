@@ -1,4 +1,4 @@
-import Layout from "@/components/layout";
+import HRLayout from "@/components/hr-layout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -664,7 +664,7 @@ export default function WhtImportPage() {
   };
 
   return (
-    <Layout title="นำเข้า 50 ทวิ / ภงด.1ก (ข้อมูลภายนอก)">
+    <HRLayout>
       <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-4">
         <Card className="shadow-sm border-none">
           <CardContent className="p-6">
@@ -892,6 +892,6 @@ export default function WhtImportPage() {
           </DialogContent>
         </Dialog>
       </div>
-    </Layout>
+    </HRLayout>
   );
 }

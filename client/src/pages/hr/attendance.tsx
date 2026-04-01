@@ -1,4 +1,4 @@
-import Layout from "@/components/layout";
+import HRLayout from "@/components/hr-layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -260,7 +260,7 @@ export default function HRAttendance() {
   const otPending = otRecords.filter((r: any) => r.status === "pending").length;
 
   return (
-    <Layout>
+    <HRLayout>
       <BirthdayPopup open={showBirthday} onClose={() => setShowBirthday(false)} employeeName={birthdayName} />
       <AnniversaryPopup open={showAnniversary} onClose={() => setShowAnniversary(false)} employeeName={anniversaryName} years={anniversaryYears} />
       <div className="space-y-6">
@@ -539,6 +539,6 @@ export default function HRAttendance() {
           </CardContent>
         </Card>
       </div>
-    </Layout>
+    </HRLayout>
   );
 }

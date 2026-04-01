@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
-import Layout from "@/components/layout";
+import HRLayout from "@/components/hr-layout";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -263,7 +263,7 @@ export default function Performance() {
 
   if (viewingPeriodId && viewingPeriod) {
     return (
-      <Layout>
+      <HRLayout>
         <div className="space-y-4" data-testid="performance-results">
           <div className="flex items-center gap-3 mb-4">
             <Button variant="ghost" size="sm" onClick={() => setViewingPeriodId(null)} data-testid="button-back">
@@ -710,12 +710,12 @@ export default function Performance() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
-      </Layout>
+      </HRLayout>
     );
   }
 
   return (
-    <Layout>
+    <HRLayout>
       <div className="space-y-4" data-testid="performance-page">
         <Card className="flexy-card">
           <CardHeader className="pb-3">
@@ -993,6 +993,6 @@ export default function Performance() {
           </AlertDialogContent>
         </AlertDialog>
       </div>
-    </Layout>
+    </HRLayout>
   );
 }
