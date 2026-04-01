@@ -1,5 +1,6 @@
 import { eq, and, desc, sql, inArray, count, ne, or, ilike, gte, lte, asc, isNull, isNotNull } from "drizzle-orm";
 import { db } from "./db";
+import { posDb } from "./pos-db";
 import { ecomDb } from "./ecom-db";
 import {
   tenants, users, companies, employees, attendanceRecords, otRecords, leaveRequests, firmClients, firmClientTeam, accounts, journalEntries, journalLines, rolePermissions, userSubPermissions,
@@ -1631,7 +1632,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteContact(id: number): Promise<boolean> {
-    await db.transaction(async (tx) => {
+    await posDb.transaction(async (tx) => {
       await tx.update(salesOrders).set({ customerId: null }).where(eq(salesOrders.customerId, id));
       await tx.update(quotations).set({ customerId: null }).where(eq(quotations.customerId, id));
       await tx.update(invoices).set({ customerId: null }).where(eq(invoices.customerId, id));

@@ -1,5 +1,6 @@
 import type { Express } from "express";
 import { db } from "../db";
+import { posDb } from "../pos-db";
 import { storage } from "../storage";
 import { eq, and, desc, asc, sql, count, ilike, inArray, or } from "drizzle-orm";
 import { posSessions, posTransactions, posTransactionItems, products, productBundles, companies, taxInvoices, taxInvoiceItems, documentSettings, branches, warehouses, warehouseStockLevels, paymentMethods } from "@shared/schema";
@@ -18,7 +19,7 @@ export function registerPosRoutes(app: Express) {
       const { companyId, openingCash, branchName, terminalName, storeId } = req.body;
       if (!companyId) return res.status(400).json({ message: "กรุณาระบุบริษัท" });
 
-      const existing = await db.select().from(posSessions)
+      const existing = await posDb.select().from(posSessions)
         .where(and(eq(posSessions.companyId, Number(companyId)), eq(posSessions.userId, user.id), eq(posSessions.status, "open")));
       if (existing.length > 0) return res.status(400).json({ message: "คุณมีกะที่เปิดอยู่แล้ว กรุณาปิดกะก่อนเปิดใหม่", session: existing[0] });
 
@@ -42,7 +43,7 @@ export function registerPosRoutes(app: Express) {
         resolvedWarehouseId = defaultWh?.id || null;
       }
 
-      const [session] = await db.insert(posSessions).values({
+      const [session] = await posDb.insert(posSessions).values({
         companyId: Number(companyId),
         userId: user.id,
         openingCash: String(openingCash || "0"),
@@ -63,7 +64,7 @@ export function registerPosRoutes(app: Express) {
       const companyId = Number(req.query.companyId);
       if (!companyId) return res.status(400).json({ message: "กรุณาระบุบริษัท" });
 
-      const [session] = await db.select().from(posSessions)
+      const [session] = await posDb.select().from(posSessions)
         .where(and(eq(posSessions.companyId, companyId), eq(posSessions.userId, user.id), eq(posSessions.status, "open")));
       res.json(session || null);
     } catch (err: any) { res.status(500).json({ message: err.message }); }
@@ -75,7 +76,7 @@ export function registerPosRoutes(app: Express) {
       const companyId = Number(req.query.companyId);
       if (!companyId) return res.status(400).json({ message: "กรุณาระบุบริษัท" });
 
-      const sessions = await db.select().from(posSessions)
+      const sessions = await posDb.select().from(posSessions)
         .where(eq(posSessions.companyId, companyId))
         .orderBy(desc(posSessions.openedAt));
       res.json(sessions);
@@ -89,7 +90,7 @@ export function registerPosRoutes(app: Express) {
       const sessionId = Number(req.params.id);
       const { closingCash, notes } = req.body;
 
-      const [session] = await db.select().from(posSessions).where(eq(posSessions.id, sessionId));
+      const [session] = await posDb.select().from(posSessions).where(eq(posSessions.id, sessionId));
       if (!session) return res.status(404).json({ message: "ไม่พบกะ" });
 
       const [company] = await db.select().from(companies).where(eq(companies.id, session.companyId));
@@ -98,7 +99,7 @@ export function registerPosRoutes(app: Express) {
       }
       if (session.status !== "open") return res.status(400).json({ message: "กะนี้ถูกปิดแล้ว" });
 
-      const txns = await db.select().from(posTransactions)
+      const txns = await posDb.select().from(posTransactions)
         .where(and(eq(posTransactions.sessionId, sessionId), eq(posTransactions.status, "completed")));
 
       let totalCashSales = 0;
@@ -114,7 +115,7 @@ export function registerPosRoutes(app: Express) {
       const closingCashVal = parseFloat(String(closingCash || "0"));
       const cashVariance = closingCashVal - expectedCash;
 
-      const [updated] = await db.update(posSessions).set({
+      const [updated] = await posDb.update(posSessions).set({
         closedAt: new Date(),
         closingCash: String(closingCashVal),
         expectedCash: String(expectedCash),
@@ -208,7 +209,7 @@ export function registerPosRoutes(app: Express) {
 
             const abbrevTxnIds = abbreviatedTxns.map(t => t.id);
             if (abbrevTxnIds.length > 0) {
-              const allItems = await db.select().from(posTransactionItems)
+              const allItems = await posDb.select().from(posTransactionItems)
                 .where(inArray(posTransactionItems.transactionId, abbrevTxnIds));
 
               const grouped: Record<string, { productId: number | null; productCode: string | null; productName: string; qty: number; unitPrice: number; total: number; vatType: string; unit: string }> = {};
@@ -336,7 +337,7 @@ export function registerPosRoutes(app: Express) {
     try {
       const user = req.user as any;
       const sessionId = Number(req.params.id);
-      const [session] = await db.select().from(posSessions).where(eq(posSessions.id, sessionId));
+      const [session] = await posDb.select().from(posSessions).where(eq(posSessions.id, sessionId));
       if (!session) return res.status(404).json({ message: "ไม่พบกะ" });
 
       const [company] = await db.select().from(companies).where(eq(companies.id, session.companyId));
@@ -344,7 +345,7 @@ export function registerPosRoutes(app: Express) {
         return res.status(403).json({ message: "ไม่มีสิทธิ์เข้าถึง" });
       }
 
-      const txns = await db.select().from(posTransactions)
+      const txns = await posDb.select().from(posTransactions)
         .where(and(eq(posTransactions.sessionId, sessionId), eq(posTransactions.status, "completed")));
 
       const paymentBreakdown: Record<string, { count: number; total: number }> = {};
@@ -380,7 +381,7 @@ export function registerPosRoutes(app: Express) {
         return res.status(400).json({ message: "กรุณากรอกชื่อและเลขผู้เสียภาษีเพื่อออกใบกำกับภาษีเต็มรูป" });
       }
 
-      const [session] = await db.select().from(posSessions).where(eq(posSessions.id, Number(sessionId)));
+      const [session] = await posDb.select().from(posSessions).where(eq(posSessions.id, Number(sessionId)));
       if (!session || session.status !== "open") return res.status(400).json({ message: "กะนี้ไม่ได้เปิดอยู่" });
       if (session.companyId !== Number(companyId)) return res.status(403).json({ message: "ข้อมูลกะไม่ตรงกับบริษัท" });
 
@@ -435,7 +436,7 @@ export function registerPosRoutes(app: Express) {
 
       const today = new Date().toISOString().split("T")[0];
 
-      const result = await db.transaction(async (tx) => {
+      const result = await posDb.transaction(async (tx) => {
         const [txn] = await tx.insert(posTransactions).values({
           companyId: Number(companyId),
           sessionId: Number(sessionId),
@@ -572,7 +573,7 @@ export function registerPosRoutes(app: Express) {
       let conditions = [eq(posTransactions.companyId, companyId)];
       if (sessionId) conditions.push(eq(posTransactions.sessionId, sessionId));
 
-      const txns = await db.select().from(posTransactions)
+      const txns = await posDb.select().from(posTransactions)
         .where(and(...conditions))
         .orderBy(desc(posTransactions.createdAt));
       res.json(txns);
@@ -599,7 +600,7 @@ export function registerPosRoutes(app: Express) {
     try {
       const user = req.user as any;
       const id = Number(req.params.id);
-      const [txn] = await db.select().from(posTransactions).where(eq(posTransactions.id, id));
+      const [txn] = await posDb.select().from(posTransactions).where(eq(posTransactions.id, id));
       if (!txn) return res.status(404).json({ message: "ไม่พบรายการ" });
 
       const [company] = await db.select().from(companies).where(eq(companies.id, txn.companyId));
@@ -607,7 +608,7 @@ export function registerPosRoutes(app: Express) {
         return res.status(403).json({ message: "ไม่มีสิทธิ์เข้าถึง" });
       }
 
-      const items = await db.select().from(posTransactionItems)
+      const items = await posDb.select().from(posTransactionItems)
         .where(eq(posTransactionItems.transactionId, id));
       res.json({ ...txn, items });
     } catch (err: any) { res.status(500).json({ message: err.message }); }
@@ -618,7 +619,7 @@ export function registerPosRoutes(app: Express) {
     try {
       const user = req.user as any;
       const id = Number(req.params.id);
-      const [txn] = await db.select().from(posTransactions).where(eq(posTransactions.id, id));
+      const [txn] = await posDb.select().from(posTransactions).where(eq(posTransactions.id, id));
       if (!txn) return res.status(404).json({ message: "ไม่พบรายการ" });
 
       const [company] = await db.select().from(companies).where(eq(companies.id, txn.companyId));
@@ -628,7 +629,7 @@ export function registerPosRoutes(app: Express) {
 
       if (txn.status === "voided") return res.status(400).json({ message: "รายการนี้ถูกยกเลิกแล้ว" });
 
-      await db.update(posTransactions).set({ status: "voided" }).where(eq(posTransactions.id, id));
+      await posDb.update(posTransactions).set({ status: "voided" }).where(eq(posTransactions.id, id));
 
       if (txn.taxInvoiceId) {
         await db.update(taxInvoices).set({ status: "cancelled" }).where(eq(taxInvoices.id, txn.taxInvoiceId));
@@ -698,7 +699,7 @@ export function registerPosRoutes(app: Express) {
       const startOfDay = new Date(date + "T00:00:00");
       const endOfDay = new Date(date + "T23:59:59");
 
-      const sessions = await db.select().from(posSessions)
+      const sessions = await posDb.select().from(posSessions)
         .where(and(
           eq(posSessions.companyId, companyId),
           sql`${posSessions.openedAt} >= ${startOfDay}`,
@@ -708,7 +709,7 @@ export function registerPosRoutes(app: Express) {
       const sessionIds = sessions.map(s => s.id);
       let txns: any[] = [];
       if (sessionIds.length > 0) {
-        txns = await db.select().from(posTransactions)
+        txns = await posDb.select().from(posTransactions)
           .where(and(
             eq(posTransactions.companyId, companyId),
             inArray(posTransactions.sessionId, sessionIds),
@@ -755,7 +756,7 @@ export function registerPosRoutes(app: Express) {
       const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
       const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
 
-      const allTxns = await db.select().from(posTransactions)
+      const allTxns = await posDb.select().from(posTransactions)
         .where(and(
           eq(posTransactions.companyId, companyId),
           eq(posTransactions.status, "completed"),
@@ -766,10 +767,10 @@ export function registerPosRoutes(app: Express) {
       const txnSessionIds = [...new Set(allTxns.map(t => t.sessionId))];
 
       const allSessions = txnSessionIds.length > 0
-        ? await db.select().from(posSessions).where(inArray(posSessions.id, txnSessionIds))
+        ? await posDb.select().from(posSessions).where(inArray(posSessions.id, txnSessionIds))
         : [];
 
-      const openSessions = await db.select().from(posSessions)
+      const openSessions = await posDb.select().from(posSessions)
         .where(and(eq(posSessions.companyId, companyId), eq(posSessions.status, "open")));
       for (const os of openSessions) {
         if (!allSessions.find(s => s.id === os.id)) allSessions.push(os);
@@ -1011,7 +1012,7 @@ export function registerPosRoutes(app: Express) {
         return res.status(403).json({ message: "ไม่มีสิทธิ์ลบสาขานี้" });
       }
 
-      const sessionsCount = await db.select({ cnt: count() }).from(posSessions).where(eq(posSessions.storeId, id));
+      const sessionsCount = await posDb.select({ cnt: count() }).from(posSessions).where(eq(posSessions.storeId, id));
       if (Number(sessionsCount[0]?.cnt || 0) > 0) {
         return res.status(400).json({ message: "ไม่สามารถลบสาขาที่มีประวัติกะขายได้" });
       }
@@ -1085,7 +1086,7 @@ export function registerPosRoutes(app: Express) {
 
       const prevFrom = new Date(new Date(from).getTime() - (new Date(to).getTime() - new Date(from).getTime() + 86400000));
       const prevTo = new Date(new Date(from).getTime() - 86400000);
-      const prevSales = await db.select({
+      const prevSales = await posDb.select({
         totalSales: sql<string>`COALESCE(SUM(${posTransactions.total}), 0)`,
         totalTransactions: sql<string>`COUNT(*)`,
       }).from(posTransactions)
@@ -1096,7 +1097,7 @@ export function registerPosRoutes(app: Express) {
           sql`DATE(${posTransactions.createdAt}) <= ${prevTo.toISOString().split("T")[0]}`,
         ));
 
-      const dailySales = await db.select({
+      const dailySales = await posDb.select({
         date: sql<string>`DATE(${posTransactions.createdAt})`,
         total: sql<string>`COALESCE(SUM(${posTransactions.total}), 0)`,
         count: sql<string>`COUNT(*)`,
@@ -1110,7 +1111,7 @@ export function registerPosRoutes(app: Express) {
         .groupBy(sql`DATE(${posTransactions.createdAt})`)
         .orderBy(sql`DATE(${posTransactions.createdAt})`);
 
-      const topProducts = await db.select({
+      const topProducts = await posDb.select({
         productId: posTransactionItems.productId,
         productName: posTransactionItems.productName,
         productCode: posTransactionItems.productCode,
@@ -1128,7 +1129,7 @@ export function registerPosRoutes(app: Express) {
         .orderBy(sql`SUM(CAST(${posTransactionItems.lineTotal} AS numeric)) DESC`)
         .limit(10);
 
-      const paymentBreakdown = await db.select({
+      const paymentBreakdown = await posDb.select({
         method: posTransactions.paymentMethod,
         total: sql<string>`COALESCE(SUM(${posTransactions.total}), 0)`,
         count: sql<string>`COUNT(*)`,
@@ -1158,7 +1159,7 @@ export function registerPosRoutes(app: Express) {
       const to = String(req.query.to || new Date().toISOString().split("T")[0]);
       if (!companyId) return res.status(400).json({ message: "กรุณาระบุบริษัท" });
 
-      const branchSales = await db.select({
+      const branchSales = await posDb.select({
         storeId: posSessions.storeId,
         branchName: posSessions.branchName,
         totalSales: sql<string>`COALESCE(SUM(${posTransactions.total}), 0)`,
@@ -1176,7 +1177,7 @@ export function registerPosRoutes(app: Express) {
         .groupBy(posSessions.storeId, posSessions.branchName)
         .orderBy(sql`SUM(${posTransactions.total}) DESC`);
 
-      const branchDaily = await db.select({
+      const branchDaily = await posDb.select({
         storeId: posSessions.storeId,
         branchName: posSessions.branchName,
         date: sql<string>`DATE(${posTransactions.createdAt})`,
@@ -1213,7 +1214,7 @@ export function registerPosRoutes(app: Express) {
       ];
       if (storeId) conditions.push(eq(posSessions.storeId, storeId));
 
-      const productSales = await db.select({
+      const productSales = await posDb.select({
         productId: posTransactionItems.productId,
         productName: posTransactionItems.productName,
         productCode: posTransactionItems.productCode,
@@ -1240,7 +1241,7 @@ export function registerPosRoutes(app: Express) {
       const to = String(req.query.to || new Date().toISOString().split("T")[0]);
       if (!companyId) return res.status(400).json({ message: "กรุณาระบุบริษัท" });
 
-      const categorySales = await db.select({
+      const categorySales = await posDb.select({
         category: sql<string>`COALESCE(${products.category}, 'ไม่มีหมวดหมู่')`,
         totalQty: sql<string>`COALESCE(SUM(CAST(${posTransactionItems.quantity} AS numeric)), 0)`,
         totalRevenue: sql<string>`COALESCE(SUM(CAST(${posTransactionItems.lineTotal} AS numeric)), 0)`,
@@ -1270,7 +1271,7 @@ export function registerPosRoutes(app: Express) {
       const limit = Math.min(Number(req.query.limit) || 20, 100);
       if (!companyId) return res.status(400).json({ message: "กรุณาระบุบริษัท" });
 
-      const bestSellers = await db.select({
+      const bestSellers = await posDb.select({
         productId: posTransactionItems.productId,
         productName: posTransactionItems.productName,
         productCode: posTransactionItems.productCode,
@@ -1302,7 +1303,7 @@ export function registerPosRoutes(app: Express) {
       const to = String(req.query.to || new Date().toISOString().split("T")[0]);
       if (!companyId) return res.status(400).json({ message: "กรุณาระบุบริษัท" });
 
-      const paymentByMethod = await db.select({
+      const paymentByMethod = await posDb.select({
         method: posTransactions.paymentMethod,
         total: sql<string>`COALESCE(SUM(${posTransactions.total}), 0)`,
         count: sql<string>`COUNT(*)`,
@@ -1317,7 +1318,7 @@ export function registerPosRoutes(app: Express) {
         .groupBy(posTransactions.paymentMethod)
         .orderBy(sql`SUM(${posTransactions.total}) DESC`);
 
-      const dailyByMethod = await db.select({
+      const dailyByMethod = await posDb.select({
         method: posTransactions.paymentMethod,
         date: sql<string>`DATE(${posTransactions.createdAt})`,
         total: sql<string>`COALESCE(SUM(${posTransactions.total}), 0)`,
@@ -1343,7 +1344,7 @@ export function registerPosRoutes(app: Express) {
       const to = String(req.query.to || new Date().toISOString().split("T")[0]);
       if (!companyId) return res.status(400).json({ message: "กรุณาระบุบริษัท" });
 
-      const cashierStats = await db.select({
+      const cashierStats = await posDb.select({
         userId: posSessions.userId,
         totalSales: sql<string>`COALESCE(SUM(${posTransactions.total}), 0)`,
         totalTransactions: sql<string>`COUNT(${posTransactions.id})`,
@@ -1387,7 +1388,7 @@ export function registerPosRoutes(app: Express) {
       const to = String(req.query.to || new Date().toISOString().split("T")[0]);
       if (!companyId) return res.status(400).json({ message: "กรุณาระบุบริษัท" });
 
-      const hourlyData = await db.select({
+      const hourlyData = await posDb.select({
         hour: sql<string>`EXTRACT(HOUR FROM ${posTransactions.createdAt})`,
         total: sql<string>`COALESCE(SUM(${posTransactions.total}), 0)`,
         count: sql<string>`COUNT(*)`,
@@ -1402,7 +1403,7 @@ export function registerPosRoutes(app: Express) {
         .groupBy(sql`EXTRACT(HOUR FROM ${posTransactions.createdAt})`)
         .orderBy(sql`EXTRACT(HOUR FROM ${posTransactions.createdAt})`);
 
-      const dayOfWeek = await db.select({
+      const dayOfWeek = await posDb.select({
         day: sql<string>`EXTRACT(DOW FROM ${posTransactions.createdAt})`,
         total: sql<string>`COALESCE(SUM(${posTransactions.total}), 0)`,
         count: sql<string>`COUNT(*)`,
@@ -1455,7 +1456,7 @@ export function registerPosRoutes(app: Express) {
         ))
         .orderBy(desc(posSessions.openedAt));
 
-      const hourly = await db.select({
+      const hourly = await posDb.select({
         hour: sql<string>`EXTRACT(HOUR FROM ${posTransactions.createdAt})`,
         total: sql<string>`COALESCE(SUM(${posTransactions.total}), 0)`,
         count: sql<string>`COUNT(*)`,
