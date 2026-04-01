@@ -4924,6 +4924,7 @@ export const session = pgTable("session", {
 export const commissionRules = pgTable("commission_rules", {
   id: serial("id").primaryKey(),
   companyId: integer("company_id").references(() => companies.id).notNull(),
+  module: text("module").notNull().default("pos"),
   name: text("name").notNull(),
   type: text("type").notNull().default("percentage"),
   rate: decimal("rate", { precision: 8, scale: 4 }).notNull().default("0"),
@@ -4934,6 +4935,7 @@ export const commissionRules = pgTable("commission_rules", {
   assignScope: text("assign_scope").notNull().default("all"),
   assignedUserIds: integer("assigned_user_ids").array(),
   assignedProductIds: integer("assigned_product_ids").array(),
+  docTypes: text("doc_types").array(),
   minTarget: decimal("min_target", { precision: 15, scale: 2 }).default("0"),
   active: boolean("active").notNull().default(true),
   createdAt: timestamp("created_at").defaultNow(),

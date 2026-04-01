@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { db } from "../db";
 import { posDb } from "../pos-db";
 import { storage } from "../storage";
-import { eq, and, desc, asc, sql, count, ilike, inArray, or } from "drizzle-orm";
+import { eq, and, desc, asc, sql, count, ilike, inArray, or, isNull } from "drizzle-orm";
 import { posSessions, posTransactions, posTransactionItems, products, productBundles, companies, taxInvoices, taxInvoiceItems, documentSettings, branches, warehouses, warehouseStockLevels, paymentMethods, users, commissionRules, commissionRecords, employees } from "@shared/schema";
 import { requireAuth, requireModule , checkDocOwnership} from "../route-middleware";
 import { getNextDocNo, createAutoJournalEntry } from "../route-helpers";
@@ -1644,7 +1644,7 @@ export function registerPosRoutes(app: Express) {
     try {
       const companyId = Number(req.query.companyId);
       if (!companyId) return res.status(400).json({ message: "companyId required" });
-      const rules = await db.select().from(commissionRules).where(eq(commissionRules.companyId, companyId)).orderBy(desc(commissionRules.createdAt));
+      const rules = await db.select().from(commissionRules).where(and(eq(commissionRules.companyId, companyId), or(eq(commissionRules.module, "pos"), isNull(commissionRules.module)))).orderBy(desc(commissionRules.createdAt));
       res.json(rules);
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
@@ -1674,6 +1674,7 @@ export function registerPosRoutes(app: Express) {
       const id = Number(req.params.id);
       const [existing] = await db.select().from(commissionRules).where(eq(commissionRules.id, id));
       if (!existing) return res.status(404).json({ message: "ไม่พบกฎคอมมิชชั่น" });
+      if (existing.module && existing.module !== "pos") return res.status(404).json({ message: "ไม่พบกฎคอมมิชชั่น" });
       const user = req.user as any;
       const allowedIds = user.allowedCompanyIds || [];
       if (user.role !== "superadmin" && !allowedIds.includes(existing.companyId)) return res.status(403).json({ message: "ไม่มีสิทธิ์" });
@@ -1702,6 +1703,7 @@ export function registerPosRoutes(app: Express) {
       const id = Number(req.params.id);
       const [existing] = await db.select().from(commissionRules).where(eq(commissionRules.id, id));
       if (!existing) return res.status(404).json({ message: "ไม่พบกฎคอมมิชชั่น" });
+      if (existing.module && existing.module !== "pos") return res.status(404).json({ message: "ไม่พบกฎคอมมิชชั่น" });
       const user = req.user as any;
       const allowedIds = user.allowedCompanyIds || [];
       if (user.role !== "superadmin" && !allowedIds.includes(existing.companyId)) return res.status(403).json({ message: "ไม่มีสิทธิ์" });
@@ -1721,7 +1723,7 @@ export function registerPosRoutes(app: Express) {
       if (user.role !== "superadmin" && !allowedIds.includes(companyId)) return res.status(403).json({ message: "ไม่มีสิทธิ์เข้าถึง" });
 
       const rules = await db.select().from(commissionRules)
-        .where(and(eq(commissionRules.companyId, companyId), eq(commissionRules.active, true)));
+        .where(and(eq(commissionRules.companyId, companyId), eq(commissionRules.active, true), or(eq(commissionRules.module, "pos"), isNull(commissionRules.module))));
 
       const startDate = new Date(year, month - 1, 1);
       const endDate = new Date(year, month, 0, 23, 59, 59);

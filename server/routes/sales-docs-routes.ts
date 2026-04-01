@@ -2,7 +2,8 @@ import type { Express, Request, Response } from "express";
 import { db } from "../db";
 import { storage } from "../storage";
 import { eq, desc, and, inArray, count, sql, isNull } from "drizzle-orm";
-import { salesOrders, invoices, salesOrderItems, quotations, companies, documentSettings, quotationItems, users, invoiceItems, journalEntries, journalLines, accounts, products, contacts, documentImportBatches, taxInvoices, taxInvoiceItems, receipts, receiptItems, purchaseInvoices, expenses } from "@shared/schema";
+import { salesOrders, invoices, salesOrderItems, quotations, companies, documentSettings, quotationItems, users, invoiceItems, journalEntries, journalLines, accounts, products, contacts, documentImportBatches, taxInvoices, taxInvoiceItems, receipts, receiptItems, purchaseInvoices, expenses, commissionRules, commissionRecords, employees } from "@shared/schema";
+import { gte, lte, or } from "drizzle-orm";
 import { requireAuth, requireRole, requireAnyModule, getCompanyTenantId, checkDocOwnership } from "../route-middleware";
 import { getNextDocNo, validateDocNo, getNextJournalEntryNo, createAutoJournalEntry, resolvePaymentMethodAccountCode, logActivity, checkDocumentLimit, deleteStockMovementsForDoc, deleteJournalEntriesForDoc, recomputePaymentStatus } from "../route-helpers";
 import { parsePagination, paginatedResponse } from "./pagination";
@@ -2820,6 +2821,166 @@ app.get("/api/related-documents/:docType/:docId", requireAuth, async (req, res) 
     }
 
     res.json(related);
+  } catch (err: any) { res.status(500).json({ message: err.message }); }
+});
+
+// ========== Accounting Commission ==========
+
+function verifyCommissionCompanyAccess(req: any, companyId: number): boolean {
+  const user = req.user as any;
+  if (user.role === "superadmin") return true;
+  const allowedIds = user.allowedCompanyIds || [];
+  return allowedIds.includes(companyId);
+}
+
+app.get("/api/accounting/commission-rules", requireAuth, requireAnyModule("sales", "accounting"), async (req, res) => {
+  try {
+    const companyId = Number(req.query.companyId);
+    if (!companyId) return res.status(400).json({ message: "companyId required" });
+    if (!verifyCommissionCompanyAccess(req, companyId)) return res.status(403).json({ message: "ไม่มีสิทธิ์เข้าถึง" });
+    const rules = await db.select().from(commissionRules)
+      .where(and(eq(commissionRules.companyId, companyId), eq(commissionRules.module, "accounting")))
+      .orderBy(desc(commissionRules.createdAt));
+    res.json(rules);
+  } catch (err: any) { res.status(500).json({ message: err.message }); }
+});
+
+app.post("/api/accounting/commission-rules", requireAuth, requireAnyModule("sales", "accounting"), async (req, res) => {
+  try {
+    const { companyId, name, type, rate, perPieceRate, tiers, basedOn, appliesTo, assignScope, minTarget, docTypes } = req.body;
+    if (!companyId || !name) return res.status(400).json({ message: "companyId and name required" });
+    if (!verifyCommissionCompanyAccess(req, companyId)) return res.status(403).json({ message: "ไม่มีสิทธิ์เข้าถึง" });
+    const [rule] = await db.insert(commissionRules).values({
+      companyId, module: "accounting", name, type: type || "percentage",
+      rate: rate || "0", perPieceRate: perPieceRate || "0",
+      tiers: tiers ? (typeof tiers === "string" ? tiers : JSON.stringify(tiers)) : null,
+      basedOn: basedOn || "revenue", appliesTo: appliesTo || "salesperson",
+      assignScope: assignScope || "all", minTarget: minTarget || "0",
+      docTypes: docTypes || null,
+    }).returning();
+    res.json(rule);
+  } catch (err: any) { res.status(500).json({ message: err.message }); }
+});
+
+app.put("/api/accounting/commission-rules/:id", requireAuth, requireAnyModule("sales", "accounting"), async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const [existing] = await db.select().from(commissionRules).where(eq(commissionRules.id, id));
+    if (!existing || existing.module !== "accounting") return res.status(404).json({ message: "Rule not found" });
+    if (!verifyCommissionCompanyAccess(req, existing.companyId)) return res.status(403).json({ message: "ไม่มีสิทธิ์เข้าถึง" });
+    const { name, type, rate, perPieceRate, tiers, basedOn, appliesTo, assignScope, minTarget, active, docTypes } = req.body;
+    const [updated] = await db.update(commissionRules).set({
+      ...(name !== undefined && { name }),
+      ...(type !== undefined && { type }),
+      ...(rate !== undefined && { rate }),
+      ...(perPieceRate !== undefined && { perPieceRate }),
+      ...(tiers !== undefined && { tiers: tiers ? (typeof tiers === "string" ? tiers : JSON.stringify(tiers)) : null }),
+      ...(basedOn !== undefined && { basedOn }),
+      ...(appliesTo !== undefined && { appliesTo }),
+      ...(assignScope !== undefined && { assignScope }),
+      ...(minTarget !== undefined && { minTarget }),
+      ...(active !== undefined && { active }),
+      ...(docTypes !== undefined && { docTypes }),
+    }).where(eq(commissionRules.id, id)).returning();
+    res.json(updated);
+  } catch (err: any) { res.status(500).json({ message: err.message }); }
+});
+
+app.delete("/api/accounting/commission-rules/:id", requireAuth, requireAnyModule("sales", "accounting"), async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const [existing] = await db.select().from(commissionRules).where(eq(commissionRules.id, id));
+    if (!existing || existing.module !== "accounting") return res.status(404).json({ message: "Rule not found" });
+    if (!verifyCommissionCompanyAccess(req, existing.companyId)) return res.status(403).json({ message: "ไม่มีสิทธิ์เข้าถึง" });
+    await db.delete(commissionRules).where(eq(commissionRules.id, id));
+    res.json({ success: true });
+  } catch (err: any) { res.status(500).json({ message: err.message }); }
+});
+
+app.post("/api/accounting/commission/calculate", requireAuth, requireAnyModule("sales", "accounting"), async (req, res) => {
+  try {
+    const { companyId, month, year } = req.body;
+    if (!companyId || !month || !year) return res.status(400).json({ message: "companyId, month, year required" });
+    if (!verifyCommissionCompanyAccess(req, companyId)) return res.status(403).json({ message: "ไม่มีสิทธิ์เข้าถึง" });
+
+    const rules = await db.select().from(commissionRules)
+      .where(and(eq(commissionRules.companyId, companyId), eq(commissionRules.module, "accounting"), eq(commissionRules.active, true)));
+    if (rules.length === 0) return res.json({ results: [], message: "ไม่มีกฎคอมมิชชั่นฝั่งบัญชี" });
+
+    const startDate = `${year}-${String(month).padStart(2, "0")}-01`;
+    const endMonth = month === 12 ? 1 : month + 1;
+    const endYear = month === 12 ? year + 1 : year;
+    const endDate = `${endYear}-${String(endMonth).padStart(2, "0")}-01`;
+
+    const docSources = [
+      { key: "tax_invoice", dateCol: taxInvoices.taxInvoiceDate, table: taxInvoices },
+      { key: "invoice", dateCol: invoices.invoiceDate, table: invoices },
+      { key: "receipt", dateCol: receipts.receiptDate, table: receipts },
+    ];
+
+    const results: any[] = [];
+
+    for (const rule of rules) {
+      const ruleDocTypes = (rule.docTypes && rule.docTypes.length > 0) ? rule.docTypes : null;
+
+      const salesBySp: Record<string, { totalSales: number; docs: number }> = {};
+
+      for (const src of docSources) {
+        if (ruleDocTypes && !ruleDocTypes.includes(src.key)) continue;
+
+        const rows = await db.select({
+          salesperson: src.table.salesperson,
+          totalAmount: src.table.totalAmount,
+        }).from(src.table).where(
+          and(
+            eq(src.table.companyId, companyId),
+            eq(src.table.status, "approved"),
+            gte(src.dateCol, startDate),
+            lte(src.dateCol, endDate),
+            sql`${src.table.salesperson} IS NOT NULL AND ${src.table.salesperson} <> ''`
+          )
+        );
+
+        for (const row of rows) {
+          const sp = (row.salesperson || "").trim();
+          if (!sp) continue;
+          if (!salesBySp[sp]) salesBySp[sp] = { totalSales: 0, docs: 0 };
+          salesBySp[sp].totalSales += Number(row.totalAmount) || 0;
+          salesBySp[sp].docs += 1;
+        }
+      }
+
+      for (const [salesperson, data] of Object.entries(salesBySp)) {
+        if (Number(rule.minTarget) > 0 && data.totalSales < Number(rule.minTarget)) continue;
+
+        let amount = 0;
+        if (rule.type === "percentage") {
+          amount = data.totalSales * (Number(rule.rate) / 100);
+        } else if (rule.type === "per_piece") {
+          amount = data.docs * Number(rule.perPieceRate);
+        } else if (rule.type === "tiered") {
+          const tierData: { min: number; rate: number }[] = rule.tiers ? JSON.parse(rule.tiers) : [];
+          const sorted = tierData.sort((a, b) => b.min - a.min);
+          const applicable = sorted.find(t => data.totalSales >= t.min);
+          if (applicable) amount = data.totalSales * (applicable.rate / 100);
+        }
+
+        if (amount > 0) {
+          results.push({
+            salesperson,
+            ruleName: rule.name,
+            ruleType: rule.type,
+            totalSales: Math.round(data.totalSales * 100) / 100,
+            totalDocs: data.docs,
+            commissionRate: rule.type === "percentage" ? Number(rule.rate) : rule.type === "per_piece" ? Number(rule.perPieceRate) : 0,
+            commissionAmount: Math.round(amount * 100) / 100,
+          });
+        }
+      }
+    }
+
+    results.sort((a, b) => b.commissionAmount - a.commissionAmount);
+    res.json({ results, month, year });
   } catch (err: any) { res.status(500).json({ message: err.message }); }
 });
 
