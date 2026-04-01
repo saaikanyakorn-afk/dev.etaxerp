@@ -32,6 +32,7 @@ import {
   Warehouse,
   FileText,
   Settings,
+  DollarSign,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -116,6 +117,7 @@ const POS_NAV: NavItem[] = [
     children: [
       { label: "ตั้งค่า POS", href: "/pos/settings", icon: Settings },
       { label: "จัดการพนักงาน", href: "/pos/staff", icon: Users },
+      { label: "ค่าคอมมิชชั่น", href: "/pos/commission", icon: DollarSign },
     ],
   },
 ];

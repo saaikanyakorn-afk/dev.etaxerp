@@ -418,6 +418,7 @@ import PosStockTransfer from "@/pages/pos/pos-stock-transfer";
 import PosTaxInvoices from "@/pages/pos/pos-tax-invoices";
 import PosSettings from "@/pages/pos/pos-settings";
 import PosStaff from "@/pages/pos/pos-staff";
+import PosCommission from "@/pages/pos/pos-commission";
 import JobCostingProjectList from "@/pages/job-costing/project-list";
 import JobCostingProjectDetail from "@/pages/job-costing/project-detail";
 import GasFuelSetup from "@/pages/gas-station/fuel-setup";
@@ -957,6 +958,7 @@ function Router() {
       <Route path="/pos/tax-invoices" component={PosTaxInvoices} />
       <Route path="/pos/settings" component={PosSettings} />
       <Route path="/pos/staff" component={PosStaff} />
+      <Route path="/pos/commission" component={PosCommission} />
       <Route path="/loyalty/signup" component={LoyaltySignup} />
       <Route path="/job-costing" component={JobCostingProjectList} />
       <Route path="/job-costing/projects/:id" component={JobCostingProjectDetail} />

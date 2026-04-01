@@ -1494,7 +1494,7 @@ app.patch("/api/inventory/stock-transfers/:id/approve", requireAuth, requireModu
     const user = req.user as any;
     const [transfer] = await db.select().from(stockTransfers).where(eq(stockTransfers.id, id));
     if (!transfer) return res.status(404).json({ message: "ไม่พบรายการ" });
-    if (transfer.status === "completed") return res.status(400).json({ message: "รายการนี้อนุมัติแล้ว" });
+    if (transfer.status !== "draft") return res.status(400).json({ message: "สถานะไม่ถูกต้อง ต้องเป็น draft เท่านั้น" });
     const items = await db.select().from(stockTransferItems).where(eq(stockTransferItems.transferId, id));
 
     const updated = await db.transaction(async (tx) => {
@@ -1514,9 +1514,48 @@ app.patch("/api/inventory/stock-transfers/:id/approve", requireAuth, requireModu
           await tx.insert(warehouseStockLevels).values({ warehouseId: transfer.toWarehouseId, productId: item.productId, companyId: transfer.companyId, quantity: String(item.quantity) });
         }
       }
-      const [result] = await tx.update(stockTransfers).set({ status: "completed", approvedBy: user.id, completedAt: new Date() }).where(eq(stockTransfers.id, id)).returning();
+      const [result] = await tx.update(stockTransfers).set({ status: "approved", approvedBy: user.id }).where(eq(stockTransfers.id, id)).returning();
       return result;
     });
+    res.json(updated);
+  } catch (err: any) { res.status(400).json({ message: err.message }); }
+});
+
+app.patch("/api/inventory/stock-transfers/:id/ship", requireAuth, requireModule("inventory"), async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const user = req.user as any;
+    const { lat, lng } = req.body || {};
+    const [transfer] = await db.select().from(stockTransfers).where(eq(stockTransfers.id, id));
+    if (!transfer) return res.status(404).json({ message: "ไม่พบรายการ" });
+    const allowedIds = user.allowedCompanyIds || [];
+    if (user.role !== "superadmin" && !allowedIds.includes(transfer.companyId)) return res.status(403).json({ message: "ไม่มีสิทธิ์" });
+    if (transfer.status !== "approved") return res.status(400).json({ message: "ต้องอนุมัติก่อนจึงจะจัดส่งได้" });
+    const updateData: any = { status: "shipped", shippedBy: user.id, shippedAt: new Date() };
+    if (lat && lng) { updateData.shipGpsLat = String(lat); updateData.shipGpsLng = String(lng); }
+    const [updated] = await db.update(stockTransfers).set(updateData).where(eq(stockTransfers.id, id)).returning();
+    res.json(updated);
+  } catch (err: any) { res.status(400).json({ message: err.message }); }
+});
+
+app.patch("/api/inventory/stock-transfers/:id/receive", requireAuth, requireModule("inventory"), async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const user = req.user as any;
+    const { lat, lng, signature, receiverName } = req.body || {};
+    const [transfer] = await db.select().from(stockTransfers).where(eq(stockTransfers.id, id));
+    if (!transfer) return res.status(404).json({ message: "ไม่พบรายการ" });
+    const allowedIds = user.allowedCompanyIds || [];
+    if (user.role !== "superadmin" && !allowedIds.includes(transfer.companyId)) return res.status(403).json({ message: "ไม่มีสิทธิ์" });
+    if (transfer.status !== "shipped") return res.status(400).json({ message: "ต้องจัดส่งก่อนจึงจะรับของได้" });
+    if (!signature) return res.status(400).json({ message: "กรุณาลงลายเซ็นรับสินค้า" });
+    const updateData: any = {
+      status: "delivered", receivedBy: user.id, receivedAt: new Date(),
+      receiverSignature: signature, receiverName: receiverName || null,
+      completedAt: new Date(),
+    };
+    if (lat && lng) { updateData.receiveGpsLat = String(lat); updateData.receiveGpsLng = String(lng); }
+    const [updated] = await db.update(stockTransfers).set(updateData).where(eq(stockTransfers.id, id)).returning();
     res.json(updated);
   } catch (err: any) { res.status(400).json({ message: err.message }); }
 });
@@ -1526,7 +1565,7 @@ app.delete("/api/inventory/stock-transfers/:id", requireAuth, requireModule("inv
     const id = Number(req.params.id);
     const [transfer] = await db.select().from(stockTransfers).where(eq(stockTransfers.id, id));
     if (!transfer) return res.status(404).json({ message: "ไม่พบรายการ" });
-    if (transfer.status === "completed") return res.status(400).json({ message: "ไม่สามารถลบรายการที่อนุมัติแล้ว" });
+    if (transfer.status !== "draft") return res.status(400).json({ message: "ไม่สามารถลบรายการที่ดำเนินการแล้ว" });
     await db.delete(stockTransferItems).where(eq(stockTransferItems.transferId, id));
     await db.delete(stockTransfers).where(eq(stockTransfers.id, id));
     res.json({ success: true });

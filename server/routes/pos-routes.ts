@@ -3,7 +3,7 @@ import { db } from "../db";
 import { posDb } from "../pos-db";
 import { storage } from "../storage";
 import { eq, and, desc, asc, sql, count, ilike, inArray, or } from "drizzle-orm";
-import { posSessions, posTransactions, posTransactionItems, products, productBundles, companies, taxInvoices, taxInvoiceItems, documentSettings, branches, warehouses, warehouseStockLevels, paymentMethods, users } from "@shared/schema";
+import { posSessions, posTransactions, posTransactionItems, products, productBundles, companies, taxInvoices, taxInvoiceItems, documentSettings, branches, warehouses, warehouseStockLevels, paymentMethods, users, commissionRules, commissionRecords, employees } from "@shared/schema";
 import { requireAuth, requireModule , checkDocOwnership} from "../route-middleware";
 import { getNextDocNo, createAutoJournalEntry } from "../route-helpers";
 import { hashPassword } from "../auth";
@@ -1635,6 +1635,169 @@ export function registerPosRoutes(app: Express) {
       }
 
       res.json(results);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // ============ Commission Rules ============
+
+  app.get("/api/pos/commission-rules", requireAuth, requireModule("pos"), async (req, res) => {
+    try {
+      const companyId = Number(req.query.companyId);
+      if (!companyId) return res.status(400).json({ message: "companyId required" });
+      const rules = await db.select().from(commissionRules).where(eq(commissionRules.companyId, companyId)).orderBy(desc(commissionRules.createdAt));
+      res.json(rules);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.post("/api/pos/commission-rules", requireAuth, requireModule("pos"), async (req, res) => {
+    try {
+      const { companyId, name, type, rate, perPieceRate, tiers, basedOn, appliesTo, assignScope, assignedUserIds, assignedProductIds, minTarget } = req.body;
+      if (!companyId || !name || !type) return res.status(400).json({ message: "กรุณากรอกข้อมูลให้ครบ" });
+      const [rule] = await db.insert(commissionRules).values({
+        companyId, name, type,
+        rate: rate || "0",
+        perPieceRate: perPieceRate || "0",
+        tiers: tiers ? JSON.stringify(tiers) : null,
+        basedOn: basedOn || "revenue",
+        appliesTo: appliesTo || "both",
+        assignScope: assignScope || "all",
+        assignedUserIds: assignedUserIds || null,
+        assignedProductIds: assignedProductIds || null,
+        minTarget: minTarget || "0",
+      }).returning();
+      res.json(rule);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.put("/api/pos/commission-rules/:id", requireAuth, requireModule("pos"), async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const [existing] = await db.select().from(commissionRules).where(eq(commissionRules.id, id));
+      if (!existing) return res.status(404).json({ message: "ไม่พบกฎคอมมิชชั่น" });
+      const user = req.user as any;
+      const allowedIds = user.allowedCompanyIds || [];
+      if (user.role !== "superadmin" && !allowedIds.includes(existing.companyId)) return res.status(403).json({ message: "ไม่มีสิทธิ์" });
+      const { name, type, rate, perPieceRate, tiers, basedOn, appliesTo, assignScope, assignedUserIds, assignedProductIds, minTarget, active } = req.body;
+      const [updated] = await db.update(commissionRules).set({
+        ...(name !== undefined && { name }),
+        ...(type !== undefined && { type }),
+        ...(rate !== undefined && { rate }),
+        ...(perPieceRate !== undefined && { perPieceRate }),
+        ...(tiers !== undefined && { tiers: tiers ? JSON.stringify(tiers) : null }),
+        ...(basedOn !== undefined && { basedOn }),
+        ...(appliesTo !== undefined && { appliesTo }),
+        ...(assignScope !== undefined && { assignScope }),
+        ...(assignedUserIds !== undefined && { assignedUserIds }),
+        ...(assignedProductIds !== undefined && { assignedProductIds }),
+        ...(minTarget !== undefined && { minTarget }),
+        ...(active !== undefined && { active }),
+      }).where(eq(commissionRules.id, id)).returning();
+      if (!updated) return res.status(404).json({ message: "ไม่พบกฎคอมมิชชั่น" });
+      res.json(updated);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.delete("/api/pos/commission-rules/:id", requireAuth, requireModule("pos"), async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const [existing] = await db.select().from(commissionRules).where(eq(commissionRules.id, id));
+      if (!existing) return res.status(404).json({ message: "ไม่พบกฎคอมมิชชั่น" });
+      const user = req.user as any;
+      const allowedIds = user.allowedCompanyIds || [];
+      if (user.role !== "superadmin" && !allowedIds.includes(existing.companyId)) return res.status(403).json({ message: "ไม่มีสิทธิ์" });
+      await db.delete(commissionRules).where(eq(commissionRules.id, id));
+      res.json({ success: true });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // ============ Commission Calculation ============
+
+  app.post("/api/pos/commission/calculate", requireAuth, requireModule("pos"), async (req, res) => {
+    try {
+      const { companyId, month, year } = req.body;
+      if (!companyId || !month || !year) return res.status(400).json({ message: "กรุณาระบุเดือน/ปี" });
+      const user = req.user as any;
+      const allowedIds = user.allowedCompanyIds || [];
+      if (user.role !== "superadmin" && !allowedIds.includes(companyId)) return res.status(403).json({ message: "ไม่มีสิทธิ์เข้าถึง" });
+
+      const rules = await db.select().from(commissionRules)
+        .where(and(eq(commissionRules.companyId, companyId), eq(commissionRules.active, true)));
+
+      const startDate = new Date(year, month - 1, 1);
+      const endDate = new Date(year, month, 0, 23, 59, 59);
+
+      const txnsWithUser = await db.select({
+        id: posTransactions.id,
+        total: posTransactions.total,
+        sessionId: posTransactions.sessionId,
+        userId: posSessions.userId,
+      }).from(posTransactions)
+        .innerJoin(posSessions, eq(posTransactions.sessionId, posSessions.id))
+        .where(and(
+          eq(posTransactions.companyId, companyId),
+          sql`${posTransactions.createdAt} >= ${startDate}`,
+          sql`${posTransactions.createdAt} <= ${endDate}`,
+          eq(posTransactions.status, "completed"),
+        ));
+
+      const txnItems = txnsWithUser.length > 0
+        ? await db.select().from(posTransactionItems).where(inArray(posTransactionItems.transactionId, txnsWithUser.map(t => t.id)))
+        : [];
+
+      const salesByUser: Record<number, { revenue: number; pieces: number; txnIds: number[] }> = {};
+      for (const txn of txnsWithUser) {
+        const cashierId = txn.userId;
+        if (cashierId) {
+          if (!salesByUser[cashierId]) salesByUser[cashierId] = { revenue: 0, pieces: 0, txnIds: [] };
+          salesByUser[cashierId].revenue += Number(txn.total || 0);
+          salesByUser[cashierId].txnIds.push(txn.id);
+        }
+      }
+      for (const item of txnItems) {
+        const txn = txnsWithUser.find(t => t.id === item.transactionId);
+        if (!txn) continue;
+        const cashierId = txn.userId;
+        if (cashierId && salesByUser[cashierId]) {
+          salesByUser[cashierId].pieces += Number(item.quantity || 0);
+        }
+      }
+
+      const results: any[] = [];
+      for (const [userIdStr, data] of Object.entries(salesByUser)) {
+        const userId = Number(userIdStr);
+        for (const rule of rules) {
+          if (rule.assignScope === "specific" && rule.assignedUserIds && !rule.assignedUserIds.includes(userId)) continue;
+          if (rule.appliesTo !== "both" && rule.appliesTo !== "cashier") continue;
+
+          let amount = 0;
+          if (rule.type === "percentage") {
+            if (data.revenue >= Number(rule.minTarget || 0)) {
+              amount = data.revenue * Number(rule.rate) / 100;
+            }
+          } else if (rule.type === "per_piece") {
+            amount = data.pieces * Number(rule.perPieceRate || 0);
+          } else if (rule.type === "tiered") {
+            const tiers = rule.tiers ? JSON.parse(rule.tiers) : [];
+            for (const tier of tiers.sort((a: any, b: any) => b.min - a.min)) {
+              if (data.revenue >= Number(tier.min)) {
+                amount = data.revenue * Number(tier.rate) / 100;
+                break;
+              }
+            }
+          }
+
+          if (amount > 0) {
+            results.push({
+              userId, ruleName: rule.name, ruleId: rule.id, ruleType: rule.type,
+              totalSales: data.revenue, totalPieces: data.pieces,
+              commissionRate: rule.type === "percentage" ? Number(rule.rate) : rule.type === "per_piece" ? Number(rule.perPieceRate) : 0,
+              commissionAmount: Math.round(amount * 100) / 100,
+            });
+          }
+        }
+      }
+
+      res.json({ month, year, results });
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
