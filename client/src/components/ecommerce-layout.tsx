@@ -60,6 +60,7 @@ import {
   Calculator,
   Upload,
   MessageSquare,
+  DollarSign,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -97,6 +98,7 @@ const ECOMMERCE_NAV: NavItem[] = [
       { label: "ตรวจสอบ QC", href: "/ecommerce/returns-qc", icon: ClipboardCheck },
       { label: "รายงานสินค้าคืน", href: "/ecommerce/returns-report", icon: BarChart3 },
       { label: "ไลฟ์ขายของ", href: "/ecommerce/live-selling", icon: Radio },
+      { label: "คอมมิชชั่นไลฟ์", href: "/ecommerce/live-commission", icon: DollarSign },
       { label: "Lucky Draw จับรางวัล", href: "/ecommerce/live-selling/lucky-draw", icon: Gift },
     ],
   },

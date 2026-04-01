@@ -2,8 +2,8 @@ import type { Express } from "express";
 import { db } from "../db";
 import { ecomDb } from "../ecom-db";
 import { storage } from "../storage";
-import { eq, and, desc, asc, sql, count, inArray, not, sum } from "drizzle-orm";
-import { liveCfOrders, liveCfItems, liveSessionProducts, products, companies, ecommerceOrders, ecommerceOrderItems, luckyDrawCampaigns, luckyDrawPrizes, luckyDrawEntries, insertLuckyDrawCampaignSchema, insertLuckyDrawPrizeSchema, insertLuckyDrawEntrySchema, ecommerceConnections } from "@shared/schema";
+import { eq, and, desc, asc, sql, count, inArray, not, sum, gte, lte } from "drizzle-orm";
+import { liveCfOrders, liveCfItems, liveSessionProducts, products, companies, ecommerceOrders, ecommerceOrderItems, luckyDrawCampaigns, luckyDrawPrizes, luckyDrawEntries, insertLuckyDrawCampaignSchema, insertLuckyDrawPrizeSchema, insertLuckyDrawEntrySchema, ecommerceConnections, liveCommissionShifts, users } from "@shared/schema";
 import { requireAuth, requireModule , checkDocOwnership} from "../route-middleware";
 import multer from "multer";
 // ═══════════════════════════════════════════════════════════════════════
@@ -851,6 +851,115 @@ export function registerLiveSellingRoutes(app: Express) {
         .where(eq(luckyDrawCampaigns.id, campaignId));
       res.json({ success: true });
     } catch (err: any) { res.status(400).json({ message: err.message }); }
+  });
+
+  app.get("/api/live-commission/shifts", requireAuth, requireModule("ecommerce"), async (req, res) => {
+    try {
+      const companyId = Number(req.query.companyId);
+      if (!companyId) return res.status(400).json({ message: "companyId required" });
+      const rows = await db.select().from(liveCommissionShifts)
+        .where(eq(liveCommissionShifts.companyId, companyId))
+        .orderBy(desc(liveCommissionShifts.createdAt));
+      const userIds = [...new Set(rows.flatMap(r => r.hostUserIds || []))];
+      let userMap: Record<number, string> = {};
+      if (userIds.length > 0) {
+        const uu = await db.select({ id: users.id, fullName: users.fullName, username: users.username }).from(users).where(inArray(users.id, userIds));
+        uu.forEach(u => { userMap[u.id] = u.fullName || u.username; });
+      }
+      res.json(rows.map(r => ({ ...r, hostNames: (r.hostUserIds || []).map(id => userMap[id] || `User#${id}`) })));
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.post("/api/live-commission/shifts", requireAuth, requireModule("ecommerce"), async (req, res) => {
+    try {
+      const { companyId, title, platforms, hostUserIds, startedAt, endedAt, commissionRate, notes } = req.body;
+      if (!companyId || !title || !platforms?.length || !hostUserIds?.length || !startedAt) {
+        return res.status(400).json({ message: "กรุณากรอกข้อมูลให้ครบ (บริษัท, ชื่อรอบ, แพลตฟอร์ม, ผู้ไลฟ์, เวลาเริ่ม)" });
+      }
+      const [row] = await db.insert(liveCommissionShifts).values({
+        companyId, title, platforms, hostUserIds,
+        startedAt: new Date(startedAt),
+        endedAt: endedAt ? new Date(endedAt) : null,
+        commissionRate: commissionRate || "0",
+        notes: notes || null,
+        status: "draft",
+      }).returning();
+      res.json(row);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.put("/api/live-commission/shifts/:id", requireAuth, requireModule("ecommerce"), async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const { title, platforms, hostUserIds, startedAt, endedAt, commissionRate, notes, status } = req.body;
+      const updates: any = {};
+      if (title !== undefined) updates.title = title;
+      if (platforms !== undefined) updates.platforms = platforms;
+      if (hostUserIds !== undefined) updates.hostUserIds = hostUserIds;
+      if (startedAt !== undefined) updates.startedAt = new Date(startedAt);
+      if (endedAt !== undefined) updates.endedAt = endedAt ? new Date(endedAt) : null;
+      if (commissionRate !== undefined) updates.commissionRate = commissionRate;
+      if (notes !== undefined) updates.notes = notes;
+      if (status !== undefined) updates.status = status;
+      const [row] = await db.update(liveCommissionShifts).set(updates).where(eq(liveCommissionShifts.id, id)).returning();
+      if (!row) return res.status(404).json({ message: "ไม่พบรอบไลฟ์" });
+      res.json(row);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.delete("/api/live-commission/shifts/:id", requireAuth, requireModule("ecommerce"), async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      await db.delete(liveCommissionShifts).where(eq(liveCommissionShifts.id, id));
+      res.json({ success: true });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.post("/api/live-commission/shifts/:id/calculate", requireAuth, requireModule("ecommerce"), async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const [shift] = await db.select().from(liveCommissionShifts).where(eq(liveCommissionShifts.id, id));
+      if (!shift) return res.status(404).json({ message: "ไม่พบรอบไลฟ์" });
+      if (!shift.endedAt) return res.status(400).json({ message: "กรุณาระบุเวลาจบไลฟ์ก่อนคำนวณ" });
+
+      const conditions = [
+        eq(ecommerceOrders.companyId, shift.companyId),
+        inArray(ecommerceOrders.platform, shift.platforms),
+        gte(ecommerceOrders.placedAt, shift.startedAt),
+        lte(ecommerceOrders.placedAt, shift.endedAt),
+        inArray(ecommerceOrders.status, ["completed", "delivered", "confirmed", "shipping"]),
+      ];
+
+      const orderRows = await ecomDb.select({
+        cnt: count(),
+        rev: sum(ecommerceOrders.totalAmount),
+      }).from(ecommerceOrders).where(and(...conditions));
+
+      const totalOrders = Number(orderRows[0]?.cnt || 0);
+      const totalRevenue = parseFloat(String(orderRows[0]?.rev || "0"));
+      const rate = parseFloat(String(shift.commissionRate || "0"));
+      const commissionAmount = (totalRevenue * rate) / 100;
+
+      const [updated] = await db.update(liveCommissionShifts).set({
+        totalRevenue: totalRevenue.toFixed(2),
+        totalOrders,
+        commissionAmount: commissionAmount.toFixed(2),
+        calculatedAt: new Date(),
+        status: "calculated",
+      }).where(eq(liveCommissionShifts.id, id)).returning();
+
+      const orderList = await ecomDb.select({
+        id: ecommerceOrders.id,
+        platform: ecommerceOrders.platform,
+        orderNo: ecommerceOrders.orderNo,
+        buyerName: ecommerceOrders.buyerName,
+        totalAmount: ecommerceOrders.totalAmount,
+        placedAt: ecommerceOrders.placedAt,
+        status: ecommerceOrders.status,
+      }).from(ecommerceOrders).where(and(...conditions)).orderBy(asc(ecommerceOrders.placedAt));
+
+      res.json({ shift: updated, orders: orderList, totalOrders, totalRevenue, commissionAmount });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
 }

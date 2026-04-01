@@ -4965,6 +4965,28 @@ export const insertCommissionRecordSchema = createInsertSchema(commissionRecords
 export type InsertCommissionRecord = z.infer<typeof insertCommissionRecordSchema>;
 export type CommissionRecord = typeof commissionRecords.$inferSelect;
 
+export const liveCommissionShifts = pgTable("live_commission_shifts", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").references(() => companies.id).notNull(),
+  title: text("title").notNull(),
+  platforms: text("platforms").array().notNull(),
+  hostUserIds: integer("host_user_ids").array().notNull(),
+  startedAt: timestamp("started_at").notNull(),
+  endedAt: timestamp("ended_at"),
+  status: text("status").notNull().default("draft"),
+  commissionRate: decimal("commission_rate", { precision: 8, scale: 4 }).default("0"),
+  totalRevenue: decimal("total_revenue", { precision: 15, scale: 2 }).default("0"),
+  totalOrders: integer("total_orders").default(0),
+  commissionAmount: decimal("commission_amount", { precision: 12, scale: 2 }).default("0"),
+  notes: text("notes"),
+  calculatedAt: timestamp("calculated_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertLiveCommissionShiftSchema = createInsertSchema(liveCommissionShifts).omit({ id: true, createdAt: true, calculatedAt: true });
+export type InsertLiveCommissionShift = z.infer<typeof insertLiveCommissionShiftSchema>;
+export type LiveCommissionShift = typeof liveCommissionShifts.$inferSelect;
+
 export const maintenanceSchedules = pgTable("maintenance_schedules", {
   id: serial("id").primaryKey(),
   scheduledAt: timestamp("scheduled_at").notNull(),

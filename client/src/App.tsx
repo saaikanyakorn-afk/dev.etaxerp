@@ -388,6 +388,7 @@ import EcommerceStoreClone from "@/pages/ecommerce/ecommerce-store-clone";
 import LiveSellingHub from "@/pages/live-selling/live-selling-hub";
 import LiveSellingDashboard from "@/pages/live-selling/live-selling-dashboard";
 import LiveSellingLuckyDraw from "@/pages/live-selling/live-selling-lucky-draw";
+import EcommerceLiveCommission from "@/pages/ecommerce/ecommerce-live-commission";
 import AgencyDashboard from "@/pages/live-agency/agency-dashboard";
 import LiveMonitor from "@/pages/live-agency/live-monitor";
 import PostLiveReport from "@/pages/live-agency/post-live-report";
@@ -915,6 +916,7 @@ function Router() {
       <Route path="/ecommerce/price-calculator" component={PriceCalculator} />
       <Route path="/ecommerce/business-insights" component={BusinessInsights} />
       <Route path="/ecommerce/inventory" component={EcommerceInventory} />
+      <Route path="/ecommerce/live-commission" component={EcommerceLiveCommission} />
       <Route path="/ecommerce/live-selling" component={LiveSellingHub} />
       <Route path="/ecommerce/live-selling/dashboard" component={LiveSellingDashboard} />
       <Route path="/ecommerce/live-selling/lucky-draw" component={LiveSellingLuckyDraw} />
