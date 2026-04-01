@@ -2526,6 +2526,13 @@ export const fulfillmentItems = pgTable("fulfillment_items", {
   shippingProvider: text("shipping_provider"),
   labelPrinted: boolean("label_printed").notNull().default(false),
   notes: text("notes"),
+  deliveredAt: timestamp("delivered_at"),
+  deliveredBy: integer("delivered_by").references(() => users.id),
+  deliveryGpsLat: decimal("delivery_gps_lat", { precision: 10, scale: 7 }),
+  deliveryGpsLng: decimal("delivery_gps_lng", { precision: 10, scale: 7 }),
+  receiverSignature: text("receiver_signature"),
+  receiverName: text("receiver_name"),
+  deliveryPhotoUrl: text("delivery_photo_url"),
 });
 
 export const insertFulfillmentItemSchema = createInsertSchema(fulfillmentItems).omit({ id: true });
