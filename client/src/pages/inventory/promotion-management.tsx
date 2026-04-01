@@ -17,8 +17,9 @@ const TYPE_LABELS: Record<PromotionType, string> = { buy_x_get_y: "ซื้อ 
 const STATUS_LABELS: Record<PromotionStatus, string> = { active: "ใช้งาน", inactive: "ปิดใช้งาน", scheduled: "ตั้งเวลา" };
 const STATUS_COLORS: Record<PromotionStatus, string> = { active: "bg-[#e6f7f2] text-[#05b187]", inactive: "bg-gray-100 text-gray-700", scheduled: "bg-[#fffcf0] text-[#fec90f]" };
 
-export default function PromotionManagement(props: { Wrapper?: React.ComponentType<{ children: React.ReactNode }> } & Record<string, any>) {
+export default function PromotionManagement(props: { Wrapper?: React.ComponentType<{ children: React.ReactNode }>; basePath?: string } & Record<string, any>) {
   const LayoutComponent = props.Wrapper || Layout;
+  const promoBasePath = props.basePath ? `${props.basePath}/promotions` : "/inventory/promotions";
   const { selectedCompanyId } = useCompany();
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -55,7 +56,7 @@ export default function PromotionManagement(props: { Wrapper?: React.ComponentTy
             <Tag className="h-6 w-6 text-primary" />
             <h1 className="text-2xl font-bold" data-testid="text-page-title">จัดการโปรโมชัน</h1>
           </div>
-          <Button onClick={() => navigate("/inventory/promotions/new")} data-testid="button-create-promotion"><Plus className="h-4 w-4 mr-1" />สร้างโปรโมชัน</Button>
+          <Button onClick={() => navigate(`${promoBasePath}/new`)} data-testid="button-create-promotion"><Plus className="h-4 w-4 mr-1" />สร้างโปรโมชัน</Button>
         </div>
 
         <Card>
@@ -84,7 +85,7 @@ export default function PromotionManagement(props: { Wrapper?: React.ComponentTy
                       <TableCell data-testid={`text-start-${p.id}`}>{p.startDate || "-"}</TableCell>
                       <TableCell data-testid={`text-end-${p.id}`}>{p.endDate || "-"}</TableCell>
                       <TableCell className="text-right space-x-1">
-                        <Button variant="ghost" size="icon" onClick={() => navigate(`/inventory/promotions/edit/${p.id}`)} data-testid={`button-edit-${p.id}`}><Pencil className="h-4 w-4" /></Button>
+                        <Button variant="ghost" size="icon" onClick={() => navigate(`${promoBasePath}/edit/${p.id}`)} data-testid={`button-edit-${p.id}`}><Pencil className="h-4 w-4" /></Button>
                         <Button variant="ghost" size="icon" onClick={() => { if (confirm("ต้องการลบโปรโมชันนี้?")) deleteMutation.mutate(p.id); }} data-testid={`button-delete-${p.id}`}><Trash2 className="h-4 w-4 text-red-500" /></Button>
                       </TableCell>
                     </TableRow>

@@ -82,7 +82,9 @@ function QRCodeImage({ value, size }: { value: string; size: number }) {
   return <canvas ref={canvasRef} style={{ width: size, height: size }} />;
 }
 
-export default function BarcodeLabels() {
+export default function BarcodeLabels(props: { Wrapper?: React.ComponentType<{ children: React.ReactNode }>; basePath?: string } & Record<string, any>) {
+  const LayoutComponent = props.Wrapper || Layout;
+  const productsPath = props.basePath ? `${props.basePath}/products` : "/inventory/list";
   const { selectedCompanyId } = useCompany();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -232,11 +234,11 @@ export default function BarcodeLabels() {
   });
 
   return (
-    <Layout>
+    <LayoutComponent>
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Button data-testid="button-back" variant="ghost" size="icon" onClick={() => navigate("/inventory/list")}>
+            <Button data-testid="button-back" variant="ghost" size="icon" onClick={() => navigate(productsPath)}>
               <ArrowLeft className="h-5 w-5" />
             </Button>
             <Tag className="h-5 w-5 text-primary" />
@@ -545,6 +547,6 @@ export default function BarcodeLabels() {
           </div>
         </div>
       </div>
-    </Layout>
+    </LayoutComponent>
   );
 }

@@ -33,7 +33,9 @@ function newRule(type: PromotionType): Rule {
   return emptyFixRule();
 }
 
-export default function PromotionFormPage() {
+export default function PromotionFormPage(props: { Wrapper?: React.ComponentType<{ children: React.ReactNode }>; basePath?: string } & Record<string, any>) {
+  const LayoutComponent = props.Wrapper || Layout;
+  const promoBasePath = props.basePath ? `${props.basePath}/promotions` : "/inventory/promotions";
   const { selectedCompanyId } = useCompany();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -78,7 +80,7 @@ export default function PromotionFormPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/promotions"] });
       toast({ title: editingId ? "แก้ไขโปรโมชันสำเร็จ" : "สร้างโปรโมชันสำเร็จ", variant: "success" as any });
-      navigate("/inventory/promotions");
+      navigate(promoBasePath);
     },
     onError: (err: any) => toast({ title: "เกิดข้อผิดพลาด", description: err.message, variant: "destructive" }),
   });
@@ -102,11 +104,11 @@ export default function PromotionFormPage() {
   }
 
   return (
-    <Layout>
+    <LayoutComponent>
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Button data-testid="button-back" variant="ghost" size="icon" onClick={() => navigate("/inventory/promotions")}>
+            <Button data-testid="button-back" variant="ghost" size="icon" onClick={() => navigate(promoBasePath)}>
               <ArrowLeft className="h-5 w-5" />
             </Button>
             <Tag className="h-5 w-5 text-primary" />
@@ -115,7 +117,7 @@ export default function PromotionFormPage() {
             </h1>
           </div>
           <div className="flex items-center gap-2">
-            <Button data-testid="button-cancel" variant="outline" onClick={() => navigate("/inventory/promotions")}>ยกเลิก</Button>
+            <Button data-testid="button-cancel" variant="outline" onClick={() => navigate(promoBasePath)}>ยกเลิก</Button>
             <Button data-testid="button-save" className="gap-2" onClick={handleSubmit} disabled={saveMutation.isPending}>
               <Save className="h-4 w-4" />
               {saveMutation.isPending ? "กำลังบันทึก..." : "บันทึก"}
@@ -225,13 +227,13 @@ export default function PromotionFormPage() {
         </Card>
 
         <div className="flex items-center justify-end gap-2 pb-4">
-          <Button data-testid="button-cancel-bottom" variant="outline" onClick={() => navigate("/inventory/promotions")}>ยกเลิก</Button>
+          <Button data-testid="button-cancel-bottom" variant="outline" onClick={() => navigate(promoBasePath)}>ยกเลิก</Button>
           <Button data-testid="button-save-bottom" className="gap-2" onClick={handleSubmit} disabled={saveMutation.isPending}>
             <Save className="h-4 w-4" />
             {saveMutation.isPending ? "กำลังบันทึก..." : "บันทึก"}
           </Button>
         </div>
       </div>
-    </Layout>
+    </LayoutComponent>
   );
 }

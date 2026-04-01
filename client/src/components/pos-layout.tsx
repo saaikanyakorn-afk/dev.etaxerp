@@ -33,6 +33,13 @@ import {
   FileText,
   Settings,
   DollarSign,
+  ClipboardList,
+  ArrowDownToLine,
+  Truck,
+  ScanBarcode,
+  Calculator,
+  ArrowRightLeft,
+  TrendingDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -73,14 +80,22 @@ const POS_NAV: NavItem[] = [
     children: [
       { label: "รายการสินค้า", href: "/pos/products", icon: Package },
       { label: "จัดชุดสินค้า", href: "/pos/bundles", icon: Package },
+      { label: "โปรโมชั่น", href: "/pos/promotions", icon: Tag },
+      { label: "บาร์โค้ดลาเบล", href: "/pos/barcode-labels", icon: ScanBarcode },
     ],
   },
   {
     label: "คลังสินค้า", icon: Warehouse, href: "/pos/stock",
     children: [
       { label: "คลังหลัก / คลังสาขา", href: "/pos/stock", icon: Warehouse },
-      { label: "ย้ายคลัง / กระจายสินค้า", href: "/pos/stock-transfer", icon: ShoppingCart },
+      { label: "ย้ายคลัง / กระจายสินค้า", href: "/pos/stock-transfer", icon: ArrowRightLeft },
+      { label: "เบิกสินค้า", href: "/pos/requisition", icon: ClipboardList },
+      { label: "รับสินค้าเข้าคลัง", href: "/pos/receiving", icon: ArrowDownToLine },
+      { label: "ใบส่งของ", href: "/pos/delivery-notes", icon: Truck },
       { label: "สต็อกการ์ด", href: "/pos/stock-card", icon: FileText },
+      { label: "มูลค่าคงเหลือ", href: "/pos/valuation", icon: Calculator },
+      { label: "สรุปเคลื่อนไหว", href: "/pos/movement-summary", icon: ArrowRightLeft },
+      { label: "สินค้าเคลื่อนไหวช้า", href: "/pos/slow-moving", icon: TrendingDown },
     ],
   },
   {

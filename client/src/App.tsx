@@ -421,6 +421,18 @@ import PosTaxInvoices from "@/pages/pos/pos-tax-invoices";
 import PosSettings from "@/pages/pos/pos-settings";
 import PosStaff from "@/pages/pos/pos-staff";
 import PosCommission from "@/pages/pos/pos-commission";
+import PosRequisition from "@/pages/pos/pos-requisition";
+import PosRequisitionForm from "@/pages/pos/pos-requisition-form";
+import PosGoodsReceiving from "@/pages/pos/pos-goods-receiving";
+import PosGoodsReceivingForm from "@/pages/pos/pos-goods-receiving-form";
+import PosPromotions from "@/pages/pos/pos-promotions";
+import PosPromotionForm from "@/pages/pos/pos-promotion-form";
+import PosDeliveryNotes from "@/pages/pos/pos-delivery-notes";
+import PosBarcodeLabels from "@/pages/pos/pos-barcode-labels";
+import PosValuation from "@/pages/pos/pos-valuation";
+import PosMovementSummary from "@/pages/pos/pos-movement-summary";
+import PosSlowMoving from "@/pages/pos/pos-slow-moving";
+import PosDeliveryNoteForm from "@/pages/pos/pos-delivery-note-form";
 import JobCostingProjectList from "@/pages/job-costing/project-list";
 import JobCostingProjectDetail from "@/pages/job-costing/project-detail";
 import GasFuelSetup from "@/pages/gas-station/fuel-setup";
@@ -963,6 +975,22 @@ function Router() {
       <Route path="/pos/settings" component={PosSettings} />
       <Route path="/pos/staff" component={PosStaff} />
       <Route path="/pos/commission" component={PosCommission} />
+      <Route path="/pos/requisition" component={PosRequisition} />
+      <Route path="/pos/requisition/form" component={PosRequisitionForm} />
+      <Route path="/pos/requisition/form/:id" component={PosRequisitionForm} />
+      <Route path="/pos/receiving" component={PosGoodsReceiving} />
+      <Route path="/pos/receiving/form" component={PosGoodsReceivingForm} />
+      <Route path="/pos/receiving/form/:id" component={PosGoodsReceivingForm} />
+      <Route path="/pos/promotions" component={PosPromotions} />
+      <Route path="/pos/promotions/new" component={PosPromotionForm} />
+      <Route path="/pos/promotions/edit/:id" component={PosPromotionForm} />
+      <Route path="/pos/delivery-notes" component={PosDeliveryNotes} />
+      <Route path="/pos/delivery-notes/new" component={PosDeliveryNoteForm} />
+      <Route path="/pos/delivery-notes/:id" component={PosDeliveryNoteForm} />
+      <Route path="/pos/barcode-labels" component={PosBarcodeLabels} />
+      <Route path="/pos/valuation" component={PosValuation} />
+      <Route path="/pos/movement-summary" component={PosMovementSummary} />
+      <Route path="/pos/slow-moving" component={PosSlowMoving} />
       <Route path="/loyalty/signup" component={LoyaltySignup} />
       <Route path="/job-costing" component={JobCostingProjectList} />
       <Route path="/job-costing/projects/:id" component={JobCostingProjectDetail} />

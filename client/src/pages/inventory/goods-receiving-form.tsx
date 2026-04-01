@@ -53,10 +53,12 @@ const STATUS_MAP: Record<string, { label: string; color: string }> = {
   approved: { label: "อนุมัติ", color: "bg-emerald-100 text-emerald-700 border-emerald-200" },
 };
 
-export default function GoodsReceivingForm() {
+export default function GoodsReceivingForm(props: { Wrapper?: React.ComponentType<{ children: React.ReactNode }>; basePath?: string } & Record<string, any>) {
+  const LayoutComponent = props.Wrapper || Layout;
+  const recvBasePath = props.basePath ? `${props.basePath}/receiving` : "/inventory/receiving";
   const [, navigate] = useLocation();
-  const [matchCreate] = useRoute("/inventory/receiving/form");
-  const [matchEdit, paramsEdit] = useRoute("/inventory/receiving/form/:id");
+  const [matchCreate] = useRoute(`${recvBasePath}/form`);
+  const [matchEdit, paramsEdit] = useRoute(`${recvBasePath}/form/:id`);
   const editingId = matchEdit ? Number(paramsEdit?.id) : null;
   const isNew = !!matchCreate && !editingId;
 
@@ -168,7 +170,7 @@ export default function GoodsReceivingForm() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/goods-receivings"] });
       toast({ title: "สร้างใบรับสินค้าสำเร็จ", variant: "success" as any });
-      navigate("/inventory/receiving");
+      navigate(recvBasePath);
     },
     onError: (err: any) => toast({ title: "เกิดข้อผิดพลาด", description: err.message, variant: "destructive" }),
   });
@@ -181,7 +183,7 @@ export default function GoodsReceivingForm() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/goods-receivings"] });
       toast({ title: "อัพเดทใบรับสินค้าสำเร็จ", variant: "success" as any });
-      navigate("/inventory/receiving");
+      navigate(recvBasePath);
     },
     onError: (err: any) => toast({ title: "เกิดข้อผิดพลาด", description: err.message, variant: "destructive" }),
   });
@@ -353,14 +355,14 @@ export default function GoodsReceivingForm() {
   const statusInfo = STATUS_MAP[form.status] || STATUS_MAP.draft;
 
   return (
-    <Layout>
+    <LayoutComponent>
       <div className="space-y-4" data-testid="goods-receiving-form-page">
         <div className="flex items-center gap-3 mb-2">
           <Button
             variant="ghost"
             size="icon"
             className="h-8 w-8"
-            onClick={() => navigate("/inventory/receiving")}
+            onClick={() => navigate(recvBasePath)}
             data-testid="button-back"
           >
             <ArrowLeft className="h-4 w-4" />
@@ -670,7 +672,7 @@ export default function GoodsReceivingForm() {
           <Button
             variant="outline"
             className="h-9 text-sm"
-            onClick={() => navigate("/inventory/receiving")}
+            onClick={() => navigate(recvBasePath)}
             data-testid="button-cancel"
           >
             ยกเลิก
@@ -687,6 +689,6 @@ export default function GoodsReceivingForm() {
           </Button>
         </div>
       </div>
-    </Layout>
+    </LayoutComponent>
   );
 }
