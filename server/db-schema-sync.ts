@@ -340,6 +340,9 @@ const POS_TABLE_NAMES = new Set([
   'restaurant_areas', 'restaurant_tables', 'restaurant_orders', 'restaurant_order_items',
   'menu_categories', 'menu_items', 'menu_modifier_groups', 'menu_modifier_options',
   'menu_item_modifiers', 'kitchen_tickets',
+  'products', 'product_bundles', 'product_stock', 'product_lots',
+  'stock_movements', 'warehouses', 'warehouse_stock_levels',
+  'stock_transfers', 'stock_transfer_items',
 ]);
 
 function getPosSchemaTableObjects(): PgTable[] {

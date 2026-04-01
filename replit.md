@@ -564,7 +564,7 @@ The test/backup database (`db_rp_tst`) is temporarily on tax-gateway because dee
 - **22+ files updated for ecom, 5 files for POS.** Accounting queries remain on `db`.
 - **Schema sync:** `db-schema-sync.ts` auto-syncs module tables to separate DBs on startup when env vars are set.
 - **Ecom tables:** ecommerce_connections/orders/order_items/product_mappings/settlements/returns, sync_logs, oauth_states, facebook_chat_orders/pages, chat_orders, platform_chat_threads, stock_sync_logs, vat_product_dictionary, live_sessions, lucky_draw_*, ad_budgets/campaigns.
-- **POS tables:** pos_sessions/transactions/transaction_items, restaurant_areas/tables/orders/order_items, menu_categories/items/modifiers, kitchen_tickets.
+- **POS tables:** pos_sessions/transactions/transaction_items, restaurant_areas/tables/orders/order_items, menu_categories/items/modifiers, kitchen_tickets, products, product_bundles, product_stock, product_lots, stock_movements, warehouses, warehouse_stock_levels, stock_transfers/items.
 - **Bridge pattern:** Cross-module operations (e.g. TIV from ecom order) read from module DB, write to accounting DB.
 - **Production setup:** พี่ช้าง sets `DATABASE_URL_ECOM` and/or `DATABASE_URL_POS` for full crash isolation.
 
