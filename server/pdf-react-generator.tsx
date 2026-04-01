@@ -186,7 +186,7 @@ function fmtQty(q: number): string {
 }
 
 const s = StyleSheet.create({
-  page: { fontFamily: "Sarabun", fontSize: 8, padding: "10mm", backgroundColor: "white" },
+  page: { fontFamily: "Sarabun", fontSize: 8, padding: "10mm", backgroundColor: "white", letterSpacing: 0.2 },
   topBar: { height: 4, marginBottom: 0, marginLeft: -28, marginRight: -28, marginTop: -28 },
   headerRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: 8, paddingTop: 12 },
   companyBlock: { flexDirection: "row", gap: 8, flex: 1 },
@@ -265,13 +265,6 @@ const COL_W_NOCODE = {
   amount: "14%",
 };
 
-function t(str: string | number | null | undefined): string {
-  if (str == null) return "";
-  const s = String(str);
-  if (!s) return "";
-  return s + "\u200B";
-}
-
 function InvoiceDocument({ opts }: { opts: GeneratePdfOptions }) {
   const { company, settings, document: doc, documentType, signature, etaxEnabled, etaxStampBase64 } = opts;
   const docInfo = getDocumentType(documentType) || DOCUMENT_TYPES_FULL[0];
@@ -333,73 +326,73 @@ function InvoiceDocument({ opts }: { opts: GeneratePdfOptions }) {
               <Image src={settings.logoBase64} style={s.logo} />
             )}
             <View style={{ flex: 1 }}>
-              <Text style={s.companyName}>{t(companyName)}</Text>
-              {companyAddress ? <Text style={s.companyDetail}>{t(companyAddress)}</Text> : null}
+              <Text style={s.companyName}>{companyName}</Text>
+              {companyAddress ? <Text style={s.companyDetail}>{companyAddress}</Text> : null}
               {settings.showTaxId !== false && companyTaxId ? (
-                <Text style={s.companyDetail}>{t(`เลขประจำตัวผู้เสียภาษี: ${companyTaxId}`)}</Text>
+                <Text style={s.companyDetail}>เลขประจำตัวผู้เสียภาษี: {companyTaxId}</Text>
               ) : null}
               {settings.showBranch !== false ? (
-                <Text style={[s.companyDetail, { color: primary, fontWeight: 600 }]}>{t(branchDisplay)}</Text>
+                <Text style={[s.companyDetail, { color: primary, fontWeight: 600 }]}>{branchDisplay}</Text>
               ) : null}
               {(company.phone || company.email) ? (
                 <Text style={s.companyDetail}>
-                  {t((company.phone ? `โทร. ${company.phone}` : "") + (company.phone && company.email ? "  " : "") + (company.email ? `อีเมล: ${company.email}` : ""))}
+                  {company.phone ? `โทร. ${company.phone}` : ""}{company.phone && company.email ? "  " : ""}{company.email ? `อีเมล: ${company.email}` : ""}
                 </Text>
               ) : null}
               {(company.lineId || company.facebook) ? (
                 <Text style={s.companyDetail}>
-                  {t((company.lineId ? `LINE: ${company.lineId}` : "") + (company.lineId && company.facebook ? "  " : "") + (company.facebook ? `Facebook: ${company.facebook}` : ""))}
+                  {company.lineId ? `LINE: ${company.lineId}` : ""}{company.lineId && company.facebook ? "  " : ""}{company.facebook ? `Facebook: ${company.facebook}` : ""}
                 </Text>
               ) : null}
-              {company.website ? <Text style={s.companyDetail}>{t(`เว็บไซต์: ${company.website}`)}</Text> : null}
+              {company.website ? <Text style={s.companyDetail}>เว็บไซต์: {company.website}</Text> : null}
             </View>
           </View>
 
           <View style={{ alignItems: "flex-end" }}>
             <View style={[s.docTypeBox, { backgroundColor: theme.bg }]}>
-              <Text style={[s.docTypeLabel, { color: primary }]}>{t(docInfo.label)}</Text>
+              <Text style={[s.docTypeLabel, { color: primary }]}>{docInfo.label}</Text>
             </View>
-            <Text style={s.docTypeLabelEn}>{t(docInfo.labelEn.toUpperCase())}</Text>
+            <Text style={s.docTypeLabelEn}>{docInfo.labelEn.toUpperCase()}</Text>
             <View style={{ marginTop: 5 }}>
-              <Text style={s.docInfoRow}>{t(`เลขที่: `)}<Text style={{ fontWeight: 600, color: accent }}>{t(doc.docNo)}</Text></Text>
-              <Text style={s.docInfoRow}>{t(`วันที่: ${fmtDate(doc.docDate, era, settings.dateFormat)}`)}</Text>
-              {doc.validUntil ? <Text style={s.docInfoRow}>{t(`กำหนดส่ง: ${fmtDate(doc.validUntil, era, settings.dateFormat)}`)}</Text> : null}
-              {doc.creditDays != null && Number(doc.creditDays) > 0 ? <Text style={s.docInfoRow}>{t(`เครดิต: ${doc.creditDays} วัน`)}</Text> : null}
-              {isForeignCurrency ? <Text style={[s.docInfoRow, { fontWeight: 600, color: accent, fontSize: 7 }]}>{t(`สกุลเงิน: ${currencyCode}`)}</Text> : null}
-              {doc.refDoc ? <Text style={[s.docInfoRow, { color: primary, fontSize: 7 }]}>{t(`อ้างอิง: ${doc.refDoc}`)}</Text> : null}
+              <Text style={s.docInfoRow}>เลขที่: <Text style={{ fontWeight: 600, color: accent }}>{doc.docNo}</Text></Text>
+              <Text style={s.docInfoRow}>วันที่: {fmtDate(doc.docDate, era, settings.dateFormat)}</Text>
+              {doc.validUntil ? <Text style={s.docInfoRow}>กำหนดส่ง: {fmtDate(doc.validUntil, era, settings.dateFormat)}</Text> : null}
+              {doc.creditDays != null && Number(doc.creditDays) > 0 ? <Text style={s.docInfoRow}>เครดิต: {doc.creditDays} วัน</Text> : null}
+              {isForeignCurrency ? <Text style={[s.docInfoRow, { fontWeight: 600, color: accent, fontSize: 7 }]}>สกุลเงิน: {currencyCode}</Text> : null}
+              {doc.refDoc ? <Text style={[s.docInfoRow, { color: primary, fontSize: 7 }]}>อ้างอิง: {doc.refDoc}</Text> : null}
             </View>
           </View>
         </View>
 
-        {settings.headerNote ? <Text style={[s.notesText, { fontStyle: "italic", marginBottom: 6 }]}>{t(settings.headerNote)}</Text> : null}
+        {settings.headerNote ? <Text style={[s.notesText, { fontStyle: "italic", marginBottom: 6 }]}>{settings.headerNote}</Text> : null}
 
         <View style={s.sectionRow}>
           <View style={[s.customerBox, { borderColor: theme.light, backgroundColor: theme.bg }]}>
-            <Text style={[s.sectionTitle, { color: primary }]}>{t("ลูกค้า / Customer")}</Text>
-            <Text style={s.custName}>{t(doc.customerName || "-")}</Text>
-            {doc.customerAddress ? <Text style={s.custDetail}>{t(doc.customerAddress)}</Text> : null}
-            {doc.customerTaxId ? <Text style={s.custDetail}>{t(`เลขประจำตัวผู้เสียภาษี: ${doc.customerTaxId}`)}</Text> : null}
-            <Text style={[s.custDetail, { color: primary, fontWeight: 600 }]}>{t(custBranchDisplay)}</Text>
-            {doc.contactPerson ? <Text style={s.custDetail}>{t(`ผู้ติดต่อ: ${doc.contactPerson}`)}</Text> : null}
+            <Text style={[s.sectionTitle, { color: primary }]}>ลูกค้า / Customer</Text>
+            <Text style={s.custName}>{doc.customerName || "-"}</Text>
+            {doc.customerAddress ? <Text style={s.custDetail}>{doc.customerAddress}</Text> : null}
+            {doc.customerTaxId ? <Text style={s.custDetail}>เลขประจำตัวผู้เสียภาษี: {doc.customerTaxId}</Text> : null}
+            <Text style={[s.custDetail, { color: primary, fontWeight: 600 }]}>{custBranchDisplay}</Text>
+            {doc.contactPerson ? <Text style={s.custDetail}>ผู้ติดต่อ: {doc.contactPerson}</Text> : null}
             {(doc.contactPhone || doc.contactEmail) ? (
               <Text style={s.custDetail}>
-                {t((doc.contactPhone ? `โทร: ${doc.contactPhone}` : "") + (doc.contactPhone && doc.contactEmail ? " | " : "") + (doc.contactEmail ? `อีเมล: ${doc.contactEmail}` : ""))}
+                {doc.contactPhone ? `โทร: ${doc.contactPhone}` : ""}{doc.contactPhone && doc.contactEmail ? " | " : ""}{doc.contactEmail ? `อีเมล: ${doc.contactEmail}` : ""}
               </Text>
             ) : null}
-            {doc.salesperson ? <Text style={s.custDetail}>{t(`พนักงานขาย: ${doc.salesperson}`)}</Text> : null}
+            {doc.salesperson ? <Text style={s.custDetail}>พนักงานขาย: {doc.salesperson}</Text> : null}
           </View>
 
           {hasBank ? (
             <View style={[s.bankBox, { borderColor: theme.light, backgroundColor: theme.bg }]}>
               {qrSrc ? <Image src={qrSrc} style={s.qrImage} /> : null}
-              <Text style={[s.bankTitle, { color: primary }]}>{t("ข้อมูลชำระเงิน")}</Text>
+              <Text style={[s.bankTitle, { color: primary }]}>ข้อมูลชำระเงิน</Text>
               {settings.promptpayQrBase64 && !settings.qrCodeBase64 ? (
-                <Text style={[s.bankDetail, { color: "#03c9d7", fontWeight: 600 }]}>{t("พร้อมเพย์ (PromptPay)")}</Text>
+                <Text style={[s.bankDetail, { color: "#03c9d7", fontWeight: 600 }]}>พร้อมเพย์ (PromptPay)</Text>
               ) : null}
-              {settings.bankName ? <Text style={s.bankDetail}>{t(`ธนาคาร: ${settings.bankName}`)}</Text> : null}
-              {settings.bankAccountNumber ? <Text style={s.bankDetail}>{t(`เลขที่บัญชี: ${settings.bankAccountNumber}`)}</Text> : null}
-              {settings.bankAccountName ? <Text style={s.bankDetail}>{t(`ชื่อบัญชี: ${settings.bankAccountName}`)}</Text> : null}
-              {totalAmount > 0 ? <Text style={[s.bankAmount, { color: primary }]}>{t(`จำนวนเงิน: ${fmtNum(totalAmount)} บาท`)}</Text> : null}
+              {settings.bankName ? <Text style={s.bankDetail}>ธนาคาร: {settings.bankName}</Text> : null}
+              {settings.bankAccountNumber ? <Text style={s.bankDetail}>เลขที่บัญชี: {settings.bankAccountNumber}</Text> : null}
+              {settings.bankAccountName ? <Text style={s.bankDetail}>ชื่อบัญชี: {settings.bankAccountName}</Text> : null}
+              {totalAmount > 0 ? <Text style={[s.bankAmount, { color: primary }]}>จำนวนเงิน: {fmtNum(totalAmount)} บาท</Text> : null}
             </View>
           ) : null}
         </View>
@@ -407,38 +400,38 @@ function InvoiceDocument({ opts }: { opts: GeneratePdfOptions }) {
         <View style={s.table}>
           <View style={[s.thRow, { backgroundColor: theme.light + "40", borderBottomColor: theme.light }]}>
             <View style={{ width: cols.no, alignItems: "center" }}>
-              <Text style={[s.th, { color: accent }]}>{t("ลำดับ")}</Text>
-              <Text style={[s.thSub, { color: accent }]}>{t("No.")}</Text>
+              <Text style={[s.th, { color: accent }]}>ลำดับ</Text>
+              <Text style={[s.thSub, { color: accent }]}>No.</Text>
             </View>
             {showCode ? (
               <View style={{ width: cols.code }}>
-                <Text style={[s.th, { color: accent }]}>{t("รหัส")}</Text>
-                <Text style={[s.thSub, { color: accent }]}>{t("Code")}</Text>
+                <Text style={[s.th, { color: accent }]}>รหัส</Text>
+                <Text style={[s.thSub, { color: accent }]}>Code</Text>
               </View>
             ) : null}
             <View style={{ width: cols.desc }}>
-              <Text style={[s.th, { color: accent }]}>{t("รายละเอียด")}</Text>
-              <Text style={[s.thSub, { color: accent }]}>{t("Description")}</Text>
+              <Text style={[s.th, { color: accent }]}>รายละเอียด</Text>
+              <Text style={[s.thSub, { color: accent }]}>Description</Text>
             </View>
             <View style={{ width: cols.qty, alignItems: "center" }}>
-              <Text style={[s.th, { color: accent }]}>{t("จำนวน")}</Text>
-              <Text style={[s.thSub, { color: accent }]}>{t("Qty")}</Text>
+              <Text style={[s.th, { color: accent }]}>จำนวน</Text>
+              <Text style={[s.thSub, { color: accent }]}>Qty</Text>
             </View>
             <View style={{ width: cols.unit, alignItems: "center" }}>
-              <Text style={[s.th, { color: accent }]}>{t("หน่วย")}</Text>
-              <Text style={[s.thSub, { color: accent }]}>{t("Unit")}</Text>
+              <Text style={[s.th, { color: accent }]}>หน่วย</Text>
+              <Text style={[s.thSub, { color: accent }]}>Unit</Text>
             </View>
             <View style={{ width: cols.price, alignItems: "flex-end" }}>
-              <Text style={[s.th, { color: accent }]}>{t("ราคาต่อหน่วย")}</Text>
-              <Text style={[s.thSub, { color: accent }]}>{t("Unit Price")}</Text>
+              <Text style={[s.th, { color: accent }]}>ราคาต่อหน่วย</Text>
+              <Text style={[s.thSub, { color: accent }]}>Unit Price</Text>
             </View>
             <View style={{ width: cols.disc, alignItems: "flex-end" }}>
-              <Text style={[s.th, { color: accent }]}>{t("ส่วนลด")}</Text>
-              <Text style={[s.thSub, { color: accent }]}>{t("Discount")}</Text>
+              <Text style={[s.th, { color: accent }]}>ส่วนลด</Text>
+              <Text style={[s.thSub, { color: accent }]}>Discount</Text>
             </View>
             <View style={{ width: cols.amount, alignItems: "flex-end" }}>
-              <Text style={[s.th, { color: accent }]}>{t("มูลค่า")}</Text>
-              <Text style={[s.thSub, { color: accent }]}>{t("Amount")}</Text>
+              <Text style={[s.th, { color: accent }]}>มูลค่า</Text>
+              <Text style={[s.thSub, { color: accent }]}>Amount</Text>
             </View>
           </View>
 
@@ -457,16 +450,16 @@ function InvoiceDocument({ opts }: { opts: GeneratePdfOptions }) {
             return (
               <View key={i} style={s.tr}>
                 <Text style={[s.td, { width: cols.no, textAlign: "center", color: "#6b7280" }]}>{i + 1}</Text>
-                {showCode ? <Text style={[s.td, { width: cols.code, color: "#4b5563" }]}>{t(item.productCode || "-")}</Text> : null}
+                {showCode ? <Text style={[s.td, { width: cols.code, color: "#4b5563" }]}>{item.productCode || "-"}</Text> : null}
                 <View style={{ width: cols.desc, paddingHorizontal: 3 }}>
-                  <Text style={[s.td, { paddingHorizontal: 0 }]}>{t(item.productName)}</Text>
-                  {item.description ? <Text style={{ fontSize: 6.5, color: "#9ca3af" }}>{t(item.description)}</Text> : null}
+                  <Text style={[s.td, { paddingHorizontal: 0 }]}>{item.productName}</Text>
+                  {item.description ? <Text style={{ fontSize: 6.5, color: "#9ca3af" }}>{item.description}</Text> : null}
                 </View>
-                <Text style={[s.td, { width: cols.qty, textAlign: "center" }]}>{t(fmtQty(item.qty))}</Text>
-                <Text style={[s.td, { width: cols.unit, textAlign: "center" }]}>{t(item.unit || "ชิ้น")}</Text>
-                <Text style={[s.td, { width: cols.price, textAlign: "right" }]}>{t(fmtNum(displayUnitPrice))}</Text>
-                <Text style={[s.td, { width: cols.disc, textAlign: "right" }]}>{t(displayDiscount)}</Text>
-                <Text style={[s.td, { width: cols.amount, textAlign: "right" }]}>{t(fmtNum(displayTotal))}</Text>
+                <Text style={[s.td, { width: cols.qty, textAlign: "center" }]}>{fmtQty(item.qty)}</Text>
+                <Text style={[s.td, { width: cols.unit, textAlign: "center" }]}>{item.unit || "ชิ้น"}</Text>
+                <Text style={[s.td, { width: cols.price, textAlign: "right" }]}>{fmtNum(displayUnitPrice)}</Text>
+                <Text style={[s.td, { width: cols.disc, textAlign: "right" }]}>{displayDiscount}</Text>
+                <Text style={[s.td, { width: cols.amount, textAlign: "right" }]}>{fmtNum(displayTotal)}</Text>
               </View>
             );
           })}
@@ -482,64 +475,64 @@ function InvoiceDocument({ opts }: { opts: GeneratePdfOptions }) {
           <View style={{ flex: 1 }}>
             <View style={[s.thaiTextBox, { borderColor: theme.light, backgroundColor: theme.bg }]}>
               <Text style={s.thaiText}>
-                {t(isForeignCurrency ? `${fmtNum(totalAmount)} ${currencyCode}` : numberToThaiText(totalAmount))}
+                {isForeignCurrency ? `${fmtNum(totalAmount)} ${currencyCode}` : numberToThaiText(totalAmount)}
               </Text>
             </View>
-            {doc.notes ? <Text style={[s.notesText, { marginTop: 4 }]}>{t(doc.notes)}</Text> : null}
+            {doc.notes ? <Text style={[s.notesText, { marginTop: 4 }]}>{doc.notes}</Text> : null}
             {doc.paymentTerms ? (
               <Text style={[s.notesText, { marginTop: 2 }]}>
-                <Text style={{ fontWeight: 600 }}>{t("เงื่อนไขการชำระ: ")}</Text>{t(doc.paymentTerms)}
+                <Text style={{ fontWeight: 600 }}>เงื่อนไขการชำระ: </Text>{doc.paymentTerms}
               </Text>
             ) : null}
-            {settings.footerNote ? <Text style={s.notesText}>{t(settings.footerNote)}</Text> : null}
+            {settings.footerNote ? <Text style={s.notesText}>{settings.footerNote}</Text> : null}
           </View>
 
           <View style={s.totalsCol}>
             <View style={s.totalRow}>
               <View>
-                <Text style={s.totalLabel}>{t("ยอดรวม")}</Text>
-                <Text style={s.totalLabelSub}>{t("Sub Total")}</Text>
+                <Text style={s.totalLabel}>ยอดรวม</Text>
+                <Text style={s.totalLabelSub}>Sub Total</Text>
               </View>
-              <Text style={s.totalValue}>{t(fmtNum(subtotal))}</Text>
+              <Text style={s.totalValue}>{fmtNum(subtotal)}</Text>
             </View>
             {discountAmount > 0 ? (
               <View style={s.totalRow}>
                 <View>
-                  <Text style={s.totalLabel}>{t("ส่วนลดพิเศษ")}</Text>
-                  <Text style={s.totalLabelSub}>{t("Special Discount")}</Text>
+                  <Text style={s.totalLabel}>ส่วนลดพิเศษ</Text>
+                  <Text style={s.totalLabelSub}>Special Discount</Text>
                 </View>
-                <Text style={s.totalValue}>{t(fmtNum(discountAmount))}</Text>
+                <Text style={s.totalValue}>{fmtNum(discountAmount)}</Text>
               </View>
             ) : null}
             <View style={s.totalRow}>
               <View>
-                <Text style={s.totalLabel}>{t("มูลค่าก่อนภาษี")}</Text>
-                <Text style={s.totalLabelSub}>{t("Value Before VAT")}</Text>
+                <Text style={s.totalLabel}>มูลค่าก่อนภาษี</Text>
+                <Text style={s.totalLabelSub}>Value Before VAT</Text>
               </View>
-              <Text style={s.totalValue}>{t(fmtNum(valueBeforeVat))}</Text>
+              <Text style={s.totalValue}>{fmtNum(valueBeforeVat)}</Text>
             </View>
             <View style={s.totalRow}>
               <View>
-                <Text style={s.totalLabel}>{t("ภาษีมูลค่าเพิ่ม 7%")}</Text>
-                <Text style={s.totalLabelSub}>{t("Value Added Tax")}</Text>
+                <Text style={s.totalLabel}>ภาษีมูลค่าเพิ่ม 7%</Text>
+                <Text style={s.totalLabelSub}>Value Added Tax</Text>
               </View>
-              <Text style={s.totalValue}>{t(fmtNum(vatAmount))}</Text>
+              <Text style={s.totalValue}>{fmtNum(vatAmount)}</Text>
             </View>
             {withholdingTax > 0 ? (
               <View style={s.totalRow}>
                 <View>
-                  <Text style={s.totalLabel}>{t("ภาษีหัก ณ ที่จ่าย")}</Text>
-                  <Text style={s.totalLabelSub}>{t("Withholding Tax")}</Text>
+                  <Text style={s.totalLabel}>ภาษีหัก ณ ที่จ่าย</Text>
+                  <Text style={s.totalLabelSub}>Withholding Tax</Text>
                 </View>
-                <Text style={s.totalValue}>{t(fmtNum(withholdingTax))}</Text>
+                <Text style={s.totalValue}>{fmtNum(withholdingTax)}</Text>
               </View>
             ) : null}
             <View style={[s.grandTotalRow, { backgroundColor: primary }]}>
               <View>
-                <Text style={s.grandTotalLabel}>{t(`ยอดเงินสุทธิ ${isForeignCurrency ? `(${currencyCode})` : ""}`)}</Text>
-                <Text style={s.grandTotalLabelSub}>{t("Grand Total")}</Text>
+                <Text style={s.grandTotalLabel}>ยอดเงินสุทธิ {isForeignCurrency ? `(${currencyCode})` : ""}</Text>
+                <Text style={s.grandTotalLabelSub}>Grand Total</Text>
               </View>
-              <Text style={s.grandTotalValue}>{t(fmtNum(totalAmount))}</Text>
+              <Text style={s.grandTotalValue}>{fmtNum(totalAmount)}</Text>
             </View>
           </View>
         </View>
@@ -549,9 +542,9 @@ function InvoiceDocument({ opts }: { opts: GeneratePdfOptions }) {
             <View style={s.sigBlock}>
               <View style={{ height: 30 }} />
               <View style={s.sigLine}>
-                <Text style={s.sigLabel}>{t("ผู้อนุมัติ / ลูกค้า")}</Text>
-                <Text style={s.sigSub}>{t("Approved by")}</Text>
-                <Text style={s.sigSub}>{t("วันที่ ____/____/____")}</Text>
+                <Text style={s.sigLabel}>ผู้อนุมัติ / ลูกค้า</Text>
+                <Text style={s.sigSub}>Approved by</Text>
+                <Text style={s.sigSub}>วันที่ ____/____/____</Text>
               </View>
             </View>
             <View style={s.sigBlock}>
@@ -561,12 +554,12 @@ function InvoiceDocument({ opts }: { opts: GeneratePdfOptions }) {
                 <View style={{ height: 30 }} />
               )}
               <View style={s.sigLine}>
-                {signature?.signatureName ? <Text style={s.sigLabel}>{t(signature.signatureName)}</Text> : null}
+                {signature?.signatureName ? <Text style={s.sigLabel}>{signature.signatureName}</Text> : null}
                 <Text style={[s.sigLabel, { color: "#6b7280" }]}>
-                  {t(documentType === "quotation" ? "ผู้เสนอราคา" : documentType === "receipt" ? "ผู้รับเงิน" : "ผู้ออกเอกสาร")}
+                  {documentType === "quotation" ? "ผู้เสนอราคา" : documentType === "receipt" ? "ผู้รับเงิน" : "ผู้ออกเอกสาร"}
                 </Text>
                 <Text style={s.sigSub}>
-                  {t(documentType === "quotation" ? "Salesperson" : documentType === "receipt" ? "Cashier" : "Authorized")}
+                  {documentType === "quotation" ? "Salesperson" : documentType === "receipt" ? "Cashier" : "Authorized"}
                 </Text>
               </View>
             </View>
@@ -583,7 +576,7 @@ function InvoiceDocument({ opts }: { opts: GeneratePdfOptions }) {
                 Powered by <Text style={[s.footerBrand, { color: primary }]}>E-Tax Center</Text>
               </Text>
             </View>
-            <Text style={s.footerDocNo}>{t(doc.docNo)}</Text>
+            <Text style={s.footerDocNo}>{doc.docNo}</Text>
           </View>
         </View>
 
@@ -591,8 +584,8 @@ function InvoiceDocument({ opts }: { opts: GeneratePdfOptions }) {
           <View style={s.etaxRow}>
             {etaxStampBase64 ? <Image src={etaxStampBase64} style={s.etaxStamp} /> : null}
             <View>
-              <Text style={s.etaxText}>{t("ใบกำกับภาษีอิเล็กทรอนิกส์นี้ได้จัดทำและส่งข้อมูลให้แก่")}</Text>
-              <Text style={s.etaxText}>{t("กรมสรรพากรด้วยวิธีการทางอิเล็กทรอนิกส์")}</Text>
+              <Text style={s.etaxText}>ใบกำกับภาษีอิเล็กทรอนิกส์นี้ได้จัดทำและส่งข้อมูลให้แก่</Text>
+              <Text style={s.etaxText}>กรมสรรพากรด้วยวิธีการทางอิเล็กทรอนิกส์</Text>
             </View>
           </View>
         ) : null}
