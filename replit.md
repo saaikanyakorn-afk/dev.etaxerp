@@ -555,14 +555,18 @@ The test/backup database (`db_rp_tst`) is temporarily on tax-gateway because dee
 - **Dismiss API:** `POST /api/platform/clone-dismiss-incomplete` — marks error tables as dismissed + cancels timeout.
 - **Timeout:** `startHalfBakedTimeout()` / `cancelHalfBakedTimeout()` in `server/maintenance.ts` — configurable timer (default 30min).
 
-### E-Commerce Database Separation (Crash Isolation)
-- **Purpose:** Isolate e-commerce from accounting so if ecommerce DB crashes/slows, accounting system continues working.
-- **Architecture:** Separate connection pool (`ecomDb`) in `server/ecom-db.ts`. Uses `DATABASE_URL_ECOM` env var — falls back to main `DATABASE_URL` if not set.
-- **18 files updated:** All ecommerce table queries use `ecomDb` instead of `db`. Accounting queries (companies, taxInvoices, journalEntries, etc.) remain on `db`.
-- **Schema sync:** `db-schema-sync.ts` auto-syncs ecommerce tables to ecom DB on startup when `DATABASE_URL_ECOM` is set.
-- **Ecom tables list:** ecommerce_connections/orders/order_items/product_mappings/settlements/settlement_items/returns/return_items, sync_logs, oauth_states, facebook_chat_orders/pages, chat_orders/keywords, platform_chat_threads, stock_sync_logs, archive_ecommerce_orders, shop_stat_sync_logs, vat_product_dictionary, live_sessions/products/orders/comments, lucky_draw_*, ad_budgets/campaigns.
-- **Bridge pattern:** Routes that create tax invoices from orders read from `ecomDb`, write to `db`.
-- **Production setup:** พี่ช้าง sets `DATABASE_URL_ECOM` pointing to a separate PostgreSQL database for full crash isolation.
+### Database Separation for Crash Isolation (3-Pool Architecture)
+- **Purpose:** Isolate high-volume modules (E-Commerce, POS) from accounting so if they crash/slow, accounting continues working.
+- **3 connection pools:**
+  - `db` (main) — Accounting, HR, core tables. Always `DATABASE_URL`. File: `server/db.ts`.
+  - `ecomDb` — E-Commerce Hub. Uses `DATABASE_URL_ECOM` (falls back to `DATABASE_URL`). File: `server/ecom-db.ts`.
+  - `posDb` — POS & Restaurant. Uses `DATABASE_URL_POS` (falls back to `DATABASE_URL`). File: `server/pos-db.ts`.
+- **22+ files updated for ecom, 5 files for POS.** Accounting queries remain on `db`.
+- **Schema sync:** `db-schema-sync.ts` auto-syncs module tables to separate DBs on startup when env vars are set.
+- **Ecom tables:** ecommerce_connections/orders/order_items/product_mappings/settlements/returns, sync_logs, oauth_states, facebook_chat_orders/pages, chat_orders, platform_chat_threads, stock_sync_logs, vat_product_dictionary, live_sessions, lucky_draw_*, ad_budgets/campaigns.
+- **POS tables:** pos_sessions/transactions/transaction_items, restaurant_areas/tables/orders/order_items, menu_categories/items/modifiers, kitchen_tickets.
+- **Bridge pattern:** Cross-module operations (e.g. TIV from ecom order) read from module DB, write to accounting DB.
+- **Production setup:** พี่ช้าง sets `DATABASE_URL_ECOM` and/or `DATABASE_URL_POS` for full crash isolation.
 
 ### Database Server Landscape (5 machines)
 | # | Machine | OS | Remote DB | Role |

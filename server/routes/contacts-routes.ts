@@ -1,5 +1,6 @@
 import type { Express, Request, Response } from "express";
 import { db } from "../db";
+import { posDb } from "../pos-db";
 import { storage } from "../storage";
 import { eq, desc, and, asc, ilike, inArray, count , sql } from "drizzle-orm";
 import { contacts, insertContactSchema, tenants, companies, firmClients, accounts, salesOrders, quotations, invoices, taxInvoices, receipts, billingNotes, paymentVouchers, purchaseInvoices, expenses, withholdingTaxCerts, depositReceipts, salesCreditNotes, purchaseDebitNotes, purchaseDeposits, documentImportBatches, posTransactions, deliveryNotes, pipelineDeals, supplierQuotes, supplierPortalTokens, workStatusRows, workStatusCells } from "@shared/schema";
@@ -184,7 +185,7 @@ app.post("/api/contacts/bulk-delete", requireAuth, requireModule("contacts"), as
     if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ message: "กรุณาระบุรายการ" });
     const safeIds = ids.map(Number).filter(n => !isNaN(n) && n > 0);
     if (safeIds.length === 0) return res.status(400).json({ message: "ไม่มีรายการที่ถูกต้อง" });
-    await db.transaction(async (tx) => {
+    await posDb.transaction(async (tx) => {
       await tx.update(salesOrders).set({ customerId: null }).where(inArray(salesOrders.customerId, safeIds));
       await tx.update(quotations).set({ customerId: null }).where(inArray(quotations.customerId, safeIds));
       await tx.update(invoices).set({ customerId: null }).where(inArray(invoices.customerId, safeIds));
@@ -270,7 +271,7 @@ app.delete("/api/contacts/:id", requireAuth, requireModule("contacts"), async (r
     if (Number(so.c) > 0) linkedDocs.push(`ใบสั่งขาย ${so.c} รายการ`);
     const [bn] = await db.select({ c: sql<number>`count(*)` }).from(billingNotes).where(eq(billingNotes.customerId, id));
     if (Number(bn.c) > 0) linkedDocs.push(`ใบวางบิล ${bn.c} รายการ`);
-    const [pt] = await db.select({ c: sql<number>`count(*)` }).from(posTransactions).where(eq(posTransactions.customerId, id));
+    const [pt] = await posDb.select({ c: sql<number>`count(*)` }).from(posTransactions).where(eq(posTransactions.customerId, id));
     if (Number(pt.c) > 0) linkedDocs.push(`POS ${pt.c} รายการ`);
     const [fc] = await db.select({ c: sql<number>`count(*)` }).from(firmClients).where(eq(firmClients.contactId, id));
     if (Number(fc.c) > 0) linkedDocs.push(`ลูกค้าสำนักงาน ${fc.c} รายการ`);
@@ -339,7 +340,7 @@ app.post("/api/contacts/merge", requireAuth, requireModule("contacts"), async (r
     }
 
     let totalMoved = 0;
-    await db.transaction(async (tx) => {
+    await posDb.transaction(async (tx) => {
       for (const removeId of validRemoveIds) {
         const updates: Array<Promise<any>> = [
           tx.update(firmClients).set({ contactId: safeKeepId }).where(eq(firmClients.contactId, removeId)),

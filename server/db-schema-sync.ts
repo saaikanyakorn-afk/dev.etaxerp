@@ -2,6 +2,7 @@ import { getTableConfig, PgTable } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { db } from "./db";
 import { ecomDb, isEcomSeparateDb } from "./ecom-db";
+import { posDb, isPosSeparateDb } from "./pos-db";
 import * as schema from "@shared/schema";
 
 function getAllSchemaTableObjects(): PgTable[] {
@@ -334,6 +335,101 @@ async function syncEcomSchema(): Promise<void> {
   console.log(`[ecom-schema-sync] Complete (${elapsed}s) — ${created} tables, ${added} columns, ${errors} errors`);
 }
 
+const POS_TABLE_NAMES = new Set([
+  'pos_sessions', 'pos_transactions', 'pos_transaction_items',
+  'restaurant_areas', 'restaurant_tables', 'restaurant_orders', 'restaurant_order_items',
+  'menu_categories', 'menu_items', 'menu_modifier_groups', 'menu_modifier_options',
+  'menu_item_modifiers', 'kitchen_tickets',
+]);
+
+function getPosSchemaTableObjects(): PgTable[] {
+  const tables: PgTable[] = [];
+  for (const val of Object.values(schema)) {
+    try {
+      const config = getTableConfig(val as any);
+      if (config && config.name && POS_TABLE_NAMES.has(config.name)) {
+        tables.push(val as PgTable);
+      }
+    } catch {}
+  }
+  return tables;
+}
+
+async function syncPosSchema(): Promise<void> {
+  if (!isPosSeparateDb()) {
+    console.log("[pos-schema-sync] Same DB — skipping (tables already synced by main sync)");
+    return;
+  }
+
+  console.log("[pos-schema-sync] Separate DB detected — syncing POS tables...");
+  const t0 = Date.now();
+  let created = 0;
+  let added = 0;
+  let errors = 0;
+
+  try {
+    const existingResult = await posDb.execute(sql.raw(
+      `SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'`
+    ));
+    const existing = new Set((existingResult.rows as any[]).map(r => r.table_name));
+    const posTables = getPosSchemaTableObjects();
+
+    const missing = posTables.filter(t => !existing.has(getTableConfig(t).name));
+    if (missing.length > 0) {
+      const sorted = topologicalSort(missing);
+      for (const table of sorted) {
+        const config = getTableConfig(table);
+        try {
+          const ddl = generateCreateTableDDL(table);
+          await posDb.execute(sql.raw(ddl));
+          created++;
+          console.log(`[pos-schema-sync] ✓ Created table: ${config.name}`);
+        } catch (err: any) {
+          if (!err.message.includes('already exists')) {
+            errors++;
+            console.error(`[pos-schema-sync] ✗ Failed: ${config.name}: ${err.message}`);
+          }
+        }
+      }
+    }
+
+    for (const table of posTables) {
+      const config = getTableConfig(table);
+      if (!existing.has(config.name)) continue;
+      try {
+        const colResult = await posDb.execute(sql.raw(
+          `SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = '${config.name}'`
+        ));
+        const existingCols = new Set((colResult.rows as any[]).map(r => r.column_name));
+        for (const col of config.columns) {
+          if (!existingCols.has(col.name)) {
+            const sqlType = (col as any).getSQLType?.() || "text";
+            let alterSql = `ALTER TABLE "${config.name}" ADD COLUMN "${col.name}" ${sqlType}`;
+            if (col.hasDefault && col.default !== undefined) {
+              const def = col.default;
+              if (typeof def === "string") alterSql += ` DEFAULT '${def.replace(/'/g, "''")}'`;
+              else if (typeof def === "number" || typeof def === "boolean") alterSql += ` DEFAULT ${def}`;
+            } else if (col.hasDefault && col.defaultFn && col.columnType === "PgTimestamp") {
+              alterSql += ` DEFAULT NOW()`;
+            }
+            try {
+              await posDb.execute(sql.raw(alterSql));
+              added++;
+              console.log(`[pos-schema-sync] ✓ Added column: ${config.name}.${col.name}`);
+            } catch {}
+          }
+        }
+      } catch {}
+    }
+  } catch (err: any) {
+    console.error("[pos-schema-sync] Fatal error:", err.message);
+    errors++;
+  }
+
+  const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
+  console.log(`[pos-schema-sync] Complete (${elapsed}s) — ${created} tables, ${added} columns, ${errors} errors`);
+}
+
 export async function fullSchemaSync(): Promise<void> {
   console.log("[schema-sync] Starting full schema sync...");
   const t0 = Date.now();
@@ -352,4 +448,5 @@ export async function fullSchemaSync(): Promise<void> {
   }
 
   await syncEcomSchema();
+  await syncPosSchema();
 }
