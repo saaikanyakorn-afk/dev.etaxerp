@@ -1,0 +1,308 @@
+import Layout from "@/components/layout";
+import SettingsTabs from "@/components/settings-tabs";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { Banknote, Plus, Pencil, Trash2, Save, X, Star, Loader2, GripVertical } from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
+import { useToast } from "@/hooks/use-toast";
+import { useCompany } from "@/lib/company-context";
+import { useLanguage } from "@/hooks/use-language";
+
+interface PaymentMethodRow {
+  id?: number;
+  name: string;
+  nameTh: string;
+  accountCode: string;
+  accountId: number | null;
+  active: boolean;
+  isDefault: boolean;
+  sortOrder: number;
+  isEditing?: boolean;
+  isNew?: boolean;
+}
+
+export default function PaymentMethodSettings() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const { acctName } = useLanguage();
+  const { selectedCompanyId } = useCompany();
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editForm, setEditForm] = useState<PaymentMethodRow | null>(null);
+  const [addForm, setAddForm] = useState<PaymentMethodRow | null>(null);
+
+  const { data: methods = [], isLoading } = useQuery<any[]>({
+    queryKey: ["/api/payment-methods", selectedCompanyId],
+    queryFn: async () => {
+      const r = await fetch(`/api/payment-methods?companyId=${selectedCompanyId}`, { credentials: "include" });
+      if (!r.ok) throw new Error("Failed");
+      return r.json();
+    },
+    enabled: !!selectedCompanyId,
+  });
+
+  const { data: accountsList = [] } = useQuery<any[]>({
+    queryKey: ["/api/accounts", selectedCompanyId],
+    queryFn: async () => {
+      const r = await fetch(`/api/accounts?companyId=${selectedCompanyId}`, { credentials: "include" });
+      if (!r.ok) return [];
+      return r.json();
+    },
+    enabled: !!selectedCompanyId,
+  });
+
+  const cashBankAccounts = accountsList.filter((a: any) =>
+    a.code?.startsWith("1") && a.active !== false && (a.type === "asset" || a.type === "assets")
+  );
+
+  const saveMutation = useMutation({
+    mutationFn: async (data: any) => {
+      const url = data.id ? `/api/payment-methods/${data.id}` : "/api/payment-methods";
+      const method = data.id ? "PATCH" : "POST";
+      const r = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ ...data, companyId: selectedCompanyId }),
+      });
+      if (!r.ok) throw new Error((await r.json()).message);
+      return r.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/payment-methods"] });
+      setEditingId(null);
+      setEditForm(null);
+      setAddForm(null);
+      toast({ title: "บันทึกสำเร็จ", variant: "success" as any });
+    },
+    onError: (e: Error) => {
+      toast({ title: "เกิดข้อผิดพลาด", description: e.message, variant: "destructive" });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const r = await fetch(`/api/payment-methods/${id}`, { method: "DELETE", credentials: "include" });
+      if (!r.ok) throw new Error("Failed");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/payment-methods"] });
+      toast({ title: "ลบสำเร็จ", variant: "success" as any });
+    },
+  });
+
+  const startEdit = (m: any) => {
+    setEditingId(m.id);
+    setEditForm({
+      id: m.id,
+      name: m.name,
+      nameTh: m.nameTh || "",
+      accountCode: m.accountCode,
+      accountId: m.accountId,
+      active: m.active,
+      isDefault: m.isDefault || false,
+      sortOrder: m.sortOrder || 0,
+    });
+    setAddForm(null);
+  };
+
+  const startAdd = () => {
+    setAddForm({
+      name: "",
+      nameTh: "",
+      accountCode: "",
+      accountId: null,
+      active: true,
+      isDefault: false,
+      sortOrder: (methods.length + 1) * 10,
+    });
+    setEditingId(null);
+    setEditForm(null);
+  };
+
+  const handleAccountSelect = (code: string, isAdd: boolean) => {
+    const acc = cashBankAccounts.find((a: any) => a.code === code);
+    if (isAdd && addForm) {
+      setAddForm({ ...addForm, accountCode: code, accountId: acc?.id || null });
+    } else if (editForm) {
+      setEditForm({ ...editForm, accountCode: code, accountId: acc?.id || null });
+    }
+  };
+
+  return (
+    <Layout>
+      <SettingsTabs />
+      <div className="p-4 md:p-6 max-w-4xl mx-auto">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="w-10 h-10 rounded-xl bg-[#fb9678]/15 flex items-center justify-center">
+            <Banknote className="h-5 w-5 text-[#fb9678]" />
+          </div>
+          <div>
+            <h1 className="text-xl font-medium text-slate-800">ตั้งค่าวิธีการรับเงิน</h1>
+            <p className="text-sm text-slate-500">กำหนดวิธีการรับเงินและผูกบัญชี เพื่อให้ใบเสร็จลงบัญชีอัตโนมัติถูกต้อง</p>
+          </div>
+        </div>
+
+        <Card className="flexy-card">
+          <CardHeader className="flex flex-row items-center justify-between pb-3">
+            <CardTitle className="text-base font-medium">รายการวิธีการรับเงิน</CardTitle>
+            <Button data-testid="button-add-payment-method" size="sm" onClick={startAdd} className="bg-[#fb9678] hover:bg-[#fb9678]/90 text-white rounded-lg">
+              <Plus className="h-4 w-4 mr-1" /> เพิ่มวิธีรับเงิน
+            </Button>
+          </CardHeader>
+          <CardContent>
+            {isLoading ? (
+              <div className="flex items-center justify-center py-10">
+                <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b bg-slate-50">
+                      <th className="px-3 py-2 text-left font-medium text-slate-600 w-8">#</th>
+                      <th className="px-3 py-2 text-left font-medium text-slate-600">ชื่อ (EN)</th>
+                      <th className="px-3 py-2 text-left font-medium text-slate-600">ชื่อ (TH)</th>
+                      <th className="px-3 py-2 text-left font-medium text-slate-600">บัญชี</th>
+                      <th className="px-3 py-2 text-center font-medium text-slate-600 w-20">เริ่มต้น</th>
+                      <th className="px-3 py-2 text-center font-medium text-slate-600 w-20">เปิดใช้</th>
+                      <th className="px-3 py-2 text-center font-medium text-slate-600 w-24">จัดการ</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {addForm && (
+                      <tr className="border-b bg-green-50/50">
+                        <td className="px-3 py-2 text-slate-400">ใหม่</td>
+                        <td className="px-3 py-2">
+                          <Input data-testid="input-new-name" value={addForm.name} onChange={e => setAddForm({ ...addForm, name: e.target.value })} placeholder="Cash" className="h-8 text-sm" />
+                        </td>
+                        <td className="px-3 py-2">
+                          <Input data-testid="input-new-name-th" value={addForm.nameTh} onChange={e => setAddForm({ ...addForm, nameTh: e.target.value })} placeholder="เงินสด" className="h-8 text-sm" />
+                        </td>
+                        <td className="px-3 py-2">
+                          <Select value={addForm.accountCode} onValueChange={v => handleAccountSelect(v, true)}>
+                            <SelectTrigger data-testid="select-new-account" className="h-8 text-sm">
+                              <SelectValue placeholder="เลือกบัญชี" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {cashBankAccounts.map((a: any) => (
+                                <SelectItem key={a.id} value={a.code}>{a.code} - {acctName(a)}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </td>
+                        <td className="px-3 py-2 text-center">
+                          <Switch checked={addForm.isDefault} onCheckedChange={v => setAddForm({ ...addForm, isDefault: v })} />
+                        </td>
+                        <td className="px-3 py-2 text-center">
+                          <Switch checked={addForm.active} onCheckedChange={v => setAddForm({ ...addForm, active: v })} />
+                        </td>
+                        <td className="px-3 py-2 text-center">
+                          <div className="flex items-center justify-center gap-1">
+                            <Button data-testid="button-save-new" size="icon" variant="ghost" className="h-7 w-7 text-green-600 hover:text-green-700" onClick={() => saveMutation.mutate(addForm)} disabled={saveMutation.isPending}>
+                              <Save className="h-4 w-4" />
+                            </Button>
+                            <Button data-testid="button-cancel-new" size="icon" variant="ghost" className="h-7 w-7 text-slate-400 hover:text-slate-600" onClick={() => setAddForm(null)}>
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                    {methods.map((m: any, idx: number) => (
+                      <tr key={m.id} className={`border-b hover:bg-slate-50/50 ${editingId === m.id ? "bg-blue-50/50" : ""}`}>
+                        {editingId === m.id && editForm ? (
+                          <>
+                            <td className="px-3 py-2 text-slate-400">{idx + 1}</td>
+                            <td className="px-3 py-2">
+                              <Input data-testid={`input-edit-name-${m.id}`} value={editForm.name} onChange={e => setEditForm({ ...editForm, name: e.target.value })} className="h-8 text-sm" />
+                            </td>
+                            <td className="px-3 py-2">
+                              <Input data-testid={`input-edit-name-th-${m.id}`} value={editForm.nameTh} onChange={e => setEditForm({ ...editForm, nameTh: e.target.value })} className="h-8 text-sm" />
+                            </td>
+                            <td className="px-3 py-2">
+                              <Select value={editForm.accountCode} onValueChange={v => handleAccountSelect(v, false)}>
+                                <SelectTrigger data-testid={`select-edit-account-${m.id}`} className="h-8 text-sm">
+                                  <SelectValue placeholder="เลือกบัญชี" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {cashBankAccounts.map((a: any) => (
+                                    <SelectItem key={a.id} value={a.code}>{a.code} - {acctName(a)}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </td>
+                            <td className="px-3 py-2 text-center">
+                              <Switch checked={editForm.isDefault} onCheckedChange={v => setEditForm({ ...editForm, isDefault: v })} />
+                            </td>
+                            <td className="px-3 py-2 text-center">
+                              <Switch checked={editForm.active} onCheckedChange={v => setEditForm({ ...editForm, active: v })} />
+                            </td>
+                            <td className="px-3 py-2 text-center">
+                              <div className="flex items-center justify-center gap-1">
+                                <Button data-testid={`button-save-${m.id}`} size="icon" variant="ghost" className="h-7 w-7 text-green-600 hover:text-green-700" onClick={() => saveMutation.mutate(editForm)} disabled={saveMutation.isPending}>
+                                  <Save className="h-4 w-4" />
+                                </Button>
+                                <Button data-testid={`button-cancel-${m.id}`} size="icon" variant="ghost" className="h-7 w-7 text-slate-400 hover:text-slate-600" onClick={() => { setEditingId(null); setEditForm(null); }}>
+                                  <X className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </td>
+                          </>
+                        ) : (
+                          <>
+                            <td className="px-3 py-2 text-slate-400">{idx + 1}</td>
+                            <td className="px-3 py-2 font-medium text-slate-700">{m.name}</td>
+                            <td className="px-3 py-2 text-slate-600">{m.nameTh || "-"}</td>
+                            <td className="px-3 py-2">
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 text-xs font-mono">
+                                {m.accountCode}
+                                {(() => {
+                                  const acc = cashBankAccounts.find((a: any) => a.code === m.accountCode);
+                                  return acc ? ` - ${acctName(acc)}` : "";
+                                })()}
+                              </span>
+                            </td>
+                            <td className="px-3 py-2 text-center">
+                              {m.isDefault && <Star className="h-4 w-4 text-yellow-500 mx-auto fill-yellow-500" />}
+                            </td>
+                            <td className="px-3 py-2 text-center">
+                              <span className={`inline-block w-2 h-2 rounded-full ${m.active ? "bg-green-500" : "bg-slate-300"}`} />
+                            </td>
+                            <td className="px-3 py-2 text-center">
+                              <div className="flex items-center justify-center gap-1">
+                                <Button data-testid={`button-edit-${m.id}`} size="icon" variant="ghost" className="h-7 w-7 text-slate-500 hover:text-blue-600" onClick={() => startEdit(m)}>
+                                  <Pencil className="h-3.5 w-3.5" />
+                                </Button>
+                                <Button data-testid={`button-delete-${m.id}`} size="icon" variant="ghost" className="h-7 w-7 text-slate-400 hover:text-red-500" onClick={() => {
+                                  if (confirm("ต้องการลบวิธีการรับเงินนี้?")) deleteMutation.mutate(m.id);
+                                }}>
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </Button>
+                              </div>
+                            </td>
+                          </>
+                        )}
+                      </tr>
+                    ))}
+                    {methods.length === 0 && !addForm && (
+                      <tr><td colSpan={7} className="text-center py-8 text-slate-400">ยังไม่มีวิธีการรับเงิน</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            <div className="mt-4 p-3 bg-amber-50 rounded-lg border border-amber-100">
+              <p className="text-xs text-amber-700">
+                <strong>หมายเหตุ:</strong> วิธีการรับเงินที่ตั้งค่าไว้จะแสดงในฟอร์มใบเสร็จรับเงิน เมื่อเลือกวิธีรับเงิน ระบบจะลงบัญชีด้านเดบิตตามบัญชีที่ผูกไว้โดยอัตโนมัติ
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </Layout>
+  );
+}

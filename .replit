@@ -1,0 +1,71 @@
+modules = ["nodejs-20", "web", "postgresql-16"]
+run = "npm run dev"
+hidden = [".config", ".git", "generated-icon.png", "node_modules", "dist"]
+
+[nix]
+channel = "stable-24_05"
+packages = ["zip", "imagemagick", "chromium", "util-linux", "ghostscript"]
+
+[env]
+PORT = "5000"
+
+[deployment]
+deploymentTarget = "autoscale"
+build = ["npm", "run", "build"]
+publicDir = "dist/public"
+run = ["npm", "run", "start"]
+
+[workflows]
+runButton = "Project"
+
+[[workflows.workflow]]
+name = "Project"
+mode = "parallel"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Start application"
+
+[[workflows.workflow]]
+name = "Start application"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npm run dev"
+waitForPort = 5000
+
+[agent]
+stack = "MOCKUP_JS"
+mockupState = "FULLSTACK"
+integrations = ["javascript_object_storage:2.0.0", "javascript_openai_ai_integrations:2.0.0", "javascript_gemini_ai_integrations:2.0.0"]
+
+[userenv]
+
+[userenv.shared]
+NODE_OPTIONS = "--max-old-space-size=4096"
+DATABASE_URL_TEST = "postgresql://etaxusr:nJKsyhE4583Hz@deep-main.hopto.org:5432/etax_center_test"
+VITE_RECAPTCHA_SITE_KEY = "6Lf9rI4sAAAAAFXzChYyznnqeZ6fyzI5qGuyPyB4"
+SYNC_API_KEY = "46ae5b4efcdcd130de848dfc137b49fdebba0a197e032f6d937a5fe60304719d"
+PRODUCTION_APP_URL = "https://etaxcenter.replit.app"
+
+[userenv.development]
+
+[userenv.production]
+DB_PROD_URL = "postgresql://etaxusr:nJKsyhE4583Hz@deep-main.hopto.org:5432/etax-production"
+
+[[ports]]
+localPort = 5000
+externalPort = 80
+
+[[ports]]
+localPort = 5904
+externalPort = 3000
+
+[postMerge]
+path = "scripts/post-merge.sh"
+timeoutMs = 120000
+
+[objectStorage]
+defaultBucketID = "replit-objstore-625977c4-498a-4b31-866a-10ed5449248f"

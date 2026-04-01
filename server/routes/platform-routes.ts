@@ -1,0 +1,1700 @@
+import type { Express, Request, Response } from "express";
+import { db, pool, activeDbInfo } from "../db";
+import { storage } from "../storage";
+import { eq, desc, and, notInArray, count , sql } from "drizzle-orm";
+import { users, tenants, companies, cloneHistory, ecommerceOrders, ecommerceOrderItems, invoices, products } from "@shared/schema";
+import { requireAuth, requireAdmin, requireSuperAdmin } from "../route-middleware";
+import crypto from "crypto";
+import path from "path";
+import fs from "fs";
+import os from "os";
+import { getConfig } from "../config-bootstrap";
+import { hashPassword } from "../auth";
+import { platformCloneProgress, setPlatformCloneProgress, cloneLockState, cloneScreenUserId, cloneScreenLastHeartbeat, setCloneScreen, setCloneScreenHeartbeat, acquireCloneLock, releaseCloneLock } from "../clone-state";
+import { isMaintenanceMode, getMaintenanceStatus, activateNow, liftMaintenance, setCloneInProgress, isCloneInProgress, getCloneSessionUserId, freezeTimer, unfreezeTimer, destroyScheduleAfterClone, hasCompletedMaintenanceToday, getScheduleHistory, initMaintenanceOnStartup, getActiveSchedule, getPendingSchedule, createSchedule, rescheduleSchedule, cancelSchedule, setOnEnableCallback } from "../maintenance";
+
+export function registerPlatformRoutes(app: Express) {
+// ========== Platform (Super Admin) Routes ==========
+
+app.get("/api/platform/stats", requireAuth, requireSuperAdmin, async (_req, res) => {
+  const stats = await storage.getTenantStats();
+  res.json(stats);
+});
+
+app.delete("/api/platform/orphan-users/:id", requireAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const userId = Number(req.params.id);
+    const currentUser = req.user as any;
+    if (userId === currentUser.id) {
+      return res.status(400).json({ message: "ไม่สามารถลบตัวเองได้" });
+    }
+    const [target] = await db.select().from(users).where(eq(users.id, userId));
+    if (!target) {
+      return res.status(404).json({ message: "ไม่พบผู้ใช้" });
+    }
+    if (target.role === "super_admin") {
+      return res.status(400).json({ message: "ไม่สามารถลบ Super Admin ได้" });
+    }
+    const stats = await storage.getTenantStats();
+    const isOrphan = stats.orphanUsers?.some((u: any) => u.id === userId);
+    if (!isOrphan) {
+      return res.status(400).json({ message: "ผู้ใช้นี้มี Tenant อยู่แล้ว ไม่ใช่ orphan" });
+    }
+    await db.delete(users).where(eq(users.id, userId));
+    res.json({ message: `ลบผู้ใช้ "${target.username}" สำเร็จ` });
+  } catch (err: any) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+app.get("/api/platform/tenants", requireAuth, requireSuperAdmin, async (_req, res) => {
+  const stats = await storage.getTenantStats();
+  res.json(stats.tenants);
+});
+
+app.post("/api/platform/tenants", requireAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const { hashPassword } = await import("./auth");
+    const { name, tenantType, contactName, contactEmail, contactPhone, adminUsername, adminPassword, notes } = req.body;
+
+    if (!name || !tenantType || !adminUsername || !adminPassword) {
+      return res.status(400).json({ message: "กรุณากรอกข้อมูลให้ครบ" });
+    }
+
+    const existingUser = await storage.getUserByUsername(adminUsername);
+    if (existingUser) {
+      return res.status(400).json({ message: "ชื่อผู้ใช้ซ้ำ กรุณาใช้ชื่ออื่น" });
+    }
+
+    const hashedPw = await hashPassword(adminPassword);
+
+    const result = await db.transaction(async (tx) => {
+      const [tenant] = await tx.insert(tenants).values({
+        name,
+        tenantType,
+        status: "active",
+        contactName: contactName || null,
+        contactEmail: contactEmail || null,
+        contactPhone: contactPhone || null,
+        notes: notes || null,
+      }).returning();
+
+      const [company] = await tx.insert(companies).values({
+        name,
+        industry: null,
+        taxId: null,
+        active: true,
+        isPrimary: true,
+        tenantType,
+        tenantId: tenant.id,
+      }).returning();
+
+      const [adminUser] = await tx.insert(users).values({
+        username: adminUsername,
+        password: hashedPw,
+        fullName: contactName || "ผู้ดูแลระบบ",
+        role: "admin",
+        email: contactEmail || null,
+        active: true,
+        tenantId: tenant.id,
+      }).returning();
+
+      return { tenant, company, adminUser };
+    });
+
+    res.json({
+      message: "สร้าง Tenant สำเร็จ",
+      tenant: result.tenant,
+      company: { id: result.company.id, name: result.company.name },
+      admin: { id: result.adminUser.id, username: adminUsername },
+    });
+  } catch (err: any) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+app.patch("/api/platform/tenants/:id", requireAuth, requireSuperAdmin, async (req, res) => {
+  const id = Number(req.params.id);
+  const { status, name, contactName, contactEmail, contactPhone, notes } = req.body;
+  const updated = await storage.updateTenant(id, { 
+    ...(status && { status }),
+    ...(name && { name }),
+    ...(contactName !== undefined && { contactName }),
+    ...(contactEmail !== undefined && { contactEmail }),
+    ...(contactPhone !== undefined && { contactPhone }),
+    ...(notes !== undefined && { notes }),
+  });
+  if (!updated) return res.status(404).json({ message: "ไม่พบ Tenant" });
+  res.json(updated);
+});
+
+app.get("/api/platform/tenants/:tenantId/users", requireAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const tenantId = Number(req.params.tenantId);
+    const tenantUsers = await db.select({
+      id: users.id,
+      username: users.username,
+      fullName: users.fullName,
+      role: users.role,
+      email: users.email,
+    }).from(users).where(eq(users.tenantId, tenantId));
+    res.json(tenantUsers);
+  } catch (err: any) { res.status(500).json({ message: err.message }); }
+});
+
+// ========== Download Source Code ==========
+
+app.get("/api/platform/download-source", requireAuth, requireSuperAdmin, async (_req, res) => {
+  try {
+    const archiver = (await import("archiver")).default;
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+    const projectDir = process.cwd();
+
+    res.setHeader("Content-Type", "application/zip");
+    res.setHeader("Content-Disposition", `attachment; filename="etax-source-${timestamp}.zip"`);
+
+    const archive = archiver("zip", { zlib: { level: 6 } });
+    archive.pipe(res);
+
+    const excludeDirs = ["node_modules", ".git", ".cache", ".config", ".local", ".replit.dev", "attached_assets", ".upm", "dist", ".vite"];
+    archive.glob("**/*", {
+      cwd: projectDir,
+      ignore: [...excludeDirs.map(d => `${d}/**`), "*.zip"],
+      dot: true,
+    });
+
+    await archive.finalize();
+  } catch (err: any) {
+    if (!res.headersSent) {
+      res.status(500).json({ message: `ดาวน์โหลด Source Code ไม่สำเร็จ: ${err.message}` });
+    }
+  }
+});
+
+// ========== Database Backup & Clone ==========
+
+app.get("/api/platform/clone-progress", requireAuth, requireAdmin, (_req, res) => {
+  res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+  res.json(platformCloneProgress);
+});
+
+app.get("/api/platform/clone-history", requireAuth, requireAdmin, async (_req, res) => {
+  try {
+    const rows = await db.select().from(cloneHistory).orderBy(desc(cloneHistory.startedAt)).limit(200);
+    const sessionMap = new Map<string, any>();
+    for (const r of rows) {
+      if (!sessionMap.has(r.sessionId)) {
+        sessionMap.set(r.sessionId, {
+          sessionId: r.sessionId,
+          cloneType: r.cloneType,
+          direction: r.direction || "us_to_th",
+          startedAt: r.startedAt,
+          completedAt: r.completedAt,
+          status: r.status,
+          createdBy: r.createdBy,
+          tables: [],
+        });
+      }
+      const session = sessionMap.get(r.sessionId)!;
+      session.tables.push({
+        tableName: r.tableName,
+        rowCount: r.rowCount,
+        hostDurationMs: r.hostDurationMs,
+        remoteDurationMs: r.remoteDurationMs,
+        status: r.status,
+        errorMessage: r.errorMessage,
+        startedAt: r.startedAt,
+        completedAt: r.completedAt,
+      });
+      if (r.completedAt && (!session.completedAt || r.completedAt > session.completedAt)) {
+        session.completedAt = r.completedAt;
+      }
+      if (r.status === "error") session.status = "error";
+    }
+    res.json(Array.from(sessionMap.values()).slice(0, 20));
+  } catch (err: any) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+app.post("/api/platform/clone-reset", requireAuth, requireAdmin, (_req, res) => {
+  setPlatformCloneProgress({ status: "idle", percent: 0 });
+  res.json({ success: true });
+});
+
+app.get("/api/platform/clone-last-failed", requireAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const lastSession = await db.select()
+      .from(cloneHistory)
+      .orderBy(desc(cloneHistory.completedAt))
+      .limit(1);
+
+    if (!lastSession.length) return res.json({ hasFailedTable: false });
+
+    const sessionId = lastSession[0].sessionId;
+    const sessionRows = await db.select()
+      .from(cloneHistory)
+      .where(eq(cloneHistory.sessionId, sessionId));
+
+    const failedTables = sessionRows.filter(r => r.status === "error");
+
+    if (failedTables.length) {
+      const lastFailed = failedTables[failedTables.length - 1];
+      return res.json({
+        hasFailedTable: true,
+        sessionId,
+        tableName: lastFailed.tableName,
+        errorMessage: lastFailed.errorMessage,
+        failedAt: lastFailed.completedAt,
+        totalFailed: failedTables.length,
+        totalTables: sessionRows.length,
+      });
+    }
+
+    const checkMissing = req.query.checkMissing === "true";
+    const targetKey = (req.query.targetDb as string) || "";
+    if (checkMissing && targetKey) {
+      const targetUrlMap: Record<string, string | undefined> = {
+        dev: getConfig("DB_MAIN_URL"),
+        pdt: getConfig("DB_PROD_URL"),
+        test: getConfig("DB_TEST_URL", "DATABASE_URL_TEST"),
+      };
+      const sourceUrl = process.env.DATABASE_URL;
+      const targetUrl = targetUrlMap[targetKey];
+      if (sourceUrl && targetUrl) {
+        const pg2 = (await import("pg")).default;
+        const sourcePool = new pg2.Pool({ connectionString: sourceUrl, max: 2, idleTimeoutMillis: 5000, connectionTimeoutMillis: 15000 });
+        const targetPool = new pg2.Pool({ connectionString: targetUrl, max: 2, idleTimeoutMillis: 5000, connectionTimeoutMillis: 15000 });
+        try {
+          const [srcRes, tgtRes] = await Promise.all([
+            sourcePool.query("SELECT table_name FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE'"),
+            targetPool.query("SELECT table_name FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE'"),
+          ]);
+          const srcTables = new Set(srcRes.rows.map((r: any) => r.table_name));
+          const tgtTables = new Set(tgtRes.rows.map((r: any) => r.table_name));
+          const skipTables = new Set(["system_config", "session"]);
+          const missingTables = [...srcTables].filter(t => !tgtTables.has(t) && !skipTables.has(t)).sort();
+          if (missingTables.length > 0) {
+            return res.json({
+              hasFailedTable: true,
+              hasMissingTables: true,
+              sessionId,
+              tableName: missingTables[0],
+              missingTables,
+              errorMessage: `การ Clone ครั้งก่อนถูกขัดจังหวะ — มี ${missingTables.length} ตารางที่ยังไม่ได้ Clone`,
+              failedAt: lastSession[0].completedAt,
+              totalFailed: missingTables.length,
+              totalTables: sessionRows.length + missingTables.length,
+            });
+          }
+        } catch (connErr: any) {
+          console.log(`[clone-last-failed] Missing table check failed (non-fatal): ${connErr.message?.slice(0, 120)}`);
+        } finally {
+          await sourcePool.end().catch(() => {});
+          await targetPool.end().catch(() => {});
+        }
+      }
+    }
+
+    return res.json({ hasFailedTable: false });
+  } catch (err: any) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+app.get("/api/platform/clone-incomplete-alert", requireAuth, requireSuperAdmin, async (_req, res) => {
+  try {
+    const { isMaintenanceMode } = await import("./maintenance");
+
+    const lastSession = await db.select()
+      .from(cloneHistory)
+      .orderBy(desc(cloneHistory.completedAt))
+      .limit(1);
+
+    if (!lastSession.length) return res.json({ hasIncomplete: false });
+
+    const sessionId = lastSession[0].sessionId;
+    const sessionRows = await db.select()
+      .from(cloneHistory)
+      .where(eq(cloneHistory.sessionId, sessionId));
+
+    const failedTables = sessionRows.filter(r => r.status === "error");
+    const allSuccess = sessionRows.every(r => r.status === "success" || r.status === "dropped" || r.status === "dismissed");
+
+    if (allSuccess && failedTables.length === 0) {
+      return res.json({ hasIncomplete: false });
+    }
+
+    const maintenanceLocked = isMaintenanceMode();
+    const currentTarget = (await import("./db")).activeDbInfo.target;
+
+    const cloneDirection = lastSession[0].direction || "us_to_th";
+    const cloneTarget = cloneDirection === "us_to_th" ? "thailand" : "usa";
+    const halfBakedOnActiveDb = cloneTarget === currentTarget;
+
+    const missingTableNames = failedTables.map(r => r.tableName);
+    const lastError = failedTables[failedTables.length - 1];
+
+    return res.json({
+      hasIncomplete: true,
+      sessionId,
+      halfBakedOnActiveDb,
+      maintenanceLocked,
+      currentTarget,
+      cloneTarget,
+      cloneDirection,
+      failedTables: missingTableNames,
+      totalFailed: failedTables.length,
+      totalTables: sessionRows.length,
+      lastError: lastError ? {
+        tableName: lastError.tableName,
+        errorMessage: lastError.errorMessage,
+        failedAt: lastError.completedAt,
+      } : null,
+      completedAt: lastSession[0].completedAt,
+    });
+  } catch (err: any) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+app.post("/api/platform/clone-switch-back", requireAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const { emergencySwitchToSource } = await import("./db");
+    const { liftMaintenance, setCloneInProgress, cancelHalfBakedTimeout } = await import("./maintenance");
+
+    cancelHalfBakedTimeout();
+
+    const result = await emergencySwitchToSource();
+    if (!result.success) {
+      return res.status(500).json({ message: `ไม่สามารถสลับฐานข้อมูลได้: ${result.error}` });
+    }
+
+    await setCloneInProgress(0, false);
+    await liftMaintenance((req.user as any)?.fullName || "Platform User" + " (switch back after half-baked clone)");
+    setCloneScreen(null);
+    releaseCloneLock();
+    setPlatformCloneProgress({ status: "idle", percent: 0, step: "" });
+
+    console.log(`[Clone Switch-Back] Platform user switched DB back to source (USA) after half-baked clone`);
+    res.json({ success: true, message: "สลับฐานข้อมูลกลับไปต้นทางเรียบร้อย ระบบเปิดใช้งานปกติแล้ว" });
+  } catch (err: any) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+app.post("/api/platform/clone-dismiss-incomplete", requireAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const { isMaintenanceMode } = await import("./maintenance");
+    const currentTarget = (await import("./db")).activeDbInfo.target;
+
+    const lastSession = await db.select()
+      .from(cloneHistory)
+      .orderBy(desc(cloneHistory.completedAt))
+      .limit(1);
+
+    if (lastSession.length) {
+      const sessionId = lastSession[0].sessionId;
+      const cloneDirection = lastSession[0].direction || "us_to_th";
+      const cloneTarget = cloneDirection === "us_to_th" ? "thailand" : "usa";
+
+      if (cloneTarget === currentTarget && isMaintenanceMode()) {
+        return res.status(400).json({
+          message: "ไม่สามารถปิดแจ้งเตือนได้ — Clone ไม่สมบูรณ์บนฐานข้อมูลที่ใช้งานอยู่ ต้องสลับ DB กลับก่อน"
+        });
+      }
+
+      const { cancelHalfBakedTimeout } = await import("./maintenance");
+      cancelHalfBakedTimeout();
+
+      await db.update(cloneHistory)
+        .set({ status: "dismissed" })
+        .where(and(
+          eq(cloneHistory.sessionId, sessionId),
+          eq(cloneHistory.status, "error"),
+        ));
+    }
+
+    console.log(`[Clone Dismiss] Platform user dismissed incomplete clone alert`);
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+app.post("/api/platform/clone-dismiss-failed", requireAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const { sessionId, tableName } = req.body || {};
+    if (!sessionId) return res.status(400).json({ message: "ต้องระบุ sessionId" });
+
+    if (tableName) {
+      await db.update(cloneHistory)
+        .set({ status: "dismissed" })
+        .where(and(
+          eq(cloneHistory.sessionId, sessionId),
+          eq(cloneHistory.tableName, tableName),
+          eq(cloneHistory.status, "error"),
+        ));
+      console.log(`[Clone] Dismissed failed table: ${tableName} in session ${sessionId}`);
+    } else {
+      await db.update(cloneHistory)
+        .set({ status: "dismissed" })
+        .where(and(
+          eq(cloneHistory.sessionId, sessionId),
+          eq(cloneHistory.status, "error"),
+        ));
+      console.log(`[Clone] Dismissed all failed tables in session ${sessionId}`);
+    }
+
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+app.get("/api/platform/clone-space-check", requireAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const tables = (req.query.tables as string || "").split(",").filter(Boolean);
+    if (!tables.length) return res.json({ ok: true, message: "ไม่มีตารางที่เลือก" });
+
+    const sourceUrl = process.env.DATABASE_URL;
+    const targetKey = (req.query.targetDb as string) || "test";
+    const targetUrlMap: Record<string, string | undefined> = {
+      dev: getConfig("DB_MAIN_URL"),
+      pdt: getConfig("DB_PROD_URL"),
+      test: getConfig("DB_TEST_URL", "DATABASE_URL_TEST"),
+    };
+    const targetUrl = targetUrlMap[targetKey];
+    if (!sourceUrl || !targetUrl) return res.status(400).json({ ok: false, message: `Database URL not configured (source or target '${targetKey}')` });
+
+    const pg2 = (await import("pg")).default;
+
+    const sourcePool = new pg2.Pool({ connectionString: sourceUrl, max: 2, idleTimeoutMillis: 5000 });
+    let largestTableBytes = 0;
+    let totalSelectedBytes = 0;
+    let largestTableName = "";
+    try {
+      for (const t of tables) {
+        try {
+          const r = await sourcePool.query(`SELECT pg_total_relation_size(quote_ident($1)) AS size_bytes`, [t]);
+          const bytes = parseInt(r.rows[0]?.size_bytes) || 0;
+          totalSelectedBytes += bytes;
+          if (bytes > largestTableBytes) {
+            largestTableBytes = bytes;
+            largestTableName = t;
+          }
+        } catch {}
+      }
+    } finally { await sourcePool.end(); }
+
+    const formatGB = (bytes: number) => (bytes / (1024 * 1024 * 1024)).toFixed(2);
+    const formatMB = (bytes: number) => (bytes / (1024 * 1024)).toFixed(1);
+
+    const makeEmptyResult = (ok: boolean, msg: string) => ({
+      ok,
+      source: {
+        totalSelectedBytes, totalSelectedMB: formatMB(totalSelectedBytes), totalSelectedGB: formatGB(totalSelectedBytes),
+        largestTableName, largestTableBytes, largestTableMB: formatMB(largestTableBytes), largestTableGB: formatGB(largestTableBytes),
+        tableCount: tables.length,
+      },
+      target: { dbSizeBytes: 0, dbSizeGB: "0.00", freeBytes: 0, freeGB: "0.00", hasDiskInfo: false, diskCheckMethod: "none" },
+      swap: { requiredBytes: 0, requiredMB: "0.0", requiredGB: "0.00", explanation: "" },
+      message: msg,
+    });
+
+    let targetDbSizeBytes = 0;
+    let targetFreeBytes = 0;
+    let hasDiskInfo = false;
+    let diskCheckMethod = "pg_database_size";
+    let targetOS = "unknown";
+    const targetPool = new pg2.Pool({ connectionString: targetUrl, max: 2, idleTimeoutMillis: 10000, connectionTimeoutMillis: 30000 });
+    try {
+      const dbSizeRes = await targetPool.query(`SELECT pg_database_size(current_database()) AS db_size`);
+      targetDbSizeBytes = parseInt(dbSizeRes.rows[0]?.db_size) || 0;
+
+      const versionRes = await targetPool.query(`SELECT version() AS ver`);
+      const verStr = (versionRes.rows[0]?.ver || "").toLowerCase();
+      const isWindows = verStr.includes("windows") || verStr.includes("visual c++") || verStr.includes("mingw");
+      const isLinux = !isWindows && (verStr.includes("linux") || verStr.includes("debian") || verStr.includes("ubuntu"));
+      targetOS = isWindows ? "windows" : isLinux ? "linux" : "unknown";
+      console.log(`[clone-space-check] Target OS detected: ${targetOS} (${verStr.slice(0, 80)})`);
+
+      const dataDir = (await targetPool.query(`SELECT setting FROM pg_settings WHERE name = 'data_directory'`)).rows[0]?.setting || "";
+      console.log(`[clone-space-check] Target data_directory: ${dataDir}`);
+
+      try {
+        const tmpTable = `_disk_check_${Date.now()}`;
+        await targetPool.query(`CREATE TEMP TABLE "${tmpTable}" (raw text)`);
+
+        if (isWindows) {
+          const driveLetter = dataDir.charAt(0).toUpperCase();
+          const cmd = `powershell -NoProfile -Command "(Get-PSDrive ${driveLetter}).Free"`;
+          console.log(`[clone-space-check] Running Windows disk check: ${cmd}`);
+          await targetPool.query(`COPY "${tmpTable}" FROM PROGRAM '${cmd.replace(/'/g, "''")}'`);
+        } else {
+          const mountPoint = dataDir || "/";
+          const cmd = `df -B1 "${mountPoint}" | tail -1 | awk '{print $4}'`;
+          console.log(`[clone-space-check] Running Linux disk check: ${cmd}`);
+          await targetPool.query(`COPY "${tmpTable}" FROM PROGRAM '${cmd.replace(/'/g, "''")}'`);
+        }
+
+        const diskRes = await targetPool.query(`SELECT raw FROM "${tmpTable}" LIMIT 5`);
+        for (const row of diskRes.rows) {
+          const val = parseInt((row.raw || "").trim());
+          if (val > 0) {
+            targetFreeBytes = val;
+            hasDiskInfo = true;
+            diskCheckMethod = isWindows ? "powershell" : "df";
+            break;
+          }
+        }
+        await targetPool.query(`DROP TABLE IF EXISTS "${tmpTable}"`);
+        console.log(`[clone-space-check] Disk free: ${formatGB(targetFreeBytes)} GB (${targetFreeBytes} bytes) via ${diskCheckMethod}`);
+      } catch (diskErr: any) {
+        console.log(`[clone-space-check] COPY TO PROGRAM disk check failed (non-fatal): ${diskErr.message?.slice(0, 120)}`);
+      }
+    } catch (e: any) {
+      await targetPool.end().catch(() => {});
+      return res.json(makeEmptyResult(false, `ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ปลายทาง: ${(e.message || "").slice(0, 100)}`));
+    } finally { await targetPool.end().catch(() => {}); }
+
+    const requiredBytes = largestTableBytes * 1.5;
+    const isSpaceOk = !hasDiskInfo || targetFreeBytes > requiredBytes;
+
+    const freeLabel = hasDiskInfo
+      ? (parseFloat(formatGB(targetFreeBytes)) > 1 ? formatGB(targetFreeBytes) + " GB" : formatMB(targetFreeBytes) + " MB")
+      : "ไม่ทราบ";
+    const requiredLabel = parseFloat(formatGB(requiredBytes)) > 1 ? formatGB(requiredBytes) + " GB" : formatMB(requiredBytes) + " MB";
+
+    let message: string;
+    if (!hasDiskInfo) {
+      message = `เชื่อมต่อปลายทางสำเร็จ (${targetOS}) — ไม่สามารถตรวจสอบพื้นที่ว่างได้ — DB: ${formatGB(targetDbSizeBytes)} GB, ตารางใหญ่สุด: ${largestTableName}`;
+    } else if (isSpaceOk) {
+      message = `พื้นที่ว่างเพียงพอ — ว่าง ${freeLabel}, ต้องการ ${requiredLabel} (${targetOS})`;
+    } else {
+      message = `พื้นที่ว่างไม่เพียงพอ — ว่าง ${freeLabel}, ต้องการ ${requiredLabel} (${targetOS})`;
+    }
+
+    res.json({
+      ok: isSpaceOk,
+      source: {
+        totalSelectedBytes, totalSelectedMB: formatMB(totalSelectedBytes), totalSelectedGB: formatGB(totalSelectedBytes),
+        largestTableName, largestTableBytes, largestTableMB: formatMB(largestTableBytes), largestTableGB: formatGB(largestTableBytes),
+        tableCount: tables.length,
+      },
+      target: {
+        dbSizeBytes: targetDbSizeBytes, dbSizeGB: formatGB(targetDbSizeBytes),
+        freeBytes: targetFreeBytes, freeGB: formatGB(targetFreeBytes),
+        hasDiskInfo, diskCheckMethod, targetOS,
+      },
+      swap: {
+        requiredBytes: Math.round(requiredBytes), requiredMB: formatMB(requiredBytes), requiredGB: formatGB(requiredBytes),
+        explanation: `Swap strategy ต้องการพื้นที่เพิ่มชั่วคราว = ตารางที่ใหญ่ที่สุด (${largestTableName}: ${formatMB(largestTableBytes)} MB) × 1.5`,
+      },
+      message,
+    });
+  } catch (err: any) {
+    res.status(500).json({ ok: false, message: err.message });
+  }
+});
+
+app.get("/api/platform/clone-tables", requireAuth, requireAdmin, async (_req, res) => {
+  try {
+    const sourceUrl = process.env.DATABASE_URL;
+    if (!sourceUrl) return res.status(400).json({ message: "DATABASE_URL not set" });
+
+    const { STATIC_TABLES, TRANSACTION_TABLES, getTableRowCounts, getUnregisteredTablesAsync } = await import("./clone-tables");
+    const unregistered = await getUnregisteredTablesAsync();
+    const allNames = [
+      ...STATIC_TABLES.map(t => t.pgName),
+      ...TRANSACTION_TABLES.map(t => t.pgName),
+      ...unregistered.map(t => t.tableName),
+    ];
+    const counts = await getTableRowCounts(allNames, sourceUrl);
+
+    const staticList = STATIC_TABLES.map(t => ({
+      pgName: t.pgName, displayName: t.displayName, rowCount: counts.get(t.pgName) ?? -1,
+    }));
+    const transactionList = TRANSACTION_TABLES.map(t => ({
+      pgName: t.pgName, displayName: t.displayName, rowCount: counts.get(t.pgName) ?? -1,
+    }));
+    const unregisteredList = unregistered.map(t => ({
+      pgName: t.tableName, displayName: t.tableName, rowCount: counts.get(t.tableName) ?? -1,
+    }));
+
+    res.json({ static: staticList, transaction: transactionList, unregistered: unregisteredList });
+  } catch (err: any) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+app.get("/api/platform/clone-estimate", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const tables = (req.query.tables as string || "").split(",").filter(Boolean);
+    if (!tables.length) return res.json({ estimates: [], totalMs: 0, hasEnoughData: false });
+
+    const cloneType = (req.query.cloneType as string) || null;
+    const recentSessions = await db.execute(sql`
+      SELECT session_id,
+             count(*)::int AS table_count,
+             EXTRACT(EPOCH FROM (max(completed_at) - min(started_at)))::int * 1000 AS wall_clock_ms
+      FROM clone_history
+      WHERE status = 'success'
+        AND completed_at IS NOT NULL
+        AND started_at IS NOT NULL
+        AND (${cloneType}::text IS NULL OR clone_type = ${cloneType})
+      GROUP BY session_id
+      HAVING count(*) >= ${Math.floor(tables.length * 0.8)}
+      ORDER BY max(completed_at) DESC
+      LIMIT 3
+    `);
+
+    const sessionRows = (recentSessions as any).rows || recentSessions;
+    if (sessionRows.length >= 1) {
+      const avgWallClockMs = Math.round(
+        sessionRows.reduce((s: number, r: any) => s + Number(r.wall_clock_ms || 0), 0) / sessionRows.length
+      );
+      const perTableMs = Math.round(avgWallClockMs / (sessionRows[0].table_count || tables.length));
+      const totalMs = perTableMs * tables.length;
+      const estimates = tables.map(tableName => ({ tableName, avgMs: perTableMs, records: sessionRows.length }));
+      return res.json({ estimates, totalMs, hasEnoughData: true, method: "session_wall_clock" });
+    }
+
+    const MIN_RECORDS = 3;
+    const estimates: { tableName: string; avgMs: number | null; records: number }[] = [];
+    const knownAvgs: number[] = [];
+    const unknownIndices: number[] = [];
+
+    for (const tableName of tables) {
+      const records = await db.select()
+        .from(cloneHistory)
+        .where(and(
+          eq(cloneHistory.tableName, tableName),
+          eq(cloneHistory.status, "success")
+        ))
+        .orderBy(desc(cloneHistory.completedAt))
+        .limit(5);
+
+      if (records.length >= MIN_RECORDS) {
+        const avgMs = Math.round(records.reduce((s, r) => s + (r.hostDurationMs || 0) + (r.remoteDurationMs || 0), 0) / records.length);
+        estimates.push({ tableName, avgMs, records: records.length });
+        knownAvgs.push(avgMs);
+      } else {
+        estimates.push({ tableName, avgMs: null, records: records.length });
+        unknownIndices.push(estimates.length - 1);
+      }
+    }
+
+    const fallbackAvg = knownAvgs.length > 0
+      ? Math.round(knownAvgs.reduce((a, b) => a + b, 0) / knownAvgs.length)
+      : 0;
+
+    for (const idx of unknownIndices) {
+      estimates[idx].avgMs = fallbackAvg;
+    }
+
+    const totalMs = estimates.reduce((s, e) => s + (e.avgMs || 0), 0);
+    const hasEnoughData = knownAvgs.length >= Math.ceil(tables.length * 0.5);
+
+    res.json({ estimates, totalMs, hasEnoughData, method: "per_table" });
+  } catch (err: any) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+app.post("/api/platform/clone-screen-enter", requireAuth, requireSuperAdmin, async (req, res) => {
+  const user = req.user as any;
+  if (cloneScreenUserId && cloneScreenUserId !== user.id) {
+    return res.status(409).json({ message: "มีผู้ดูแลระบบอีกท่านกำลังใช้หน้า Clone อยู่", lockedBy: cloneScreenUserId });
+  }
+  setCloneScreen(user.id, Date.now());
+  console.log(`[Clone Screen] User #${user.id} entered clone screen (no maintenance lock yet)`);
+  res.json({ success: true });
+});
+
+app.post("/api/platform/clone-screen-leave", requireAuth, requireSuperAdmin, async (req, res) => {
+  const user = req.user as any;
+  if (cloneScreenUserId === user.id && !cloneLockState.isRunning) {
+    setCloneScreen(null, 0);
+    console.log(`[Clone Screen] User #${user.id} left clone screen`);
+  }
+  res.json({ success: true });
+});
+
+app.post("/api/platform/clone-screen-heartbeat", requireAuth, requireSuperAdmin, (req, res) => {
+  const user = req.user as any;
+  if (cloneScreenUserId === user.id) {
+    setCloneScreenHeartbeat(Date.now());
+  }
+  res.json({ success: true });
+});
+
+app.get("/api/platform/clone-screen-lock", requireAuth, requireAdmin, (_req, res) => {
+  res.json({
+    locked: !!cloneScreenUserId,
+    lockedBy: cloneScreenUserId,
+    cloneLock: {
+      isRunning: cloneLockState.isRunning,
+      initiator: cloneLockState.initiator,
+      targetDb: cloneLockState.targetDb,
+      startedAt: cloneLockState.startedAt,
+    },
+  });
+});
+
+function formatSpeed(bytesPerSec: number): string {
+  if (bytesPerSec < 1024) return `${bytesPerSec} B`;
+  if (bytesPerSec < 1024 * 1024) return `${(bytesPerSec / 1024).toFixed(1)} KB`;
+  return `${(bytesPerSec / (1024 * 1024)).toFixed(2)} MB`;
+}
+
+app.post("/api/platform/sync-config", requireAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const { targetDb, direction } = req.body || {};
+    const isReverse = direction === "th_to_us";
+    const sourceUrl = isReverse
+      ? (targetDb === "pdt" ? getConfig("DB_PROD_URL") : targetDb === "dev" ? getConfig("DB_MAIN_URL") : getConfig("DB_TEST_URL", "DATABASE_URL_TEST"))
+      : process.env.DATABASE_URL!;
+    const targetUrlMap: Record<string, string | undefined> = {
+      dev: getConfig("DB_MAIN_URL"),
+      pdt: getConfig("DB_PROD_URL"),
+      test: getConfig("DB_TEST_URL", "DATABASE_URL_TEST"),
+    };
+    const targetUrl = isReverse ? process.env.DATABASE_URL! : targetUrlMap[targetDb];
+
+    if (!sourceUrl || !targetUrl) {
+      return res.status(400).json({ message: `ไม่พบ URL สำหรับ source/target '${targetDb}'` });
+    }
+
+    const pg2 = (await import("pg")).default;
+    const srcPool = new pg2.Pool({ connectionString: sourceUrl, max: 2, connectionTimeoutMillis: 30000 });
+    const dstPool = new pg2.Pool({ connectionString: targetUrl, max: 2, connectionTimeoutMillis: 30000 });
+
+    try {
+      const tableCheck = await dstPool.query(`SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'system_config')`);
+      if (!tableCheck.rows[0].exists) {
+        const createSql = await srcPool.query(`
+          SELECT column_name, data_type, character_maximum_length, is_nullable, column_default
+          FROM information_schema.columns WHERE table_name = 'system_config' ORDER BY ordinal_position
+        `);
+        if (createSql.rows.length === 0) {
+          return res.status(400).json({ message: "ตาราง system_config ไม่มีใน source DB" });
+        }
+        const cols = createSql.rows.map((c: any) => {
+          let type = c.data_type === "character varying" ? `varchar(${c.character_maximum_length || 255})` : c.data_type;
+          const nullable = c.is_nullable === "NO" ? " NOT NULL" : "";
+          const def = c.column_default ? ` DEFAULT ${c.column_default}` : "";
+          return `"${c.column_name}" ${type}${nullable}${def}`;
+        }).join(", ");
+        await dstPool.query(`CREATE TABLE IF NOT EXISTS system_config (${cols})`);
+        console.log("[Sync Config] Created system_config table on target");
+      }
+
+      const srcRows = await srcPool.query(`SELECT * FROM system_config`);
+      if (srcRows.rows.length === 0) {
+        return res.json({ ok: true, synced: 0, message: "ไม่มี config ใน source DB" });
+      }
+
+      await dstPool.query(`DELETE FROM system_config`);
+
+      let synced = 0;
+      const syncedKeys: string[] = [];
+      for (const row of srcRows.rows) {
+        const keys = Object.keys(row);
+        const vals = keys.map((_, i) => `$${i + 1}`);
+        await dstPool.query(
+          `INSERT INTO system_config (${keys.map(k => `"${k}"`).join(", ")}) VALUES (${vals.join(", ")})`,
+          keys.map(k => row[k])
+        );
+        synced++;
+        if (row.config_key) syncedKeys.push(row.config_key);
+      }
+
+      console.log(`[Sync Config] Synced ${synced} config entries to ${targetDb} (${isReverse ? "TH→US" : "US→TH"}): ${syncedKeys.join(", ")}`);
+      return res.json({ ok: true, synced, keys: syncedKeys, message: `Sync สำเร็จ ${synced} รายการ` });
+    } finally {
+      await srcPool.end().catch(() => {});
+      await dstPool.end().catch(() => {});
+    }
+  } catch (err: any) {
+    console.error("[Sync Config] Error:", err);
+    return res.status(500).json({ message: err.message || "เกิดข้อผิดพลาด" });
+  }
+});
+
+app.post("/api/platform/clone-db", requireAuth, requireSuperAdmin, async (req, res) => {
+  const user = req.user as any;
+  const userName = user.fullName || user.username;
+  const userId = user.id;
+  const sessionId = `clone-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const startedAt = Date.now();
+
+  const { cloneType, tables: manualTables, targetDb: targetDbKey, direction } = req.body || {};
+  if (!cloneType || !["static", "transaction", "manual"].includes(cloneType)) {
+    return res.status(400).json({ message: "cloneType ต้องเป็น static, transaction หรือ manual" });
+  }
+  const isReverse = direction === "th_to_us";
+
+  try {
+    if (!process.env.DATABASE_URL) {
+      return res.status(400).json({ message: "DATABASE_URL ต้องตั้งค่า" });
+    }
+    try {
+      const { isFtpArchiveRunning } = await import("./services/ftp-archive");
+      if (isFtpArchiveRunning()) {
+        return res.status(409).json({ message: "FTP Archive กำลังทำงานอยู่ กรุณารอให้เสร็จก่อน Clone" });
+      }
+    } catch {}
+
+    const lockResult = acquireCloneLock("user", targetDbKey || "test", userId);
+    if (!lockResult.acquired) {
+      return res.status(409).json({ message: lockResult.reason || "กำลัง Clone อยู่แล้ว กรุณารอให้เสร็จก่อน" });
+    }
+
+    const { getTablesForCloneTypeAsync } = await import("./clone-tables");
+    const tablesToClone = await getTablesForCloneTypeAsync(cloneType, manualTables);
+    if (!tablesToClone.length) {
+      releaseCloneLock();
+      return res.status(400).json({ message: "ไม่มีตารางที่เลือก" });
+    }
+
+    const cloneTypeThai = cloneType === "static" ? "Static Data" : cloneType === "transaction" ? "Transaction Data" : "Manual";
+    setPlatformCloneProgress({ status: "running", percent: 0, step: "เตรียมระบบ...", startedAt: Date.now(), completedTables: [], cloneType });
+    console.log(`[Clone] Started by ${userName} (user #${userId}), type: ${cloneType}, tables: ${tablesToClone.length}`);
+
+    const existingActive = await getActiveSchedule();
+    if (existingActive && existingActive.source !== "clone_database") {
+      setPlatformCloneProgress({ status: "idle", percent: 0 });
+      releaseCloneLock();
+      return res.status(409).json({ message: "ระบบอยู่ในโหมดปรับปรุงจากหน้าอื่นอยู่แล้ว" });
+    }
+
+    setPlatformCloneProgress({ status: "running", percent: 2, step: "เปิดโหมดปรับปรุง..." });
+    const maintResult = await activateNow({
+      message: `ระบบกำลัง Clone ฐานข้อมูล (${cloneTypeThai}) กรุณารอสักครู่`,
+      enabledBy: userName,
+      enabledByUserId: userId,
+      source: "clone_database",
+      bypassDailyLimit: true,
+    });
+    if (!maintResult.success) {
+      const activeSchedule = await getActiveSchedule();
+      if (!activeSchedule || (activeSchedule.source !== "clone_database")) {
+        setPlatformCloneProgress({ status: "error", percent: 0, error: maintResult.message || "ไม่สามารถเปิดโหมดปรับปรุงได้" });
+        releaseCloneLock();
+        return res.status(400).json({ message: maintResult.message || "ไม่สามารถเปิดโหมดปรับปรุงได้" });
+      }
+    }
+    await setCloneInProgress(userId, true);
+
+    res.json({ success: true, sessionId, tableCount: tablesToClone.length });
+
+    const resolvedTargetKey = targetDbKey || "test";
+    const cloneTargetUrlMap: Record<string, string | undefined> = {
+      dev: getConfig("DB_MAIN_URL"),
+      pdt: getConfig("DB_PROD_URL"),
+      test: getConfig("DB_TEST_URL", "DATABASE_URL_TEST"),
+    };
+    const remoteUrl = cloneTargetUrlMap[resolvedTargetKey];
+    if (!remoteUrl) {
+      setPlatformCloneProgress({ status: "error", percent: 0, error: `ไม่พบ URL สำหรับ target '${resolvedTargetKey}'` });
+      releaseCloneLock();
+      try { await setCloneInProgress(userId, false); } catch {}
+      return;
+    }
+    const sourceUrl = isReverse ? remoteUrl : process.env.DATABASE_URL!;
+    const targetUrl = isReverse ? process.env.DATABASE_URL! : remoteUrl;
+    const targetLabels: Record<string, string> = { dev: "Dev (Thailand)", pdt: "Production (Thailand)", test: "Test/Backup" };
+    const dirLabel = isReverse
+      ? `TH→US (${targetLabels[resolvedTargetKey] || resolvedTargetKey} → Replit)`
+      : `Target: ${targetLabels[resolvedTargetKey] || resolvedTargetKey}`;
+    console.log(`[Clone] ${dirLabel}`);
+    const { promisify } = await import("util");
+    const { exec } = await import("child_process");
+    const execAsync = promisify(exec);
+    const pg2 = (await import("pg")).default;
+
+    const replitDbUrl = process.env.DATABASE_URL!;
+    const historyPool = new pg2.Pool({ connectionString: replitDbUrl, max: 3, connectionTimeoutMillis: 10000 });
+    const { drizzle: drizzleFn } = await import("drizzle-orm/node-postgres");
+    const historyDb = drizzleFn(historyPool, { schema: await import("@shared/schema") });
+
+    try {
+      setPlatformCloneProgress({ status: "running", percent: 5, step: "ทดสอบเชื่อมต่อเซิร์ฟเวอร์ปลายทาง..." });
+      const testPool = new pg2.Pool({ connectionString: targetUrl, connectionTimeoutMillis: 30000 });
+      try { await testPool.query("SELECT 1"); } catch (e: any) {
+        throw new Error("ฐานข้อมูลปลายทาง ไม่พร้อมใช้งาน: " + (e.message || "").slice(0, 100));
+      } finally { await testPool.end().catch(() => {}); }
+
+      const totalTables = tablesToClone.length;
+      let completedTables = 0;
+
+      const { STATIC_TABLES } = await import("./clone-tables");
+      const staticTableNames = new Set(STATIC_TABLES.map(t => t.pgName));
+
+      setPlatformCloneProgress({ ...platformCloneProgress, status: "running", percent: 6, step: "นับจำนวนข้อมูลทุกตาราง..." });
+      console.log(`[Clone] Pre-counting ${totalTables} tables...`);
+      const rowCounts = new Map<string, number>();
+      try {
+        const countQuery = tablesToClone.map(t => `SELECT '${t}' AS t, count(*)::int AS c FROM "${t}"`).join(" UNION ALL\n") + ";";
+        const countSqlFile = path.join(os.tmpdir(), `clone-count-${sessionId}.sql`);
+        fs.writeFileSync(countSqlFile, countQuery);
+        const countRes = await execAsync(`psql "${sourceUrl}" -t -A -F'|' -f "${countSqlFile}"`, { timeout: 60000, maxBuffer: 10 * 1024 * 1024 });
+        try { fs.unlinkSync(countSqlFile); } catch {}
+        for (const line of countRes.stdout.trim().split("\n")) {
+          const [tbl, cnt] = line.split("|");
+          if (tbl) rowCounts.set(tbl, parseInt(cnt) || 0);
+        }
+        setPlatformCloneProgress({ ...platformCloneProgress, percent: 7, step: `นับเสร็จ ${rowCounts.size}/${totalTables} ตาราง` });
+      } catch (countErr) {
+        console.log(`[Clone] Batch count failed, falling back to individual counts:`, (countErr as any).message?.slice(0, 200));
+        let counted = 0;
+        for (const t of tablesToClone) {
+          try {
+            const r = await execAsync(`psql "${sourceUrl}" -t -A -c "SELECT count(*) FROM \\"${t}\\""`, { timeout: 15000 });
+            rowCounts.set(t, parseInt(r.stdout.trim()) || 0);
+          } catch { rowCounts.set(t, 0); }
+          counted++;
+          if (counted % 5 === 0 || counted === totalTables) {
+            setPlatformCloneProgress({ ...platformCloneProgress, percent: 6 + Math.round((counted / totalTables) * 2), step: `นับข้อมูล ${counted}/${totalTables} ตาราง...` });
+          }
+        }
+      }
+      console.log(`[Clone] Row counts ready: ${rowCounts.size} tables`);
+
+      const BATCH_THRESHOLD = 500;
+      const MAX_TABLES_PER_BATCH = 15;
+      interface CloneBatch { tables: string[]; totalRows: number; label: string; }
+      const batches: CloneBatch[] = [];
+      const largeTables: string[] = [];
+      const smallTables: string[] = [];
+
+      for (const t of tablesToClone) {
+        const rc = rowCounts.get(t) || 0;
+        if (rc > BATCH_THRESHOLD) {
+          largeTables.push(t);
+        } else {
+          smallTables.push(t);
+        }
+      }
+
+      for (let i = 0; i < smallTables.length; i += MAX_TABLES_PER_BATCH) {
+        const chunk = smallTables.slice(i, i + MAX_TABLES_PER_BATCH);
+        const totalRows = chunk.reduce((s, t) => s + (rowCounts.get(t) || 0), 0);
+        batches.push({ tables: chunk, totalRows, label: `Batch ${batches.length + 1} (${chunk.length} ตาราง, ${totalRows} rows)` });
+      }
+      for (const t of largeTables) {
+        batches.push({ tables: [t], totalRows: rowCounts.get(t) || 0, label: t });
+      }
+
+      const totalBatches = batches.length;
+      const smallCount = smallTables.length;
+      const largeCount = largeTables.length;
+      console.log(`[Clone] Optimized: ${totalTables} tables → ${totalBatches} batches (${smallCount} small batched, ${largeCount} large individual)`);
+      setPlatformCloneProgress({ ...platformCloneProgress, percent: 8, step: `${totalTables} ตาราง → ${totalBatches} batches (ลดการเชื่อมต่อ ${Math.round((1 - totalBatches / totalTables) * 100)}%)` });
+
+      for (let bi = 0; bi < totalBatches; bi++) {
+        const batch = batches[bi];
+        const batchStart = Date.now();
+        const overallPct = Math.round(10 + (bi / totalBatches) * 85);
+        const dumpFile = path.join(os.tmpdir(), `clone_batch_${bi}.sql`);
+        const batchTableNames = batch.tables;
+        const isSingleTable = batchTableNames.length === 1;
+        const displayName = isSingleTable ? batchTableNames[0] : batch.label;
+        const isStaticBatch = batchTableNames.every(t => staticTableNames.has(t));
+        const timeoutSec = isStaticBatch ? 300 : 7200;
+        const batchRowCount = batch.totalRows;
+
+        const updateProgress = (phase: string, extra?: Record<string, any>) => {
+          const elapsedSec = Math.round((Date.now() - batchStart) / 1000);
+          const remainingSec = Math.max(0, timeoutSec - elapsedSec);
+          setPlatformCloneProgress({
+            ...platformCloneProgress,
+            status: "running", percent: overallPct,
+            step: `[${bi + 1}/${totalBatches}] ${displayName} — ${phase}`,
+            currentTable: displayName,
+            tableIndex: bi + 1,
+            totalTables: totalBatches,
+            tableElapsedSec: elapsedSec,
+            autoTimeoutSec: remainingSec,
+            ...(extra || {}),
+          });
+        };
+
+        try {
+          updateProgress(`Dump (${batchTableNames.length} ตาราง, ${batchRowCount.toLocaleString()} rows)...`, { rowCount: batchRowCount, batchPhase: "dump" });
+          console.log(`[Clone] ${overallPct}% — Batch ${bi + 1}/${totalBatches}: ${displayName} (${batchTableNames.length} tables, ${batchRowCount} rows)`);
+
+          const tableFlags = batchTableNames.map(t => `--table="${t}"`).join(" ");
+          const hostStart = Date.now();
+          let dumpSpeedTimer: ReturnType<typeof setInterval> | null = null;
+
+          try {
+            let lastDumpSize = 0;
+            dumpSpeedTimer = setInterval(() => {
+              try {
+                const stat = fs.statSync(dumpFile);
+                const currentSize = stat.size;
+                const bytesPerSec = currentSize - lastDumpSize;
+                lastDumpSize = currentSize;
+                const elapsedMs = Date.now() - hostStart;
+                const avgSpeed = Math.round(currentSize / (elapsedMs / 1000));
+                updateProgress(`Dump (${(currentSize / 1024).toFixed(0)} KB, ${formatSpeed(bytesPerSec)}/s)`, {
+                  rowCount: batchRowCount, batchPhase: "dump",
+                  transferSpeed: bytesPerSec, avgTransferSpeed: avgSpeed, transferredBytes: currentSize,
+                });
+              } catch {}
+            }, 1000);
+            await execAsync(`pg_dump "${sourceUrl}" --no-owner --no-acl --clean --if-exists ${tableFlags} > ${dumpFile}`, { timeout: timeoutSec * 1000 });
+            if (dumpSpeedTimer) { clearInterval(dumpSpeedTimer); dumpSpeedTimer = null; }
+          } catch (dumpErr: any) {
+            if (dumpSpeedTimer) { clearInterval(dumpSpeedTimer); dumpSpeedTimer = null; }
+            const errMsg = (dumpErr.message || "") + (dumpErr.stderr || "");
+            const isTableNotFound = /no matching tables were found/i.test(errMsg);
+
+            if (isTableNotFound && isSingleTable) {
+              const hostDurationMs = Date.now() - hostStart;
+              const tableName = batchTableNames[0];
+              console.log(`[Clone] ${tableName} — not found in source, dropping from target`);
+              updateProgress("ไม่มีในต้นทาง — กำลังลบจากปลายทาง...");
+              const remoteStart = Date.now();
+              try {
+                const dropPool = new pg2.Pool({ connectionString: targetUrl, connectionTimeoutMillis: 30000 });
+                try { await dropPool.query(`DROP TABLE IF EXISTS "${tableName}"`); } finally { await dropPool.end().catch(() => {}); }
+              } catch {}
+              const remoteDurationMs = Date.now() - remoteStart;
+              try { await historyDb.insert(cloneHistory).values({ sessionId, cloneType, direction: direction || "us_to_th", tableName, rowCount: 0, hostDurationMs, remoteDurationMs, status: "dropped", errorMessage: "Not in source — dropped from target", batchIndex: 0, totalBatches: 1, startedAt: new Date(batchStart), completedAt: new Date(), createdBy: userId }); } catch {}
+              if (!platformCloneProgress.completedTables) platformCloneProgress.completedTables = [];
+              platformCloneProgress.completedTables.push({ tableName, status: "dropped", rowCount: 0, durationMs: hostDurationMs + remoteDurationMs });
+              try { fs.unlinkSync(dumpFile); } catch {}
+              completedTables++;
+              continue;
+            }
+
+            const hostDurationMs2 = Date.now() - hostStart;
+            console.log(`[Clone] ERROR dumping batch ${bi + 1} (${batchTableNames.join(", ")}):`, (dumpErr.message || "").slice(0, 200));
+            for (const t of batchTableNames) {
+              try { await historyDb.insert(cloneHistory).values({ sessionId, cloneType, direction: direction || "us_to_th", tableName: t, rowCount: rowCounts.get(t) || 0, hostDurationMs: hostDurationMs2, remoteDurationMs: 0, status: "error", errorMessage: `Batch dump failed: ${(dumpErr.message || "").slice(0, 300)}`, batchIndex: bi, totalBatches, startedAt: new Date(batchStart), completedAt: new Date(), createdBy: userId }); } catch {}
+              if (!platformCloneProgress.completedTables) platformCloneProgress.completedTables = [];
+              platformCloneProgress.completedTables.push({ tableName: t, status: "error", rowCount: rowCounts.get(t) || 0, durationMs: hostDurationMs2, errorMessage: "Dump failed" });
+            }
+            try { fs.unlinkSync(dumpFile); } catch {}
+            completedTables += batchTableNames.length;
+            continue;
+          }
+
+          const hostDurationMs = Date.now() - hostStart;
+          let dumpFileSize = 0;
+          try { dumpFileSize = fs.statSync(dumpFile).size; } catch {}
+          const dumpSpeed = hostDurationMs > 0 ? Math.round(dumpFileSize / (hostDurationMs / 1000)) : 0;
+          console.log(`[Clone] Dump batch ${bi + 1}: ${batchTableNames.length} tables, ${(dumpFileSize / 1024).toFixed(0)} KB in ${hostDurationMs}ms (${formatSpeed(dumpSpeed)}/s)`);
+
+          updateProgress(`Restore → ปลายทาง (${batchTableNames.length} ตาราง, ${(dumpFileSize / 1024).toFixed(0)} KB)...`, {
+            rowCount: batchRowCount, batchPhase: "restore", dumpFileSize, dumpSpeed,
+          });
+
+          const remoteStart = Date.now();
+          let restoreSpeedTimer: ReturnType<typeof setInterval> | null = null;
+
+          try {
+            const restoreCmd = `psql "${targetUrl}" -v ON_ERROR_STOP=0 -c "SET session_replication_role = replica;" -f ${dumpFile}`;
+            restoreSpeedTimer = setInterval(() => {
+              const elapsedMs = Date.now() - remoteStart;
+              const elapsedSec = Math.max(1, elapsedMs / 1000);
+              const estimatedSpeed = Math.round(dumpFileSize / elapsedSec);
+              updateProgress(`Restore → ปลายทาง (${(dumpFileSize / 1024).toFixed(0)} KB, ${formatSpeed(estimatedSpeed)}/s, ${Math.round(elapsedSec)}s)`, {
+                rowCount: batchRowCount, batchPhase: "restore", dumpFileSize,
+                transferSpeed: estimatedSpeed, transferredBytes: dumpFileSize,
+                restoreElapsedSec: Math.round(elapsedSec),
+              });
+            }, 1000);
+            await execAsync(restoreCmd, { timeout: timeoutSec * 1000, maxBuffer: 50 * 1024 * 1024 });
+            if (restoreSpeedTimer) { clearInterval(restoreSpeedTimer); restoreSpeedTimer = null; }
+            await execAsync(`psql "${targetUrl}" -c "SET session_replication_role = DEFAULT;"`, { timeout: 10000 }).catch(() => {});
+          } catch (restoreErr: any) {
+            if (restoreSpeedTimer) { clearInterval(restoreSpeedTimer); restoreSpeedTimer = null; }
+            await execAsync(`psql "${targetUrl}" -c "SET session_replication_role = DEFAULT;"`, { timeout: 10000 }).catch(() => {});
+            const remoteDurationMs = Date.now() - remoteStart;
+            console.log(`[Clone] ERROR restoring batch ${bi + 1}:`, (restoreErr.message || "").slice(0, 200));
+            for (const t of batchTableNames) {
+              try { await historyDb.insert(cloneHistory).values({ sessionId, cloneType, direction: direction || "us_to_th", tableName: t, rowCount: rowCounts.get(t) || 0, hostDurationMs, remoteDurationMs, status: "error", errorMessage: `Batch restore failed: ${(restoreErr.message || "").slice(0, 300)}`, batchIndex: bi, totalBatches, startedAt: new Date(batchStart), completedAt: new Date(), createdBy: userId }); } catch {}
+              if (!platformCloneProgress.completedTables) platformCloneProgress.completedTables = [];
+              platformCloneProgress.completedTables.push({ tableName: t, status: "error", rowCount: rowCounts.get(t) || 0, durationMs: hostDurationMs + remoteDurationMs, errorMessage: "Restore failed" });
+            }
+            try { fs.unlinkSync(dumpFile); } catch {}
+            completedTables += batchTableNames.length;
+            continue;
+          }
+
+          const remoteDurationMs = Date.now() - remoteStart;
+          try { fs.unlinkSync(dumpFile); } catch {}
+
+          const restoreSpeed = remoteDurationMs > 0 ? Math.round(dumpFileSize / (remoteDurationMs / 1000)) : 0;
+          const perTableDumpMs = Math.round(hostDurationMs / batchTableNames.length);
+          const perTableRestoreMs = Math.round(remoteDurationMs / batchTableNames.length);
+          const perTableDumpSize = Math.round(dumpFileSize / batchTableNames.length);
+
+          const verifyPool = new pg2.Pool({ connectionString: targetUrl, max: 2, connectionTimeoutMillis: 30000 });
+          const verifyResults = new Map<string, { targetCount: number; sourceCount: number; status: string }>();
+          try {
+            for (const t of batchTableNames) {
+              const srcCount = rowCounts.get(t) || 0;
+              try {
+                const r = await verifyPool.query(`SELECT count(*)::int AS c FROM "${t}"`);
+                const tgtCount = r.rows[0]?.c || 0;
+                const status = (srcCount > 0 && tgtCount === 0) ? "data_lost" :
+                  (srcCount > 0 && tgtCount < srcCount * 0.5) ? "partial" : "verified";
+                verifyResults.set(t, { targetCount: tgtCount, sourceCount: srcCount, status });
+                if (status !== "verified") {
+                  console.log(`[Clone] ⚠ VERIFY ${t}: source=${srcCount} target=${tgtCount} → ${status}`);
+                }
+              } catch (verErr) {
+                verifyResults.set(t, { targetCount: -1, sourceCount: srcCount, status: "verify_error" });
+              }
+            }
+          } catch {} finally { await verifyPool.end().catch(() => {}); }
+
+          for (const t of batchTableNames) {
+            const tRows = rowCounts.get(t) || 0;
+            const vr = verifyResults.get(t);
+            const isDataLost = vr && (vr.status === "data_lost" || vr.status === "partial");
+            const finalStatus = isDataLost ? "error" : "success";
+            const errMsg = isDataLost ? `Restore silent failure: source=${vr!.sourceCount} target=${vr!.targetCount} (${vr!.status})` : undefined;
+            try {
+              await historyDb.insert(cloneHistory).values({
+                sessionId, cloneType, direction: direction || "us_to_th", tableName: t, rowCount: tRows,
+                hostDurationMs: isSingleTable ? hostDurationMs : perTableDumpMs,
+                remoteDurationMs: isSingleTable ? remoteDurationMs : perTableRestoreMs,
+                status: finalStatus, batchIndex: bi, totalBatches,
+                startedAt: new Date(batchStart), completedAt: new Date(),
+                createdBy: userId,
+                dumpFileSize: isSingleTable ? dumpFileSize : perTableDumpSize,
+                dumpSpeed, restoreSpeed,
+                ...(errMsg ? { errorMessage: errMsg } : {}),
+              });
+            } catch (histErr) { console.log(`[Clone] WARN: could not record history for ${t}:`, histErr); }
+            if (!platformCloneProgress.completedTables) platformCloneProgress.completedTables = [];
+            platformCloneProgress.completedTables.push({
+              tableName: t, status: finalStatus, rowCount: tRows,
+              durationMs: isSingleTable ? hostDurationMs + remoteDurationMs : perTableDumpMs + perTableRestoreMs,
+              dumpFileSize: isSingleTable ? dumpFileSize : perTableDumpSize, dumpSpeed, restoreSpeed,
+              ...(isDataLost ? { errorMessage: errMsg, targetCount: vr!.targetCount } : {}),
+            });
+            if (isDataLost) {
+              console.log(`[Clone] ❌ ${t}: DATA LOSS DETECTED — source=${vr!.sourceCount} target=${vr!.targetCount}`);
+            }
+          }
+          completedTables += batchTableNames.length;
+          console.log(`[Clone] ✓ Batch ${bi + 1} — ${batchTableNames.length} tables, ${batchRowCount} rows, ${(dumpFileSize / 1024).toFixed(0)} KB, dump ${formatSpeed(dumpSpeed)}/s (${hostDurationMs}ms), restore ${formatSpeed(restoreSpeed)}/s (${remoteDurationMs}ms)`);
+
+        } catch (batchErr: any) {
+          console.log(`[Clone] UNEXPECTED ERROR on batch ${bi + 1}:`, (batchErr as any).message?.slice(0, 300));
+          for (const t of batchTableNames) {
+            try {
+              await execAsync(`psql "${targetUrl}" -c "DELETE FROM \\"${t}\\""`, { timeout: 30000 }).catch(() => {});
+            } catch {}
+            try { await historyDb.insert(cloneHistory).values({ sessionId, cloneType, direction: direction || "us_to_th", tableName: t, rowCount: 0, hostDurationMs: 0, remoteDurationMs: 0, status: "error", errorMessage: `Unexpected: ${((batchErr as any).message || "").slice(0, 300)}`, batchIndex: bi, totalBatches: 1, startedAt: new Date(batchStart), completedAt: new Date(), createdBy: userId }); } catch {}
+            if (!platformCloneProgress.completedTables) platformCloneProgress.completedTables = [];
+            platformCloneProgress.completedTables.push({ tableName: t, status: "error", rowCount: 0, durationMs: Date.now() - batchStart, errorMessage: "Unexpected error" });
+          }
+          try { fs.unlinkSync(dumpFile); } catch {}
+          completedTables += batchTableNames.length;
+          continue;
+        }
+      }
+
+      try {
+        const KEEP_PER_TABLE = 5;
+        const allTables = await historyDb.selectDistinct({ tableName: cloneHistory.tableName }).from(cloneHistory);
+        let purgedTotal = 0;
+        for (const { tableName: tn } of allTables) {
+          const kept = await historyDb.select({ id: cloneHistory.id })
+            .from(cloneHistory)
+            .where(and(eq(cloneHistory.tableName, tn), eq(cloneHistory.status, "success")))
+            .orderBy(desc(cloneHistory.completedAt))
+            .limit(KEEP_PER_TABLE);
+          const keptIds = kept.map(r => r.id);
+          if (keptIds.length === KEEP_PER_TABLE) {
+            const oldRows = await historyDb.delete(cloneHistory)
+              .where(and(
+                eq(cloneHistory.tableName, tn),
+                eq(cloneHistory.status, "success"),
+                notInArray(cloneHistory.id, keptIds)
+              )).returning({ id: cloneHistory.id });
+            purgedTotal += oldRows.length;
+          }
+        }
+        if (purgedTotal > 0) console.log(`[Clone] Auto-purge: removed ${purgedTotal} old history records (kept last ${KEEP_PER_TABLE} per table)`);
+      } catch (purgeErr: any) {
+        console.log(`[Clone] WARN: auto-purge failed: ${purgeErr.message}`);
+      }
+
+      await setCloneInProgress(userId, false);
+      await liftMaintenance(userName + " (clone auto-lift)");
+      await destroyScheduleAfterClone();
+      setCloneScreen(null);
+      releaseCloneLock();
+      try { await historyPool.end(); } catch {}
+
+      const durationSec = Math.round((Date.now() - startedAt) / 1000);
+      const dataLostTables = (platformCloneProgress.completedTables || []).filter((t: any) => t.status === "error" && t.errorMessage?.includes("silent failure"));
+      if (dataLostTables.length > 0) {
+        setPlatformCloneProgress({ status: "complete", percent: 100, step: `เสร็จ ${completedTables}/${totalTables} ตาราง (${durationSec}s) ⚠ ${dataLostTables.length} ตารางข้อมูลไม่ครบ!` });
+        console.log(`[Clone] 100% COMPLETE with ${dataLostTables.length} DATA LOSS warnings — ${completedTables}/${totalTables} tables, ${durationSec}s`);
+      } else {
+        setPlatformCloneProgress({ status: "complete", percent: 100, step: `เสร็จสมบูรณ์! ${completedTables}/${totalTables} ตาราง (${durationSec}s)` });
+        console.log(`[Clone] 100% COMPLETE — ${completedTables}/${totalTables} tables, ${durationSec}s`);
+      }
+
+    } catch (cloneErr: any) {
+      const errMsg = cloneErr.message?.slice(0, 300) || "Clone failed";
+      console.log("[Clone] ERROR:", errMsg);
+      setPlatformCloneProgress({ status: "error", percent: 0, error: errMsg });
+      try { await setCloneInProgress(userId, false); } catch {}
+      try { await liftMaintenance(userName + " (clone error auto-lift)"); } catch {}
+      setCloneScreen(null);
+      releaseCloneLock();
+      try { await historyPool.end(); } catch {};
+      try {
+        const { rescheduleForCloneFailure } = await import("./maintenance");
+        await rescheduleForCloneFailure(userName, userId);
+      } catch {}
+    }
+  } catch (err: any) {
+    console.log("[Clone] FATAL:", err.message);
+    setPlatformCloneProgress({ status: "error", percent: 0, error: err.message });
+    try { await setCloneInProgress(userId, false); } catch {}
+    try { await liftMaintenance(userName + " (clone fatal auto-lift)"); } catch {}
+    setCloneScreen(null);
+    releaseCloneLock();
+    try {
+      const { rescheduleForCloneFailure } = await import("./maintenance");
+      await rescheduleForCloneFailure(userName, userId);
+    } catch {}
+    if (!res.headersSent) {
+      res.status(500).json({ message: err.message });
+    }
+  }
+});
+
+app.get("/api/platform/export-db", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const { spawn } = await import("child_process");
+    const dbUrl = process.env.DATABASE_URL;
+    if (!dbUrl) return res.status(400).json({ message: "DATABASE_URL not configured" });
+
+    const dateStr = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+    const filename = `etax_backup_${dateStr}.sql`;
+    res.setHeader("Content-Type", "application/sql");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+
+    const pg_dump = spawn("pg_dump", [dbUrl, "--no-owner", "--no-acl", "--clean", "--if-exists"], {
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+
+    pg_dump.stdout.pipe(res);
+
+    pg_dump.stderr.on("data", (data: Buffer) => {
+      console.warn("[export-db] pg_dump stderr:", data.toString().slice(0, 200));
+    });
+
+    pg_dump.on("error", (err: Error) => {
+      if (!res.headersSent) {
+        res.status(500).json({ message: "pg_dump failed: " + err.message });
+      }
+    });
+
+    pg_dump.on("close", (code: number) => {
+      if (code !== 0 && !res.headersSent) {
+        res.status(500).json({ message: `pg_dump exited with code ${code}` });
+      }
+    });
+  } catch (err: any) {
+    if (!res.headersSent) {
+      res.status(500).json({ message: err.message });
+    }
+  }
+});
+
+app.post("/api/platform/backup-database", requireAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const { lineUserId } = req.body;
+    if (!lineUserId || typeof lineUserId !== "string" || lineUserId.trim().length === 0) {
+      return res.status(400).json({ message: "กรุณาระบุ LINE User ID" });
+    }
+
+    const lineToken = process.env.LINE_CHANNEL_ACCESS_TOKEN;
+    if (!lineToken) {
+      return res.status(400).json({ message: "ยังไม่ได้ตั้งค่า LINE Channel Access Token" });
+    }
+
+    const { execSync } = await import("child_process");
+    const tmpDir = path.join(os.tmpdir(), "db-backup");
+    if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
+
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+    const sqlFile = path.join(tmpDir, `etax_backup_${timestamp}.sql`);
+    const zipFile = path.join(tmpDir, `etax_backup_${timestamp}.zip`);
+
+    const cleanup = () => {
+      try { if (fs.existsSync(sqlFile)) fs.unlinkSync(sqlFile); } catch {}
+      try { if (fs.existsSync(zipFile)) fs.unlinkSync(zipFile); } catch {}
+    };
+
+    const otp = crypto.randomBytes(4).toString("hex").toUpperCase();
+
+    const dbUrl = process.env.DATABASE_URL;
+    if (!dbUrl) return res.status(500).json({ message: "ไม่พบการตั้งค่าฐานข้อมูล" });
+
+    try {
+      execSync(`pg_dump "${dbUrl}" --no-owner --no-privileges -f "${sqlFile}"`, {
+        timeout: 120000,
+        stdio: "pipe",
+      });
+
+      const archiver = (await import("archiver")).default;
+      await new Promise<void>((resolve, reject) => {
+        const output = fs.createWriteStream(zipFile);
+        const archive = archiver("zip", { zlib: { level: 9 } });
+        output.on("close", resolve);
+        archive.on("error", reject);
+        archive.pipe(output);
+        archive.file(sqlFile, { name: path.basename(sqlFile) });
+        archive.finalize();
+      });
+
+      if (fs.existsSync(sqlFile)) fs.unlinkSync(sqlFile);
+    } catch (cmdErr: any) {
+      cleanup();
+      throw cmdErr;
+    }
+
+    const lineMessage = `🔐 รหัสผ่านสำรองข้อมูล\n\nรหัสผ่านสำหรับเปิดไฟล์สำรองข้อมูลระบบ E-Tax Center:\n\n📋 OTP: ${otp}\n\n⏰ สร้างเมื่อ: ${new Date().toLocaleString("th-TH", { timeZone: "Asia/Bangkok" })}\n⚠️ รหัสนี้ใช้ได้ครั้งเดียว กรุณาเก็บรักษาให้ดี`;
+
+    const lineResponse = await fetch("https://api.line.me/v2/bot/message/push", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${lineToken}`,
+      },
+      body: JSON.stringify({
+        to: lineUserId.trim(),
+        messages: [{ type: "text", text: lineMessage }],
+      }),
+    });
+
+    if (!lineResponse.ok) {
+      const errText = await lineResponse.text();
+      cleanup();
+      return res.status(400).json({ message: `ส่งรหัสผ่านทาง LINE ไม่สำเร็จ: ${errText}` });
+    }
+
+    const zipStream = fs.createReadStream(zipFile);
+    const zipSize = fs.statSync(zipFile).size;
+    res.setHeader("Content-Type", "application/zip");
+    res.setHeader("Content-Disposition", `attachment; filename="etax_backup_${timestamp}.zip"`);
+    res.setHeader("Content-Length", zipSize.toString());
+    zipStream.pipe(res);
+    zipStream.on("end", () => { try { fs.unlinkSync(zipFile); } catch {} });
+    zipStream.on("error", () => { cleanup(); });
+  } catch (err: any) {
+    res.status(500).json({ message: `สำรองข้อมูลไม่สำเร็จ: ${err.message}` });
+  }
+});
+
+// ========== Seed Routes ==========
+
+app.post("/api/seed-platform", async (_req, res) => {
+  try {
+    const { hashPassword } = await import("./auth");
+
+    const existingSuper = await storage.getUserByUsername("platform");
+    if (existingSuper) {
+      return res.json({ message: "Super Admin ถูกสร้างแล้ว" });
+    }
+
+    const password = await hashPassword("platform123");
+    await storage.createUser({
+      username: "platform",
+      password,
+      fullName: "เจ้าของแพลตฟอร์ม",
+      role: "super_admin",
+      email: "platform@etax.co.th",
+      active: true,
+      tenantId: null,
+    });
+
+    res.json({
+      message: "สร้าง Super Admin เรียบร้อย",
+      user: { username: "platform", password: "platform123" },
+    });
+  } catch (err: any) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+app.post("/api/seed", async (_req, res) => {
+  try {
+    const { hashPassword } = await import("./auth");
+
+    const existingAdmin = await storage.getUserByUsername("admin");
+    if (existingAdmin) {
+      return res.json({ message: "ข้อมูลตัวอย่างถูกสร้างแล้ว" });
+    }
+
+    const adminPassword = await hashPassword("admin123");
+    const admin = await storage.createUser({
+      username: "admin",
+      password: adminPassword,
+      fullName: "ผู้ดูแลระบบ",
+      role: "admin",
+      email: "admin@etax.co.th",
+      active: true,
+    });
+
+    await storage.createEmployee({
+      userId: admin.id,
+      employeeCode: "EMP001",
+      fullName: "ผู้ดูแลระบบ",
+      position: "Senior Accountant",
+      department: "บัญชี",
+      baseSalary: "35000",
+      startDate: "2024-01-01",
+      active: true,
+    });
+
+    const companiesData = [
+      { name: "TechStart Innovations", industry: "Technology", taxId: "1234567890123", active: true },
+      { name: "GreenEarth Logistics", industry: "Logistics", taxId: "9876543210123", active: true },
+      { name: "Urban Retail Group", industry: "Retail", taxId: "5555666677778", active: true },
+    ];
+    for (const c of companiesData) {
+      await storage.createCompany(c);
+    }
+
+    const firmClientsData = [
+      { name: "บริษัท กาแฟไทย จำกัด", contactPerson: "คุณสมชาย", phone: "02-123-4567", invoiceCount: 1248, serviceFee: "15600", status: "synced", billingStatus: "paid" },
+      { name: "ร้านอาหาร สบายดี", contactPerson: "คุณสมหญิง", phone: "02-234-5678", invoiceCount: 450, serviceFee: "5000", status: "pending_sync", billingStatus: "pending" },
+      { name: "บจก. ไอที โซลูชั่น", contactPerson: "คุณวิชัย", phone: "02-345-6789", invoiceCount: 890, serviceFee: "12000", status: "synced", billingStatus: "paid" },
+      { name: "หจก. ขนส่ง รวดเร็ว", contactPerson: "คุณประเสริฐ", phone: "02-456-7890", invoiceCount: 120, serviceFee: "3000", status: "pending_review", billingStatus: "pending" },
+    ];
+    for (const c of firmClientsData) {
+      await storage.createFirmClient(c);
+    }
+
+    res.json({ message: "สร้างข้อมูลตัวอย่างเรียบร้อย", admin: { username: "admin", password: "admin123" } });
+  } catch (err: any) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+app.post("/api/seed-demo", requireAuth, requireAdmin, async (_req, res) => {
+  try {
+    const { hashPassword } = await import("./auth");
+
+    const existingDemo = await storage.getUserByUsername("demo_reviewer");
+    if (existingDemo) {
+      return res.json({ message: "Demo account already exists", credentials: { username: "demo_reviewer", password: "demo2026!" } });
+    }
+
+    const [existingTenant] = await db.select().from(tenants).where(eq(tenants.name, "Demo E-Commerce Store")).limit(1);
+    let tenantId: number;
+    if (existingTenant) {
+      tenantId = existingTenant.id;
+    } else {
+      const [newTenant] = await db.insert(tenants).values({
+        name: "Demo E-Commerce Store",
+        tenantType: "general_business",
+        status: "active",
+        contactName: "Demo Reviewer",
+        contactEmail: "demo@etaxcenter.com",
+      }).returning();
+      tenantId = newTenant.id;
+    }
+
+    const demoPassword = await hashPassword("demo2026!");
+    const demoUser = await storage.createUser({
+      username: "demo_reviewer",
+      password: demoPassword,
+      fullName: "Platform Reviewer (Demo)",
+      fullNameEn: "Platform Reviewer",
+      role: "admin",
+      email: "demo@etaxcenter.com",
+      active: true,
+      tenantId: tenantId,
+    });
+
+    const demoCompany = await storage.createCompany({
+      name: "บริษัท เดโม่ อีคอมเมิร์ซ จำกัด",
+      nameEn: "Demo E-Commerce Co., Ltd.",
+      industry: "E-Commerce",
+      taxId: "0105500000001",
+      address: "123 ถนนสุขุมวิท แขวงคลองเตย เขตคลองเตย กรุงเทพฯ 10110",
+      addressEn: "123 Sukhumvit Road, Klongtoey, Bangkok 10110",
+      phone: "02-000-0000",
+      email: "demo@etaxcenter.com",
+      active: true,
+      tenantType: "general_business",
+      businessType: "mixed",
+      baseCurrency: "THB",
+      vatRegistered: true,
+      tenantId: tenantId,
+    });
+
+    await storage.setCompanyPrimary(demoCompany.id);
+
+    const platforms = [
+      { platform: "shopee", shopName: "DemoShop-Shopee", shopId: "DEMO_SHOPEE_001", status: "connected" },
+      { platform: "lazada", shopName: "DemoShop-Lazada", shopId: "DEMO_LAZADA_001", status: "connected" },
+      { platform: "tiktok", shopName: "DemoShop-TikTok", shopId: "DEMO_TIKTOK_001", status: "connected" },
+    ];
+    const connectionIds: Record<string, number> = {};
+    for (const p of platforms) {
+      const [conn] = await db.insert(ecommerceConnections).values({
+        companyId: demoCompany.id,
+        platform: p.platform,
+        shopName: p.shopName,
+        shopId: p.shopId,
+        status: p.status,
+        lastSyncAt: new Date(),
+      }).returning();
+      connectionIds[p.platform] = conn.id;
+    }
+
+    const demoProducts = await Promise.all([
+      storage.createProduct({ name: "เสื้อยืดคอกลม สีดำ", code: "SHIRT-BLK-001", price: "350", cost: "150", companyId: demoCompany.id, active: true, vatType: "vat7", productType: "simple" }),
+      storage.createProduct({ name: "กางเกงขายาว สีกรม", code: "PANTS-NVY-001", price: "590", cost: "250", companyId: demoCompany.id, active: true, vatType: "vat7", productType: "simple" }),
+      storage.createProduct({ name: "รองเท้าผ้าใบ สีขาว", code: "SHOE-WHT-001", price: "1290", cost: "550", companyId: demoCompany.id, active: true, vatType: "vat7", productType: "simple" }),
+      storage.createProduct({ name: "กระเป๋าสะพาย หนัง PU", code: "BAG-PU-001", price: "890", cost: "380", companyId: demoCompany.id, active: true, vatType: "vat7", productType: "simple" }),
+      storage.createProduct({ name: "หมวกแก๊ป โลโก้", code: "CAP-LOGO-001", price: "290", cost: "120", companyId: demoCompany.id, active: true, vatType: "vat7", productType: "simple" }),
+    ]);
+
+    const buyerNames = ["สมชาย ใจดี", "สมหญิง รักษ์ไทย", "วิชัย ศรีสุข", "พรทิพย์ สวัสดี", "อนุชา เจริญกิจ",
+      "จิราพร มั่นคง", "ธนกร สุขใจ", "กมลวรรณ ดีเลิศ", "ศิริพร ภักดี", "ปิยะ สมบูรณ์"];
+    const statuses = ["pending", "confirmed", "shipping", "delivered", "delivered", "delivered"];
+    const carriers = ["Kerry Express", "Flash Express", "J&T Express", "Thailand Post", "DHL"];
+
+    let orderCount = 0;
+    for (const [platform, connId] of Object.entries(connectionIds)) {
+      for (let i = 0; i < 15; i++) {
+        const buyer = buyerNames[Math.floor(Math.random() * buyerNames.length)];
+        const product = demoProducts[Math.floor(Math.random() * demoProducts.length)];
+        const qty = Math.floor(Math.random() * 3) + 1;
+        const price = Number(product.price);
+        const subtotal = price * qty;
+        const shipping = Math.floor(Math.random() * 80) + 20;
+        const commission = Math.round(subtotal * 0.04);
+        const total = subtotal + shipping;
+        const status = statuses[Math.floor(Math.random() * statuses.length)];
+        const dayOffset = Math.floor(Math.random() * 30);
+        const placedAt = new Date(Date.now() - dayOffset * 86400000);
+
+        const [order] = await db.insert(ecommerceOrders).values({
+          companyId: demoCompany.id,
+          connectionId: connId,
+          platform: platform,
+          platformOrderId: `${platform.toUpperCase()}-DEMO-${String(orderCount + 1).padStart(6, "0")}`,
+          orderNo: `ORD-${String(orderCount + 1).padStart(6, "0")}`,
+          status: status,
+          buyerName: buyer,
+          buyerPhone: `08${Math.floor(Math.random() * 90000000 + 10000000)}`,
+          buyerAddress: `${Math.floor(Math.random() * 999) + 1} ถ.สุขุมวิท กรุงเทพฯ`,
+          subtotal: String(subtotal),
+          shippingFee: String(shipping),
+          totalAmount: String(total),
+          commissionFee: String(commission),
+          netIncome: String(total - commission - shipping),
+          trackingNo: status === "shipping" || status === "delivered" ? `TH${Math.floor(Math.random() * 9000000000 + 1000000000)}` : null,
+          shippingProvider: status === "shipping" || status === "delivered" ? carriers[Math.floor(Math.random() * carriers.length)] : null,
+          paymentMethod: "online",
+          currency: "THB",
+          placedAt: placedAt,
+          shippedAt: status === "shipping" || status === "delivered" ? new Date(placedAt.getTime() + 86400000) : null,
+          deliveredAt: status === "delivered" ? new Date(placedAt.getTime() + 3 * 86400000) : null,
+          settlementStatus: status === "delivered" ? "settled" : "pending",
+        }).returning();
+
+        await db.insert(ecommerceOrderItems).values({
+          orderId: order.id,
+          productId: product.id,
+          platformSku: product.sku,
+          name: product.name,
+          qty: String(qty),
+          price: String(price),
+          total: String(subtotal),
+        });
+        orderCount++;
+      }
+    }
+
+    // Seed extra demo data: customers, returns, settlements, tax invoices
+    const { seedDemoExtraData } = await import("./seed-demo-extra");
+    const extraStats = await seedDemoExtraData(demoCompany.id, demoUser.id, connectionIds, demoProducts);
+
+    res.json({
+      message: "Demo account created successfully — พร้อมบันทึกวิดีโอสาธิต",
+      credentials: { username: "demo_reviewer", password: "demo2026!" },
+      summary: {
+        company: demoCompany.name,
+        connections: Object.keys(connectionIds).length,
+        orders: orderCount,
+        products: demoProducts.length,
+        ...extraStats,
+      },
+    });
+  } catch (err: any) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+app.post("/api/seed-general", async (_req, res) => {
+  try {
+    const { hashPassword } = await import("./auth");
+
+    const existingUser = await storage.getUserByUsername("bizowner");
+    if (existingUser) {
+      return res.json({ message: "ข้อมูลบริษัททั่วไปถูกสร้างแล้ว" });
+    }
+
+    const password = await hashPassword("biz123");
+    const bizUser = await storage.createUser({
+      username: "bizowner",
+      password: password,
+      fullName: "เจ้าของกิจการ",
+      role: "admin",
+      email: "owner@mybiz.co.th",
+      active: true,
+    });
+
+    const bizCompany = await storage.createCompany({
+      name: "บริษัท ร้านค้าออนไลน์ จำกัด",
+      industry: "E-Commerce",
+      taxId: "1112223334445",
+      active: true,
+      tenantType: "general_business",
+    });
+
+    await storage.setCompanyPrimary(bizCompany.id);
+
+    await storage.createEmployee({
+      userId: bizUser.id,
+      employeeCode: "BIZ001",
+      fullName: "เจ้าของกิจการ",
+      position: "เจ้าของ",
+      department: "บริหาร",
+      baseSalary: "50000",
+      startDate: "2024-01-01",
+      active: true,
+    } as any);
+
+    res.json({ 
+      message: "สร้างข้อมูลบริษัททั่วไปเรียบร้อย (primary company ถูกเปลี่ยนเป็น general_business)", 
+      user: { username: "bizowner", password: "biz123" },
+      note: "คำเตือน: primary company ถูกเปลี่ยนเป็นบริษัททั่วไป — ผู้ใช้ทุกคนจะไม่เห็นเมนูจัดการลูกค้า หากต้องการกลับไปโหมดสำนักงานบัญชี ให้ตั้ง primary กลับไปที่บริษัทเดิม"
+    });
+  } catch (err: any) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+}

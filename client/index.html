@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="th">
+  <head>
+    <script>
+      window.addEventListener("unhandledrejection", function(e) {
+        if (!(e.reason instanceof Error)) {
+          e.stopImmediatePropagation();
+          e.preventDefault();
+        }
+      });
+      window.addEventListener("error", function(e) {
+        if (e.message && e.message.indexOf("ResizeObserver") !== -1) {
+          e.stopImmediatePropagation();
+          e.preventDefault();
+        }
+      });
+    </script>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
+
+    <meta property="og:title" content="E-Tax Center - Digital Accounting" />
+    <meta property="og:description" content="โปรแกรมบัญชีออนไลน์ ETAXCENTER CLOUD สำหรับสำนักงานบัญชี" />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="/opengraph.jpg" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:site" content="@replit" />
+    <meta name="twitter:title" content="E-Tax Center - Digital Accounting" />
+    <meta name="twitter:description" content="โปรแกรมบัญชีออนไลน์ ETAXCENTER CLOUD สำหรับสำนักงานบัญชี" />
+    <meta name="twitter:image" content="/opengraph.jpg" />
+
+    <title>E-Tax Center</title>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico?v=14" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=14" />
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="theme-color" content="#fb9678" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="E-Tax Center" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Sarabun:wght@300;400;500;600;700&family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet">
+  </head>
+  <body>
+    <div id="root">
+      <style id="initial-loader-style">
+        #initial-loader {
+          position: fixed; inset: 0; z-index: 99999;
+          display: flex; flex-direction: column; align-items: center; justify-content: center;
+          background: #fff;
+          font-family: 'Sarabun', 'Inter', sans-serif;
+        }
+        #initial-loader .spinner {
+          width: 44px; height: 44px;
+          border: 4px solid #f3e8e4;
+          border-top-color: #fb9678;
+          border-radius: 50%;
+          animation: il-spin 0.7s linear infinite;
+        }
+        #initial-loader .text {
+          margin-top: 16px;
+          color: #9e9e9e;
+          font-size: 14px;
+          letter-spacing: 0.3px;
+        }
+        @keyframes il-spin { to { transform: rotate(360deg); } }
+      </style>
+      <div id="initial-loader">
+        <div class="spinner"></div>
+        <div class="text">กำลังโหลด...</div>
+      </div>
+    </div>
+    <script>
+      window.__removeInitialLoader = function() {
+        var el = document.getElementById('initial-loader');
+        var st = document.getElementById('initial-loader-style');
+        if (el) { el.style.opacity = '0'; el.style.transition = 'opacity 0.25s'; setTimeout(function() { el.remove(); if (st) st.remove(); }, 300); }
+      };
+    </script>
+    <script src="https://www.google.com/recaptcha/api.js?render=explicit" async defer></script>
+    <script type="module" src="/src/main.tsx"></script>
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js').then((reg) => {
+            reg.addEventListener('updatefound', () => {
+              const newWorker = reg.installing;
+              if (newWorker) {
+                newWorker.addEventListener('statechange', () => {
+                  if (newWorker.state === 'activated') {
+                    window.location.reload();
+                  }
+                });
+              }
+            });
+          });
+        });
+      }
+    </script>
+  </body>
+</html>

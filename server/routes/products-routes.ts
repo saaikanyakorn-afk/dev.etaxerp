@@ -1,0 +1,1549 @@
+import type { Express, Request, Response } from "express";
+import { db } from "../db";
+import { storage } from "../storage";
+import { eq, desc, and, or, ilike, inArray, count, sum , sql } from "drizzle-orm";
+import { products, documentImportBatches, stockMovements, promotions, companies, productLots, goodsRequisitions, goodsRequisitionItems, journalEntries, journalLines, stockTransfers, stockTransferItems, warehouses, warehouseStockLevels, branches } from "@shared/schema";
+import { requireAuth, requireModule, requireAnyModule, checkDocOwnership } from "../route-middleware";
+import { getNextJournalEntryNo, logActivity, deleteStockMovementsForDoc } from "../route-helpers";
+import { parsePagination, paginatedResponse } from "./pagination";
+import * as XLSX from "xlsx";
+import path from "path";
+import { z } from "zod";
+import { recalcBundleStock, recalcBomStock, recalcMappingStock, recalcAllStock } from "../inventory-recalc";
+import { createCOGSJournalEntry, updateCostJournalEntries } from "../inventory-journal";
+import { parse as csvParse } from "csv-parse/sync";
+import multer from "multer";
+const upload = multer({ storage: multer.memoryStorage() });
+
+export function registerProductsRoutes(app: Express) {
+// ==================== Product Import/Export ====================
+app.get("/api/products/import/template", requireAuth, (_req, res) => {
+  const headers = ["รหัสสินค้า", "ชื่อสินค้า", "ชื่ออังกฤษ", "ชื่อจีน", "หมวดหมู่", "รายละเอียด", "หน่วย", "ราคาขาย", "ต้นทุน", "รวมVAT", "รหัสบัญชี"];
+  const sample = ["P001", "สินค้าตัวอย่าง", "Sample Product", "", "สินค้า", "รายละเอียดสินค้า", "ชิ้น", 100, 70, "ไม่รวม", "4001000"];
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet([headers, sample]);
+  const colWidths = [12, 30, 25, 20, 12, 30, 8, 12, 12, 10, 12];
+  ws["!cols"] = colWidths.map(w => ({ wch: w }));
+  XLSX.utils.book_append_sheet(wb, ws, "Products");
+  const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
+  res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+  res.setHeader("Content-Disposition", "attachment; filename=template_products.xlsx");
+  res.send(Buffer.from(buf));
+});
+
+app.get("/api/products/export", requireAuth, requireModule("inventory"), async (req, res) => {
+  try {
+    const companyId = Number(req.query.companyId);
+    if (!companyId) return res.status(400).json({ message: "กรุณาระบุ companyId" });
+    const allProducts = await storage.getProducts(companyId);
+    const active = allProducts.filter(p => p.active);
+    const headers = ["รหัสสินค้า", "ชื่อสินค้า", "ชื่ออังกฤษ", "ชื่อจีน", "หมวดหมู่", "รายละเอียด", "หน่วย", "ราคาขาย", "ต้นทุน", "รวมVAT", "รหัสบัญชี"];
+    const catLabel: Record<string, string> = { product: "สินค้า", service: "บริการ", raw_material: "วัตถุดิบ", consumable: "วัสดุสิ้นเปลือง" };
+    const rows = active.map(p => [
+      p.code, p.name, p.nameEn || "", p.nameZh || "",
+      catLabel[p.category] || p.category,
+      p.description || "", p.unit, Number(p.price) || 0, Number(p.cost) || 0,
+      p.vatIncluded ? "รวม" : "ไม่รวม", p.accountCode || ""
+    ]);
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+    const colWidths = [12, 30, 25, 20, 12, 30, 8, 12, 12, 10, 12];
+    ws["!cols"] = colWidths.map(w => ({ wch: w }));
+    XLSX.utils.book_append_sheet(wb, ws, "Products");
+    const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    res.setHeader("Content-Disposition", "attachment; filename=products_export.xlsx");
+    res.send(Buffer.from(buf));
+  } catch (err: any) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+app.post("/api/products/import/preview", requireAuth, requireModule("inventory"), upload.single("file"), async (req: any, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ message: "กรุณาอัปโหลดไฟล์" });
+    const companyId = Number(req.body.companyId);
+    if (!companyId) return res.status(400).json({ message: "กรุณาระบุ companyId" });
+
+    let rows: any[] = [];
+    const ext = path.extname(req.file.originalname).toLowerCase();
+
+    if (ext === ".csv") {
+      let content = req.file.buffer.toString("utf-8");
+      const hasThai = /[\u0E00-\u0E7F]/.test(content);
+      const hasHighBytes = req.file.buffer.some((b: number) => b >= 0xA1 && b <= 0xFB);
+      if (!hasThai && hasHighBytes) {
+        try {
+          const decoder = new TextDecoder("tis-620");
+          content = decoder.decode(req.file.buffer);
+        } catch {
+          content = req.file.buffer.toString("latin1");
+        }
+      }
+      const firstLine = content.split(/\r?\n/)[0];
+      const delimiter = firstLine.includes("\t") ? "\t" : ",";
+      rows = csvParse(content, { columns: true, skip_empty_lines: true, trim: true, bom: true, delimiter, relax_quotes: true, relax_column_count: true });
+    } else if (ext === ".xlsx" || ext === ".xls") {
+      const workbook = XLSX.read(req.file.buffer, { type: "buffer" });
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      rows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+    } else {
+      return res.status(400).json({ message: "รองรับเฉพาะไฟล์ .csv, .xlsx, .xls" });
+    }
+
+    if (rows.length === 0) return res.status(400).json({ message: "ไม่พบข้อมูลในไฟล์" });
+    if (rows.length > 5000) return res.status(400).json({ message: "รองรับสูงสุด 5,000 รายการต่อครั้ง" });
+
+    const headers = Object.keys(rows[0]);
+
+    const FIELD_MAP: Record<string, string[]> = {
+      code: ["code", "รหัส", "รหัสสินค้า", "product_code", "item_code", "sku"],
+      name: ["name", "ชื่อ", "ชื่อสินค้า", "product_name", "item_name"],
+      nameEn: ["name_en", "nameEn", "ชื่ออังกฤษ", "english_name"],
+      nameZh: ["name_zh", "nameZh", "ชื่อจีน", "chinese_name"],
+      category: ["category", "หมวดหมู่", "ประเภท", "type"],
+      description: ["description", "รายละเอียด", "desc"],
+      unit: ["unit", "หน่วย"],
+      price: ["price", "ราคา", "ราคาขาย", "selling_price", "unit_price"],
+      cost: ["cost", "ต้นทุน", "unit_cost"],
+      vatIncluded: ["vat", "vatIncluded", "รวมvat", "vat_included", "include_vat"],
+      accountCode: ["account_code", "accountCode", "รหัสบัญชี", "gl_code"],
+      barcode: ["barcode", "บาร์โค้ด", "bar_code", "ean", "ean13", "upc"],
+    };
+
+    const mapField = (header: string): string | null => {
+      const h = header.trim().toLowerCase();
+      for (const [field, aliases] of Object.entries(FIELD_MAP)) {
+        if (aliases.some(a => a.toLowerCase() === h)) return field;
+      }
+      return null;
+    };
+
+    const columnMapping: Record<string, string | null> = {};
+    headers.forEach(h => { columnMapping[h] = mapField(h); });
+
+    const existingProducts = await storage.getProducts(companyId);
+    const existingCodes = new Set(existingProducts.filter(p => p.active).map(p => p.code));
+
+    const catMap: Record<string, string> = {
+      "สินค้า": "product", "product": "product",
+      "บริการ": "service", "service": "service",
+      "วัตถุดิบ": "raw_material", "raw_material": "raw_material",
+      "วัสดุสิ้นเปลือง": "consumable", "consumable": "consumable",
+    };
+
+    const preview = rows.map((row: any, idx: number) => {
+      const mapped: any = {};
+      for (const [header, value] of Object.entries(row)) {
+        const field = columnMapping[header];
+        if (field) mapped[field] = String(value).trim();
+      }
+
+      const issues: string[] = [];
+      if (!mapped.code) issues.push("ไม่มีรหัสสินค้า");
+      if (!mapped.name) issues.push("ไม่มีชื่อสินค้า");
+      if (mapped.code && existingCodes.has(mapped.code)) issues.push(`รหัส "${mapped.code}" มีในระบบแล้ว`);
+
+      if (mapped.category) {
+        const c = mapped.category.toLowerCase();
+        mapped.category = catMap[c] || "product";
+      } else {
+        mapped.category = "product";
+      }
+
+      if (mapped.price) mapped.price = String(Number(mapped.price) || 0);
+      else mapped.price = "0";
+      if (mapped.cost) mapped.cost = String(Number(mapped.cost) || 0);
+      else mapped.cost = "0";
+
+      if (mapped.vatIncluded) {
+        const v = mapped.vatIncluded.toLowerCase();
+        mapped.vatIncluded = ["รวม", "yes", "true", "1", "y", "included"].includes(v);
+      } else {
+        mapped.vatIncluded = false;
+      }
+
+      if (!mapped.unit) mapped.unit = "ชิ้น";
+
+      return {
+        row: idx + 1,
+        data: mapped,
+        issues,
+        status: issues.length > 0 ? (issues.some(i => i.includes("มีในระบบแล้ว")) ? "duplicate" : "error") : "ok",
+      };
+    });
+
+    const seenCodes = new Set<string>();
+    preview.forEach(p => {
+      if (p.data.code && seenCodes.has(p.data.code)) {
+        p.issues.push(`รหัส "${p.data.code}" ซ้ำในไฟล์`);
+        p.status = "duplicate";
+      }
+      if (p.data.code) seenCodes.add(p.data.code);
+    });
+
+    res.json({
+      headers,
+      columnMapping,
+      totalRows: rows.length,
+      preview,
+      stats: {
+        ok: preview.filter(p => p.status === "ok").length,
+        duplicate: preview.filter(p => p.status === "duplicate").length,
+        error: preview.filter(p => p.status === "error").length,
+      },
+    });
+  } catch (err: any) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+app.post("/api/products/import/execute", requireAuth, requireModule("inventory"), async (req, res) => {
+  try {
+    const { companyId, products: productList, updateProducts } = req.body;
+    if (!companyId || !productList || !Array.isArray(productList)) {
+      return res.status(400).json({ message: "ข้อมูลไม่ถูกต้อง" });
+    }
+
+    const existingProducts = await storage.getProducts(companyId);
+    const existingCodes = new Set(existingProducts.filter(p => p.active).map(p => p.code));
+    const existingCodeMap = new Map(existingProducts.filter(p => p.active).map(p => [p.code, p.id]));
+
+    const validProducts = productList
+      .filter((p: any) => p.code && p.name && !existingCodes.has(p.code))
+      .map((p: any) => ({
+        companyId,
+        code: p.code,
+        name: p.name,
+        nameEn: p.nameEn || null,
+        nameZh: p.nameZh || null,
+        category: p.category || "product",
+        description: p.description || null,
+        unit: p.unit || "ชิ้น",
+        price: String(Number(p.price) || 0),
+        cost: String(Number(p.cost) || 0),
+        vatIncluded: !!p.vatIncluded,
+        accountCode: p.accountCode || null,
+        barcode: p.barcode || null,
+      }));
+
+    let updatedCount = 0;
+    if (Array.isArray(updateProducts) && updateProducts.length > 0) {
+      for (const p of updateProducts) {
+        const existingId = existingCodeMap.get(p.code);
+        if (existingId) {
+          await storage.updateProduct(existingId, {
+            name: p.name,
+            nameEn: p.nameEn || undefined,
+            nameZh: p.nameZh || undefined,
+            category: p.category || "product",
+            description: p.description || undefined,
+            unit: p.unit || "ชิ้น",
+            price: String(Number(p.price) || 0),
+            cost: String(Number(p.cost) || 0),
+            vatIncluded: !!p.vatIncluded,
+            accountCode: p.accountCode || undefined,
+            barcode: p.barcode || undefined,
+          });
+          updatedCount++;
+        }
+      }
+    }
+
+    if (validProducts.length === 0 && updatedCount === 0) {
+      return res.status(400).json({ message: "ไม่มีรายการที่สามารถนำเข้าได้" });
+    }
+
+    let created: any[] = [];
+    if (validProducts.length > 0) {
+      created = await storage.bulkCreateProducts(validProducts);
+    }
+    const createdIds = created.map((p: any) => p.id).filter(Boolean);
+    let batchId: number | undefined;
+    if (createdIds.length > 0) {
+      const [batch] = await db.insert(documentImportBatches).values({
+        companyId,
+        docType: "product",
+        fileName: req.body.fileName || null,
+        totalCreated: createdIds.length,
+        totalSkipped: productList.length - created.length,
+        totalErrors: 0,
+        createdDocIds: JSON.stringify(createdIds),
+        createdBy: (req.user as any).id,
+      }).returning();
+      batchId = batch.id;
+    }
+    res.json({ imported: created.length, updated: updatedCount, total: productList.length + (updateProducts?.length || 0), skipped: productList.length - created.length, batchId });
+  } catch (err: any) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// ==================== Products ====================
+app.get("/api/products", requireAuth, requireModule("inventory"), async (req, res) => {
+  try {
+    const companyId = Number(req.query.companyId);
+    if (!companyId) return res.status(400).json({ message: "กรุณาระบุ companyId" });
+    const category = req.query.category as string | undefined;
+    const { page, pageSize, offset } = parsePagination(req, { pageSize: 50 });
+    const usePagination = !!req.query.page;
+    const conditions: any[] = [eq(products.companyId, companyId)];
+    if (category) conditions.push(eq(products.category, category));
+    const whereClause = and(...conditions);
+    const [{ total }] = await db.select({ total: count() }).from(products).where(whereClause);
+    let query = db.select().from(products).where(whereClause).orderBy(desc(products.createdAt));
+    const list = usePagination
+      ? await query.limit(pageSize).offset(offset)
+      : await query;
+    const stockSums = await db.select({
+      productId: stockMovements.productId,
+      totalQty: sql<string>`COALESCE(SUM(CAST(${stockMovements.quantity} AS numeric)), 0)`,
+    }).from(stockMovements).where(eq(stockMovements.companyId, companyId)).groupBy(stockMovements.productId);
+    const stockMap = new Map(stockSums.map(s => [s.productId, parseFloat(s.totalQty)]));
+    const enriched = list.map(p => ({
+      ...p,
+      quantity: String(stockMap.get(p.id) ?? 0),
+    }));
+    if (req.query.page) {
+      res.json(paginatedResponse(enriched, Number(total), { page, pageSize, offset }));
+    } else {
+      res.json(enriched);
+    }
+  } catch (err: any) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+app.post("/api/products/generate-barcode", requireAuth, requireModule("inventory"), async (req, res) => {
+  try {
+    const companyId = Number(req.body.companyId);
+    if (!companyId) return res.status(400).json({ message: "กรุณาระบุ companyId" });
+    const allProducts = await storage.getProducts(companyId);
+    const existingBarcodes = new Set(allProducts.filter(p => p.barcode).map(p => p.barcode));
+    let barcode: string;
+    do {
+      const num = Math.floor(Math.random() * 999999999999).toString().padStart(12, '0');
+      let sum = 0;
+      for (let i = 0; i < 12; i++) {
+        sum += parseInt(num[i]) * (i % 2 === 0 ? 1 : 3);
+      }
+      const checkDigit = (10 - (sum % 10)) % 10;
+      barcode = num + checkDigit;
+    } while (existingBarcodes.has(barcode));
+    res.json({ barcode });
+  } catch (err: any) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+app.post("/api/products/bulk-generate-barcodes", requireAuth, requireModule("inventory"), async (req, res) => {
+  try {
+    const companyId = Number(req.body.companyId);
+    if (!companyId) return res.status(400).json({ message: "กรุณาระบุ companyId" });
+    const allProducts = await storage.getProducts(companyId);
+    const withoutBarcode = allProducts.filter(p => !p.barcode);
+    const existingBarcodes = new Set(allProducts.filter(p => p.barcode).map(p => p.barcode));
+    let updated = 0;
+    for (const product of withoutBarcode) {
+      let barcode: string;
+      do {
+        const num = Math.floor(Math.random() * 999999999999).toString().padStart(12, '0');
+        let sum = 0;
+        for (let i = 0; i < 12; i++) {
+          sum += parseInt(num[i]) * (i % 2 === 0 ? 1 : 3);
+        }
+        const checkDigit = (10 - (sum % 10)) % 10;
+        barcode = num + checkDigit;
+      } while (existingBarcodes.has(barcode));
+      existingBarcodes.add(barcode);
+      await storage.updateProduct(product.id, { barcode });
+      updated++;
+    }
+    res.json({ updated, total: allProducts.length });
+  } catch (err: any) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+app.get("/api/products/check-duplicates", requireAuth, requireModule("inventory"), async (req, res) => {
+  try {
+    const companyId = Number(req.query.companyId);
+    if (!companyId) return res.status(400).json({ message: "กรุณาระบุ companyId" });
+    const code = req.query.code as string | undefined;
+    const name = req.query.name as string | undefined;
+    const excludeId = req.query.excludeId ? Number(req.query.excludeId) : undefined;
+    const duplicates = await storage.findDuplicateProducts(companyId, { code, name, excludeId });
+    res.json(duplicates);
+  } catch (err: any) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+app.post("/api/products", requireAuth, requireModule("inventory"), async (req, res) => {
+  try {
+    const currentUser = req.user as any;
+    if (currentUser.tenantId) {
+      const limitCheck = await storage.checkTenantLimit(currentUser.tenantId, "products");
+      if (!limitCheck.allowed) {
+        return res.status(403).json({ message: `แพ็คเกจ ${limitCheck.planName} รองรับสินค้าสูงสุด ${limitCheck.limit} รายการ (มีแล้ว ${limitCheck.current}) กรุณาอัพเกรดแพ็คเกจ` });
+      }
+    }
+    const parsed = insertProductSchema.parse(req.body);
+    const codeExists = await storage.findDuplicateProducts(parsed.companyId, { code: parsed.code });
+    if (codeExists.length > 0) {
+      return res.status(409).json({ message: `รหัสสินค้า "${parsed.code}" ถูกใช้แล้ว`, field: "code", duplicates: codeExists });
+    }
+    const created = await storage.createProduct(parsed);
+    logActivity({ companyId: created.companyId || 0, userId: (req.user as any)?.id, userName: (req.user as any)?.username, action: "create", entityType: "product", entityId: String(created.id), entityName: created.name || "" }).catch(() => {});
+    res.status(201).json(created);
+  } catch (err: any) {
+    if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+    res.status(400).json({ message: err.message });
+  }
+});
+
+app.patch("/api/products/:id", requireAuth, requireModule("inventory"), async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const existing = await storage.getProduct(id);
+    if (!existing) return res.status(404).json({ message: "ไม่พบสินค้า" });
+    { const ac = await checkDocOwnership(existing.companyId, req.user); if (!ac.allowed) return res.status(403).json({ message: ac.message }); }
+    const newProductCode = req.body.code?.trim();
+    if (newProductCode && newProductCode !== existing.code) {
+      const [dup] = await db.select({ id: products.id }).from(products)
+        .where(and(eq(products.companyId, existing.companyId!), eq(products.code, newProductCode), sql`${products.id} != ${id}`)).limit(1);
+      if (dup) return res.status(409).json({ message: `รหัสสินค้า "${newProductCode}" ถูกใช้แล้ว`, field: "code" });
+    }
+    const updated = await storage.updateProduct(id, req.body);
+    if (!updated) return res.status(404).json({ message: "ไม่พบสินค้า" });
+    logActivity({ companyId: updated.companyId || 0, userId: (req.user as any)?.id, userName: (req.user as any)?.username, action: "update", entityType: "product", entityId: String(id), entityName: updated.name || "" }).catch(() => {});
+    res.json(updated);
+  } catch (err: any) {
+    res.status(400).json({ message: err.message });
+  }
+});
+
+app.delete("/api/products/:id", requireAuth, requireModule("inventory"), async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const existing = await storage.getProduct(id);
+    if (!existing) return res.status(404).json({ message: "ไม่พบสินค้า" });
+    { const ac = await checkDocOwnership(existing.companyId, req.user); if (!ac.allowed) return res.status(403).json({ message: ac.message }); }
+    await storage.deleteProduct(id);
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(400).json({ message: err.message });
+  }
+});
+
+// ===== BOM (Bill of Materials) =====
+app.get("/api/bom", requireAuth, requireModule("inventory"), async (req, res) => {
+  try {
+    const companyId = Number(req.query.companyId);
+    const productId = req.query.productId ? Number(req.query.productId) : undefined;
+    if (!companyId) return res.status(400).json({ message: "companyId required" });
+    const headers = await storage.getBomHeaders(companyId, productId);
+    res.json(headers);
+  } catch (err: any) { res.status(400).json({ message: err.message }); }
+});
+
+app.get("/api/bom/:id", requireAuth, requireModule("inventory"), async (req, res) => {
+  try {
+    const header = await storage.getBomHeader(Number(req.params.id));
+    if (!header) return res.status(404).json({ message: "ไม่พบสูตรผลิต" });
+    const lines = await storage.getBomLines(header.id);
+    res.json({ ...header, lines });
+  } catch (err: any) { res.status(400).json({ message: err.message }); }
+});
+
+app.post("/api/bom", requireAuth, requireModule("inventory"), async (req, res) => {
+  try {
+    const { lines, ...headerData } = req.body;
+    if (!headerData.companyId || !headerData.productId || !headerData.name) {
+      return res.status(400).json({ message: "companyId, productId, name required" });
+    }
+    const header = await storage.createBomHeader(headerData);
+    const savedLines = lines?.length ? await storage.setBomLines(header.id, lines) : [];
+    // Auto-recalculate BOM component stock
+    try { await recalcBomStock(headerData.companyId || header.companyId, header.productId); } catch(e) { console.error("BOM recalc error:", e); }
+    res.json({ ...header, lines: savedLines });
+  } catch (err: any) { res.status(400).json({ message: err.message }); }
+});
+
+app.patch("/api/bom/:id", requireAuth, requireModule("inventory"), async (req, res) => {
+  try {
+    const { lines, ...headerData } = req.body;
+    const header = await storage.updateBomHeader(Number(req.params.id), headerData);
+    if (!header) return res.status(404).json({ message: "ไม่พบสูตรผลิต" });
+    if (lines) await storage.setBomLines(header.id, lines);
+    const savedLines = await storage.getBomLines(header.id);
+    // Auto-recalculate BOM component stock
+    try { await recalcBomStock(headerData.companyId || header.companyId, header.productId); } catch(e) { console.error("BOM recalc error:", e); }
+    res.json({ ...header, lines: savedLines });
+  } catch (err: any) { res.status(400).json({ message: err.message }); }
+});
+
+app.delete("/api/bom/:id", requireAuth, requireModule("inventory"), async (req, res) => {
+  try {
+    await storage.deleteBomHeader(Number(req.params.id));
+    res.json({ success: true });
+  } catch (err: any) { res.status(400).json({ message: err.message }); }
+});
+
+// ===== Product Bundles =====
+app.get("/api/product-bundles/:productId", requireAuth, requireModule("inventory"), async (req, res) => {
+  try {
+    const bundles = await storage.getProductBundles(Number(req.params.productId));
+    if (req.query.enriched === "1") {
+      const productIds = [...new Set(bundles.map(b => b.componentProductId))];
+      const prods = productIds.length > 0
+        ? await db.select().from(products).where(sql`${products.id} IN (${sql.join(productIds.map(id => sql`${id}`), sql`,`)})`)
+        : [];
+      const prodMap = new Map(prods.map(p => [p.id, p]));
+      const enriched = bundles.map(b => {
+        const p = prodMap.get(b.componentProductId);
+        return { ...b, productName: p?.name || "", productCode: p?.code || "", productPrice: p?.price || "0", productImage: p?.image || null };
+      });
+      return res.json(enriched);
+    }
+    res.json(bundles);
+  } catch (err: any) { res.status(400).json({ message: err.message }); }
+});
+
+app.put("/api/product-bundles/:productId", requireAuth, requireModule("inventory"), async (req, res) => {
+  try {
+    const items = req.body.items || [];
+    const saved = await storage.setProductBundles(Number(req.params.productId), items);
+    // Auto-recalculate component stock
+    const prod = await storage.getProduct(Number(req.params.productId));
+    if (prod) {
+      try { await recalcBundleStock(prod.companyId, prod.id); } catch(e) { console.error("Bundle recalc error:", e); }
+    }
+    res.json(saved);
+  } catch (err: any) { res.status(400).json({ message: err.message }); }
+});
+
+// ===== Promotions =====
+app.get("/api/promotions", requireAuth, requireModule("inventory"), async (req, res) => {
+  try {
+    const companyId = Number(req.query.companyId);
+    if (!companyId) return res.status(400).json({ message: "companyId required" });
+    const promos = await storage.getPromotions(companyId);
+    res.json(promos);
+  } catch (err: any) { res.status(400).json({ message: err.message }); }
+});
+
+app.get("/api/promotions/:id", requireAuth, requireModule("inventory"), async (req, res) => {
+  try {
+    const promo = await storage.getPromotion(Number(req.params.id));
+    if (!promo) return res.status(404).json({ message: "ไม่พบโปรโมชั่น" });
+    const rules = await storage.getPromotionRules(promo.id);
+    res.json({ ...promo, rules });
+  } catch (err: any) { res.status(400).json({ message: err.message }); }
+});
+
+app.post("/api/promotions", requireAuth, requireModule("inventory"), async (req, res) => {
+  try {
+    const { rules, ...promoData } = req.body;
+    if (!promoData.companyId || !promoData.name || !promoData.type) {
+      return res.status(400).json({ message: "companyId, name, type required" });
+    }
+    const promo = await storage.createPromotion(promoData);
+    const savedRules = rules?.length ? await storage.setPromotionRules(promo.id, rules) : [];
+    res.json({ ...promo, rules: savedRules });
+  } catch (err: any) { res.status(400).json({ message: err.message }); }
+});
+
+app.patch("/api/promotions/:id", requireAuth, requireModule("inventory"), async (req, res) => {
+  try {
+    const { rules, ...promoData } = req.body;
+    const promo = await storage.updatePromotion(Number(req.params.id), promoData);
+    if (!promo) return res.status(404).json({ message: "ไม่พบโปรโมชั่น" });
+    if (rules) await storage.setPromotionRules(promo.id, rules);
+    const savedRules = await storage.getPromotionRules(promo.id);
+    res.json({ ...promo, rules: savedRules });
+  } catch (err: any) { res.status(400).json({ message: err.message }); }
+});
+
+app.delete("/api/promotions/:id", requireAuth, requireModule("inventory"), async (req, res) => {
+  try {
+    await storage.deletePromotion(Number(req.params.id));
+    res.json({ success: true });
+  } catch (err: any) { res.status(400).json({ message: err.message }); }
+});
+
+// ===== Product Mappings (ซื้อชื่อหนึ่ง ขายอีกชื่อ) =====
+app.get("/api/product-mappings", requireAuth, requireModule("inventory"), async (req, res) => {
+  try {
+    const companyId = Number(req.query.companyId);
+    const sellProductId = req.query.sellProductId ? Number(req.query.sellProductId) : undefined;
+    if (!companyId) return res.status(400).json({ message: "companyId required" });
+    const mappings = await storage.getProductMappings(companyId, sellProductId);
+    res.json(mappings);
+  } catch (err: any) { res.status(400).json({ message: err.message }); }
+});
+
+app.post("/api/product-mappings", requireAuth, requireModule("inventory"), async (req, res) => {
+  try {
+    const data = req.body;
+    if (!data.companyId || !data.sellProductId || !data.buyProductId) {
+      return res.status(400).json({ message: "companyId, sellProductId, buyProductId required" });
+    }
+    const mapping = await storage.createProductMapping(data);
+    // Auto-recalculate mapping stock
+    try { await recalcMappingStock(data.companyId || mapping.companyId); } catch(e) { console.error("Mapping recalc error:", e); }
+    res.json(mapping);
+  } catch (err: any) { res.status(400).json({ message: err.message }); }
+});
+
+app.patch("/api/product-mappings/:id", requireAuth, requireModule("inventory"), async (req, res) => {
+  try {
+    const mapping = await storage.updateProductMapping(Number(req.params.id), req.body);
+    if (!mapping) return res.status(404).json({ message: "ไม่พบ mapping" });
+    // Auto-recalculate mapping stock
+    try { await recalcMappingStock(req.body.companyId || mapping.companyId); } catch(e) { console.error("Mapping recalc error:", e); }
+    res.json(mapping);
+  } catch (err: any) { res.status(400).json({ message: err.message }); }
+});
+
+app.delete("/api/product-mappings/:id", requireAuth, requireModule("inventory"), async (req, res) => {
+  try {
+    await storage.deleteProductMapping(Number(req.params.id));
+    res.json({ success: true });
+  } catch (err: any) { res.status(400).json({ message: err.message }); }
+});
+
+
+app.post("/api/inventory/recalculate", requireAuth, requireModule("inventory"), async (req, res) => {
+  try {
+    const companyId = Number(req.body.companyId);
+    const type = req.body.type as string; // "bundle" | "bom" | "mapping" | "all"
+    const productId = req.body.productId ? Number(req.body.productId) : undefined;
+    if (!companyId) return res.status(400).json({ message: "companyId required" });
+    
+    let result;
+    if (type === "bundle") {
+      result = await recalcBundleStock(companyId, productId);
+    } else if (type === "bom") {
+      result = await recalcBomStock(companyId, productId);
+    } else if (type === "mapping") {
+      result = await recalcMappingStock(companyId);
+    } else {
+      result = await recalcAllStock(companyId);
+    }
+    res.json({ success: true, result });
+  } catch (err: any) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+app.post("/api/inventory/update-cost-journals", requireAuth, requireModule("inventory"), async (req, res) => {
+  try {
+    const companyId = Number(req.body.companyId);
+    if (!companyId) return res.status(400).json({ message: "companyId required" });
+    const logs = await updateCostJournalEntries(companyId);
+    res.json({ success: true, logs });
+  } catch (err: any) {
+    res.status(500).json({ message: err.message });
+  }
+});
+// ===== Product Stock & Movements =====
+app.get("/api/product-stock", requireAuth, requireModule("inventory"), async (req, res) => {
+  try {
+    const companyId = Number(req.query.companyId);
+    const productId = req.query.productId ? Number(req.query.productId) : undefined;
+    if (!companyId) return res.status(400).json({ message: "companyId required" });
+    const stock = await storage.getProductStock(companyId, productId);
+    res.json(stock);
+  } catch (err: any) { res.status(400).json({ message: err.message }); }
+});
+
+app.post("/api/product-stock/adjust", requireAuth, requireModule("inventory"), async (req, res) => {
+  try {
+    const { companyId, productId, quantity, movementType, notes, referenceType, referenceId } = req.body;
+    if (!companyId || !productId || !quantity || !movementType) {
+      return res.status(400).json({ message: "companyId, productId, quantity, movementType required" });
+    }
+    const result = await storage.adjustStock(companyId, productId, quantity, movementType, notes, referenceType, referenceId);
+    res.json(result);
+  } catch (err: any) { res.status(400).json({ message: err.message }); }
+});
+
+app.post("/api/product-stock/sell", requireAuth, requireModule("inventory"), async (req, res) => {
+  try {
+    const { companyId, sellProductId, sellQty, notes } = req.body;
+    if (!companyId || !sellProductId || !sellQty) {
+      return res.status(400).json({ message: "companyId, sellProductId, sellQty required" });
+    }
+    const mappings = await storage.getMappingsForSellProduct(sellProductId);
+    const results: any[] = [];
+    await db.transaction(async (tx) => {
+      if (mappings.length > 0) {
+        for (const mapping of mappings) {
+          const deductQty = String(-(Number(sellQty) * Number(mapping.conversionRate)));
+          const stock = await storage.adjustStock(
+            companyId, mapping.buyProductId, deductQty, "sale_deduct",
+            `ขาย ${sellQty} ${mapping.sellUnit} → ตัดสต๊อก ${Math.abs(Number(deductQty))} ${mapping.buyUnit}`,
+          );
+          results.push({ buyProductId: mapping.buyProductId, deducted: deductQty, stock });
+        }
+      } else {
+        const deductQty = String(-Number(sellQty));
+        const stock = await storage.adjustStock(companyId, sellProductId, deductQty, "sale_deduct", notes || "ขายสินค้า (ตัดสต๊อกตรง)");
+        results.push({ buyProductId: sellProductId, deducted: deductQty, stock });
+      }
+    });
+    res.json({ success: true, deductions: results });
+  } catch (err: any) { res.status(400).json({ message: err.message }); }
+});
+
+app.get("/api/stock-movements", requireAuth, requireModule("inventory"), async (req, res) => {
+  try {
+    const companyId = Number(req.query.companyId);
+    const productId = req.query.productId ? Number(req.query.productId) : undefined;
+    if (!companyId) return res.status(400).json({ message: "companyId required" });
+    const { page, pageSize, offset } = parsePagination(req, { pageSize: 50 });
+    const conditions: any[] = [eq(stockMovements.companyId, companyId)];
+    if (productId) conditions.push(eq(stockMovements.productId, productId));
+    const whereClause = and(...conditions);
+    const [{ total }] = await db.select({ total: count() }).from(stockMovements).where(whereClause);
+    const movements = await db.select().from(stockMovements).where(whereClause).orderBy(desc(stockMovements.createdAt)).limit(pageSize).offset(offset);
+    if (req.query.page) {
+      res.json(paginatedResponse(movements, Number(total), { page, pageSize, offset }));
+    } else {
+      res.json(movements);
+    }
+  } catch (err: any) { res.status(400).json({ message: err.message }); }
+});
+
+app.get("/api/inventory-reports/stock-card", requireAuth, requireAnyModule("inventory", "accounting"), async (req, res) => {
+  try {
+    const companyId = Number(req.query.companyId);
+    const productId = Number(req.query.productId);
+    if (!companyId || !productId) return res.status(400).json({ message: "companyId and productId required" });
+    const [company] = await db.select().from(companies).where(eq(companies.id, companyId));
+    const method = (req.query.method as string) || company?.inventoryCostingMethod || "moving_average";
+    const startDate = req.query.startDate as string | undefined;
+    const endDate = req.query.endDate as string | undefined;
+    const { getStockCardWithCost } = await import("./inventory-costing");
+    const result = await getStockCardWithCost(companyId, productId, method as any, startDate, endDate);
+    res.json({ method, movements: result.movements, balanceBF: result.balanceBF });
+  } catch (err: any) { res.status(400).json({ message: err.message }); }
+});
+
+app.get("/api/inventory-reports/valuation", requireAuth, requireAnyModule("inventory", "accounting"), async (req, res) => {
+  try {
+    const companyId = Number(req.query.companyId);
+    if (!companyId) return res.status(400).json({ message: "companyId required" });
+    const [company] = await db.select().from(companies).where(eq(companies.id, companyId));
+    const method = (req.query.method as string) || company?.inventoryCostingMethod || "moving_average";
+    const asOfDate = req.query.asOfDate as string | undefined;
+    const { getInventoryValuation } = await import("./inventory-costing");
+    const result = await getInventoryValuation(companyId, method as any, asOfDate);
+    const totalValue = result.reduce((sum, r) => sum + r.totalValue, 0);
+    res.json({ method, asOfDate: asOfDate || new Date().toISOString().split("T")[0], items: result, totalValue });
+  } catch (err: any) { res.status(400).json({ message: err.message }); }
+});
+
+app.get("/api/inventory-reports/movement-summary", requireAuth, requireAnyModule("inventory", "accounting"), async (req, res) => {
+  try {
+    const companyId = Number(req.query.companyId);
+    if (!companyId) return res.status(400).json({ message: "companyId required" });
+    const [company] = await db.select().from(companies).where(eq(companies.id, companyId));
+    const method = (req.query.method as string) || company?.inventoryCostingMethod || "moving_average";
+    const startDate = req.query.startDate as string | undefined;
+    const endDate = req.query.endDate as string | undefined;
+    const { getMovementSummary } = await import("./inventory-costing");
+    const result = await getMovementSummary(companyId, method as any, startDate, endDate);
+    res.json({ method, startDate, endDate, items: result });
+  } catch (err: any) { res.status(400).json({ message: err.message }); }
+});
+
+app.get("/api/inventory-reports/slow-moving", requireAuth, requireAnyModule("inventory", "accounting"), async (req, res) => {
+  try {
+    const companyId = Number(req.query.companyId);
+    if (!companyId) return res.status(400).json({ message: "companyId required" });
+    const days = Number(req.query.days) || 30;
+    const { getSlowMovingProducts } = await import("./inventory-costing");
+    const result = await getSlowMovingProducts(companyId, days);
+    res.json({ daysThreshold: days, items: result });
+  } catch (err: any) { res.status(400).json({ message: err.message }); }
+});
+
+app.post("/api/product-stock/bulk-adjust", requireAuth, requireModule("inventory"), async (req, res) => {
+  try {
+    const { companyId, items } = req.body;
+    if (!companyId || !items || !Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ message: "companyId and items[] required" });
+    }
+    const results: any[] = [];
+    let successCount = 0;
+    let errorCount = 0;
+    for (const item of items) {
+      try {
+        const { productId, quantity, movementType, notes } = item;
+        if (!productId || !quantity || !movementType) {
+          errorCount++;
+          results.push({ productId, error: "missing fields" });
+          continue;
+        }
+        const result = await storage.adjustStock(companyId, productId, quantity, movementType, notes || "นำเข้าจากไฟล์");
+        results.push({ productId, success: true, stock: result });
+        successCount++;
+      } catch (err: any) {
+        errorCount++;
+        results.push({ productId: item.productId, error: err.message });
+      }
+    }
+    res.json({ successCount, errorCount, total: items.length, results });
+  } catch (err: any) { res.status(400).json({ message: err.message }); }
+});
+
+// ============ Goods Receiving (ใบรับสินค้า) ============
+
+app.get("/api/purchase-orders-for-gr", requireAuth, requireModule("inventory"), async (req, res) => {
+  try {
+    const companyId = Number(req.query.companyId);
+    if (!companyId) return res.status(400).json({ message: "companyId required" });
+    const rows = await db.select().from(purchaseOrders).where(and(
+      eq(purchaseOrders.companyId, companyId),
+      eq(purchaseOrders.status, "approved"),
+    )).orderBy(desc(purchaseOrders.createdAt));
+    const result = await Promise.all(rows.map(async (po) => {
+      const items = await db.select().from(purchaseOrderItems).where(eq(purchaseOrderItems.purchaseOrderId, po.id));
+      return { ...po, items };
+    }));
+    res.json(result);
+  } catch (err: any) { res.status(400).json({ message: err.message }); }
+});
+
+app.get("/api/goods-receivings", requireAuth, requireModule("inventory"), async (req, res) => {
+  try {
+    const companyId = Number(req.query.companyId);
+    if (!companyId) return res.status(400).json({ message: "companyId required" });
+    const conditions: any[] = [eq(goodsReceivings.companyId, companyId)];
+    const status = req.query.status as string;
+    if (status && status !== "all") {
+      conditions.push(eq(goodsReceivings.status, status));
+    }
+    const search = req.query.search as string;
+    if (search) {
+      conditions.push(
+        or(
+          ilike(goodsReceivings.grNo, `%${search}%`),
+          ilike(goodsReceivings.vendorName, `%${search}%`)
+        )
+      );
+    }
+    const rows = await db.select().from(goodsReceivings).where(and(...conditions)).orderBy(desc(goodsReceivings.createdAt));
+    const allItems = rows.length > 0
+      ? await db.select({
+          goodsReceivingId: goodsReceivingItems.goodsReceivingId,
+          cnt: sql<number>`count(*)::int`,
+          totalQty: sql<string>`COALESCE(sum(${goodsReceivingItems.quantity}), 0)`
+        })
+          .from(goodsReceivingItems)
+          .where(inArray(goodsReceivingItems.goodsReceivingId, rows.map(r => r.id)))
+          .groupBy(goodsReceivingItems.goodsReceivingId)
+      : [];
+    const countMap = new Map(allItems.map(i => [i.goodsReceivingId, { cnt: i.cnt, totalQty: i.totalQty }]));
+    res.json(rows.map(r => {
+      const info = countMap.get(r.id);
+      return { ...r, itemCount: info?.cnt || 0, totalQty: info?.totalQty || "0" };
+    }));
+  } catch (err: any) { res.status(400).json({ message: err.message }); }
+});
+
+app.get("/api/goods-receivings/:id", requireAuth, requireModule("inventory"), async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const [gr] = await db.select().from(goodsReceivings).where(eq(goodsReceivings.id, id));
+    if (!gr) return res.status(404).json({ message: "ไม่พบใบรับสินค้า" });
+    const items = await db.select().from(goodsReceivingItems).where(eq(goodsReceivingItems.goodsReceivingId, id));
+    res.json({ ...gr, items });
+  } catch (err: any) { res.status(400).json({ message: err.message }); }
+});
+
+app.post("/api/goods-receivings", requireAuth, requireModule("inventory"), async (req, res) => {
+  try {
+    const { companyId, grDate, vendorId, vendorName, poReference, poId, notes, items } = req.body;
+    if (!companyId || !grDate || !items || items.length === 0) {
+      return res.status(400).json({ message: "companyId, grDate, items required" });
+    }
+    let validatedPoId: number | null = null;
+    if (poId) {
+      const [po] = await db.select().from(purchaseOrders).where(and(
+        eq(purchaseOrders.id, Number(poId)),
+        eq(purchaseOrders.companyId, companyId),
+        eq(purchaseOrders.status, "approved"),
+      ));
+      if (!po) return res.status(400).json({ message: "ไม่พบ PO ที่อ้างอิง หรือ PO ยังไม่ได้อนุมัติ" });
+      validatedPoId = po.id;
+    }
+    const totalAmount = items.reduce((sum: number, it: any) => sum + (Number(it.quantity) * Number(it.unitCost || 0)), 0);
+    const existing = await db.select({ id: goodsReceivings.id }).from(goodsReceivings).where(eq(goodsReceivings.companyId, companyId));
+    const nextNum = existing.length + 1;
+    const grNo = `GR-${String(nextNum).padStart(4, "0")}`;
+
+    const [gr] = await db.insert(goodsReceivings).values({
+      companyId, grNo, grDate, vendorId, vendorName, poReference, poId: validatedPoId, notes,
+      totalAmount: String(totalAmount),
+      status: "draft",
+      createdBy: (req.user as any)?.id,
+    }).returning();
+
+    for (const item of items) {
+      await db.insert(goodsReceivingItems).values({
+        goodsReceivingId: gr.id,
+        productId: item.productId,
+        productName: item.productName,
+        productCode: item.productCode || null,
+        unit: item.unit || "ชิ้น",
+        quantity: String(item.quantity),
+        unitCost: String(item.unitCost || 0),
+        totalCost: String(Number(item.quantity) * Number(item.unitCost || 0)),
+        lotNumber: item.lotNumber || null,
+        manufacturingDate: item.manufacturingDate || null,
+        expiryDate: item.expiryDate || null,
+      });
+    }
+
+    const savedItems = await db.select().from(goodsReceivingItems).where(eq(goodsReceivingItems.goodsReceivingId, gr.id));
+    res.status(201).json({ ...gr, items: savedItems });
+  } catch (err: any) { res.status(400).json({ message: err.message }); }
+});
+
+app.patch("/api/goods-receivings/:id", requireAuth, requireModule("inventory"), async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const { grDate, vendorId, vendorName, poReference, poId, notes, items } = req.body;
+
+    const [existing] = await db.select().from(goodsReceivings).where(eq(goodsReceivings.id, id));
+    if (!existing) return res.status(404).json({ message: "ไม่พบใบรับสินค้า" });
+    { const ac = await checkDocOwnership(existing.companyId, req.user); if (!ac.allowed) return res.status(403).json({ message: ac.message }); }
+    if (existing.status === "approved") return res.status(400).json({ message: "ไม่สามารถแก้ไขใบรับที่อนุมัติแล้ว" });
+
+    let validatedPoId = existing.poId;
+    if (poId !== undefined) {
+      if (poId) {
+        const [po] = await db.select().from(purchaseOrders).where(and(
+          eq(purchaseOrders.id, Number(poId)),
+          eq(purchaseOrders.companyId, existing.companyId),
+          eq(purchaseOrders.status, "approved"),
+        ));
+        if (!po) return res.status(400).json({ message: "ไม่พบ PO ที่อ้างอิง หรือ PO ยังไม่ได้อนุมัติ" });
+        validatedPoId = po.id;
+      } else {
+        validatedPoId = null;
+      }
+    }
+
+    const totalAmount = items ? items.reduce((sum: number, it: any) => sum + (Number(it.quantity) * Number(it.unitCost || 0)), 0) : existing.totalAmount;
+
+    const [gr] = await db.update(goodsReceivings).set({
+      grDate: grDate || existing.grDate, vendorId, vendorName, poReference, poId: validatedPoId, notes,
+      totalAmount: String(totalAmount),
+    }).where(eq(goodsReceivings.id, id)).returning();
+
+    if (items && items.length > 0) {
+      await db.delete(goodsReceivingItems).where(eq(goodsReceivingItems.goodsReceivingId, id));
+      for (const item of items) {
+        await db.insert(goodsReceivingItems).values({
+          goodsReceivingId: id,
+          productId: item.productId,
+          productName: item.productName,
+          productCode: item.productCode || null,
+          unit: item.unit || "ชิ้น",
+          quantity: String(item.quantity),
+          unitCost: String(item.unitCost || 0),
+          totalCost: String(Number(item.quantity) * Number(item.unitCost || 0)),
+          lotNumber: item.lotNumber || null,
+          manufacturingDate: item.manufacturingDate || null,
+          expiryDate: item.expiryDate || null,
+        });
+      }
+    }
+
+    const savedItems = await db.select().from(goodsReceivingItems).where(eq(goodsReceivingItems.goodsReceivingId, id));
+    res.json({ ...gr, items: savedItems });
+  } catch (err: any) { res.status(400).json({ message: err.message }); }
+});
+
+app.post("/api/goods-receivings/:id/approve", requireAuth, requireModule("inventory"), async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const [gr] = await db.select().from(goodsReceivings).where(eq(goodsReceivings.id, id));
+    if (!gr) return res.status(404).json({ message: "ไม่พบใบรับสินค้า" });
+    if (gr.status === "approved") return res.status(400).json({ message: "อนุมัติแล้ว" });
+
+    const items = await db.select().from(goodsReceivingItems).where(eq(goodsReceivingItems.goodsReceivingId, id));
+    if (items.length === 0) return res.status(400).json({ message: "ไม่มีรายการสินค้า" });
+
+    const [grCompany] = await db.select({ stockEntrySource: companies.stockEntrySource }).from(companies).where(eq(companies.id, gr.companyId));
+    if (grCompany?.stockEntrySource !== "purchase_invoice") {
+      for (const item of items) {
+        const uc = String(item.unitCost || "0");
+        const tc = String(Number(item.quantity) * Number(item.unitCost || 0));
+        let lotId: number | null = null;
+
+        if (item.lotNumber) {
+          const [existingLot] = await db.select().from(productLots).where(and(
+            eq(productLots.companyId, gr.companyId),
+            eq(productLots.productId, item.productId),
+            eq(productLots.lotNumber, item.lotNumber)
+          ));
+          if (existingLot) {
+            await db.update(productLots).set({
+              quantity: String(Number(existingLot.quantity) + Number(item.quantity)),
+              unitCost: uc,
+            }).where(eq(productLots.id, existingLot.id));
+            lotId = existingLot.id;
+          } else {
+            const [newLot] = await db.insert(productLots).values({
+              companyId: gr.companyId,
+              productId: item.productId,
+              lotNumber: item.lotNumber,
+              manufacturingDate: item.manufacturingDate || null,
+              expiryDate: item.expiryDate || null,
+              quantity: String(item.quantity),
+              unitCost: uc,
+              grId: gr.id,
+            }).returning();
+            lotId = newLot.id;
+          }
+          await db.update(goodsReceivingItems).set({ lotId }).where(eq(goodsReceivingItems.id, item.id));
+        }
+
+        await storage.adjustStock(
+          gr.companyId, item.productId, String(item.quantity), "receive",
+          `รับสินค้าจาก ${gr.grNo}${gr.vendorName ? ` (${gr.vendorName})` : ""}`,
+          "goods_receiving", gr.id,
+          { unitCost: uc, totalCost: tc, referenceNo: gr.grNo, createdBy: (req.user as any)?.id }
+        );
+
+        if (lotId) {
+          await db.update(stockMovements).set({ lotId }).where(and(
+            eq(stockMovements.referenceType, "goods_receiving"),
+            eq(stockMovements.referenceId, gr.id),
+            eq(stockMovements.productId, item.productId),
+          ));
+        }
+      }
+    }
+
+    const [updated] = await db.update(goodsReceivings).set({ status: "approved" }).where(eq(goodsReceivings.id, id)).returning();
+    const finalItems = await db.select().from(goodsReceivingItems).where(eq(goodsReceivingItems.goodsReceivingId, id));
+    res.json({ ...updated, items: finalItems });
+  } catch (err: any) { res.status(400).json({ message: err.message }); }
+});
+
+app.delete("/api/goods-receivings/:id", requireAuth, requireModule("inventory"), async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const [gr] = await db.select().from(goodsReceivings).where(eq(goodsReceivings.id, id));
+    if (!gr) return res.status(404).json({ message: "ไม่พบใบรับสินค้า" });
+    if (gr.status === "approved") return res.status(400).json({ message: "ไม่สามารถลบใบรับที่อนุมัติแล้ว" });
+    await db.transaction(async (tx) => {
+      await deleteStockMovementsForDoc(tx, "goods_receiving", id);
+      await tx.delete(goodsReceivingItems).where(eq(goodsReceivingItems.goodsReceivingId, id));
+      await tx.delete(goodsReceivings).where(eq(goodsReceivings.id, id));
+    });
+    res.json({ success: true });
+  } catch (err: any) { res.status(400).json({ message: err.message }); }
+});
+
+// ============ Product Lots (ล็อตการผลิต) ============
+
+app.get("/api/product-lots", requireAuth, requireModule("inventory"), async (req, res) => {
+  try {
+    const companyId = Number(req.query.companyId);
+    if (!companyId) return res.status(400).json({ message: "companyId required" });
+    const conditions: any[] = [eq(productLots.companyId, companyId)];
+    const productId = req.query.productId ? Number(req.query.productId) : null;
+    if (productId) conditions.push(eq(productLots.productId, productId));
+    const status = req.query.status as string;
+    if (status && status !== "all") conditions.push(eq(productLots.status, status));
+    const rows = await db.select().from(productLots).where(and(...conditions)).orderBy(desc(productLots.createdAt));
+    const productIds = [...new Set(rows.map(r => r.productId))];
+    const prods = productIds.length > 0
+      ? await db.select({ id: products.id, name: products.name, code: products.code, unit: products.unit }).from(products).where(inArray(products.id, productIds))
+      : [];
+    const prodMap = new Map(prods.map(p => [p.id, p]));
+    res.json(rows.map(r => ({ ...r, productName: prodMap.get(r.productId)?.name || "", productCode: prodMap.get(r.productId)?.code || "", productUnit: prodMap.get(r.productId)?.unit || "ชิ้น" })));
+  } catch (err: any) { res.status(400).json({ message: err.message }); }
+});
+
+app.get("/api/product-lots/expiring", requireAuth, requireModule("inventory"), async (req, res) => {
+  try {
+    const companyId = Number(req.query.companyId);
+    if (!companyId) return res.status(400).json({ message: "companyId required" });
+    const daysAhead = Number(req.query.days || 30);
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() + daysAhead);
+    const cutoffStr = cutoffDate.toISOString().split("T")[0];
+
+    const rows = await db.select().from(productLots).where(and(
+      eq(productLots.companyId, companyId),
+      eq(productLots.status, "active"),
+      sql`${productLots.expiryDate} IS NOT NULL`,
+      sql`${productLots.expiryDate} <= ${cutoffStr}`,
+      sql`CAST(${productLots.quantity} AS numeric) > 0`
+    )).orderBy(productLots.expiryDate);
+
+    const productIds = [...new Set(rows.map(r => r.productId))];
+    const prods = productIds.length > 0
+      ? await db.select({ id: products.id, name: products.name, code: products.code, unit: products.unit }).from(products).where(inArray(products.id, productIds))
+      : [];
+    const prodMap = new Map(prods.map(p => [p.id, p]));
+
+    res.json(rows.map(r => {
+      const today = new Date();
+      const exp = new Date(r.expiryDate!);
+      const daysLeft = Math.ceil((exp.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+      return {
+        ...r,
+        productName: prodMap.get(r.productId)?.name || "",
+        productCode: prodMap.get(r.productId)?.code || "",
+        productUnit: prodMap.get(r.productId)?.unit || "ชิ้น",
+        daysUntilExpiry: daysLeft,
+        expiryLevel: daysLeft <= 0 ? "expired" : daysLeft <= 7 ? "critical" : daysLeft <= 30 ? "warning" : "ok",
+      };
+    }));
+  } catch (err: any) { res.status(400).json({ message: err.message }); }
+});
+
+app.post("/api/product-lots", requireAuth, requireModule("inventory"), async (req, res) => {
+  try {
+    const { companyId, productId, lotNumber, manufacturingDate, expiryDate, quantity, unitCost, notes } = req.body;
+    if (!companyId || !productId || !lotNumber) return res.status(400).json({ message: "companyId, productId, lotNumber required" });
+    const existing = await db.select().from(productLots).where(and(
+      eq(productLots.companyId, companyId),
+      eq(productLots.productId, productId),
+      eq(productLots.lotNumber, lotNumber)
+    ));
+    if (existing.length > 0) return res.status(400).json({ message: `ล็อต ${lotNumber} ซ้ำสำหรับสินค้านี้` });
+    const [lot] = await db.insert(productLots).values({
+      companyId, productId, lotNumber,
+      manufacturingDate: manufacturingDate || null,
+      expiryDate: expiryDate || null,
+      quantity: String(quantity || 0),
+      unitCost: String(unitCost || 0),
+      notes,
+    }).returning();
+    res.status(201).json(lot);
+  } catch (err: any) { res.status(400).json({ message: err.message }); }
+});
+
+app.patch("/api/product-lots/:id", requireAuth, requireModule("inventory"), async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const companyId = Number(req.query.companyId || req.body.companyId);
+    if (!companyId) return res.status(400).json({ message: "companyId required" });
+    const [lot] = await db.select().from(productLots).where(and(eq(productLots.id, id), eq(productLots.companyId, companyId)));
+    if (!lot) return res.status(404).json({ message: "ไม่พบล็อต" });
+    const updates: any = {};
+    if (req.body.lotNumber !== undefined) updates.lotNumber = req.body.lotNumber;
+    if (req.body.manufacturingDate !== undefined) updates.manufacturingDate = req.body.manufacturingDate || null;
+    if (req.body.expiryDate !== undefined) updates.expiryDate = req.body.expiryDate || null;
+    if (req.body.unitCost !== undefined) updates.unitCost = String(req.body.unitCost);
+    if (req.body.notes !== undefined) updates.notes = req.body.notes;
+    if (req.body.status !== undefined) updates.status = req.body.status;
+    const [updated] = await db.update(productLots).set(updates).where(eq(productLots.id, id)).returning();
+    res.json(updated);
+  } catch (err: any) { res.status(400).json({ message: err.message }); }
+});
+
+app.delete("/api/product-lots/:id", requireAuth, requireModule("inventory"), async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const companyId = Number(req.query.companyId);
+    if (!companyId) return res.status(400).json({ message: "companyId required" });
+    const [lot] = await db.select().from(productLots).where(and(eq(productLots.id, id), eq(productLots.companyId, companyId)));
+    if (!lot) return res.status(404).json({ message: "ไม่พบล็อต" });
+    if (Number(lot.quantity) > 0) return res.status(400).json({ message: "ไม่สามารถลบล็อตที่ยังมีสต็อกอยู่" });
+    await db.delete(productLots).where(eq(productLots.id, id));
+    res.json({ success: true });
+  } catch (err: any) { res.status(400).json({ message: err.message }); }
+});
+
+// ============ Goods Requisition (ใบเบิกสินค้า) ============
+
+app.get("/api/goods-requisitions", requireAuth, requireModule("inventory"), async (req, res) => {
+  try {
+    const companyId = Number(req.query.companyId);
+    if (!companyId) return res.status(400).json({ message: "companyId required" });
+    const conditions: any[] = [eq(goodsRequisitions.companyId, companyId)];
+    const status = req.query.status as string;
+    if (status && status !== "all") {
+      conditions.push(eq(goodsRequisitions.status, status));
+    }
+    const search = req.query.search as string;
+    if (search) {
+      conditions.push(
+        or(
+          ilike(goodsRequisitions.giqNo, `%${search}%`),
+          ilike(goodsRequisitions.departmentName, `%${search}%`),
+          ilike(goodsRequisitions.requestedBy, `%${search}%`)
+        )
+      );
+    }
+    const rows = await db.select().from(goodsRequisitions).where(and(...conditions)).orderBy(desc(goodsRequisitions.createdAt));
+    res.json(rows);
+  } catch (err: any) { res.status(400).json({ message: err.message }); }
+});
+
+app.get("/api/goods-requisitions/:id", requireAuth, requireModule("inventory"), async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const [giq] = await db.select().from(goodsRequisitions).where(eq(goodsRequisitions.id, id));
+    if (!giq) return res.status(404).json({ message: "ไม่พบใบเบิกสินค้า" });
+    const items = await db.select().from(goodsRequisitionItems).where(eq(goodsRequisitionItems.goodsRequisitionId, id));
+    res.json({ ...giq, items });
+  } catch (err: any) { res.status(400).json({ message: err.message }); }
+});
+
+app.post("/api/goods-requisitions", requireAuth, requireModule("inventory"), async (req, res) => {
+  try {
+    const { companyId, giqDate, departmentName, requestedBy, purpose, notes, items } = req.body;
+    if (!companyId || !giqDate || !items || items.length === 0) {
+      return res.status(400).json({ message: "companyId, giqDate, items required" });
+    }
+    const totalAmount = items.reduce((sum: number, it: any) => sum + (Number(it.quantity) * Number(it.unitCost || 0)), 0);
+    const existing = await db.select({ id: goodsRequisitions.id }).from(goodsRequisitions).where(eq(goodsRequisitions.companyId, companyId));
+    const nextNum = existing.length + 1;
+    const giqNo = `GIQ-${String(nextNum).padStart(4, "0")}`;
+
+    const [giq] = await db.insert(goodsRequisitions).values({
+      companyId, giqNo, giqDate, departmentName, requestedBy, purpose, notes,
+      totalAmount: String(totalAmount),
+      status: "draft",
+      createdBy: (req.user as any)?.id,
+    }).returning();
+
+    for (const item of items) {
+      await db.insert(goodsRequisitionItems).values({
+        goodsRequisitionId: giq.id,
+        productId: item.productId,
+        productName: item.productName,
+        productCode: item.productCode || null,
+        unit: item.unit || "ชิ้น",
+        quantity: String(item.quantity),
+        unitCost: String(item.unitCost || 0),
+        totalCost: String(Number(item.quantity) * Number(item.unitCost || 0)),
+      });
+    }
+
+    const savedItems = await db.select().from(goodsRequisitionItems).where(eq(goodsRequisitionItems.goodsRequisitionId, giq.id));
+    res.status(201).json({ ...giq, items: savedItems });
+  } catch (err: any) { res.status(400).json({ message: err.message }); }
+});
+
+app.patch("/api/goods-requisitions/:id", requireAuth, requireModule("inventory"), async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const { giqDate, departmentName, requestedBy, purpose, notes, items } = req.body;
+
+    const [existing] = await db.select().from(goodsRequisitions).where(eq(goodsRequisitions.id, id));
+    if (!existing) return res.status(404).json({ message: "ไม่พบใบเบิกสินค้า" });
+    { const ac = await checkDocOwnership(existing.companyId, req.user); if (!ac.allowed) return res.status(403).json({ message: ac.message }); }
+    if (existing.status === "approved") return res.status(400).json({ message: "ไม่สามารถแก้ไขใบเบิกที่อนุมัติแล้ว" });
+
+    const totalAmount = items ? items.reduce((sum: number, it: any) => sum + (Number(it.quantity) * Number(it.unitCost || 0)), 0) : existing.totalAmount;
+
+    const [giq] = await db.update(goodsRequisitions).set({
+      giqDate: giqDate || existing.giqDate, departmentName, requestedBy, purpose, notes,
+      totalAmount: String(totalAmount),
+    }).where(eq(goodsRequisitions.id, id)).returning();
+
+    if (items && items.length > 0) {
+      await db.delete(goodsRequisitionItems).where(eq(goodsRequisitionItems.goodsRequisitionId, id));
+      for (const item of items) {
+        await db.insert(goodsRequisitionItems).values({
+          goodsRequisitionId: id,
+          productId: item.productId,
+          productName: item.productName,
+          productCode: item.productCode || null,
+          unit: item.unit || "ชิ้น",
+          quantity: String(item.quantity),
+          unitCost: String(item.unitCost || 0),
+          totalCost: String(Number(item.quantity) * Number(item.unitCost || 0)),
+        });
+      }
+    }
+
+    const savedItems = await db.select().from(goodsRequisitionItems).where(eq(goodsRequisitionItems.goodsRequisitionId, id));
+    res.json({ ...giq, items: savedItems });
+  } catch (err: any) { res.status(400).json({ message: err.message }); }
+});
+
+app.post("/api/goods-requisitions/:id/approve", requireAuth, requireModule("inventory"), async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const user = req.user as any;
+    const [giq] = await db.select().from(goodsRequisitions).where(eq(goodsRequisitions.id, id));
+    if (!giq) return res.status(404).json({ message: "ไม่พบใบเบิกสินค้า" });
+    if (giq.status === "approved") return res.status(400).json({ message: "อนุมัติแล้ว" });
+
+    const items = await db.select().from(goodsRequisitionItems).where(eq(goodsRequisitionItems.goodsRequisitionId, id));
+    if (items.length === 0) return res.status(400).json({ message: "ไม่มีรายการสินค้า" });
+
+    for (const item of items) {
+      const qty = Math.abs(Number(item.quantity));
+      const deductQty = String(-qty);
+      const uc = String(item.unitCost || "0");
+      const tc = String(qty * Number(item.unitCost || 0));
+      await storage.adjustStock(
+        giq.companyId, item.productId, deductQty, "sale_deduct",
+        `เบิกสินค้า ${giq.giqNo}${giq.departmentName ? ` (${giq.departmentName})` : ""}${giq.requestedBy ? ` - ${giq.requestedBy}` : ""}`,
+        "goods_requisition", giq.id,
+        { unitCost: uc, totalCost: tc, referenceNo: giq.giqNo, createdBy: user?.id }
+      );
+    }
+
+    let journalEntryId: number | null = null;
+    try {
+      const totalAmt = parseFloat(String(giq.totalAmount)) || 0;
+      journalEntryId = await createCOGSJournalEntry(
+        giq.companyId, "goods_requisition", giq.id, giq.giqDate,
+        `เบิกสินค้า ${giq.giqNo}${giq.departmentName ? ` - ${giq.departmentName}` : ""}`,
+        totalAmt, user?.id
+      );
+    } catch (jeErr: any) { console.error("GIQ journal entry error:", jeErr.message); }
+
+    const [updated] = await db.update(goodsRequisitions).set({
+      status: "approved",
+      ...(journalEntryId ? { journalEntryId } : {}),
+    }).where(eq(goodsRequisitions.id, id)).returning();
+    res.json({ ...updated, items, journalEntryId });
+  } catch (err: any) { res.status(400).json({ message: err.message }); }
+});
+
+app.post("/api/goods-requisitions/:id/journal", requireAuth, requireModule("inventory"), async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const user = req.user as any;
+    const [giq] = await db.select().from(goodsRequisitions).where(eq(goodsRequisitions.id, id));
+    if (!giq) return res.status(404).json({ message: "ไม่พบใบเบิกสินค้า" });
+    if (giq.status !== "approved") return res.status(400).json({ message: "ต้องอนุมัติใบเบิกก่อนลงบัญชี" });
+    if (giq.journalEntryId) return res.status(400).json({ message: "ลงบัญชีแล้ว" });
+
+    const [existingJE] = await db.select().from(journalEntries).where(and(
+      eq(journalEntries.companyId, giq.companyId),
+      eq(journalEntries.sourceDocType, "goods_requisition"),
+      eq(journalEntries.sourceDocId, giq.id),
+    ));
+    if (existingJE) {
+      await db.update(goodsRequisitions).set({ journalEntryId: existingJE.id }).where(eq(goodsRequisitions.id, id));
+      return res.json({ ...giq, journalEntryId: existingJE.id, message: "มีรายการบัญชีอยู่แล้ว" });
+    }
+
+    const totalAmt = parseFloat(String(giq.totalAmount)) || 0;
+    if (totalAmt <= 0) return res.status(400).json({ message: "มูลค่ารวมต้องมากกว่า 0" });
+
+    const companyAccounts = await storage.getAccounts(giq.companyId);
+    const inventoryAcc = companyAccounts.find((a: any) => a.code === "1301000");
+    const cogsAcc = companyAccounts.find((a: any) => a.code === "5101100" || a.code === "5101000");
+
+    if (!inventoryAcc || !cogsAcc) {
+      return res.status(400).json({ message: "ไม่พบบัญชี สินค้าคงเหลือ (1140) หรือ ต้นทุนขาย (5100) ในผังบัญชี กรุณาตั้งค่าผังบัญชีก่อน" });
+    }
+
+    const desc = `เบิกสินค้า ${giq.giqNo}${giq.departmentName ? ` - ${giq.departmentName}` : ""}${giq.requestedBy ? ` (${giq.requestedBy})` : ""}`;
+
+    const result = await db.transaction(async (tx) => {
+      const entryNo = await getNextJournalEntryNo(giq.companyId, "general", giq.giqDate);
+      const [entry] = await tx.insert(journalEntries).values({
+        companyId: giq.companyId,
+        entryNo,
+        entryDate: giq.giqDate,
+        description: desc,
+        journalBook: "general",
+        sourceDocType: "goods_requisition",
+        sourceDocId: giq.id,
+        status: "posted",
+        createdBy: user?.id,
+      }).returning();
+
+      await tx.insert(journalLines).values({
+        journalEntryId: entry.id,
+        accountId: cogsAcc.id,
+        description: cogsAcc.nameTh || cogsAcc.name || "ต้นทุนขาย",
+        debit: String(totalAmt.toFixed(2)),
+        credit: "0",
+      });
+
+      await tx.insert(journalLines).values({
+        journalEntryId: entry.id,
+        accountId: inventoryAcc.id,
+        description: inventoryAcc.nameTh || inventoryAcc.name || "สินค้าคงเหลือ",
+        debit: "0",
+        credit: String(totalAmt.toFixed(2)),
+      });
+
+      await tx.update(goodsRequisitions).set({ journalEntryId: entry.id }).where(eq(goodsRequisitions.id, id));
+      return entry;
+    });
+
+    const items = await db.select().from(goodsRequisitionItems).where(eq(goodsRequisitionItems.goodsRequisitionId, id));
+    const [updated] = await db.select().from(goodsRequisitions).where(eq(goodsRequisitions.id, id));
+    res.json({ ...updated, items, journalEntryId: result.id });
+  } catch (err: any) { res.status(400).json({ message: err.message }); }
+});
+
+app.post("/api/goods-requisitions/:id/cancel-journal", requireAuth, requireModule("inventory"), async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const [giq] = await db.select().from(goodsRequisitions).where(eq(goodsRequisitions.id, id));
+    if (!giq) return res.status(404).json({ message: "ไม่พบใบเบิกสินค้า" });
+    if (!giq.journalEntryId) return res.status(400).json({ message: "ยังไม่ได้ลงบัญชี" });
+
+    await db.delete(journalLines).where(eq(journalLines.journalEntryId, giq.journalEntryId));
+    await db.delete(journalEntries).where(eq(journalEntries.id, giq.journalEntryId));
+    const [updated] = await db.update(goodsRequisitions).set({ journalEntryId: null }).where(eq(goodsRequisitions.id, id)).returning();
+    const items = await db.select().from(goodsRequisitionItems).where(eq(goodsRequisitionItems.goodsRequisitionId, id));
+    res.json({ ...updated, items });
+  } catch (err: any) { res.status(400).json({ message: err.message }); }
+});
+
+app.delete("/api/goods-requisitions/:id", requireAuth, requireModule("inventory"), async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const [giq] = await db.select().from(goodsRequisitions).where(eq(goodsRequisitions.id, id));
+    if (!giq) return res.status(404).json({ message: "ไม่พบใบเบิกสินค้า" });
+    if (giq.status === "approved") return res.status(400).json({ message: "ไม่สามารถลบใบเบิกที่อนุมัติแล้ว" });
+    await db.transaction(async (tx) => {
+      await deleteStockMovementsForDoc(tx, "goods_requisition", id);
+      await tx.delete(goodsRequisitionItems).where(eq(goodsRequisitionItems.goodsRequisitionId, id));
+      await tx.delete(goodsRequisitions).where(eq(goodsRequisitions.id, id));
+    });
+    res.json({ success: true });
+  } catch (err: any) { res.status(400).json({ message: err.message }); }
+});
+
+app.get("/api/inventory/warehouses", requireAuth, requireModule("inventory"), async (req, res) => {
+  try {
+    const companyId = Number(req.query.companyId);
+    if (!companyId) return res.status(400).json({ message: "companyId required" });
+    const whList = await db.select().from(warehouses).where(eq(warehouses.companyId, companyId));
+    const branchList = await db.select().from(branches).where(eq(branches.companyId, companyId));
+    const branchMap: Record<number, string> = {};
+    branchList.forEach(b => { if (b.warehouseId) branchMap[b.warehouseId] = b.name; });
+    res.json(whList.map(w => ({ ...w, branchName: branchMap[w.id] || null })));
+  } catch (err: any) { res.status(400).json({ message: err.message }); }
+});
+
+app.get("/api/inventory/stock-transfers", requireAuth, requireModule("inventory"), async (req, res) => {
+  try {
+    const companyId = Number(req.query.companyId);
+    if (!companyId) return res.status(400).json({ message: "companyId required" });
+    const transfers = await db.select().from(stockTransfers).where(eq(stockTransfers.companyId, companyId)).orderBy(desc(stockTransfers.createdAt));
+    const whList = await db.select().from(warehouses).where(eq(warehouses.companyId, companyId));
+    const whMap: Record<number, string> = {};
+    whList.forEach(w => { whMap[w.id] = w.name; });
+    res.json(transfers.map(t => ({ ...t, fromWarehouseName: whMap[t.fromWarehouseId] || "", toWarehouseName: whMap[t.toWarehouseId] || "" })));
+  } catch (err: any) { res.status(400).json({ message: err.message }); }
+});
+
+app.post("/api/inventory/stock-transfers", requireAuth, requireModule("inventory"), async (req, res) => {
+  try {
+    const schema = z.object({
+      companyId: z.number().int().positive(),
+      fromWarehouseId: z.number().int().positive(),
+      toWarehouseId: z.number().int().positive(),
+      notes: z.string().optional(),
+      items: z.array(z.object({
+        productId: z.number().int().positive(),
+        productCode: z.string().optional(),
+        productName: z.string().min(1),
+        quantity: z.string().or(z.number()),
+        unit: z.string().optional(),
+      })).min(1, "กรุณาเพิ่มรายการสินค้า"),
+    });
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ message: parsed.error.issues[0]?.message || "ข้อมูลไม่ถูกต้อง" });
+    const { items, ...transferData } = parsed.data as any;
+    if (transferData.fromWarehouseId === transferData.toWarehouseId) return res.status(400).json({ message: "คลังต้นทางและปลายทางต้องไม่เหมือนกัน" });
+    const user = req.user as any;
+    const cnt = await db.select({ cnt: count() }).from(stockTransfers).where(eq(stockTransfers.companyId, transferData.companyId));
+    const no = `TF-${String((cnt[0]?.cnt || 0) + 1).padStart(5, "0")}`;
+    transferData.transferNo = no;
+    transferData.createdBy = user.id;
+    const [transfer] = await db.insert(stockTransfers).values(transferData).returning();
+    const itemsWithId = items.map((item: any) => ({ ...item, transferId: transfer.id, quantity: String(item.quantity) }));
+    await db.insert(stockTransferItems).values(itemsWithId);
+    res.json({ ...transfer, items: itemsWithId });
+  } catch (err: any) { res.status(400).json({ message: err.message }); }
+});
+
+app.get("/api/inventory/stock-transfers/:id", requireAuth, requireModule("inventory"), async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const [transfer] = await db.select().from(stockTransfers).where(eq(stockTransfers.id, id));
+    if (!transfer) return res.status(404).json({ message: "ไม่พบรายการโอนสินค้า" });
+    const items = await db.select().from(stockTransferItems).where(eq(stockTransferItems.transferId, id));
+    const whList = await db.select().from(warehouses).where(eq(warehouses.companyId, transfer.companyId));
+    const whMap: Record<number, string> = {};
+    whList.forEach(w => { whMap[w.id] = w.name; });
+    res.json({ ...transfer, items, fromWarehouseName: whMap[transfer.fromWarehouseId] || "", toWarehouseName: whMap[transfer.toWarehouseId] || "" });
+  } catch (err: any) { res.status(400).json({ message: err.message }); }
+});
+
+app.patch("/api/inventory/stock-transfers/:id/approve", requireAuth, requireModule("inventory"), async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const user = req.user as any;
+    const [transfer] = await db.select().from(stockTransfers).where(eq(stockTransfers.id, id));
+    if (!transfer) return res.status(404).json({ message: "ไม่พบรายการ" });
+    if (transfer.status === "completed") return res.status(400).json({ message: "รายการนี้อนุมัติแล้ว" });
+    const items = await db.select().from(stockTransferItems).where(eq(stockTransferItems.transferId, id));
+
+    const updated = await db.transaction(async (tx) => {
+      for (const item of items) {
+        const [fromLevel] = await tx.select().from(warehouseStockLevels)
+          .where(and(eq(warehouseStockLevels.warehouseId, transfer.fromWarehouseId), eq(warehouseStockLevels.productId, item.productId)));
+        if (!fromLevel) throw new Error(`ไม่พบสต๊อกสินค้า ${item.productName} ในคลังต้นทาง`);
+        const newQty = Number(fromLevel.quantity) - Number(item.quantity);
+        if (newQty < 0) throw new Error(`สต๊อกไม่เพียงพอสำหรับสินค้า ${item.productName} (มี ${fromLevel.quantity} ต้องการ ${item.quantity})`);
+        await tx.update(warehouseStockLevels).set({ quantity: String(newQty) }).where(eq(warehouseStockLevels.id, fromLevel.id));
+
+        const [toLevel] = await tx.select().from(warehouseStockLevels)
+          .where(and(eq(warehouseStockLevels.warehouseId, transfer.toWarehouseId), eq(warehouseStockLevels.productId, item.productId)));
+        if (toLevel) {
+          await tx.update(warehouseStockLevels).set({ quantity: String(Number(toLevel.quantity) + Number(item.quantity)) }).where(eq(warehouseStockLevels.id, toLevel.id));
+        } else {
+          await tx.insert(warehouseStockLevels).values({ warehouseId: transfer.toWarehouseId, productId: item.productId, companyId: transfer.companyId, quantity: String(item.quantity) });
+        }
+      }
+      const [result] = await tx.update(stockTransfers).set({ status: "completed", approvedBy: user.id, completedAt: new Date() }).where(eq(stockTransfers.id, id)).returning();
+      return result;
+    });
+    res.json(updated);
+  } catch (err: any) { res.status(400).json({ message: err.message }); }
+});
+
+app.delete("/api/inventory/stock-transfers/:id", requireAuth, requireModule("inventory"), async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const [transfer] = await db.select().from(stockTransfers).where(eq(stockTransfers.id, id));
+    if (!transfer) return res.status(404).json({ message: "ไม่พบรายการ" });
+    if (transfer.status === "completed") return res.status(400).json({ message: "ไม่สามารถลบรายการที่อนุมัติแล้ว" });
+    await db.delete(stockTransferItems).where(eq(stockTransferItems.transferId, id));
+    await db.delete(stockTransfers).where(eq(stockTransfers.id, id));
+    res.json({ success: true });
+  } catch (err: any) { res.status(400).json({ message: err.message }); }
+});
+
+app.get("/api/inventory/warehouse-stock/:warehouseId", requireAuth, requireModule("inventory"), async (req, res) => {
+  try {
+    const warehouseId = Number(req.params.warehouseId);
+    const levels = await db.select({
+      productId: warehouseStockLevels.productId,
+      quantity: warehouseStockLevels.quantity,
+    }).from(warehouseStockLevels).where(eq(warehouseStockLevels.warehouseId, warehouseId));
+    const stockMap: Record<number, number> = {};
+    levels.forEach(l => { stockMap[l.productId] = Number(l.quantity || 0); });
+    res.json(stockMap);
+  } catch (err: any) { res.status(400).json({ message: err.message }); }
+});
+
+}

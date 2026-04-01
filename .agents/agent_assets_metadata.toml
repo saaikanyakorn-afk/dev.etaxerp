@@ -1,0 +1,32 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "O1FOBZCi3EV61h_PgS5r5"
+uri = "file://public/docs/google-recaptcha-setup-guide.txt"
+type = "text"
+title = "Google reCAPTCHA Setup Guide"
+
+[[outputs]]
+id = "4pzikhmnITIJq4NalhNkc"
+uri = "file://คู่มือการใช้งาน-E-Tax-Center.md"
+type = "text"
+title = "คู่มือการใช้งาน E-Tax Center (จัดลำดับใหม่)"
+
+[[outputs]]
+id = "C7rL22kl2RBQ86Oj9nc6m"
+uri = "file://attached_assets/contacts_merged_review.xlsx"
+type = "table"
+title = "รวมข้อมูลลูกค้า 3 ไฟล์ (ตรวจสอบก่อนนำเข้า)"
+
+[[outputs]]
+id = "K7O8U387NGzi8GKjWZ5tp"
+uri = "file://attached_assets/firm_clients_merged.xlsx"
+type = "table"
+title = "firm_clients_merged.xlsx — ข้อมูลลูกค้ารวม 509 ราย"
+
+[[outputs]]
+id = "Iw91q_U0FOsoM_DkNvz6r"
+uri = "file://attached_assets/test-og-preview.png"
+type = "image"
+title = "ตัวอย่าง OG Card ใบเสนอราคา (PNG)"

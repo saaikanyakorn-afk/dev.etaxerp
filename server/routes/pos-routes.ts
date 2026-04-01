@@ -1,0 +1,1475 @@
+import type { Express } from "express";
+import { db } from "../db";
+import { storage } from "../storage";
+import { eq, and, desc, asc, sql, count, ilike, inArray, or } from "drizzle-orm";
+import { posSessions, posTransactions, posTransactionItems, products, productBundles, companies, taxInvoices, taxInvoiceItems, documentSettings, branches, warehouses, warehouseStockLevels, paymentMethods } from "@shared/schema";
+import { requireAuth, requireModule , checkDocOwnership} from "../route-middleware";
+import { getNextDocNo, createAutoJournalEntry } from "../route-helpers";
+import { generatePromptPayQRData } from "../utils/promptpay-qr";
+import QRCode from "qrcode";
+
+export function registerPosRoutes(app: Express) {
+  // ==================== POS MODULE ====================
+
+  // POS Sessions - Open
+  app.post("/api/pos/sessions", requireAuth, requireModule("pos"), async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { companyId, openingCash, branchName, terminalName, storeId } = req.body;
+      if (!companyId) return res.status(400).json({ message: "กรุณาระบุบริษัท" });
+
+      const existing = await db.select().from(posSessions)
+        .where(and(eq(posSessions.companyId, Number(companyId)), eq(posSessions.userId, user.id), eq(posSessions.status, "open")));
+      if (existing.length > 0) return res.status(400).json({ message: "คุณมีกะที่เปิดอยู่แล้ว กรุณาปิดกะก่อนเปิดใหม่", session: existing[0] });
+
+      let resolvedBranchName = branchName || "สำนักงานใหญ่";
+      let resolvedWarehouseId: number | null = null;
+      if (storeId) {
+        const [branch] = await db.select().from(branches).where(and(eq(branches.id, Number(storeId)), eq(branches.companyId, Number(companyId))));
+        if (!branch) return res.status(400).json({ message: "สาขาไม่ถูกต้องหรือไม่ได้อยู่ในบริษัทนี้" });
+        if (branch) {
+          resolvedBranchName = branch.name;
+          resolvedWarehouseId = branch.warehouseId || null;
+          if (!resolvedWarehouseId) {
+            const [defaultWh] = await db.select().from(warehouses)
+              .where(and(eq(warehouses.companyId, Number(companyId)), eq(warehouses.isDefault, true)));
+            resolvedWarehouseId = defaultWh?.id || null;
+          }
+        }
+      } else {
+        const [defaultWh] = await db.select().from(warehouses)
+          .where(and(eq(warehouses.companyId, Number(companyId)), eq(warehouses.isDefault, true)));
+        resolvedWarehouseId = defaultWh?.id || null;
+      }
+
+      const [session] = await db.insert(posSessions).values({
+        companyId: Number(companyId),
+        userId: user.id,
+        openingCash: String(openingCash || "0"),
+        branchName: resolvedBranchName,
+        terminalName: terminalName || "เครื่อง 1",
+        storeId: storeId ? Number(storeId) : null,
+        warehouseId: resolvedWarehouseId,
+        status: "open",
+      }).returning();
+      res.json(session);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // POS Sessions - Get active session
+  app.get("/api/pos/sessions/active", requireAuth, requireModule("pos"), async (req, res) => {
+    try {
+      const user = req.user as any;
+      const companyId = Number(req.query.companyId);
+      if (!companyId) return res.status(400).json({ message: "กรุณาระบุบริษัท" });
+
+      const [session] = await db.select().from(posSessions)
+        .where(and(eq(posSessions.companyId, companyId), eq(posSessions.userId, user.id), eq(posSessions.status, "open")));
+      res.json(session || null);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // POS Sessions - List
+  app.get("/api/pos/sessions", requireAuth, requireModule("pos"), async (req, res) => {
+    try {
+      const companyId = Number(req.query.companyId);
+      if (!companyId) return res.status(400).json({ message: "กรุณาระบุบริษัท" });
+
+      const sessions = await db.select().from(posSessions)
+        .where(eq(posSessions.companyId, companyId))
+        .orderBy(desc(posSessions.openedAt));
+      res.json(sessions);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // POS Sessions - Close
+  app.patch("/api/pos/sessions/:id/close", requireAuth, requireModule("pos"), async (req, res) => {
+    try {
+      const user = req.user as any;
+      const sessionId = Number(req.params.id);
+      const { closingCash, notes } = req.body;
+
+      const [session] = await db.select().from(posSessions).where(eq(posSessions.id, sessionId));
+      if (!session) return res.status(404).json({ message: "ไม่พบกะ" });
+
+      const [company] = await db.select().from(companies).where(eq(companies.id, session.companyId));
+      if (company && company.tenantId && company.tenantId !== user.tenantId) {
+        return res.status(403).json({ message: "ไม่มีสิทธิ์เข้าถึง" });
+      }
+      if (session.status !== "open") return res.status(400).json({ message: "กะนี้ถูกปิดแล้ว" });
+
+      const txns = await db.select().from(posTransactions)
+        .where(and(eq(posTransactions.sessionId, sessionId), eq(posTransactions.status, "completed")));
+
+      let totalCashSales = 0;
+      let totalSales = 0;
+      for (const t of txns) {
+        totalSales += parseFloat(String(t.total || "0"));
+        if (t.paymentMethod === "เงินสด") {
+          totalCashSales += parseFloat(String(t.total || "0"));
+        }
+      }
+
+      const expectedCash = parseFloat(String(session.openingCash || "0")) + totalCashSales;
+      const closingCashVal = parseFloat(String(closingCash || "0"));
+      const cashVariance = closingCashVal - expectedCash;
+
+      const [updated] = await db.update(posSessions).set({
+        closedAt: new Date(),
+        closingCash: String(closingCashVal),
+        expectedCash: String(expectedCash),
+        cashVariance: String(cashVariance),
+        totalSales: String(totalSales),
+        totalTransactions: txns.length,
+        status: "closed",
+        notes: notes || null,
+      }).where(eq(posSessions.id, sessionId)).returning();
+
+      res.json(updated);
+
+      if (txns.length > 0 && totalSales > 0) {
+        setImmediate(async () => {
+          try {
+            const abbreviatedTxns = txns.filter(t => !t.isFullTaxInvoice);
+            const fullTivCount = txns.length - abbreviatedTxns.length;
+
+            if (fullTivCount > 0) {
+              console.log(`[POS] Session close: ${fullTivCount} full tax invoice(s) already journaled individually, ${abbreviatedTxns.length} abbreviated to summarize`);
+            }
+
+            if (abbreviatedTxns.length === 0) {
+              console.log(`[POS] Session closed - all ${txns.length} transactions were full tax invoices, no summary needed`);
+              return;
+            }
+
+            const paymentBreakdown: Record<string, { total: number; subtotal: number; vat: number }> = {};
+            for (const t of abbreviatedTxns) {
+              const method = t.paymentMethod || "เงินสด";
+              if (!paymentBreakdown[method]) paymentBreakdown[method] = { total: 0, subtotal: 0, vat: 0 };
+              paymentBreakdown[method].total += parseFloat(String(t.total || "0"));
+              paymentBreakdown[method].subtotal += parseFloat(String(t.subtotal || "0"));
+              paymentBreakdown[method].vat += parseFloat(String(t.vatAmount || "0"));
+            }
+
+            let abbreviatedTotal = 0;
+            let totalSubtotal = 0;
+            let totalVat = 0;
+            let totalDiscount = 0;
+            for (const t of abbreviatedTxns) {
+              totalDiscount += parseFloat(String(t.discountAmount || "0"));
+            }
+            for (const pm of Object.values(paymentBreakdown)) {
+              abbreviatedTotal += pm.total;
+              totalSubtotal += pm.subtotal;
+              totalVat += pm.vat;
+            }
+
+            const today = new Date().toISOString().split("T")[0];
+            const sessionLabel = session.sessionNo || `กะ #${sessionId}`;
+            const summaryBaseSubtotal = Math.round((abbreviatedTotal - totalVat) * 100) / 100;
+
+            const abbrevCount = abbreviatedTxns.length;
+            const summaryDesc = fullTivCount > 0
+              ? `สรุปยอดขาย POS ${sessionLabel} - ใบกำกับอย่างย่อ ${abbrevCount} บิล (ใบเต็มรูป ${fullTivCount} บิล แยกแล้ว)`
+              : `สรุปยอดขาย POS ${sessionLabel} (${abbrevCount} บิล)`;
+
+            const abbreviatedTivIds = abbreviatedTxns
+              .map(t => t.taxInvoiceId)
+              .filter((id): id is number => id !== null && id !== undefined);
+
+            const summaryTivNo = await getNextDocNo(
+              session.companyId, "POSS", taxInvoices, taxInvoices.taxInvoiceNo, taxInvoices.companyId
+            );
+
+            const [summaryTiv] = await db.insert(taxInvoices).values({
+              companyId: session.companyId,
+              taxInvoiceNo: summaryTivNo,
+              taxInvoiceDate: today,
+              customerName: summaryDesc,
+              subtotal: String(summaryBaseSubtotal.toFixed(2)),
+              discountAmount: String(totalDiscount.toFixed(2)),
+              vatAmount: String(totalVat.toFixed(2)),
+              totalAmount: String(abbreviatedTotal.toFixed(2)),
+              status: "approved",
+              paymentMethod: Object.keys(paymentBreakdown).join(", "),
+              priceMode: "included",
+              docPrefix: "POSS",
+              isSummaryInvoice: true,
+              posSessionId: sessionId,
+              notes: `รวมใบกำกับอย่างย่อ ${abbrevCount} ใบ จากกะ ${sessionLabel}`,
+              createdBy: user.id,
+            }).returning();
+
+            if (abbreviatedTivIds.length > 0) {
+              await db.update(taxInvoices)
+                .set({ summaryTaxInvoiceId: summaryTiv.id })
+                .where(inArray(taxInvoices.id, abbreviatedTivIds));
+            }
+
+            const abbrevTxnIds = abbreviatedTxns.map(t => t.id);
+            if (abbrevTxnIds.length > 0) {
+              const allItems = await db.select().from(posTransactionItems)
+                .where(inArray(posTransactionItems.transactionId, abbrevTxnIds));
+
+              const grouped: Record<string, { productId: number | null; productCode: string | null; productName: string; qty: number; unitPrice: number; total: number; vatType: string; unit: string }> = {};
+              for (const item of allItems) {
+                const key = `${item.productId || 0}_${item.unitPrice}_${item.vatType || "vat7"}`;
+                if (!grouped[key]) {
+                  grouped[key] = {
+                    productId: item.productId,
+                    productCode: item.productCode || null,
+                    productName: item.productName || "",
+                    qty: 0,
+                    unitPrice: parseFloat(String(item.unitPrice || "0")),
+                    total: 0,
+                    vatType: item.vatType || "vat7",
+                    unit: item.unit || "ชิ้น",
+                  };
+                }
+                grouped[key].qty += parseFloat(String(item.quantity || "0"));
+                grouped[key].total += parseFloat(String(item.lineTotal || "0"));
+              }
+
+              const summaryItems = Object.values(grouped);
+              if (summaryItems.length > 0) {
+                await db.insert(taxInvoiceItems).values(
+                  summaryItems.map(si => ({
+                    taxInvoiceId: summaryTiv.id,
+                    productId: si.productId,
+                    productCode: si.productCode,
+                    productName: si.productName,
+                    qty: String(si.qty),
+                    unit: si.unit,
+                    unitPrice: String(si.unitPrice.toFixed(2)),
+                    discount: "0",
+                    discountType: "amount" as const,
+                    total: String(si.total.toFixed(2)),
+                    vatType: si.vatType,
+                  }))
+                );
+              }
+            }
+
+            console.log(`[POS] Summary tax invoice ${summaryTivNo} created (${abbrevCount} abbreviated invoices → 1 summary for sales tax report)`);
+
+            const pmRows = await db.select().from(paymentMethods)
+              .where(eq(paymentMethods.companyId, session.companyId));
+            const pmAccountMap: Record<string, string> = {};
+            for (const pm of pmRows) {
+              pmAccountMap[pm.name] = pm.accountCode;
+              if (pm.nameTh) pmAccountMap[pm.nameTh] = pm.accountCode;
+            }
+
+            const methods = Object.keys(paymentBreakdown);
+            const isSingleMethod = methods.length === 1;
+
+            if (isSingleMethod) {
+              const singleMethod = methods[0];
+              await createAutoJournalEntry({
+                companyId: session.companyId,
+                documentType: "tax_invoice",
+                sourceDocType: "tax_invoice",
+                sourceDocId: summaryTiv.id,
+                docNo: summaryTivNo,
+                docDate: today,
+                customerName: summaryDesc,
+                subtotal: String(summaryBaseSubtotal.toFixed(2)),
+                vatAmount: String(totalVat.toFixed(2)),
+                totalAmount: String(abbreviatedTotal.toFixed(2)),
+                withholdingTax: "0",
+                userId: user.id,
+                paymentMethod: singleMethod,
+                paymentMethodAccountCode: pmAccountMap[singleMethod] || undefined,
+              });
+            } else {
+              const overrideLines: { accountCode: string; debit: string; credit: string; description: string }[] = [];
+              for (const [method, data] of Object.entries(paymentBreakdown)) {
+                const acctCode = pmAccountMap[method] || (method === "เงินสด" ? "1001000" : method === "โอนเงิน" ? "1002000" : "1002000");
+                overrideLines.push({
+                  accountCode: acctCode,
+                  debit: String(data.total.toFixed(2)),
+                  credit: "0",
+                  description: `${summaryTivNo} - ${method}`,
+                });
+              }
+              if (totalVat > 0) {
+                overrideLines.push({
+                  accountCode: "2341000",
+                  debit: "0",
+                  credit: String(totalVat.toFixed(2)),
+                  description: `${summaryTivNo} - ภาษีขาย`,
+                });
+              }
+              overrideLines.push({
+                accountCode: "4100100",
+                debit: "0",
+                credit: String((abbreviatedTotal - totalVat).toFixed(2)),
+                description: `${summaryTivNo} - รายได้อย่างย่อ (${abbrevCount} บิล)`,
+              });
+
+              await createAutoJournalEntry({
+                companyId: session.companyId,
+                documentType: "tax_invoice",
+                sourceDocType: "tax_invoice",
+                sourceDocId: summaryTiv.id,
+                docNo: summaryTivNo,
+                docDate: today,
+                customerName: summaryDesc,
+                subtotal: String(summaryBaseSubtotal.toFixed(2)),
+                vatAmount: String(totalVat.toFixed(2)),
+                totalAmount: String(abbreviatedTotal.toFixed(2)),
+                withholdingTax: "0",
+                userId: user.id,
+                paymentMethod: "เงินสด",
+                overrideLines,
+              });
+            }
+            console.log(`[POS] Session ${sessionLabel} closed - summary TIV + journal (${abbrevCount} abbreviated, ${fullTivCount} full TIV) ฿${abbreviatedTotal.toFixed(2)}`);
+          } catch (e: any) { console.error(`[POS] Session close journal error:`, e.message); }
+        });
+      }
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // POS Sessions - Get summary
+  app.get("/api/pos/sessions/:id/summary", requireAuth, requireModule("pos"), async (req, res) => {
+    try {
+      const user = req.user as any;
+      const sessionId = Number(req.params.id);
+      const [session] = await db.select().from(posSessions).where(eq(posSessions.id, sessionId));
+      if (!session) return res.status(404).json({ message: "ไม่พบกะ" });
+
+      const [company] = await db.select().from(companies).where(eq(companies.id, session.companyId));
+      if (company && company.tenantId && company.tenantId !== user.tenantId) {
+        return res.status(403).json({ message: "ไม่มีสิทธิ์เข้าถึง" });
+      }
+
+      const txns = await db.select().from(posTransactions)
+        .where(and(eq(posTransactions.sessionId, sessionId), eq(posTransactions.status, "completed")));
+
+      const paymentBreakdown: Record<string, { count: number; total: number }> = {};
+      let totalSales = 0;
+      for (const t of txns) {
+        const amt = parseFloat(String(t.total || "0"));
+        totalSales += amt;
+        if (!paymentBreakdown[t.paymentMethod]) paymentBreakdown[t.paymentMethod] = { count: 0, total: 0 };
+        paymentBreakdown[t.paymentMethod].count++;
+        paymentBreakdown[t.paymentMethod].total += amt;
+      }
+
+      res.json({
+        session,
+        totalTransactions: txns.length,
+        totalSales,
+        paymentBreakdown,
+        transactions: txns,
+      });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // POS Transactions - Create (complete sale)
+  app.post("/api/pos/transactions", requireAuth, requireModule("pos"), async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { companyId, sessionId, items, paymentMethod, cashReceived, customerId, customerName, discountAmount, fullTaxInvoice, taxCustomerName, taxAddress, taxId, taxPhone, taxEmail } = req.body;
+      if (!companyId || !sessionId || !items || !Array.isArray(items) || items.length === 0) {
+        return res.status(400).json({ message: "กรุณากรอกข้อมูลให้ครบถ้วน" });
+      }
+
+      if (fullTaxInvoice && (!taxCustomerName || !taxId)) {
+        return res.status(400).json({ message: "กรุณากรอกชื่อและเลขผู้เสียภาษีเพื่อออกใบกำกับภาษีเต็มรูป" });
+      }
+
+      const [session] = await db.select().from(posSessions).where(eq(posSessions.id, Number(sessionId)));
+      if (!session || session.status !== "open") return res.status(400).json({ message: "กะนี้ไม่ได้เปิดอยู่" });
+      if (session.companyId !== Number(companyId)) return res.status(403).json({ message: "ข้อมูลกะไม่ตรงกับบริษัท" });
+
+      const [company] = await db.select().from(companies).where(eq(companies.id, Number(companyId)));
+      if (company && company.tenantId && company.tenantId !== user.tenantId) {
+        return res.status(403).json({ message: "ไม่มีสิทธิ์เข้าถึง" });
+      }
+
+      const startTime = Date.now();
+
+      let subtotal = 0;
+      let vatAmount = 0;
+      const processedItems: any[] = [];
+
+      for (const item of items) {
+        const qty = parseFloat(String(item.quantity || "1"));
+        const unitPrice = parseFloat(String(item.unitPrice || "0"));
+        const discount = parseFloat(String(item.discount || "0"));
+        const lineTotal = Math.round(((unitPrice * qty) - discount) * 100) / 100;
+        subtotal += lineTotal;
+
+        const vatType = item.vatType || "vat7";
+        if (vatType === "vat7") {
+          vatAmount += lineTotal * 7 / 107;
+        }
+
+        processedItems.push({
+          productId: Number(item.productId),
+          productCode: item.productCode || null,
+          productName: item.productName || "",
+          quantity: String(qty),
+          unitPrice: String(unitPrice),
+          discount: String(discount),
+          vatType,
+          lineTotal: String(lineTotal),
+          unit: item.unit || "ชิ้น",
+        });
+      }
+
+      subtotal = Math.round(subtotal * 100) / 100;
+      vatAmount = Math.round(vatAmount * 100) / 100;
+      const totalDiscount = Math.round(parseFloat(String(discountAmount || "0")) * 100) / 100;
+      const total = Math.round((subtotal - totalDiscount) * 100) / 100;
+      const baseSubtotal = Math.round((total - vatAmount) * 100) / 100;
+      const cashRcv = parseFloat(String(cashReceived || "0"));
+      const change = Math.round((paymentMethod === "เงินสด" ? cashRcv - total : 0) * 100) / 100;
+
+      const [transactionNo, tivNo] = await Promise.all([
+        getNextDocNo(Number(companyId), "POS", posTransactions, posTransactions.transactionNo, posTransactions.companyId),
+        getNextDocNo(Number(companyId), "POS", taxInvoices, taxInvoices.taxInvoiceNo, taxInvoices.companyId),
+      ]);
+
+      const today = new Date().toISOString().split("T")[0];
+
+      const result = await db.transaction(async (tx) => {
+        const [txn] = await tx.insert(posTransactions).values({
+          companyId: Number(companyId),
+          sessionId: Number(sessionId),
+          transactionNo,
+          customerId: customerId ? Number(customerId) : null,
+          customerName: customerName || "ลูกค้าทั่วไป",
+          paymentMethod: paymentMethod || "เงินสด",
+          subtotal: String(subtotal),
+          discountAmount: String(totalDiscount),
+          vatAmount: String(vatAmount.toFixed(2)),
+          total: String(total),
+          cashReceived: paymentMethod === "เงินสด" ? String(cashRcv) : null,
+          changeAmount: paymentMethod === "เงินสด" ? String(change) : null,
+          isFullTaxInvoice: !!fullTaxInvoice,
+          status: "completed",
+        }).returning();
+
+        const tivCustomerName = fullTaxInvoice ? (taxCustomerName || customerName || "ลูกค้าทั่วไป") : (customerName || "ลูกค้าทั่วไป");
+        const [tiv] = await tx.insert(taxInvoices).values({
+          companyId: Number(companyId),
+          taxInvoiceNo: tivNo,
+          taxInvoiceDate: today,
+          customerId: customerId ? Number(customerId) : null,
+          customerName: tivCustomerName,
+          customerAddress: fullTaxInvoice ? (taxAddress || null) : null,
+          customerTaxId: fullTaxInvoice ? (taxId || null) : null,
+          contactPhone: fullTaxInvoice ? (taxPhone || null) : null,
+          contactEmail: fullTaxInvoice ? (taxEmail || null) : null,
+          subtotal: String(baseSubtotal.toFixed(2)),
+          discountAmount: String(totalDiscount),
+          vatAmount: String(vatAmount.toFixed(2)),
+          totalAmount: String(total),
+          status: "approved",
+          paymentMethod: paymentMethod || "เงินสด",
+          priceMode: "included",
+          docPrefix: "POS",
+          createdBy: user.id,
+        }).returning();
+
+        if (processedItems.length > 0) {
+          await Promise.all([
+            tx.insert(posTransactionItems).values(
+              processedItems.map(pi => ({ transactionId: txn.id, ...pi }))
+            ),
+            tx.insert(taxInvoiceItems).values(
+              processedItems.map(pi => ({
+                taxInvoiceId: tiv.id,
+                productId: Number(pi.productId),
+                productCode: pi.productCode,
+                productName: pi.productName,
+                qty: pi.quantity,
+                unit: pi.unit,
+                unitPrice: pi.unitPrice,
+                discount: pi.discount,
+                discountType: "amount" as const,
+                total: pi.lineTotal,
+                vatType: pi.vatType,
+              }))
+            ),
+          ]);
+        }
+
+        await tx.update(posTransactions).set({ taxInvoiceId: tiv.id }).where(eq(posTransactions.id, txn.id));
+
+        return { transaction: { ...txn, taxInvoiceId: tiv.id }, taxInvoice: tiv, processedItems };
+      });
+
+      const txTime = Date.now() - startTime;
+      console.log(`[POS] Transaction ${result.transaction.transactionNo} saved in ${txTime}ms`);
+
+      res.json(result);
+
+      setImmediate(async () => {
+        const bgStart = Date.now();
+        const sessionWarehouseId = session.warehouseId;
+        const stockPromises = processedItems
+          .filter(pi => pi.productId && parseFloat(String(pi.quantity || "0")) > 0)
+          .map(async (pi) => {
+            const qty = parseFloat(String(pi.quantity || "0"));
+            await storage.adjustStock(
+              Number(companyId), Number(pi.productId), String(-qty), "sale_deduct",
+              `POS ${result.transaction.transactionNo}`,
+              "tax_invoice", result.taxInvoice.id,
+              { unitCost: pi.unitPrice, totalCost: String(qty * parseFloat(pi.unitPrice)), referenceNo: result.transaction.transactionNo, createdBy: user.id }
+            ).catch(e => console.error(`POS stock deduction failed for product ${pi.productId}:`, e.message));
+            if (sessionWarehouseId) {
+              try {
+                const [wsl] = await db.select().from(warehouseStockLevels)
+                  .where(and(eq(warehouseStockLevels.warehouseId, sessionWarehouseId), eq(warehouseStockLevels.productId, Number(pi.productId))));
+                const currentQty = Number(wsl?.quantity || "0");
+                const newQty = Math.max(0, currentQty - qty);
+                if (wsl) {
+                  await db.update(warehouseStockLevels).set({ quantity: String(newQty) }).where(eq(warehouseStockLevels.id, wsl.id));
+                }
+              } catch (e: any) { console.error(`POS warehouse stock deduction failed:`, e.message); }
+            }
+          });
+
+        await Promise.all(stockPromises);
+
+        if (fullTaxInvoice) {
+          try {
+            await createAutoJournalEntry({
+              companyId: Number(companyId),
+              documentType: "tax_invoice",
+              sourceDocType: "tax_invoice",
+              sourceDocId: result.taxInvoice.id,
+              docNo: result.taxInvoice.taxInvoiceNo,
+              docDate: result.taxInvoice.taxInvoiceDate,
+              customerName: result.taxInvoice.customerName || "ลูกค้าทั่วไป",
+              subtotal: String(result.taxInvoice.subtotal || "0"),
+              vatAmount: String(result.taxInvoice.vatAmount || "0"),
+              totalAmount: String(result.taxInvoice.totalAmount || "0"),
+              withholdingTax: "0",
+              userId: user.id,
+              paymentMethod: paymentMethod || "เงินสด",
+            });
+            console.log(`[POS] Full tax invoice ${result.taxInvoice.taxInvoiceNo} - journal created immediately for ${result.taxInvoice.customerName}`);
+          } catch (e: any) { console.error(`[POS] Full tax invoice journal error:`, e.message); }
+        }
+
+        console.log(`[POS] Background tasks done in ${Date.now() - bgStart}ms ${fullTaxInvoice ? '(journal created - full TIV)' : '(journal deferred to session close)'}`);
+      });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // POS Transactions - List by session
+  app.get("/api/pos/transactions", requireAuth, requireModule("pos"), async (req, res) => {
+    try {
+      const companyId = Number(req.query.companyId);
+      const sessionId = req.query.sessionId ? Number(req.query.sessionId) : null;
+      if (!companyId) return res.status(400).json({ message: "กรุณาระบุบริษัท" });
+
+      let conditions = [eq(posTransactions.companyId, companyId)];
+      if (sessionId) conditions.push(eq(posTransactions.sessionId, sessionId));
+
+      const txns = await db.select().from(posTransactions)
+        .where(and(...conditions))
+        .orderBy(desc(posTransactions.createdAt));
+      res.json(txns);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.get("/api/pos/receipt/:taxInvoiceId", requireAuth, requireModule("pos"), async (req, res) => {
+    try {
+      const taxInvoiceId = Number(req.params.taxInvoiceId);
+      const [doc] = await db.select().from(taxInvoices).where(eq(taxInvoices.id, taxInvoiceId));
+      if (!doc) return res.status(404).json({ message: "ไม่พบเอกสาร" });
+      const ac = await checkDocOwnership(doc.companyId, req.user);
+      if (!ac.allowed) return res.status(403).json({ message: ac.message });
+      const [items, [comp]] = await Promise.all([
+        db.select().from(taxInvoiceItems).where(eq(taxInvoiceItems.taxInvoiceId, doc.id)),
+        db.select().from(companies).where(eq(companies.id, doc.companyId)),
+      ]);
+      res.json({ doc: { ...doc, items }, company: comp || null });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // POS Transactions - Get detail with items
+  app.get("/api/pos/transactions/:id", requireAuth, requireModule("pos"), async (req, res) => {
+    try {
+      const user = req.user as any;
+      const id = Number(req.params.id);
+      const [txn] = await db.select().from(posTransactions).where(eq(posTransactions.id, id));
+      if (!txn) return res.status(404).json({ message: "ไม่พบรายการ" });
+
+      const [company] = await db.select().from(companies).where(eq(companies.id, txn.companyId));
+      if (company && company.tenantId && company.tenantId !== user.tenantId) {
+        return res.status(403).json({ message: "ไม่มีสิทธิ์เข้าถึง" });
+      }
+
+      const items = await db.select().from(posTransactionItems)
+        .where(eq(posTransactionItems.transactionId, id));
+      res.json({ ...txn, items });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // POS Transactions - Void
+  app.patch("/api/pos/transactions/:id/void", requireAuth, requireModule("pos"), async (req, res) => {
+    try {
+      const user = req.user as any;
+      const id = Number(req.params.id);
+      const [txn] = await db.select().from(posTransactions).where(eq(posTransactions.id, id));
+      if (!txn) return res.status(404).json({ message: "ไม่พบรายการ" });
+
+      const [company] = await db.select().from(companies).where(eq(companies.id, txn.companyId));
+      if (company && company.tenantId && company.tenantId !== user.tenantId) {
+        return res.status(403).json({ message: "ไม่มีสิทธิ์เข้าถึง" });
+      }
+
+      if (txn.status === "voided") return res.status(400).json({ message: "รายการนี้ถูกยกเลิกแล้ว" });
+
+      await db.update(posTransactions).set({ status: "voided" }).where(eq(posTransactions.id, id));
+
+      if (txn.taxInvoiceId) {
+        await db.update(taxInvoices).set({ status: "cancelled" }).where(eq(taxInvoices.id, txn.taxInvoiceId));
+      }
+
+      res.json({ message: "ยกเลิกรายการสำเร็จ" });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // POS Products - Search with barcode support
+  app.get("/api/pos/products", requireAuth, requireModule("pos"), async (req, res) => {
+    try {
+      const companyId = Number(req.query.companyId);
+      const search = String(req.query.search || "");
+      if (!companyId) return res.status(400).json({ message: "กรุณาระบุบริษัท" });
+
+      let conditions = [eq(products.companyId, companyId), eq(products.active, true)];
+      if (search) {
+        conditions.push(
+          or(
+            ilike(products.code, `%${search}%`),
+            ilike(products.name, `%${search}%`),
+            eq(products.barcode, search),
+          )!
+        );
+      }
+
+      const limit = Math.min(Number(req.query.limit) || 500, 1000);
+      const offset = Math.max(Number(req.query.offset) || 0, 0);
+
+      const result = await db.select().from(products)
+        .where(and(...conditions))
+        .orderBy(asc(products.name))
+        .limit(limit)
+        .offset(offset);
+      res.json(result);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.get("/api/pos/bundles/:productId", requireAuth, requireModule("pos"), async (req, res) => {
+    try {
+      const productId = Number(req.params.productId);
+      const bundles = await db.select().from(productBundles).where(eq(productBundles.bundleProductId, productId));
+      if (req.query.enriched === "1") {
+        const productIds = [...new Set(bundles.map(b => b.componentProductId))];
+        const prods = productIds.length > 0
+          ? await db.select().from(products).where(sql`${products.id} IN (${sql.join(productIds.map(id => sql`${id}`), sql`,`)})`)
+          : [];
+        const prodMap = new Map(prods.map(p => [p.id, p]));
+        const enriched = bundles.map(b => {
+          const p = prodMap.get(b.componentProductId);
+          return { ...b, productName: p?.name || `สินค้า #${b.componentProductId}`, productCode: p?.code || "" };
+        });
+        return res.json(enriched);
+      }
+      res.json(bundles);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // POS Daily Summary
+  app.get("/api/pos/daily-summary", requireAuth, requireModule("pos"), async (req, res) => {
+    try {
+      const companyId = Number(req.query.companyId);
+      const date = String(req.query.date || new Date().toISOString().split("T")[0]);
+      if (!companyId) return res.status(400).json({ message: "กรุณาระบุบริษัท" });
+
+      const startOfDay = new Date(date + "T00:00:00");
+      const endOfDay = new Date(date + "T23:59:59");
+
+      const sessions = await db.select().from(posSessions)
+        .where(and(
+          eq(posSessions.companyId, companyId),
+          sql`${posSessions.openedAt} >= ${startOfDay}`,
+          sql`${posSessions.openedAt} <= ${endOfDay}`,
+        )).orderBy(desc(posSessions.openedAt));
+
+      const sessionIds = sessions.map(s => s.id);
+      let txns: any[] = [];
+      if (sessionIds.length > 0) {
+        txns = await db.select().from(posTransactions)
+          .where(and(
+            eq(posTransactions.companyId, companyId),
+            inArray(posTransactions.sessionId, sessionIds),
+            eq(posTransactions.status, "completed"),
+          ));
+      }
+
+      const paymentBreakdown: Record<string, { count: number; total: number }> = {};
+      let totalSales = 0;
+      for (const t of txns) {
+        const amt = parseFloat(String(t.total || "0"));
+        totalSales += amt;
+        if (!paymentBreakdown[t.paymentMethod]) paymentBreakdown[t.paymentMethod] = { count: 0, total: 0 };
+        paymentBreakdown[t.paymentMethod].count++;
+        paymentBreakdown[t.paymentMethod].total += amt;
+      }
+
+      res.json({
+        date,
+        totalSessions: sessions.length,
+        totalTransactions: txns.length,
+        totalSales,
+        paymentBreakdown,
+        sessions: sessions.map(s => ({
+          ...s,
+          transactions: txns.filter(t => t.sessionId === s.id),
+        })),
+      });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.get("/api/pos/dashboard", requireAuth, requireModule("pos"), async (req, res) => {
+    try {
+      const user = req.user as any;
+      const companyId = Number(req.query.companyId);
+      if (!companyId) return res.status(400).json({ message: "กรุณาระบุบริษัท" });
+
+      const [company] = await db.select().from(companies).where(eq(companies.id, companyId));
+      if (company && company.tenantId && company.tenantId !== user.tenantId) {
+        return res.status(403).json({ message: "ไม่มีสิทธิ์เข้าถึง" });
+      }
+
+      const now = new Date();
+      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+
+      const allTxns = await db.select().from(posTransactions)
+        .where(and(
+          eq(posTransactions.companyId, companyId),
+          eq(posTransactions.status, "completed"),
+          sql`${posTransactions.createdAt} >= ${todayStart}`,
+          sql`${posTransactions.createdAt} <= ${todayEnd}`,
+        ));
+
+      const txnSessionIds = [...new Set(allTxns.map(t => t.sessionId))];
+
+      const allSessions = txnSessionIds.length > 0
+        ? await db.select().from(posSessions).where(inArray(posSessions.id, txnSessionIds))
+        : [];
+
+      const openSessions = await db.select().from(posSessions)
+        .where(and(eq(posSessions.companyId, companyId), eq(posSessions.status, "open")));
+      for (const os of openSessions) {
+        if (!allSessions.find(s => s.id === os.id)) allSessions.push(os);
+      }
+
+      const sessionMap = new Map<number, typeof allSessions[0]>();
+      for (const s of allSessions) sessionMap.set(s.id, s);
+
+      const branchData: Record<string, {
+        branchName: string;
+        storeId: number | null;
+        openSessions: number;
+        closedSessions: number;
+        totalTransactions: number;
+        totalSales: number;
+        totalVat: number;
+        paymentBreakdown: Record<string, { count: number; total: number }>;
+        hourlySales: Record<number, number>;
+      }> = {};
+
+      for (const s of allSessions) {
+        const key = s.branchName || "สำนักงานใหญ่";
+        if (!branchData[key]) {
+          branchData[key] = {
+            branchName: key,
+            storeId: s.storeId,
+            openSessions: 0,
+            closedSessions: 0,
+            totalTransactions: 0,
+            totalSales: 0,
+            totalVat: 0,
+            paymentBreakdown: {},
+            hourlySales: {},
+          };
+        }
+        if (s.status === "open") branchData[key].openSessions++;
+        else branchData[key].closedSessions++;
+      }
+
+      let grandTotal = 0;
+      let grandTxnCount = 0;
+      let grandVat = 0;
+      const grandPayment: Record<string, { count: number; total: number }> = {};
+      const grandHourly: Record<number, number> = {};
+
+      for (const t of allTxns) {
+        const sess = sessionMap.get(t.sessionId);
+        const key = sess?.branchName || "สำนักงานใหญ่";
+        const bd = branchData[key];
+        if (!bd) continue;
+
+        const amt = parseFloat(String(t.total || "0"));
+        const vat = parseFloat(String(t.vatAmount || "0"));
+        const hr = new Date(t.createdAt).getHours();
+
+        bd.totalTransactions++;
+        bd.totalSales += amt;
+        bd.totalVat += vat;
+        if (!bd.paymentBreakdown[t.paymentMethod]) bd.paymentBreakdown[t.paymentMethod] = { count: 0, total: 0 };
+        bd.paymentBreakdown[t.paymentMethod].count++;
+        bd.paymentBreakdown[t.paymentMethod].total += amt;
+        bd.hourlySales[hr] = (bd.hourlySales[hr] || 0) + amt;
+
+        grandTotal += amt;
+        grandTxnCount++;
+        grandVat += vat;
+        if (!grandPayment[t.paymentMethod]) grandPayment[t.paymentMethod] = { count: 0, total: 0 };
+        grandPayment[t.paymentMethod].count++;
+        grandPayment[t.paymentMethod].total += amt;
+        grandHourly[hr] = (grandHourly[hr] || 0) + amt;
+      }
+
+      const branches = Object.values(branchData).sort((a, b) => b.totalSales - a.totalSales);
+
+      res.json({
+        date: todayStart.toISOString().split("T")[0],
+        overall: {
+          totalSessions: allSessions.length,
+          openSessions: allSessions.filter(s => s.status === "open").length,
+          closedSessions: allSessions.filter(s => s.status !== "open").length,
+          totalTransactions: grandTxnCount,
+          totalSales: grandTotal,
+          totalVat: grandVat,
+          avgPerTransaction: grandTxnCount > 0 ? grandTotal / grandTxnCount : 0,
+          paymentBreakdown: grandPayment,
+          hourlySales: grandHourly,
+        },
+        branches,
+      });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.get("/api/pos/sales", requireAuth, requireModule("pos"), async (req, res) => {
+    try {
+      const companyId = Number(req.query.companyId);
+      if (!companyId) return res.status(400).json({ message: "companyId required" });
+      const rows = await db.select().from(taxInvoices)
+        .where(and(
+          eq(taxInvoices.companyId, companyId),
+          sql`${taxInvoices.taxInvoiceNo} LIKE 'POS%'`
+        ))
+        .orderBy(desc(taxInvoices.createdAt));
+      res.json(rows);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.get("/api/pos/sales/:id", requireAuth, requireModule("pos"), async (req, res) => {
+    try {
+      const companyId = Number(req.query.companyId);
+      if (!companyId) return res.status(400).json({ message: "companyId required" });
+      const [doc] = await db.select().from(taxInvoices).where(
+        and(
+          eq(taxInvoices.id, Number(req.params.id)),
+          eq(taxInvoices.companyId, companyId),
+          sql`${taxInvoices.taxInvoiceNo} LIKE 'POS%'`
+        )
+      );
+      if (!doc) return res.status(404).json({ message: "ไม่พบเอกสาร" });
+      { const ac = await checkDocOwnership(doc.companyId, req.user); if (!ac.allowed) return res.status(403).json({ message: ac.message }); }
+      const items = await db.select().from(taxInvoiceItems).where(eq(taxInvoiceItems.taxInvoiceId, doc.id));
+      res.json({ ...doc, items });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.get("/api/pos/promptpay-qr", requireAuth, async (req, res) => {
+    try {
+      const companyId = Number(req.query.companyId);
+      const amount = parseFloat(req.query.amount as string) || 0;
+      if (!companyId) return res.status(400).json({ message: "กรุณาระบุบริษัท" });
+
+      const [settings] = await db.select().from(documentSettings)
+        .where(eq(documentSettings.companyId, companyId)).limit(1);
+
+      if (!settings?.promptpayEnabled || !settings?.promptpayId) {
+        return res.status(404).json({ message: "ยังไม่ได้ตั้งค่า PromptPay กรุณาไปที่ ตั้งค่า > เอกสาร > โลโก้ เพื่อเปิดใช้งาน PromptPay" });
+      }
+
+      const qrData = generatePromptPayQRData(settings.promptpayId, amount);
+      const qrImageDataUrl = await QRCode.toDataURL(qrData, { width: 300, margin: 2, errorCorrectionLevel: "M" });
+
+      res.json({
+        qrImage: qrImageDataUrl,
+        promptpayId: settings.promptpayId,
+        promptpayType: settings.promptpayType || "phone",
+        amount,
+      });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.get("/api/pos/branches", requireAuth, requireModule("pos"), async (req, res) => {
+    try {
+      const companyId = Number(req.query.companyId);
+      if (!companyId) return res.status(400).json({ message: "กรุณาระบุบริษัท" });
+      const branchList = await db.select().from(branches)
+        .where(and(eq(branches.companyId, companyId), eq(branches.active, true)))
+        .orderBy(branches.code);
+      const warehouseList = await db.select().from(warehouses)
+        .where(and(eq(warehouses.companyId, companyId), eq(warehouses.active, true)));
+      const whMap = new Map(warehouseList.map(w => [w.id, w]));
+      const result = branchList.map(b => ({
+        ...b,
+        warehouse: b.warehouseId ? whMap.get(b.warehouseId) || null : null,
+      }));
+      res.json(result);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.post("/api/pos/branches", requireAuth, requireModule("pos"), async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { companyId, code, name, address, taxId, phone, manager } = req.body;
+      if (!companyId || !name) return res.status(400).json({ message: "กรุณาระบุชื่อสาขา" });
+
+      const branchCode = code || String(await db.select({ cnt: count() }).from(branches).where(eq(branches.companyId, Number(companyId))).then(r => (r[0]?.cnt || 0) + 1)).padStart(5, "0");
+
+      const [wh] = await db.insert(warehouses).values({
+        companyId: Number(companyId),
+        code: `WH-${branchCode}`,
+        name: `คลัง ${name}`,
+        isDefault: false,
+        active: true,
+      }).returning();
+
+      const [branch] = await db.insert(branches).values({
+        companyId: Number(companyId),
+        code: branchCode,
+        name,
+        address: address || null,
+        phone: phone || null,
+        manager: manager || null,
+        taxId: taxId || null,
+        warehouseId: wh.id,
+        active: true,
+      }).returning();
+
+      res.json({ ...branch, warehouse: wh });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.patch("/api/pos/branches/:id", requireAuth, requireModule("pos"), async (req, res) => {
+    try {
+      const user = req.user as any;
+      const id = Number(req.params.id);
+      const { name, code, address, phone, manager } = req.body;
+      const [existing] = await db.select().from(branches).where(eq(branches.id, id));
+      if (!existing) return res.status(404).json({ message: "ไม่พบสาขา" });
+
+      const [company] = await db.select().from(companies).where(eq(companies.id, existing.companyId));
+      if (!company || company.tenantId !== user.tenantId) {
+        return res.status(403).json({ message: "ไม่มีสิทธิ์แก้ไขสาขานี้" });
+      }
+
+      const updateData: any = {};
+      if (name !== undefined) updateData.name = name;
+      if (code !== undefined) updateData.code = code;
+      if (address !== undefined) updateData.address = address;
+      if (phone !== undefined) updateData.phone = phone;
+      if (manager !== undefined) updateData.manager = manager;
+
+      const [updated] = await db.update(branches).set(updateData).where(eq(branches.id, id)).returning();
+
+      if (updated.warehouseId && name) {
+        await db.update(warehouses).set({ name: `คลัง ${name}` }).where(eq(warehouses.id, updated.warehouseId));
+      }
+
+      res.json(updated);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.delete("/api/pos/branches/:id", requireAuth, requireModule("pos"), async (req, res) => {
+    try {
+      const user = req.user as any;
+      const id = Number(req.params.id);
+      const [existing] = await db.select().from(branches).where(eq(branches.id, id));
+      if (!existing) return res.status(404).json({ message: "ไม่พบสาขา" });
+
+      const [company] = await db.select().from(companies).where(eq(companies.id, existing.companyId));
+      if (!company || company.tenantId !== user.tenantId) {
+        return res.status(403).json({ message: "ไม่มีสิทธิ์ลบสาขานี้" });
+      }
+
+      const sessionsCount = await db.select({ cnt: count() }).from(posSessions).where(eq(posSessions.storeId, id));
+      if (Number(sessionsCount[0]?.cnt || 0) > 0) {
+        return res.status(400).json({ message: "ไม่สามารถลบสาขาที่มีประวัติกะขายได้" });
+      }
+
+      await db.delete(branches).where(eq(branches.id, id));
+      res.json({ message: "ลบสาขาสำเร็จ" });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.get("/api/pos/summary-invoice/:id/details", requireAuth, requireModule("pos"), async (req, res) => {
+    try {
+      const summaryId = Number(req.params.id);
+      const [summary] = await db.select().from(taxInvoices).where(eq(taxInvoices.id, summaryId));
+      if (!summary || !summary.isSummaryInvoice) return res.status(404).json({ message: "ไม่พบใบสรุป" });
+
+      const details = await db.select({
+        id: taxInvoices.id,
+        taxInvoiceNo: taxInvoices.taxInvoiceNo,
+        taxInvoiceDate: taxInvoices.taxInvoiceDate,
+        customerName: taxInvoices.customerName,
+        subtotal: taxInvoices.subtotal,
+        vatAmount: taxInvoices.vatAmount,
+        totalAmount: taxInvoices.totalAmount,
+      }).from(taxInvoices)
+        .where(eq(taxInvoices.summaryTaxInvoiceId, summaryId))
+        .orderBy(taxInvoices.taxInvoiceNo);
+
+      res.json({ summary, details });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.get("/api/pos/warehouse-stock", requireAuth, requireModule("pos"), async (req, res) => {
+    try {
+      const warehouseId = Number(req.query.warehouseId);
+      const companyId = Number(req.query.companyId);
+      if (!companyId) return res.status(400).json({ message: "กรุณาระบุบริษัท" });
+
+      if (warehouseId) {
+        const levels = await db.select({
+          productId: warehouseStockLevels.productId,
+          quantity: warehouseStockLevels.quantity,
+        }).from(warehouseStockLevels).where(eq(warehouseStockLevels.warehouseId, warehouseId));
+        const stockMap: Record<number, number> = {};
+        for (const l of levels) stockMap[l.productId] = Number(l.quantity || 0);
+        return res.json(stockMap);
+      }
+      res.json({});
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.get("/api/pos/reports/dashboard", requireAuth, requireModule("pos"), async (req, res) => {
+    try {
+      const companyId = Number(req.query.companyId);
+      const from = String(req.query.from || new Date(new Date().setDate(1)).toISOString().split("T")[0]);
+      const to = String(req.query.to || new Date().toISOString().split("T")[0]);
+      if (!companyId) return res.status(400).json({ message: "กรุณาระบุบริษัท" });
+
+      const salesData = await db.select({
+        totalSales: sql<string>`COALESCE(SUM(${posTransactions.total}), 0)`,
+        totalTransactions: sql<string>`COUNT(*)`,
+        avgTicket: sql<string>`COALESCE(AVG(${posTransactions.total}), 0)`,
+        totalDiscount: sql<string>`COALESCE(SUM(${posTransactions.discountAmount}), 0)`,
+        totalVat: sql<string>`COALESCE(SUM(${posTransactions.vatAmount}), 0)`,
+      }).from(posTransactions)
+        .where(and(
+          eq(posTransactions.companyId, companyId),
+          eq(posTransactions.status, "completed"),
+          sql`DATE(${posTransactions.createdAt}) >= ${from}`,
+          sql`DATE(${posTransactions.createdAt}) <= ${to}`,
+        ));
+
+      const prevFrom = new Date(new Date(from).getTime() - (new Date(to).getTime() - new Date(from).getTime() + 86400000));
+      const prevTo = new Date(new Date(from).getTime() - 86400000);
+      const prevSales = await db.select({
+        totalSales: sql<string>`COALESCE(SUM(${posTransactions.total}), 0)`,
+        totalTransactions: sql<string>`COUNT(*)`,
+      }).from(posTransactions)
+        .where(and(
+          eq(posTransactions.companyId, companyId),
+          eq(posTransactions.status, "completed"),
+          sql`DATE(${posTransactions.createdAt}) >= ${prevFrom.toISOString().split("T")[0]}`,
+          sql`DATE(${posTransactions.createdAt}) <= ${prevTo.toISOString().split("T")[0]}`,
+        ));
+
+      const dailySales = await db.select({
+        date: sql<string>`DATE(${posTransactions.createdAt})`,
+        total: sql<string>`COALESCE(SUM(${posTransactions.total}), 0)`,
+        count: sql<string>`COUNT(*)`,
+      }).from(posTransactions)
+        .where(and(
+          eq(posTransactions.companyId, companyId),
+          eq(posTransactions.status, "completed"),
+          sql`DATE(${posTransactions.createdAt}) >= ${from}`,
+          sql`DATE(${posTransactions.createdAt}) <= ${to}`,
+        ))
+        .groupBy(sql`DATE(${posTransactions.createdAt})`)
+        .orderBy(sql`DATE(${posTransactions.createdAt})`);
+
+      const topProducts = await db.select({
+        productId: posTransactionItems.productId,
+        productName: posTransactionItems.productName,
+        productCode: posTransactionItems.productCode,
+        totalQty: sql<string>`COALESCE(SUM(CAST(${posTransactionItems.quantity} AS numeric)), 0)`,
+        totalRevenue: sql<string>`COALESCE(SUM(CAST(${posTransactionItems.lineTotal} AS numeric)), 0)`,
+      }).from(posTransactionItems)
+        .innerJoin(posTransactions, eq(posTransactionItems.transactionId, posTransactions.id))
+        .where(and(
+          eq(posTransactions.companyId, companyId),
+          eq(posTransactions.status, "completed"),
+          sql`DATE(${posTransactions.createdAt}) >= ${from}`,
+          sql`DATE(${posTransactions.createdAt}) <= ${to}`,
+        ))
+        .groupBy(posTransactionItems.productId, posTransactionItems.productName, posTransactionItems.productCode)
+        .orderBy(sql`SUM(CAST(${posTransactionItems.lineTotal} AS numeric)) DESC`)
+        .limit(10);
+
+      const paymentBreakdown = await db.select({
+        method: posTransactions.paymentMethod,
+        total: sql<string>`COALESCE(SUM(${posTransactions.total}), 0)`,
+        count: sql<string>`COUNT(*)`,
+      }).from(posTransactions)
+        .where(and(
+          eq(posTransactions.companyId, companyId),
+          eq(posTransactions.status, "completed"),
+          sql`DATE(${posTransactions.createdAt}) >= ${from}`,
+          sql`DATE(${posTransactions.createdAt}) <= ${to}`,
+        ))
+        .groupBy(posTransactions.paymentMethod);
+
+      res.json({
+        summary: salesData[0],
+        previousPeriod: prevSales[0],
+        dailySales,
+        topProducts,
+        paymentBreakdown,
+      });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.get("/api/pos/reports/sales-by-branch", requireAuth, requireModule("pos"), async (req, res) => {
+    try {
+      const companyId = Number(req.query.companyId);
+      const from = String(req.query.from || new Date(new Date().setDate(1)).toISOString().split("T")[0]);
+      const to = String(req.query.to || new Date().toISOString().split("T")[0]);
+      if (!companyId) return res.status(400).json({ message: "กรุณาระบุบริษัท" });
+
+      const branchSales = await db.select({
+        storeId: posSessions.storeId,
+        branchName: posSessions.branchName,
+        totalSales: sql<string>`COALESCE(SUM(${posTransactions.total}), 0)`,
+        totalTransactions: sql<string>`COUNT(${posTransactions.id})`,
+        avgTicket: sql<string>`COALESCE(AVG(${posTransactions.total}), 0)`,
+        totalDiscount: sql<string>`COALESCE(SUM(${posTransactions.discountAmount}), 0)`,
+      }).from(posTransactions)
+        .innerJoin(posSessions, eq(posTransactions.sessionId, posSessions.id))
+        .where(and(
+          eq(posTransactions.companyId, companyId),
+          eq(posTransactions.status, "completed"),
+          sql`DATE(${posTransactions.createdAt}) >= ${from}`,
+          sql`DATE(${posTransactions.createdAt}) <= ${to}`,
+        ))
+        .groupBy(posSessions.storeId, posSessions.branchName)
+        .orderBy(sql`SUM(${posTransactions.total}) DESC`);
+
+      const branchDaily = await db.select({
+        storeId: posSessions.storeId,
+        branchName: posSessions.branchName,
+        date: sql<string>`DATE(${posTransactions.createdAt})`,
+        total: sql<string>`COALESCE(SUM(${posTransactions.total}), 0)`,
+        count: sql<string>`COUNT(${posTransactions.id})`,
+      }).from(posTransactions)
+        .innerJoin(posSessions, eq(posTransactions.sessionId, posSessions.id))
+        .where(and(
+          eq(posTransactions.companyId, companyId),
+          eq(posTransactions.status, "completed"),
+          sql`DATE(${posTransactions.createdAt}) >= ${from}`,
+          sql`DATE(${posTransactions.createdAt}) <= ${to}`,
+        ))
+        .groupBy(posSessions.storeId, posSessions.branchName, sql`DATE(${posTransactions.createdAt})`)
+        .orderBy(sql`DATE(${posTransactions.createdAt})`);
+
+      res.json({ branches: branchSales, dailyByBranch: branchDaily });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.get("/api/pos/reports/sales-by-product", requireAuth, requireModule("pos"), async (req, res) => {
+    try {
+      const companyId = Number(req.query.companyId);
+      const from = String(req.query.from || new Date(new Date().setDate(1)).toISOString().split("T")[0]);
+      const to = String(req.query.to || new Date().toISOString().split("T")[0]);
+      const storeId = req.query.storeId ? Number(req.query.storeId) : null;
+      if (!companyId) return res.status(400).json({ message: "กรุณาระบุบริษัท" });
+
+      let conditions = [
+        eq(posTransactions.companyId, companyId),
+        eq(posTransactions.status, "completed"),
+        sql`DATE(${posTransactions.createdAt}) >= ${from}`,
+        sql`DATE(${posTransactions.createdAt}) <= ${to}`,
+      ];
+      if (storeId) conditions.push(eq(posSessions.storeId, storeId));
+
+      const productSales = await db.select({
+        productId: posTransactionItems.productId,
+        productName: posTransactionItems.productName,
+        productCode: posTransactionItems.productCode,
+        totalQty: sql<string>`COALESCE(SUM(CAST(${posTransactionItems.quantity} AS numeric)), 0)`,
+        totalRevenue: sql<string>`COALESCE(SUM(CAST(${posTransactionItems.lineTotal} AS numeric)), 0)`,
+        totalDiscount: sql<string>`COALESCE(SUM(CAST(${posTransactionItems.discount} AS numeric)), 0)`,
+        avgPrice: sql<string>`COALESCE(AVG(CAST(${posTransactionItems.unitPrice} AS numeric)), 0)`,
+        transactionCount: sql<string>`COUNT(DISTINCT ${posTransactions.id})`,
+      }).from(posTransactionItems)
+        .innerJoin(posTransactions, eq(posTransactionItems.transactionId, posTransactions.id))
+        .innerJoin(posSessions, eq(posTransactions.sessionId, posSessions.id))
+        .where(and(...conditions))
+        .groupBy(posTransactionItems.productId, posTransactionItems.productName, posTransactionItems.productCode)
+        .orderBy(sql`SUM(CAST(${posTransactionItems.lineTotal} AS numeric)) DESC`);
+
+      res.json(productSales);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.get("/api/pos/reports/sales-by-category", requireAuth, requireModule("pos"), async (req, res) => {
+    try {
+      const companyId = Number(req.query.companyId);
+      const from = String(req.query.from || new Date(new Date().setDate(1)).toISOString().split("T")[0]);
+      const to = String(req.query.to || new Date().toISOString().split("T")[0]);
+      if (!companyId) return res.status(400).json({ message: "กรุณาระบุบริษัท" });
+
+      const categorySales = await db.select({
+        category: sql<string>`COALESCE(${products.category}, 'ไม่มีหมวดหมู่')`,
+        totalQty: sql<string>`COALESCE(SUM(CAST(${posTransactionItems.quantity} AS numeric)), 0)`,
+        totalRevenue: sql<string>`COALESCE(SUM(CAST(${posTransactionItems.lineTotal} AS numeric)), 0)`,
+        productCount: sql<string>`COUNT(DISTINCT ${posTransactionItems.productId})`,
+        transactionCount: sql<string>`COUNT(DISTINCT ${posTransactions.id})`,
+      }).from(posTransactionItems)
+        .innerJoin(posTransactions, eq(posTransactionItems.transactionId, posTransactions.id))
+        .leftJoin(products, eq(posTransactionItems.productId, products.id))
+        .where(and(
+          eq(posTransactions.companyId, companyId),
+          eq(posTransactions.status, "completed"),
+          sql`DATE(${posTransactions.createdAt}) >= ${from}`,
+          sql`DATE(${posTransactions.createdAt}) <= ${to}`,
+        ))
+        .groupBy(sql`COALESCE(${products.category}, 'ไม่มีหมวดหมู่')`)
+        .orderBy(sql`SUM(CAST(${posTransactionItems.lineTotal} AS numeric)) DESC`);
+
+      res.json(categorySales);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.get("/api/pos/reports/best-sellers", requireAuth, requireModule("pos"), async (req, res) => {
+    try {
+      const companyId = Number(req.query.companyId);
+      const from = String(req.query.from || new Date(new Date().setDate(1)).toISOString().split("T")[0]);
+      const to = String(req.query.to || new Date().toISOString().split("T")[0]);
+      const limit = Math.min(Number(req.query.limit) || 20, 100);
+      if (!companyId) return res.status(400).json({ message: "กรุณาระบุบริษัท" });
+
+      const bestSellers = await db.select({
+        productId: posTransactionItems.productId,
+        productName: posTransactionItems.productName,
+        productCode: posTransactionItems.productCode,
+        branchName: posSessions.branchName,
+        storeId: posSessions.storeId,
+        totalQty: sql<string>`COALESCE(SUM(CAST(${posTransactionItems.quantity} AS numeric)), 0)`,
+        totalRevenue: sql<string>`COALESCE(SUM(CAST(${posTransactionItems.lineTotal} AS numeric)), 0)`,
+      }).from(posTransactionItems)
+        .innerJoin(posTransactions, eq(posTransactionItems.transactionId, posTransactions.id))
+        .innerJoin(posSessions, eq(posTransactions.sessionId, posSessions.id))
+        .where(and(
+          eq(posTransactions.companyId, companyId),
+          eq(posTransactions.status, "completed"),
+          sql`DATE(${posTransactions.createdAt}) >= ${from}`,
+          sql`DATE(${posTransactions.createdAt}) <= ${to}`,
+        ))
+        .groupBy(posTransactionItems.productId, posTransactionItems.productName, posTransactionItems.productCode, posSessions.branchName, posSessions.storeId)
+        .orderBy(sql`SUM(CAST(${posTransactionItems.lineTotal} AS numeric)) DESC`)
+        .limit(limit);
+
+      res.json(bestSellers);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.get("/api/pos/reports/payment-analysis", requireAuth, requireModule("pos"), async (req, res) => {
+    try {
+      const companyId = Number(req.query.companyId);
+      const from = String(req.query.from || new Date(new Date().setDate(1)).toISOString().split("T")[0]);
+      const to = String(req.query.to || new Date().toISOString().split("T")[0]);
+      if (!companyId) return res.status(400).json({ message: "กรุณาระบุบริษัท" });
+
+      const paymentByMethod = await db.select({
+        method: posTransactions.paymentMethod,
+        total: sql<string>`COALESCE(SUM(${posTransactions.total}), 0)`,
+        count: sql<string>`COUNT(*)`,
+        avgAmount: sql<string>`COALESCE(AVG(${posTransactions.total}), 0)`,
+      }).from(posTransactions)
+        .where(and(
+          eq(posTransactions.companyId, companyId),
+          eq(posTransactions.status, "completed"),
+          sql`DATE(${posTransactions.createdAt}) >= ${from}`,
+          sql`DATE(${posTransactions.createdAt}) <= ${to}`,
+        ))
+        .groupBy(posTransactions.paymentMethod)
+        .orderBy(sql`SUM(${posTransactions.total}) DESC`);
+
+      const dailyByMethod = await db.select({
+        method: posTransactions.paymentMethod,
+        date: sql<string>`DATE(${posTransactions.createdAt})`,
+        total: sql<string>`COALESCE(SUM(${posTransactions.total}), 0)`,
+        count: sql<string>`COUNT(*)`,
+      }).from(posTransactions)
+        .where(and(
+          eq(posTransactions.companyId, companyId),
+          eq(posTransactions.status, "completed"),
+          sql`DATE(${posTransactions.createdAt}) >= ${from}`,
+          sql`DATE(${posTransactions.createdAt}) <= ${to}`,
+        ))
+        .groupBy(posTransactions.paymentMethod, sql`DATE(${posTransactions.createdAt})`)
+        .orderBy(sql`DATE(${posTransactions.createdAt})`);
+
+      res.json({ summary: paymentByMethod, daily: dailyByMethod });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.get("/api/pos/reports/cashier-performance", requireAuth, requireModule("pos"), async (req, res) => {
+    try {
+      const companyId = Number(req.query.companyId);
+      const from = String(req.query.from || new Date(new Date().setDate(1)).toISOString().split("T")[0]);
+      const to = String(req.query.to || new Date().toISOString().split("T")[0]);
+      if (!companyId) return res.status(400).json({ message: "กรุณาระบุบริษัท" });
+
+      const cashierStats = await db.select({
+        userId: posSessions.userId,
+        totalSales: sql<string>`COALESCE(SUM(${posTransactions.total}), 0)`,
+        totalTransactions: sql<string>`COUNT(${posTransactions.id})`,
+        avgTicket: sql<string>`COALESCE(AVG(${posTransactions.total}), 0)`,
+        totalDiscount: sql<string>`COALESCE(SUM(${posTransactions.discountAmount}), 0)`,
+        sessionCount: sql<string>`COUNT(DISTINCT ${posSessions.id})`,
+        totalCashVariance: sql<string>`COALESCE(SUM(CAST(${posSessions.cashVariance} AS numeric)), 0)`,
+      }).from(posTransactions)
+        .innerJoin(posSessions, eq(posTransactions.sessionId, posSessions.id))
+        .where(and(
+          eq(posTransactions.companyId, companyId),
+          eq(posTransactions.status, "completed"),
+          sql`DATE(${posTransactions.createdAt}) >= ${from}`,
+          sql`DATE(${posTransactions.createdAt}) <= ${to}`,
+        ))
+        .groupBy(posSessions.userId)
+        .orderBy(sql`SUM(${posTransactions.total}) DESC`);
+
+      const userIds = cashierStats.map(c => c.userId).filter(Boolean);
+      let userMap: Record<number, string> = {};
+      if (userIds.length > 0) {
+        const { users } = await import("@shared/schema");
+        const userData = await db.select({ id: users.id, fullName: users.fullName }).from(users)
+          .where(sql`${users.id} IN (${sql.join(userIds.map(id => sql`${id}`), sql`,`)})`);
+        for (const u of userData) userMap[u.id] = u.fullName;
+      }
+
+      const enriched = cashierStats.map(c => ({
+        ...c,
+        userName: userMap[c.userId!] || `พนักงาน #${c.userId}`,
+      }));
+
+      res.json(enriched);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.get("/api/pos/reports/hourly-trends", requireAuth, requireModule("pos"), async (req, res) => {
+    try {
+      const companyId = Number(req.query.companyId);
+      const from = String(req.query.from || new Date(new Date().setDate(1)).toISOString().split("T")[0]);
+      const to = String(req.query.to || new Date().toISOString().split("T")[0]);
+      if (!companyId) return res.status(400).json({ message: "กรุณาระบุบริษัท" });
+
+      const hourlyData = await db.select({
+        hour: sql<string>`EXTRACT(HOUR FROM ${posTransactions.createdAt})`,
+        total: sql<string>`COALESCE(SUM(${posTransactions.total}), 0)`,
+        count: sql<string>`COUNT(*)`,
+        avgTicket: sql<string>`COALESCE(AVG(${posTransactions.total}), 0)`,
+      }).from(posTransactions)
+        .where(and(
+          eq(posTransactions.companyId, companyId),
+          eq(posTransactions.status, "completed"),
+          sql`DATE(${posTransactions.createdAt}) >= ${from}`,
+          sql`DATE(${posTransactions.createdAt}) <= ${to}`,
+        ))
+        .groupBy(sql`EXTRACT(HOUR FROM ${posTransactions.createdAt})`)
+        .orderBy(sql`EXTRACT(HOUR FROM ${posTransactions.createdAt})`);
+
+      const dayOfWeek = await db.select({
+        day: sql<string>`EXTRACT(DOW FROM ${posTransactions.createdAt})`,
+        total: sql<string>`COALESCE(SUM(${posTransactions.total}), 0)`,
+        count: sql<string>`COUNT(*)`,
+      }).from(posTransactions)
+        .where(and(
+          eq(posTransactions.companyId, companyId),
+          eq(posTransactions.status, "completed"),
+          sql`DATE(${posTransactions.createdAt}) >= ${from}`,
+          sql`DATE(${posTransactions.createdAt}) <= ${to}`,
+        ))
+        .groupBy(sql`EXTRACT(DOW FROM ${posTransactions.createdAt})`)
+        .orderBy(sql`EXTRACT(DOW FROM ${posTransactions.createdAt})`);
+
+      res.json({ hourly: hourlyData, dayOfWeek });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.get("/api/pos/reports/daily-summary", requireAuth, requireModule("pos"), async (req, res) => {
+    try {
+      const companyId = Number(req.query.companyId);
+      const date = String(req.query.date || new Date().toISOString().split("T")[0]);
+      if (!companyId) return res.status(400).json({ message: "กรุณาระบุบริษัท" });
+
+      const sales = await db.select({
+        totalSales: sql<string>`COALESCE(SUM(${posTransactions.total}), 0)`,
+        totalTransactions: sql<string>`COUNT(*)`,
+        totalDiscount: sql<string>`COALESCE(SUM(${posTransactions.discountAmount}), 0)`,
+        totalVat: sql<string>`COALESCE(SUM(${posTransactions.vatAmount}), 0)`,
+        voidCount: sql<string>`COUNT(*) FILTER (WHERE ${posTransactions.status} = 'voided')`,
+      }).from(posTransactions)
+        .where(and(
+          eq(posTransactions.companyId, companyId),
+          sql`DATE(${posTransactions.createdAt}) = ${date}`,
+        ));
+
+      const sessions = await db.select({
+        id: posSessions.id,
+        branchName: posSessions.branchName,
+        terminalName: posSessions.terminalName,
+        status: posSessions.status,
+        openedAt: posSessions.openedAt,
+        closedAt: posSessions.closedAt,
+        totalSales: posSessions.totalSales,
+        totalTransactions: posSessions.totalTransactions,
+        cashVariance: posSessions.cashVariance,
+      }).from(posSessions)
+        .where(and(
+          eq(posSessions.companyId, companyId),
+          sql`DATE(${posSessions.openedAt}) = ${date}`,
+        ))
+        .orderBy(desc(posSessions.openedAt));
+
+      const hourly = await db.select({
+        hour: sql<string>`EXTRACT(HOUR FROM ${posTransactions.createdAt})`,
+        total: sql<string>`COALESCE(SUM(${posTransactions.total}), 0)`,
+        count: sql<string>`COUNT(*)`,
+      }).from(posTransactions)
+        .where(and(
+          eq(posTransactions.companyId, companyId),
+          eq(posTransactions.status, "completed"),
+          sql`DATE(${posTransactions.createdAt}) = ${date}`,
+        ))
+        .groupBy(sql`EXTRACT(HOUR FROM ${posTransactions.createdAt})`)
+        .orderBy(sql`EXTRACT(HOUR FROM ${posTransactions.createdAt})`);
+
+      res.json({ summary: sales[0], sessions, hourly });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+}
