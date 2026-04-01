@@ -1165,6 +1165,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                       const mods = myPermissions?.modules || [];
                       const links = [
                         { label: "ลูกค้าสำนักงาน", href: "/firm-mgmt/dashboard", module: "firm-mgmt" },
+                        { label: "รับลูกค้าใหม่", href: "/settings/firm-link", module: "firm-mgmt" },
                         { label: "มอบหมายงาน", href: "/firm-mgmt/assignments", module: "firm-mgmt" },
                         { label: "รายชื่อคู่ค้า", href: "/contacts/list", module: "contacts" },
                         { label: "สมุดรายวัน", href: "/journal", module: "accounting" },

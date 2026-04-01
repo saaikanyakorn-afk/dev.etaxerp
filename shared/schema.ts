@@ -5817,3 +5817,21 @@ export const moduleSyncLogs = pgTable("module_sync_logs", {
 export const insertModuleSyncLogSchema = createInsertSchema(moduleSyncLogs).omit({ id: true });
 export type InsertModuleSyncLog = z.infer<typeof insertModuleSyncLogSchema>;
 export type ModuleSyncLog = typeof moduleSyncLogs.$inferSelect;
+
+export const firmLinks = pgTable("firm_links", {
+  id: serial("id").primaryKey(),
+  inviteCode: text("invite_code").notNull().unique(),
+  clientTenantId: integer("client_tenant_id").notNull().references(() => tenants.id),
+  clientCompanyId: integer("client_company_id").notNull().references(() => companies.id),
+  firmTenantId: integer("firm_tenant_id").references(() => tenants.id),
+  status: text("status").notNull().default("pending"),
+  accessLevel: text("access_level").notNull().default("readonly"),
+  linkedAt: timestamp("linked_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  expiresAt: timestamp("expires_at"),
+  createdByUserId: integer("created_by_user_id").references(() => users.id),
+  acceptedByUserId: integer("accepted_by_user_id").references(() => users.id),
+});
+export const insertFirmLinkSchema = createInsertSchema(firmLinks).omit({ id: true, createdAt: true });
+export type InsertFirmLink = z.infer<typeof insertFirmLinkSchema>;
+export type FirmLink = typeof firmLinks.$inferSelect;
