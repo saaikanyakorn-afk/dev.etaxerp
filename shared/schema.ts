@@ -5800,3 +5800,20 @@ export const deliveryNoteItems = pgTable("delivery_note_items", {
 export const insertDeliveryNoteItemSchema = createInsertSchema(deliveryNoteItems).omit({ id: true });
 export type InsertDeliveryNoteItem = z.infer<typeof insertDeliveryNoteItemSchema>;
 export type DeliveryNoteItem = typeof deliveryNoteItems.$inferSelect;
+
+export const moduleSyncLogs = pgTable("module_sync_logs", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").notNull(),
+  sourceModule: text("source_module").notNull(),
+  sourceDocType: text("source_doc_type").notNull(),
+  sourceDocId: integer("source_doc_id").notNull(),
+  targetDocType: text("target_doc_type"),
+  targetDocId: integer("target_doc_id"),
+  journalEntryId: integer("journal_entry_id"),
+  status: text("status").default("synced"),
+  syncedAt: timestamp("synced_at").defaultNow(),
+  errorMessage: text("error_message"),
+});
+export const insertModuleSyncLogSchema = createInsertSchema(moduleSyncLogs).omit({ id: true });
+export type InsertModuleSyncLog = z.infer<typeof insertModuleSyncLogSchema>;
+export type ModuleSyncLog = typeof moduleSyncLogs.$inferSelect;
