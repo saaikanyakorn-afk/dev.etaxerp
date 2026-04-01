@@ -29,6 +29,9 @@ import {
   Store,
   Receipt,
   Heart,
+  Warehouse,
+  FileText,
+  Settings,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -65,6 +68,19 @@ const POS_NAV: NavItem[] = [
     ],
   },
   {
+    label: "สินค้า & คลังสินค้า", icon: Package, href: "/pos/products",
+    children: [
+      { label: "รายการสินค้า", href: "/pos/products", icon: Package },
+      { label: "คลังสินค้า / สต็อก", href: "/pos/stock", icon: Warehouse },
+    ],
+  },
+  {
+    label: "เอกสาร", icon: FileText, href: "/pos/tax-invoices",
+    children: [
+      { label: "ใบกำกับภาษี", href: "/pos/tax-invoices", icon: FileText },
+    ],
+  },
+  {
     label: "รายงานยอดขาย", icon: BarChart3, href: "/pos-hub/sales-by-branch",
     children: [
       { label: "ยอดขายแยกสาขา", href: "/pos-hub/sales-by-branch", icon: Store },
@@ -85,6 +101,12 @@ const POS_NAV: NavItem[] = [
     label: "ลูกค้า", icon: Heart, href: "/pos/loyalty",
     children: [
       { label: "สมาชิก / Loyalty", href: "/pos/loyalty", icon: Heart },
+    ],
+  },
+  {
+    label: "ตั้งค่า", icon: Settings, href: "/pos/settings",
+    children: [
+      { label: "ตั้งค่า POS", href: "/pos/settings", icon: Settings },
     ],
   },
 ];
