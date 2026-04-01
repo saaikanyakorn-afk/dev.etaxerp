@@ -91,6 +91,7 @@
     "passport-local": "^1.0.0",
     "pdf-lib": "^1.17.1",
     "pdfjs-dist": "^5.4.624",
+    "pdfmake": "^0.2.23",
     "pg": "^8.16.3",
     "promptpay-qr": "^0.5.0",
     "puppeteer-core": "^24.37.2",

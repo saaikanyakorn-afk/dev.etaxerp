@@ -3,7 +3,7 @@ import { db } from "../db";
 import { eq, desc, and } from "drizzle-orm";
 import { invoices, taxInvoices, receipts, quotations, salesOrders, purchaseInvoices, expenses, companies, purchaseRequests, purchaseOrders, documentDeliveryLogs } from "@shared/schema";
 import { requireAuth, checkDocOwnership } from "../route-middleware";
-import { generatePdfDirect } from "../pdf-react-generator";
+import { generatePdfMake } from "../pdf-pdfmake-generator";
 import { buildPdfDataById, buildPdfDataByToken } from "../pdf-data-fetcher";
 
 export function registerPdfRoutes(app: Express) {
@@ -11,7 +11,7 @@ export function registerPdfRoutes(app: Express) {
 app.post("/api/pdf/demo-generate", requireAuth, async (req, res) => {
   try {
     const startMem = process.memoryUsage();
-    console.log(`[Demo PDF] Starting real generatePdfDirect with fake data...`);
+    console.log(`[Demo PDF] Starting real generatePdfMake with fake data...`);
     const t0 = Date.now();
 
     const fakePdfOpts: any = {
@@ -61,7 +61,7 @@ app.post("/api/pdf/demo-generate", requireAuth, async (req, res) => {
       documentType: "tax_invoice",
     };
 
-    const pdfBuffer = await generatePdfDirect(fakePdfOpts as any);
+    const pdfBuffer = await generatePdfMake(fakePdfOpts as any);
     const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
     const endMem = process.memoryUsage();
     console.log(`[Demo PDF] Complete in ${elapsed}s — RSS: ${Math.round(startMem.rss / 1024 / 1024)}MB → ${Math.round(endMem.rss / 1024 / 1024)}MB, PDF size: ${pdfBuffer.length} bytes`);
@@ -197,7 +197,7 @@ app.get("/api/documents/:docType/:id/pdf", requireAuth, async (req, res) => {
     }
 
     const docNo = pdfOpts.document.docNo || "document";
-    const pdfBuffer = await generatePdfDirect(pdfOpts);
+    const pdfBuffer = await generatePdfMake(pdfOpts);
     pdfOpts = null as any;
 
     if (companyId) {
@@ -238,7 +238,7 @@ app.get("/api/share/:docType/:token/pdf", async (req, res) => {
 
     let pdfOpts = await buildPdfDataByToken(docType, token, pt);
     const docNo = pdfOpts.document.docNo || "document";
-    const pdfBuffer = await generatePdfDirect(pdfOpts);
+    const pdfBuffer = await generatePdfMake(pdfOpts);
     pdfOpts = null as any;
     const filename = encodeURIComponent(`${docNo}.pdf`);
     res.set({
@@ -412,7 +412,7 @@ app.get("/api/test/pdf-concurrent", requireAuth, async (req, res) => {
       const t0 = Date.now();
       try {
         const pdfOpts = await buildPdfDataById(docType, docId);
-        const buf = await generatePdfDirect(pdfOpts);
+        const buf = await generatePdfMake(pdfOpts);
         return { index: i, success: true, ms: Date.now() - t0, bytes: buf.length };
       } catch (err: any) {
         return { index: i, success: false, ms: Date.now() - t0, error: err.message };
