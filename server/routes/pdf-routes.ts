@@ -14,27 +14,26 @@ app.post("/api/pdf/demo-generate", requireAuth, async (req, res) => {
     console.log(`[Demo PDF] Starting real generatePdfDirect with fake data...`);
     const t0 = Date.now();
 
-    const fakePdfOpts = {
+    const fakePdfOpts: any = {
       document: {
         docNo: "DEMO-TIV-001",
-        date: new Date().toISOString(),
+        docDate: new Date().toISOString(),
         customerName: "บริษัท ทดสอบ Demo จำกัด",
         customerAddress: "123/456 ถนนสุขุมวิท แขวงคลองตัน เขตคลองเตย กรุงเทพมหานคร 10110",
         customerTaxId: "0105500000001",
         customerBranch: "สำนักงานใหญ่",
-        subtotal: "10000.00",
-        discountAmount: "0.00",
-        afterDiscount: "10000.00",
-        vatAmount: "700.00",
-        totalAmount: "10700.00",
-        totalAmountText: "หนึ่งหมื่นเจ็ดร้อยบาทถ้วน",
+        subtotal: 100000,
+        discountAmount: 0,
+        vatAmount: 7000,
+        totalAmount: 107000,
+        withholdingTax: 0,
         items: Array.from({ length: 50 }, (_, i) => ({
           no: i + 1,
-          description: `รายการสินค้าทดสอบ Demo #${i + 1} — สินค้าตัวอย่างสำหรับทดสอบระบบ PDF`,
-          quantity: "10",
+          description: `รายการสินค้าทดสอบ Demo #${i + 1} — สินค้าตัวอย่างสำหรับทดสอบระบบ PDF Generation`,
+          quantity: 10,
           unit: "ชิ้น",
-          unitPrice: "200.00",
-          amount: "2000.00",
+          unitPrice: 200,
+          amount: 2000,
         })),
       },
       company: {
@@ -46,7 +45,16 @@ app.post("/api/pdf/demo-generate", requireAuth, async (req, res) => {
         phone: "02-999-9999",
         branch: "สำนักงานใหญ่",
       },
-      printType: "tax_invoice",
+      settings: {
+        showLogo: false,
+        showSignature: false,
+        showTaxId: true,
+        showBranch: true,
+        showProductCode: false,
+        docTypeColors: null,
+        colorMode: "color",
+      },
+      documentType: "tax_invoice",
     };
 
     const pdfBuffer = await generatePdfDirect(fakePdfOpts as any);
