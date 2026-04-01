@@ -57,6 +57,8 @@ export default function ProductForm(props: { Wrapper?: React.ComponentType<{ chi
   const params = useParams<{ id: string }>();
   const editingId = params.id ? Number(params.id) : null;
 
+  const queryProductType = new URLSearchParams(window.location.search).get("type");
+
   const [form, setForm] = useState({
     code: "",
     barcode: "",
@@ -76,7 +78,7 @@ export default function ProductForm(props: { Wrapper?: React.ComponentType<{ chi
     vatIncluded: false,
     accountCode: "",
     vatType: "vat7",
-    productType: "simple",
+    productType: queryProductType === "bundle" ? "bundle" : queryProductType === "manufactured" ? "manufactured" : "simple",
     trackLots: false,
     imageUrl: "",
   });
