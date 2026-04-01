@@ -115,6 +115,7 @@ const POS_NAV: NavItem[] = [
     label: "ตั้งค่า", icon: Settings, href: "/pos/settings",
     children: [
       { label: "ตั้งค่า POS", href: "/pos/settings", icon: Settings },
+      { label: "จัดการพนักงาน", href: "/pos/staff", icon: Users },
     ],
   },
 ];

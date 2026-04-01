@@ -51,6 +51,7 @@ export const users = pgTable("users", {
   signatureTitleEn: text("signature_title_en"),
   signatureTitleZh: text("signature_title_zh"),
   allowedCompanyIds: integer("allowed_company_ids").array(),
+  allowedBranchIds: integer("allowed_branch_ids").array(),
   lineId: text("line_id"),
   externalBoardToken: text("external_board_token"),
 });
