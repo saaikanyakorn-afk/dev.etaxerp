@@ -343,6 +343,7 @@ const POS_TABLE_NAMES = new Set([
   'products', 'product_bundles', 'product_stock', 'product_lots',
   'stock_movements', 'warehouses', 'warehouse_stock_levels',
   'stock_transfers', 'stock_transfer_items',
+  'branches', 'payment_methods', 'document_settings',
 ]);
 
 function getPosSchemaTableObjects(): PgTable[] {
