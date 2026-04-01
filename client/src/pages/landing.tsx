@@ -825,16 +825,15 @@ export default function LandingPage() {
               <h1 className="text-4xl sm:text-5xl lg:text-[56px] font-extrabold text-gray-900 leading-snug sm:leading-snug lg:leading-snug mb-6 tracking-tight">
                 <span className="text-[#03c9d7]">E-Tax Center</span>
                 <br />
-                ระบบบัญชีอัจฉริยะที่
-                <span style={{ color: "#03c9d7" }}> ทรงพลังที่สุด</span>
+                ซื้อเฉพาะ<span style={{ color: "#03c9d7" }}>โมดูลที่ต้องการ</span>
                 <br />
-                สำหรับธุรกิจยุคใหม่
+                ไม่ต้องจ่ายทั้งระบบ
               </h1>
             </AnimateOnScroll>
 
             <AnimateOnScroll delay={0.3}>
               <p className="text-lg sm:text-xl text-gray-500 mb-10 max-w-2xl mx-auto leading-relaxed">
-              E-Commerce Hub 7+ แพลตฟอร์ม บัญชี TFRS ครบวงจร WMS คลังสินค้า Delivery Hub POS ร้านค้า & ร้านอาหาร HR เงินเดือน Live Selling & AI Live Agency Settlement & Wallet Tracking AI Analytics Dark Mode ทุกอย่างในแพลตฟอร์มเดียว
+              อีคอมเมิร์ซ · บัญชี · POS · HR · จัดส่ง — เลือกซื้อทีละโมดูล เริ่มจากสิ่งที่ใช้จริง ธุรกิจโตก็เพิ่มโมดูลได้ทันที ไม่ต้องเปลี่ยนระบบ
             </p>
 
             </AnimateOnScroll>
@@ -903,7 +902,123 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Easy Start Section - FlowAccount Inspired */}
+      {/* Module Showcase - Buy What You Need */}
+      <section className="py-20 bg-white" id="modules">
+        <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8">
+          <AnimateOnScroll>
+            <div className="text-center max-w-3xl mx-auto mb-4">
+              <p className="text-[#03c9d7] font-semibold text-sm tracking-wide mb-3">MODULAR SYSTEM</p>
+              <h2 className="text-3xl sm:text-[40px] font-extrabold text-gray-900 leading-tight mb-5 tracking-tight">
+                เลือกซื้อเฉพาะ<span style={{ color: "#03c9d7" }}>โมดูลที่ต้องการ</span>
+              </h2>
+              <p className="text-gray-400 text-[15px]">ไม่ต้องจ่ายแพ็คเกจรวม เริ่มจากโมดูลเดียวก็ได้ ธุรกิจโตก็เพิ่มโมดูลได้ทันที ทุกโมดูลทำงานร่วมกันอย่างไร้รอยต่อ</p>
+            </div>
+          </AnimateOnScroll>
+
+          <AnimateOnScroll delay={0.1}>
+            <div className="flex justify-center mb-12">
+              <div className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#fec90f]/10 rounded-full">
+                <Zap className="w-4 h-4 text-[#fec90f]" />
+                <span className="text-sm font-bold text-[#e6a800]">ใช้แยกก็ได้ ใช้รวมก็ดี — ข้อมูลเชื่อมถึงกันอัตโนมัติ</span>
+              </div>
+            </div>
+          </AnimateOnScroll>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {[
+              {
+                icon: ShoppingCart, color: "#fb9678", bg: "#fff5f2",
+                title: "อีคอมเมิร์ซ",
+                subtitle: "E-Commerce Hub",
+                desc: "ดึงออเดอร์อัตโนมัติจาก 7+ แพลตฟอร์ม ออกใบกำกับภาษีอัตโนมัติ Auto-TIV เมื่อจัดส่ง กระทบยอด Settlement & Wallet ครบวงจร",
+                bullets: ["Shopee · Lazada · TikTok Shop · Amazon", "ออกใบกำกับภาษีอัตโนมัติเมื่อจัดส่ง", "Settlement & Wallet Tracking", "AI Live Commerce Agency"],
+              },
+              {
+                icon: Calculator, color: "#03c9d7", bg: "#e8fafb",
+                title: "บัญชี & ภาษี",
+                subtitle: "Accounting TFRS",
+                desc: "ผังบัญชีมาตรฐาน TFRS สมุดรายวัน 5 เล่ม Auto Journal Entry งบการเงินครบ 4 งบ รายงานภาษีพร้อมยื่น ภ.พ.30",
+                bullets: ["ผังบัญชี 3 หลัก / 7 หลัก ตาม TFRS", "สมุดรายวัน 5 เล่ม + Auto Journal Entry", "งบทดลอง · กำไรขาดทุน · ฐานะการเงิน · กระแสเงินสด", "ภ.พ.30 · ภงด.1 · 50 ทวิ · AR/AP Aging"],
+              },
+              {
+                icon: Store, color: "#fec90f", bg: "#fffbf0",
+                title: "POS ขายปลีก & ร้านอาหาร",
+                subtitle: "Point of Sale",
+                desc: "ขายหน้าร้าน จัดการโต๊ะร้านอาหาร KDS ส่งครัว แยกบิล เซอร์วิสชาร์จ Barcode Scanner รองรับหลายจุดขาย",
+                bullets: ["POS ขายปลีก + POS ร้านอาหาร", "จัดการโต๊ะ · KDS · แยกบิล · เซอร์วิสชาร์จ", "Barcode Scanner · EAN-13 Auto-Generate", "Cash Reconciliation · Hold/Park Orders"],
+              },
+              {
+                icon: Users, color: "#05b187", bg: "#eefbf5",
+                title: "HR & เงินเดือน",
+                subtitle: "Human Resources",
+                desc: "ลงเวลา OT คำนวณเงินเดือน สลิปเงินเดือน ภงด.1 · 50 ทวิ · ประกันสังคม ESS Portal พนักงาน ลาออนไลน์",
+                bullets: ["ลงเวลา · OT · คำนวณเงินเดือนอัตโนมัติ", "สลิปเงินเดือน · ภงด.1 · 50 ทวิ · ประกันสังคม", "ESS Portal พนักงาน · ลาออนไลน์", "สัญญาจ้างออนไลน์ · เซ็นดิจิทัล"],
+              },
+              {
+                icon: Building2, color: "#539BFF", bg: "#f0f5ff",
+                title: "สำนักงานบัญชี",
+                subtitle: "Accounting Firm",
+                desc: "จัดการลูกค้าหลายบริษัท White Label Branding Work Board แบบ Monday.com FTP Archive คลังเอกสาร สัญญาจ้างออนไลน์",
+                bullets: ["Multi-tenant จัดการลูกค้าหลายบริษัท", "White Label · เปลี่ยนโลโก้/สีธีมได้", "Work Board · FTP Archive · คลังเอกสาร", "Firm Link เชื่อมบริษัทลูกค้าง่ายๆ"],
+              },
+              {
+                icon: Warehouse, color: "#f94d4d", bg: "#fef2f2",
+                title: "คลังสินค้า & จัดส่ง",
+                subtitle: "WMS & Delivery",
+                desc: "Bin Location, Wave/Batch Picking, PDA Interface, Real-time Stock Sync หลายแพลตฟอร์ม Pick-Pack-Ship พิมพ์ใบปะหน้าพัสดุ",
+                bullets: ["Bin Location · Zone/Aisle/Shelf/Bin", "Wave Picking · PDA Mobile Interface", "Real-time Stock Sync หลายแพลตฟอร์ม", "Pick-Pack-Ship · พิมพ์ใบปะหน้าพัสดุ · LINE แจ้ง Tracking"],
+              },
+            ].map((mod, i) => (
+              <AnimateOnScroll key={i} delay={i * 0.1} className="h-full">
+                <div className="rounded-2xl p-7 border border-gray-100 hover:shadow-xl hover:-translate-y-1 transition-all group h-full flex flex-col" style={{ backgroundColor: mod.bg }} data-testid={`module-card-${i}`}>
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-12 h-12 rounded-xl flex items-center justify-center group-hover:scale-110 transition-all" style={{ backgroundColor: mod.color + "20" }}>
+                      <mod.icon className="w-6 h-6" style={{ color: mod.color }} />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-gray-900 text-[16px]">{mod.title}</h3>
+                      <p className="text-[11px] font-medium" style={{ color: mod.color }}>{mod.subtitle}</p>
+                    </div>
+                  </div>
+                  <p className="text-sm text-gray-500 leading-relaxed mb-4">{mod.desc}</p>
+                  <ul className="space-y-1.5 mt-auto">
+                    {mod.bullets.map((b, bi) => (
+                      <li key={bi} className="flex items-start gap-2 text-xs text-gray-500">
+                        <CheckCircle2 className="w-3.5 h-3.5 mt-0.5 shrink-0" style={{ color: mod.color }} />
+                        <span>{b}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </AnimateOnScroll>
+            ))}
+          </div>
+
+          <AnimateOnScroll delay={0.6}>
+            <div className="mt-10 text-center">
+              <button
+                onClick={() => navigate("/register")}
+                className="px-8 py-3.5 text-[15px] font-bold text-white bg-[#03c9d7] rounded-xl shadow-lg shadow-[#03c9d7]/25 hover:shadow-xl hover:-translate-y-0.5 transition-all mr-4"
+                data-testid="cta-module-register"
+              >
+                เริ่มใช้งานฟรี
+              </button>
+              <button
+                onClick={() => {
+                  const el = document.getElementById("pricing");
+                  el?.scrollIntoView({ behavior: "smooth" });
+                }}
+                className="px-8 py-3.5 text-[15px] font-bold text-[#03c9d7] bg-white border-2 border-[#03c9d7] rounded-xl hover:bg-[#03c9d7] hover:text-white transition-all"
+                data-testid="cta-module-pricing"
+              >
+                ดูราคาแต่ละโมดูล
+              </button>
+            </div>
+          </AnimateOnScroll>
+        </div>
+      </section>
+
+      {/* How It Works - Easy Start */}
       <section className="py-0 bg-[#eef7f9]">
         <div className="max-w-[1400px] mx-auto">
           <div className="flex flex-col lg:flex-row items-stretch">
@@ -942,18 +1057,27 @@ export default function LandingPage() {
             <AnimateOnScroll direction="right" className="flex-1 flex items-center">
               <div className="p-8 lg:p-14 lg:pl-8 max-w-[600px]">
                 <h2 className="text-3xl sm:text-[38px] lg:text-[42px] font-extrabold text-gray-900 leading-snug mb-6 tracking-tight">
-                  โปรแกรมบัญชี <span className="text-[#03c9d7]">ที่เริ่มต้นง่าย</span><br />
+                  เลือกโมดูล <span className="text-[#03c9d7]">เริ่มใช้ได้ทันที</span><br />
                   ไม่รู้บัญชี <span className="text-[#03c9d7]">ก็ใช้งานได้</span>
                 </h2>
                 <p className="text-[15px] text-gray-500 leading-relaxed mb-8">
-                  เปิดเอกสาร วางบิล เก็บเงินลูกค้า สรุปยอด ทำได้หมดในโปรแกรมบัญชีสำเร็จรูปออนไลน์ ใช้งานง่ายทั้งในเว็บไซต์และมือถือ แถมมีทีมซัพพอร์ตช่วยแนะนำการใช้งานให้คุณได้ฟรี!
+                  สมัครฟรี เลือกซื้อโมดูลที่ต้องการ ใช้งานได้ทันทีทั้งในเว็บไซต์และมือถือ ระบบตั้งค่าให้อัตโนมัติ มีทีมซัพพอร์ตช่วยแนะนำการใช้งานฟรี!
                 </p>
+                <div className="flex flex-wrap gap-3 mb-8">
+                  {[
+                    { label: "ทดลอง 15 วันฟรี", color: "#05b187" },
+                    { label: "ไม่ต้องผูกบัตร", color: "#03c9d7" },
+                    { label: "ยกเลิกเมื่อไหร่ก็ได้", color: "#fb9678" },
+                  ].map((tag, ti) => (
+                    <span key={ti} className="px-3 py-1.5 rounded-full text-xs font-bold border-2" style={{ borderColor: tag.color, color: tag.color }}>{tag.label}</span>
+                  ))}
+                </div>
                 <button
-                  onClick={() => navigate("/contact")}
-                  className="px-8 py-3.5 text-[15px] font-bold text-[#03c9d7] bg-white border-2 border-[#03c9d7] rounded-xl hover:bg-[#03c9d7] hover:text-white transition-all shadow-sm hover:shadow-md"
+                  onClick={() => navigate("/register")}
+                  className="px-8 py-3.5 text-[15px] font-bold text-white bg-[#03c9d7] rounded-xl shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all"
                   data-testid="cta-book-demo"
                 >
-                  นัดสาธิตใช้งานฟรี
+                  เริ่มทดลองใช้ฟรี
                 </button>
               </div>
             </AnimateOnScroll>
@@ -961,40 +1085,49 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Introducing Section - Flexy Style */}
+      {/* Why Modular - Flexy Style */}
       <section className="py-16 bg-white">
         <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8">
           <AnimateOnScroll>
             <div className="text-center max-w-3xl mx-auto mb-14">
-              <p className="text-[#03c9d7] font-semibold text-sm tracking-wide mb-3">แนะนำ E-TAX CENTER</p>
+              <p className="text-[#03c9d7] font-semibold text-sm tracking-wide mb-3">ทำไมต้องซื้อแยกโมดูล?</p>
               <h2 className="text-3xl sm:text-[40px] font-extrabold text-gray-900 leading-tight mb-5 tracking-tight">
-                <span style={{ color: "#03c9d7" }}>ระบบจัดการครบวงจร</span> — อัปเดตใหม่อยู่เสมอ!
+                <span style={{ color: "#03c9d7" }}>จ่ายตามที่ใช้จริง</span> — ไม่มีค่าใช้จ่ายซ่อน
               </h2>
             </div>
           </AnimateOnScroll>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            {/* Card 1 */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <AnimateOnScroll direction="left" delay={0.1} className="h-full">
               <div className="bg-[#e8fafb] rounded-2xl p-8 relative overflow-hidden group hover:shadow-xl transition-all h-full">
                 <div className="absolute top-0 right-0 w-40 h-40 rounded-full bg-[#03c9d7]/5 -translate-y-10 translate-x-10" />
                 <div className="w-14 h-14 rounded-xl bg-[#03c9d7]/15 flex items-center justify-center mb-6">
-                  <Monitor className="w-7 h-7 text-[#03c9d7]" />
+                  <Package className="w-7 h-7 text-[#03c9d7]" />
                 </div>
-                <h3 className="text-xl font-bold text-gray-900 mb-2">รองรับทุกอุปกรณ์</h3>
-                <p className="text-sm text-gray-500 leading-relaxed">ใช้งานได้ทั้งคอมพิวเตอร์ แท็บเล็ต และมือถือ ด้วยดีไซน์ Responsive ที่สวยงาม</p>
+                <h3 className="text-xl font-bold text-gray-900 mb-2">เลือกซื้อทีละโมดูล</h3>
+                <p className="text-sm text-gray-500 leading-relaxed">เริ่มจากโมดูลเดียวที่ต้องการ ไม่ต้องซื้อแพ็คเกจรวมราคาแพง ธุรกิจโตเมื่อไหร่ก็เพิ่มโมดูลได้</p>
               </div>
             </AnimateOnScroll>
 
-            {/* Card 2 */}
-            <AnimateOnScroll direction="right" delay={0.2} className="h-full">
-              <div className="bg-[#f0f9ff] rounded-2xl p-8 relative overflow-hidden group hover:shadow-xl transition-all h-full">
+            <AnimateOnScroll delay={0.2} className="h-full">
+              <div className="bg-[#fff5f2] rounded-2xl p-8 relative overflow-hidden group hover:shadow-xl transition-all h-full">
                 <div className="absolute top-0 right-0 w-40 h-40 rounded-full bg-[#fb9678]/5 -translate-y-10 translate-x-10" />
                 <div className="w-14 h-14 rounded-xl bg-[#fb9678]/15 flex items-center justify-center mb-6">
                   <Layers className="w-7 h-7 text-[#fb9678]" />
                 </div>
-                <h3 className="text-xl font-bold text-gray-900 mb-2">100+ ฟีเจอร์พร้อมใช้</h3>
-                <p className="text-sm text-gray-500 leading-relaxed">E-Commerce, บัญชี TFRS, HR, POS, POS ร้านอาหาร, WMS, Delivery, Live Selling, AI Analytics, Settlement, Barcode, Supplier Portal, Dark Mode และอีกมากมาย</p>
+                <h3 className="text-xl font-bold text-gray-900 mb-2">ข้อมูลเชื่อมถึงกัน</h3>
+                <p className="text-sm text-gray-500 leading-relaxed">ซื้ออีคอมเมิร์ซ + บัญชี ระบบลงบัญชีอัตโนมัติ ซื้อ POS + บัญชี ยอดขายบันทึกบัญชีทันที ไม่ต้องคีย์ซ้ำ</p>
+              </div>
+            </AnimateOnScroll>
+
+            <AnimateOnScroll direction="right" delay={0.3} className="h-full">
+              <div className="bg-[#eefbf5] rounded-2xl p-8 relative overflow-hidden group hover:shadow-xl transition-all h-full">
+                <div className="absolute top-0 right-0 w-40 h-40 rounded-full bg-[#05b187]/5 -translate-y-10 translate-x-10" />
+                <div className="w-14 h-14 rounded-xl bg-[#05b187]/15 flex items-center justify-center mb-6">
+                  <RefreshCw className="w-7 h-7 text-[#05b187]" />
+                </div>
+                <h3 className="text-xl font-bold text-gray-900 mb-2">อัปเดตฟรีตลอดชีพ</h3>
+                <p className="text-sm text-gray-500 leading-relaxed">ทุกโมดูลได้รับฟีเจอร์ใหม่อัตโนมัติ ไม่ต้องจ่ายค่าอัปเดตเพิ่ม ใช้งานผ่านเว็บ ไม่ต้องติดตั้ง</p>
               </div>
             </AnimateOnScroll>
           </div>
@@ -1010,8 +1143,8 @@ export default function LandingPage() {
           <AnimateOnScroll>
             <div className="text-center mb-14">
               <div className="flex justify-center mb-4"><FlexyDecor /></div>
-              <h2 className="text-3xl sm:text-[40px] font-extrabold text-gray-900 mb-4 tracking-normal">100+ ฟีเจอร์ครบวงจร</h2>
-              <p className="text-gray-400 max-w-2xl mx-auto text-[15px]">รวมทุกเครื่องมือสำหรับจัดการธุรกิจไว้ในแพลตฟอร์มเดียว ไม่ต้องใช้หลายโปรแกรม</p>
+              <h2 className="text-3xl sm:text-[40px] font-extrabold text-gray-900 mb-4 tracking-normal">100+ ฟีเจอร์ <span className="text-[#03c9d7]">ในทุกโมดูล</span></h2>
+              <p className="text-gray-400 max-w-2xl mx-auto text-[15px]">แต่ละโมดูลมีฟีเจอร์ครบถ้วน เลือกซื้อเฉพาะที่ต้องการ ทำงานร่วมกันอย่างไร้รอยต่อ</p>
             </div>
           </AnimateOnScroll>
 
@@ -1452,8 +1585,8 @@ export default function LandingPage() {
           <AnimateOnScroll>
             <div className="text-center mb-14">
               <p className="text-[#03c9d7] font-semibold text-sm tracking-wide mb-3">HIGHLIGHT FEATURES</p>
-              <h2 className="text-3xl sm:text-[40px] font-extrabold text-gray-900 mb-4 tracking-normal">คุณสมบัติเด่นของ E-Tax Center</h2>
-              <p className="text-gray-400 max-w-2xl mx-auto text-[15px]">ระบบที่ออกแบบมาเพื่อรองรับธุรกิจทุกขนาด ตั้งแต่ร้านค้าเล็กๆ ไปจนถึงองค์กรขนาดใหญ่</p>
+              <h2 className="text-3xl sm:text-[40px] font-extrabold text-gray-900 mb-4 tracking-normal">ฟีเจอร์เด่น <span className="text-[#03c9d7]">แต่ละโมดูล</span></h2>
+              <p className="text-gray-400 max-w-2xl mx-auto text-[15px]">ทุกโมดูลเต็มไปด้วยเครื่องมือที่ออกแบบมาเพื่อธุรกิจไทยโดยเฉพาะ</p>
             </div>
           </AnimateOnScroll>
 
@@ -1496,8 +1629,8 @@ export default function LandingPage() {
           <AnimateOnScroll>
             <div className="text-center mb-14">
               <p className="text-[#03c9d7] font-semibold text-sm tracking-wide mb-3">ทำไมต้องเลือกเรา</p>
-              <h2 className="text-3xl sm:text-[40px] font-extrabold text-gray-900 mb-4 tracking-normal">สิ่งที่ทำให้เราเป็นที่ 1</h2>
-              <p className="text-gray-400 max-w-2xl mx-auto text-[15px]">เปรียบเทียบกับโปรแกรมบัญชีทั่วไป แล้วจะเห็นว่า E-Tax Center ให้คุณมากกว่า</p>
+              <h2 className="text-3xl sm:text-[40px] font-extrabold text-gray-900 mb-4 tracking-normal">ทำไมต้องเลือก <span className="text-[#03c9d7]">E-Tax Center</span></h2>
+              <p className="text-gray-400 max-w-2xl mx-auto text-[15px]">ซื้อแยกโมดูล ได้ระบบระดับ Enterprise — เปรียบเทียบกับโปรแกรมบัญชีทั่วไป</p>
             </div>
           </AnimateOnScroll>
 
@@ -1571,7 +1704,7 @@ export default function LandingPage() {
           <AnimateOnScroll>
             <div className="text-center mb-14">
               <div className="flex justify-center mb-4"><FlexyDecor /></div>
-              <h2 className="text-3xl sm:text-[40px] font-extrabold text-gray-900 mb-4 tracking-normal">แพลตฟอร์มที่คุณวางใจได้</h2>
+              <h2 className="text-3xl sm:text-[40px] font-extrabold text-gray-900 mb-4 tracking-normal">แพลตฟอร์มที่คุณ<span className="text-[#03c9d7]">วางใจได้</span></h2>
             </div>
           </AnimateOnScroll>
 
@@ -1602,8 +1735,8 @@ export default function LandingPage() {
           <AnimateOnScroll>
             <div className="text-center mb-14">
               <div className="flex justify-center mb-4"><FlexyDecor /></div>
-              <h2 className="text-3xl sm:text-[40px] font-extrabold text-gray-900 mb-4 tracking-normal">เลือกแพ็คเกจที่เหมาะกับคุณ</h2>
-              <p className="text-gray-400 text-[15px]">เริ่มต้นฟรี เลือกซื้อเฉพาะโมดูลที่ต้องการ อัปเกรดหรือยกเลิกเมื่อไหร่ก็ได้</p>
+              <h2 className="text-3xl sm:text-[40px] font-extrabold text-gray-900 mb-4 tracking-normal">ราคาแต่ละโมดูล — <span className="text-[#03c9d7]">จ่ายตามที่ใช้จริง</span></h2>
+              <p className="text-gray-400 text-[15px]">เริ่มต้นฟรี ซื้อทีละโมดูลก็ได้ ธุรกิจโตก็เพิ่มโมดูล อัปเกรดหรือยกเลิกเมื่อไหร่ก็ได้</p>
             </div>
           </AnimateOnScroll>
 
@@ -1834,14 +1967,14 @@ export default function LandingPage() {
                 </div>
               ))}
             </div>
-            <h2 className="text-3xl sm:text-[38px] font-extrabold text-gray-900 mb-4 mt-6 tracking-normal">พร้อมเริ่มต้นแล้วหรือยัง?</h2>
-            <p className="text-gray-400 text-[15px] mb-8 max-w-lg mx-auto">ประหยัดเวลาและแรงงาน เปลี่ยนการจัดการบัญชีของคุณให้ง่ายขึ้นวันนี้</p>
+            <h2 className="text-3xl sm:text-[38px] font-extrabold text-gray-900 mb-4 mt-6 tracking-normal">พร้อมเลือกโมดูลแรกแล้วหรือยัง?</h2>
+            <p className="text-gray-400 text-[15px] mb-8 max-w-lg mx-auto">เริ่มจากโมดูลเดียวก็ได้ ทดลองฟรี 15 วัน ไม่ต้องผูกบัตร ธุรกิจโตก็เพิ่มโมดูลได้ทันที</p>
             <button
               onClick={() => navigate("/register")}
               className="px-10 py-4 text-[15px] font-bold text-white bg-[#03c9d7] rounded-xl shadow-lg shadow-[#03c9d7]/25 hover:shadow-xl hover:shadow-[#03c9d7]/35 hover:bg-[#02b5c2] hover:-translate-y-0.5 transition-all"
               data-testid="cta-register"
             >
-              START
+              เริ่มใช้งานฟรี
             </button>
           </div>
         </div>
@@ -1977,7 +2110,7 @@ export default function LandingPage() {
                   <img src={logoWhite} alt="E-Tax Center" className="h-6 object-contain" />
                 </div>
               </div>
-              <p className="text-sm text-gray-400 leading-relaxed mb-5">ระบบบัญชีอัจฉริยะครบวงจร สำหรับสำนักงานบัญชีและธุรกิจทุกขนาด</p>
+              <p className="text-sm text-gray-400 leading-relaxed mb-5">ซื้อเฉพาะโมดูลที่ต้องการ ใช้แยกก็ได้ ใช้รวมก็ดี สำหรับธุรกิจทุกขนาด</p>
               <ul className="space-y-3 text-sm text-gray-400">
                 <li className="flex items-start gap-2" data-testid="footer-phone">
                   <Phone className="w-4 h-4 mt-0.5 text-[#03c9d7] flex-shrink-0" />
