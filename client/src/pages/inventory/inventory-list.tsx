@@ -359,7 +359,7 @@ export default function InventoryList(props: { Wrapper?: React.ComponentType<{ c
               )}
             </DialogContent>
           </Dialog>
-          <Button data-testid="button-add-product" className="gap-2" onClick={() => navigate("/inventory/list/new")}>
+          <Button data-testid="button-add-product" className="gap-2" onClick={() => navigate(`${basePath}/list/new`)}>
             <Plus className="h-4 w-4" /> เพิ่มสินค้า/บริการ
           </Button>
           </div>
@@ -485,7 +485,7 @@ export default function InventoryList(props: { Wrapper?: React.ComponentType<{ c
                         <Button data-testid={`button-stockcard-${product.id}`} variant="ghost" size="icon" className="h-7 w-7 text-blue-600 hover:text-blue-700" title="สต๊อกการ์ด" onClick={() => navigate(`${basePath}/stock-card?productId=${product.id}`)}>
                           <ClipboardList className="h-3.5 w-3.5" />
                         </Button>
-                        <Button data-testid={`button-edit-${product.id}`} variant="ghost" size="icon" className="h-7 w-7" onClick={() => navigate(`/inventory/list/edit/${product.id}`)}>
+                        <Button data-testid={`button-edit-${product.id}`} variant="ghost" size="icon" className="h-7 w-7" onClick={() => navigate(`${basePath}/list/edit/${product.id}`)}>
                           <Pencil className="h-3.5 w-3.5" />
                         </Button>
                         <Button data-testid={`button-delete-${product.id}`} variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => {

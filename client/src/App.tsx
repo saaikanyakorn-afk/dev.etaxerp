@@ -409,7 +409,11 @@ import PosHubCashierPerformance from "@/pages/pos/pos-hub-cashier-performance";
 import PosHubHourlyTrends from "@/pages/pos/pos-hub-hourly-trends";
 import PosHubDailySummary from "@/pages/pos/pos-hub-daily-summary";
 import PosProducts from "@/pages/pos/pos-products";
+import PosProductForm from "@/pages/pos/pos-product-form";
+import PosBundles from "@/pages/pos/pos-bundles";
+import PosBundleForm from "@/pages/pos/pos-bundle-form";
 import PosStock from "@/pages/pos/pos-stock";
+import PosStockCard from "@/pages/pos/pos-stock-card";
 import PosTaxInvoices from "@/pages/pos/pos-tax-invoices";
 import PosSettings from "@/pages/pos/pos-settings";
 import JobCostingProjectList from "@/pages/job-costing/project-list";
@@ -939,8 +943,14 @@ function Router() {
       <Route path="/pos-hub/cashier-performance" component={PosHubCashierPerformance} />
       <Route path="/pos-hub/hourly-trends" component={PosHubHourlyTrends} />
       <Route path="/pos-hub/daily-summary" component={PosHubDailySummary} />
+      <Route path="/pos/list" component={PosProducts} />
+      <Route path="/pos/list/new" component={PosProductForm} />
+      <Route path="/pos/list/edit/:id" component={PosProductForm} />
       <Route path="/pos/products" component={PosProducts} />
+      <Route path="/pos/bundles" component={PosBundles} />
+      <Route path="/pos/bundles/edit/:id" component={PosBundleForm} />
       <Route path="/pos/stock" component={PosStock} />
+      <Route path="/pos/stock-card" component={PosStockCard} />
       <Route path="/pos/tax-invoices" component={PosTaxInvoices} />
       <Route path="/pos/settings" component={PosSettings} />
       <Route path="/loyalty/signup" component={LoyaltySignup} />

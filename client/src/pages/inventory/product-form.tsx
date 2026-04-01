@@ -46,7 +46,9 @@ const PRODUCT_TYPES = [
   { value: "manufactured", label: "สินค้าผลิต (BOM)" },
 ];
 
-export default function ProductForm() {
+export default function ProductForm(props: { Wrapper?: React.ComponentType<{ children: React.ReactNode }>; basePath?: string } & Record<string, any>) {
+  const LayoutComponent = props.Wrapper || Layout;
+  const basePath = props.basePath || "/inventory";
   const { selectedCompanyId } = useCompany();
   const { toast } = useToast();
   const { acctName } = useLanguage();
@@ -170,7 +172,7 @@ export default function ProductForm() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/products"] });
       toast({ title: "เพิ่มสินค้าสำเร็จ", variant: "success" as any });
-      navigate("/inventory/list");
+      navigate(`${basePath}/list`);
     },
     onError: (err: any) => toast({ title: "เกิดข้อผิดพลาด", description: err.message, variant: "destructive" }),
   });
@@ -189,7 +191,7 @@ export default function ProductForm() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/products"] });
       toast({ title: "แก้ไขสินค้าสำเร็จ", variant: "success" as any });
-      navigate("/inventory/list");
+      navigate(`${basePath}/list`);
     },
     onError: (err: any) => toast({ title: "เกิดข้อผิดพลาด", description: err.message, variant: "destructive" }),
   });
@@ -243,11 +245,11 @@ export default function ProductForm() {
     : allUnits;
 
   return (
-    <Layout>
+    <LayoutComponent>
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Button data-testid="button-back" variant="ghost" size="icon" onClick={() => navigate("/inventory/list")}>
+            <Button data-testid="button-back" variant="ghost" size="icon" onClick={() => navigate(`${basePath}/list`)}>
               <ArrowLeft className="h-5 w-5" />
             </Button>
             <Package className="h-5 w-5 text-primary" />
@@ -256,7 +258,7 @@ export default function ProductForm() {
             </h1>
           </div>
           <div className="flex items-center gap-2">
-            <Button data-testid="button-cancel" variant="outline" onClick={() => navigate("/inventory/list")}>ยกเลิก</Button>
+            <Button data-testid="button-cancel" variant="outline" onClick={() => navigate(`${basePath}/list`)}>ยกเลิก</Button>
             <Button data-testid="button-save" className="gap-2" onClick={handleSubmit}
               disabled={createMutation.isPending || updateMutation.isPending || (!editingId && codeDup.length > 0)}>
               <Save className="h-4 w-4" />
@@ -492,7 +494,7 @@ export default function ProductForm() {
         </Card>
 
         <div className="flex items-center justify-end gap-2 pb-4">
-          <Button data-testid="button-cancel-bottom" variant="outline" onClick={() => navigate("/inventory/list")}>ยกเลิก</Button>
+          <Button data-testid="button-cancel-bottom" variant="outline" onClick={() => navigate(`${basePath}/list`)}>ยกเลิก</Button>
           <Button data-testid="button-save-bottom" className="gap-2" onClick={handleSubmit}
             disabled={createMutation.isPending || updateMutation.isPending}>
             <Save className="h-4 w-4" />
@@ -500,6 +502,6 @@ export default function ProductForm() {
           </Button>
         </div>
       </div>
-    </Layout>
+    </LayoutComponent>
   );
 }

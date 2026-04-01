@@ -23,7 +23,9 @@ type SlotItem = {
   isDefault: boolean;
 };
 
-export default function BundleFormPage() {
+export default function BundleFormPage(props: { Wrapper?: React.ComponentType<{ children: React.ReactNode }>; basePath?: string } & Record<string, any>) {
+  const LayoutComponent = props.Wrapper || Layout;
+  const bundlesPath = props.basePath ? `${props.basePath}/bundles` : "/inventory/bundles";
   const { selectedCompanyId } = useCompany();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -78,7 +80,7 @@ export default function BundleFormPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/product-bundles"] });
       toast({ title: "บันทึกรายการชุดสินค้าสำเร็จ", variant: "success" as any });
-      navigate("/inventory/bundles");
+      navigate(bundlesPath);
     },
     onError: (err: any) => toast({ title: "เกิดข้อผิดพลาด", description: err.message, variant: "destructive" }),
   });
@@ -180,11 +182,11 @@ export default function BundleFormPage() {
   };
 
   return (
-    <Layout>
+    <LayoutComponent>
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Button data-testid="button-back" variant="ghost" size="icon" onClick={() => navigate("/inventory/bundles")}>
+            <Button data-testid="button-back" variant="ghost" size="icon" onClick={() => navigate(bundlesPath)}>
               <ArrowLeft className="h-5 w-5" />
             </Button>
             <Package className="h-5 w-5 text-primary" />
@@ -193,7 +195,7 @@ export default function BundleFormPage() {
             </h1>
           </div>
           <div className="flex items-center gap-2">
-            <Button data-testid="button-cancel" variant="outline" onClick={() => navigate("/inventory/bundles")}>ยกเลิก</Button>
+            <Button data-testid="button-cancel" variant="outline" onClick={() => navigate(bundlesPath)}>ยกเลิก</Button>
             <Button data-testid="button-save" className="gap-2" onClick={handleSave} disabled={saveMutation.isPending}>
               <Save className="h-4 w-4" />
               บันทึก
@@ -392,6 +394,6 @@ export default function BundleFormPage() {
           </Button>
         </div>
       </div>
-    </Layout>
+    </LayoutComponent>
   );
 }
