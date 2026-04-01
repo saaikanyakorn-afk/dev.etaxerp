@@ -822,44 +822,36 @@ export default function LandingPage() {
           </div>
           <div className="text-center max-w-4xl mx-auto">
             <AnimateOnScroll direction="fade" delay={0.1}>
-              <h1 className="text-4xl sm:text-5xl lg:text-[56px] font-extrabold text-gray-900 leading-snug sm:leading-snug lg:leading-snug mb-6 tracking-tight">
+              <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/80 border border-[#03c9d7]/20 shadow-sm mb-6">
+                <span className="w-2 h-2 rounded-full bg-[#05b187] animate-pulse" />
+                <span className="text-sm font-medium text-gray-600">ระบบที่ธุรกิจกว่า 1,200 แห่งไว้วางใจ</span>
+              </div>
+              <h1 className="text-4xl sm:text-5xl lg:text-[60px] font-extrabold text-gray-900 leading-tight sm:leading-tight lg:leading-tight mb-6 tracking-tight">
                 <span className="text-[#03c9d7]">E-Tax Center</span>
                 <br />
-                ซื้อเฉพาะ<span style={{ color: "#03c9d7" }}>โมดูลที่ต้องการ</span>
+                <span className="bg-clip-text text-transparent bg-[linear-gradient(135deg,#03c9d7_0%,#05b187_100%)]">บริหารจัดการธุรกิจ</span>
                 <br />
-                ไม่ต้องจ่ายทั้งระบบ
+                ครบวงจร
               </h1>
             </AnimateOnScroll>
 
             <AnimateOnScroll delay={0.3}>
-              <p className="text-lg sm:text-xl text-gray-500 mb-10 max-w-2xl mx-auto leading-relaxed">
-              อีคอมเมิร์ซ · บัญชี · POS · HR · จัดส่ง — เลือกซื้อทีละโมดูล เริ่มจากสิ่งที่ใช้จริง ธุรกิจโตก็เพิ่มโมดูลได้ทันที ไม่ต้องเปลี่ยนระบบ
-            </p>
-
+              <p className="text-lg sm:text-xl text-gray-500 mb-8 max-w-2xl mx-auto leading-relaxed">
+                อีคอมเมิร์ซ · บัญชี · POS · HR · คลังสินค้า · จัดส่ง
+                <br className="hidden sm:block" />
+                เลือกซื้อเฉพาะโมดูลที่ต้องการ ธุรกิจโตก็เพิ่มได้ทันที ไม่ต้องเปลี่ยนระบบ
+              </p>
             </AnimateOnScroll>
 
-            {/* Avatar Group + Stats - Flexy style */}
+            <AnimateOnScroll delay={0.4}>
+              <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 mb-10 text-sm text-gray-500">
+                <span className="flex items-center gap-1.5"><CheckCircle2 className="w-4 h-4 text-[#05b187]" />ทดลองฟรี 15 วัน</span>
+                <span className="flex items-center gap-1.5"><CheckCircle2 className="w-4 h-4 text-[#05b187]" />ไม่ต้องใช้บัตรเครดิต</span>
+                <span className="flex items-center gap-1.5"><CheckCircle2 className="w-4 h-4 text-[#05b187]" />ยกเลิกได้ทุกเมื่อ</span>
+              </div>
+            </AnimateOnScroll>
+
             <AnimateOnScroll delay={0.5}>
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-5 mb-10">
-              <div className="flex -space-x-3">
-                {["#fb9678", "#fb9678", "#05b187", "#fec90f"].map((c, i) => (
-                  <div
-                    key={i}
-                    className="w-11 h-11 rounded-full border-[3px] border-white flex items-center justify-center text-white text-xs font-bold shadow-sm"
-                    style={{ backgroundColor: c, zIndex: 4 - i }}
-                  >
-                    {["ส", "พ", "ว", "ก"][i]}
-                  </div>
-                ))}
-              </div>
-              <div className="text-left">
-                <div className="text-lg font-bold text-gray-900"><CountUp target={1200} suffix="+" /></div>
-                <div className="text-sm text-gray-400">ธุรกิจที่ไว้วางใจใช้งาน</div>
-              </div>
-            </div>
-            </AnimateOnScroll>
-
-            <AnimateOnScroll delay={0.6}>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
               <button
                 onClick={() => navigate("/register")}
