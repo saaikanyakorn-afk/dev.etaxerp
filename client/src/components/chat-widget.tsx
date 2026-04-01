@@ -87,9 +87,10 @@ export default function ChatWidget() {
 
   const pathname = window.location.pathname;
   const isPublicPage = pathname === "/" || pathname === "/landing" || pathname === "/about" || pathname === "/register" || pathname === "/login" || pathname.startsWith("/pricing") || pathname.startsWith("/ecommerce-pricing") || pathname.startsWith("/food-delivery-pricing") || pathname.startsWith("/accounting-pricing");
-  const showButtons = true;
-  const showContactIcons = isPublicPage;
-  const showChatButton = true;
+  const isLanding = pathname === "/" || pathname === "/landing";
+  const showButtons = isLanding ? pastHero : true;
+  const showContactIcons = isPublicPage && (!isLanding || pastHero);
+  const showChatButton = !isLanding || pastHero;
 
   const { data: messages = [] } = useQuery<ChatMessage[]>({
     queryKey: ["/api/chat/messages"],
