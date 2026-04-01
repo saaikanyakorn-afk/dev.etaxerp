@@ -1,4 +1,5 @@
 import * as path from "path";
+import * as fs from "fs";
 import {
   DOCUMENT_TYPES_FULL,
   getDocumentType,
@@ -95,18 +96,47 @@ function fmtQty(n: number): string {
   return n % 1 === 0 ? String(Math.round(n)) : parseFloat(n.toFixed(2)).toString();
 }
 
-function hexToRgb(hex: string): string {
+function lightenHex(hex: string, amount: number = 0.75): string {
   const h = hex.replace("#", "");
-  return hex;
+  const r = parseInt(h.substring(0, 2), 16);
+  const g = parseInt(h.substring(2, 4), 16);
+  const b = parseInt(h.substring(4, 6), 16);
+  const lr = Math.round(r + (255 - r) * amount);
+  const lg = Math.round(g + (255 - g) * amount);
+  const lb = Math.round(b + (255 - b) * amount);
+  return `#${lr.toString(16).padStart(2, "0")}${lg.toString(16).padStart(2, "0")}${lb.toString(16).padStart(2, "0")}`;
 }
+
+function ensureBase64DataUri(data: string | undefined | null): string | null {
+  if (!data) return null;
+  if (data.startsWith("data:image/")) return data;
+  if (data.startsWith("/9j/") || data.startsWith("iVBOR")) {
+    const prefix = data.startsWith("/9j/") ? "data:image/jpeg;base64," : "data:image/png;base64,";
+    return prefix + data;
+  }
+  if (/^[A-Za-z0-9+/=]+$/.test(data.substring(0, 100))) {
+    return "data:image/png;base64," + data;
+  }
+  return data;
+}
+
+type Content = any;
+type ContentColumns = any;
+type ContentTable = any;
+type TableCell = any;
+type TDocumentDefinitions = any;
 
 function buildDocDefinition(opts: GeneratePdfOptions): TDocumentDefinitions {
   const { company, settings, document: doc, documentType, signature, etaxEnabled, etaxStampBase64 } = opts;
+
+  console.log(`[PDF-pdfmake] Building doc: type=${documentType}, docNo=${doc.docNo}`);
+
   const docInfo = getDocumentType(documentType) || DOCUMENT_TYPES_FULL[0];
   const categoryColors = parseCategoryColors(settings.docTypeColors);
   const theme = getDocTypeColor(documentType, categoryColors, settings.colorMode || "color");
   const primary = theme.primary;
   const accent = theme.accent;
+  const headerBgLight = lightenHex(primary, 0.85);
 
   const companyName = company.name || "บริษัท";
   const companyAddress = doc.sellerBranchAddress || company.address || "";
@@ -144,125 +174,147 @@ function buildDocDefinition(opts: GeneratePdfOptions): TDocumentDefinitions {
   const custBranchDisplay = isCustHQ ? "สำนักงานใหญ่" : `สาขาที่ ${custBranch}${doc.customerBranchName ? ` ${doc.customerBranchName}` : ""}`;
 
   const hasBank = settings.bankName || settings.qrCodeBase64 || settings.promptpayQrBase64;
-  const qrSrc = settings.qrCodeBase64 || settings.promptpayQrBase64 || null;
+  const qrSrc = ensureBase64DataUri(settings.qrCodeBase64 || settings.promptpayQrBase64 || null);
 
   const content: Content[] = [];
 
   content.push({
     canvas: [{ type: "rect", x: 0, y: 0, w: 515, h: 4, color: primary }],
-    margin: [0, 0, 0, 8] as [number, number, number, number],
+    margin: [0, 0, 0, 8],
   });
 
   const companyInfoStack: Content[] = [];
   companyInfoStack.push({ text: companyName, fontSize: 10, bold: true, color: "#1f2937" });
-  if (companyAddress) companyInfoStack.push({ text: companyAddress, fontSize: 7.5, color: "#4b5563", margin: [0, 1, 0, 0] as [number, number, number, number] });
-  if (settings.showTaxId !== false && companyTaxId) companyInfoStack.push({ text: `เลขประจำตัวผู้เสียภาษี: ${companyTaxId}`, fontSize: 7.5, color: "#4b5563", margin: [0, 1, 0, 0] as [number, number, number, number] });
-  if (settings.showBranch !== false) companyInfoStack.push({ text: branchDisplay, fontSize: 7.5, color: primary, bold: true, margin: [0, 1, 0, 0] as [number, number, number, number] });
+  if (companyAddress) companyInfoStack.push({ text: companyAddress, fontSize: 7.5, color: "#4b5563", margin: [0, 1.5, 0, 0] });
+  if (settings.showTaxId !== false && companyTaxId) companyInfoStack.push({ text: `เลขประจำตัวผู้เสียภาษี: ${companyTaxId}`, fontSize: 7.5, color: "#4b5563", margin: [0, 1.5, 0, 0] });
+  if (settings.showBranch !== false) companyInfoStack.push({ text: branchDisplay, fontSize: 7.5, color: primary, bold: true, margin: [0, 1.5, 0, 0] });
   if (company.phone || company.email) {
     const parts: string[] = [];
     if (company.phone) parts.push(`โทร. ${company.phone}`);
     if (company.email) parts.push(`อีเมล: ${company.email}`);
-    companyInfoStack.push({ text: parts.join("  "), fontSize: 7.5, color: "#4b5563", margin: [0, 1, 0, 0] as [number, number, number, number] });
+    companyInfoStack.push({ text: parts.join("  "), fontSize: 7.5, color: "#4b5563", margin: [0, 1.5, 0, 0] });
   }
   if (company.lineId || company.facebook) {
     const parts: string[] = [];
     if (company.lineId) parts.push(`LINE: ${company.lineId}`);
     if (company.facebook) parts.push(`Facebook: ${company.facebook}`);
-    companyInfoStack.push({ text: parts.join("  "), fontSize: 7.5, color: "#4b5563", margin: [0, 1, 0, 0] as [number, number, number, number] });
+    companyInfoStack.push({ text: parts.join("  "), fontSize: 7.5, color: "#4b5563", margin: [0, 1.5, 0, 0] });
   }
-  if (company.website) companyInfoStack.push({ text: `เว็บไซต์: ${company.website}`, fontSize: 7.5, color: "#4b5563", margin: [0, 1, 0, 0] as [number, number, number, number] });
+  if (company.website) companyInfoStack.push({ text: `เว็บไซต์: ${company.website}`, fontSize: 7.5, color: "#4b5563", margin: [0, 1.5, 0, 0] });
 
-  const leftCol: Content = settings.showLogo !== false && settings.logoBase64
-    ? { columns: [{ image: settings.logoBase64, width: 50, height: 50, margin: [0, 0, 8, 0] as [number, number, number, number] }, { stack: companyInfoStack, width: "*" }] }
+  const logoData = ensureBase64DataUri(settings.logoBase64);
+  const leftCol: Content = settings.showLogo !== false && logoData
+    ? { columns: [{ image: logoData, width: 56, height: 56, margin: [0, 0, 8, 0] }, { stack: companyInfoStack, width: "*" }] }
     : { stack: companyInfoStack };
 
   const docInfoStack: Content[] = [];
-  docInfoStack.push({ text: docInfo.label, fontSize: 12, bold: true, color: primary, alignment: "right" as const, background: theme.bg, margin: [0, 0, 0, 1] as [number, number, number, number] });
-  docInfoStack.push({ text: docInfo.labelEn.toUpperCase(), fontSize: 7.5, color: "#6b7280", alignment: "right" as const, margin: [0, 0, 0, 4] as [number, number, number, number] });
-  docInfoStack.push({ text: [{ text: "เลขที่: ", fontSize: 7.5 }, { text: doc.docNo, fontSize: 7.5, bold: true, color: accent }], alignment: "right" as const, margin: [0, 1, 0, 0] as [number, number, number, number] });
-  docInfoStack.push({ text: `วันที่: ${fmtDate(doc.docDate, era, settings.dateFormat)}`, fontSize: 7.5, alignment: "right" as const, margin: [0, 1, 0, 0] as [number, number, number, number] });
-  if (doc.validUntil) docInfoStack.push({ text: `กำหนดส่ง: ${fmtDate(doc.validUntil, era, settings.dateFormat)}`, fontSize: 7.5, alignment: "right" as const, margin: [0, 1, 0, 0] as [number, number, number, number] });
-  if (doc.creditDays != null && Number(doc.creditDays) > 0) docInfoStack.push({ text: `เครดิต: ${doc.creditDays} วัน`, fontSize: 7.5, alignment: "right" as const, margin: [0, 1, 0, 0] as [number, number, number, number] });
-  if (isForeignCurrency) docInfoStack.push({ text: `สกุลเงิน: ${currencyCode}`, fontSize: 7, bold: true, color: accent, alignment: "right" as const, margin: [0, 1, 0, 0] as [number, number, number, number] });
-  if (doc.refDoc) docInfoStack.push({ text: `อ้างอิง: ${doc.refDoc}`, fontSize: 7, color: primary, alignment: "right" as const, margin: [0, 1, 0, 0] as [number, number, number, number] });
+  docInfoStack.push({
+    table: {
+      body: [[{ text: docInfo.label, fontSize: 12, bold: true, color: primary, alignment: "center" }]],
+    },
+    layout: { hLineWidth: () => 0, vLineWidth: () => 0, fillColor: () => headerBgLight, paddingLeft: () => 8, paddingRight: () => 8, paddingTop: () => 3, paddingBottom: () => 3 },
+    margin: [0, 0, 0, 1],
+  });
+  docInfoStack.push({ text: docInfo.labelEn.toUpperCase(), fontSize: 7.5, color: "#6b7280", alignment: "right", margin: [0, 0, 0, 5] });
+  docInfoStack.push({ text: [{ text: "เลขที่: ", fontSize: 7.5 }, { text: doc.docNo, fontSize: 7.5, bold: true, color: accent }], alignment: "right", margin: [0, 1.5, 0, 0] });
+  docInfoStack.push({ text: `วันที่: ${fmtDate(doc.docDate, era, settings.dateFormat)}`, fontSize: 7.5, alignment: "right", margin: [0, 1.5, 0, 0] });
+  if (doc.validUntil) docInfoStack.push({ text: `กำหนดส่ง: ${fmtDate(doc.validUntil, era, settings.dateFormat)}`, fontSize: 7.5, alignment: "right", margin: [0, 1.5, 0, 0] });
+  if (doc.creditDays != null && Number(doc.creditDays) > 0) docInfoStack.push({ text: `เครดิต: ${doc.creditDays} วัน`, fontSize: 7.5, alignment: "right", margin: [0, 1.5, 0, 0] });
+  if (isForeignCurrency) docInfoStack.push({ text: `สกุลเงิน: ${currencyCode}`, fontSize: 7, bold: true, color: accent, alignment: "right", margin: [0, 1.5, 0, 0] });
+  if (doc.refDoc) docInfoStack.push({ text: `อ้างอิง: ${doc.refDoc}`, fontSize: 7, color: primary, alignment: "right", margin: [0, 1.5, 0, 0] });
 
   content.push({
     columns: [
       { stack: [leftCol], width: "*" },
-      { stack: docInfoStack, width: 160 },
+      { stack: docInfoStack, width: 170 },
     ],
-    margin: [0, 0, 0, 8] as [number, number, number, number],
-  } as ContentColumns);
+    margin: [0, 0, 0, 8],
+  });
 
   if (settings.headerNote) {
-    content.push({ text: settings.headerNote, fontSize: 7.5, color: "#6b7280", italics: true, margin: [0, 0, 0, 6] as [number, number, number, number] });
+    content.push({ text: settings.headerNote, fontSize: 7.5, color: "#6b7280", italics: true, margin: [0, 0, 0, 6] });
   }
 
-  const custStack: Content[] = [];
-  custStack.push({ text: "ลูกค้า / Customer", fontSize: 7.5, bold: true, color: primary, margin: [0, 0, 0, 3] as [number, number, number, number] });
-  custStack.push({ text: doc.customerName || "-", fontSize: 8.5, bold: true, color: "#1f2937" });
-  if (doc.customerAddress) custStack.push({ text: doc.customerAddress, fontSize: 7.5, color: "#4b5563", margin: [0, 1, 0, 0] as [number, number, number, number] });
-  if (doc.customerTaxId) custStack.push({ text: `เลขประจำตัวผู้เสียภาษี: ${doc.customerTaxId}`, fontSize: 7.5, color: "#4b5563", margin: [0, 1, 0, 0] as [number, number, number, number] });
-  custStack.push({ text: custBranchDisplay, fontSize: 7.5, color: primary, bold: true, margin: [0, 1, 0, 0] as [number, number, number, number] });
-  if (doc.contactPerson) custStack.push({ text: `ผู้ติดต่อ: ${doc.contactPerson}`, fontSize: 7.5, color: "#4b5563", margin: [0, 1, 0, 0] as [number, number, number, number] });
-  if (doc.contactPhone || doc.contactEmail) {
-    const parts: string[] = [];
-    if (doc.contactPhone) parts.push(`โทร: ${doc.contactPhone}`);
-    if (doc.contactEmail) parts.push(`อีเมล: ${doc.contactEmail}`);
-    custStack.push({ text: parts.join(" | "), fontSize: 7.5, color: "#4b5563", margin: [0, 1, 0, 0] as [number, number, number, number] });
-  }
-  if (doc.salesperson) custStack.push({ text: `พนักงานขาย: ${doc.salesperson}`, fontSize: 7.5, color: "#4b5563", margin: [0, 1, 0, 0] as [number, number, number, number] });
-
-  const bankStack: Content[] = [];
-  if (hasBank) {
-    if (qrSrc) {
-      try {
-        bankStack.push({ image: qrSrc, width: 56, height: 56, alignment: "center" as const, margin: [0, 0, 0, 4] as [number, number, number, number] });
-      } catch {}
-    }
-    bankStack.push({ text: "ข้อมูลชำระเงิน", fontSize: 7.5, bold: true, color: primary, alignment: "center" as const, margin: [0, 0, 0, 2] as [number, number, number, number] });
-    if (settings.promptpayQrBase64 && !settings.qrCodeBase64) {
-      bankStack.push({ text: "พร้อมเพย์ (PromptPay)", fontSize: 7, color: "#03c9d7", bold: true, alignment: "center" as const, margin: [0, 1, 0, 0] as [number, number, number, number] });
-    }
-    if (settings.bankName) bankStack.push({ text: `ธนาคาร: ${settings.bankName}`, fontSize: 7, color: "#4b5563", alignment: "center" as const, margin: [0, 1, 0, 0] as [number, number, number, number] });
-    if (settings.bankAccountNumber) bankStack.push({ text: `เลขที่บัญชี: ${settings.bankAccountNumber}`, fontSize: 7, color: "#4b5563", alignment: "center" as const, margin: [0, 1, 0, 0] as [number, number, number, number] });
-    if (settings.bankAccountName) bankStack.push({ text: `ชื่อบัญชี: ${settings.bankAccountName}`, fontSize: 7, color: "#4b5563", alignment: "center" as const, margin: [0, 1, 0, 0] as [number, number, number, number] });
-    if (totalAmount > 0) bankStack.push({ text: `จำนวนเงิน: ${fmtNum(totalAmount)} บาท`, fontSize: 7.5, bold: true, color: primary, alignment: "center" as const, margin: [0, 3, 0, 0] as [number, number, number, number] });
-  }
-
-  if (hasBank) {
-    content.push({
-      columns: [
-        {
-          stack: custStack,
-          width: "*",
-          margin: [0, 0, 8, 0] as [number, number, number, number],
-        },
-        {
-          stack: bankStack,
-          width: 130,
-          alignment: "center" as const,
-        },
+  const custBody: Content[][] = [[
+    {
+      stack: [
+        { text: "ลูกค้า / Customer", fontSize: 7.5, bold: true, color: primary, margin: [0, 0, 0, 3] },
+        { text: doc.customerName || "-", fontSize: 8.5, bold: true, color: "#1f2937" },
+        ...(doc.customerAddress ? [{ text: doc.customerAddress, fontSize: 7.5, color: "#4b5563", margin: [0, 1, 0, 0] }] : []),
+        ...(doc.customerTaxId ? [{ text: `เลขประจำตัวผู้เสียภาษี: ${doc.customerTaxId}`, fontSize: 7.5, color: "#4b5563", margin: [0, 1, 0, 0] }] : []),
+        { text: custBranchDisplay, fontSize: 7.5, color: primary, bold: true, margin: [0, 1, 0, 0] },
+        ...(doc.contactPerson ? [{ text: `ผู้ติดต่อ: ${doc.contactPerson}`, fontSize: 7.5, color: "#4b5563", margin: [0, 1, 0, 0] }] : []),
+        ...((doc.contactPhone || doc.contactEmail) ? [{ text: [doc.contactPhone ? `โทร: ${doc.contactPhone}` : "", doc.contactPhone && doc.contactEmail ? " | " : "", doc.contactEmail ? `อีเมล: ${doc.contactEmail}` : ""].join(""), fontSize: 7.5, color: "#4b5563", margin: [0, 1, 0, 0] }] : []),
+        ...(doc.salesperson ? [{ text: `พนักงานขาย: ${doc.salesperson}`, fontSize: 7.5, color: "#4b5563", margin: [0, 1, 0, 0] }] : []),
       ],
-      margin: [0, 0, 0, 8] as [number, number, number, number],
-    } as ContentColumns);
+    },
+  ]];
+
+  if (hasBank) {
+    const bankContent: Content[] = [];
+    if (qrSrc) {
+      try { bankContent.push({ image: qrSrc, width: 56, height: 56, alignment: "center", margin: [0, 0, 0, 4] }); } catch {}
+    }
+    bankContent.push({ text: "ข้อมูลชำระเงิน", fontSize: 7.5, bold: true, color: primary, alignment: "center", margin: [0, 0, 0, 2] });
+    if (settings.promptpayQrBase64 && !settings.qrCodeBase64) {
+      bankContent.push({ text: "พร้อมเพย์ (PromptPay)", fontSize: 7, color: "#03c9d7", bold: true, alignment: "center", margin: [0, 1, 0, 0] });
+    }
+    if (settings.bankName) bankContent.push({ text: `ธนาคาร: ${settings.bankName}`, fontSize: 7, color: "#4b5563", alignment: "center", margin: [0, 1, 0, 0] });
+    if (settings.bankAccountNumber) bankContent.push({ text: `เลขที่บัญชี: ${settings.bankAccountNumber}`, fontSize: 7, color: "#4b5563", alignment: "center", margin: [0, 1, 0, 0] });
+    if (settings.bankAccountName) bankContent.push({ text: `ชื่อบัญชี: ${settings.bankAccountName}`, fontSize: 7, color: "#4b5563", alignment: "center", margin: [0, 1, 0, 0] });
+    if (totalAmount > 0) bankContent.push({ text: `จำนวนเงิน: ${fmtNum(totalAmount)} บาท`, fontSize: 7.5, bold: true, color: primary, alignment: "center", margin: [0, 3, 0, 0] });
+
+    custBody[0].push({ stack: bankContent });
+
+    content.push({
+      table: {
+        widths: ["*", 130],
+        body: custBody,
+      },
+      layout: {
+        hLineWidth: () => 0.5,
+        vLineWidth: () => 0.5,
+        hLineColor: () => headerBgLight,
+        vLineColor: () => headerBgLight,
+        paddingLeft: () => 7,
+        paddingRight: () => 7,
+        paddingTop: () => 7,
+        paddingBottom: () => 7,
+        fillColor: () => headerBgLight,
+      },
+      margin: [0, 0, 0, 8],
+    });
   } else {
     content.push({
-      stack: custStack,
-      margin: [0, 0, 0, 8] as [number, number, number, number],
+      table: {
+        widths: ["*"],
+        body: custBody,
+      },
+      layout: {
+        hLineWidth: () => 0.5,
+        vLineWidth: () => 0.5,
+        hLineColor: () => headerBgLight,
+        vLineColor: () => headerBgLight,
+        paddingLeft: () => 7,
+        paddingRight: () => 7,
+        paddingTop: () => 7,
+        paddingBottom: () => 7,
+        fillColor: () => headerBgLight,
+      },
+      margin: [0, 0, 0, 8],
     });
   }
 
   const tableHeaders: TableCell[] = [
-    { text: [{ text: "ลำดับ\n", fontSize: 7.5, bold: true }, { text: "No.", fontSize: 6 }], alignment: "center" as const, color: accent },
+    { text: [{ text: "ลำดับ\n", fontSize: 7.5, bold: true }, { text: "No.", fontSize: 6 }], alignment: "center", color: accent },
   ];
   if (showCode) tableHeaders.push({ text: [{ text: "รหัส\n", fontSize: 7.5, bold: true }, { text: "Code", fontSize: 6 }], color: accent });
   tableHeaders.push({ text: [{ text: "รายละเอียด\n", fontSize: 7.5, bold: true }, { text: "Description", fontSize: 6 }], color: accent });
-  tableHeaders.push({ text: [{ text: "จำนวน\n", fontSize: 7.5, bold: true }, { text: "Qty", fontSize: 6 }], alignment: "center" as const, color: accent });
-  tableHeaders.push({ text: [{ text: "หน่วย\n", fontSize: 7.5, bold: true }, { text: "Unit", fontSize: 6 }], alignment: "center" as const, color: accent });
-  tableHeaders.push({ text: [{ text: "ราคาต่อหน่วย\n", fontSize: 7.5, bold: true }, { text: "Unit Price", fontSize: 6 }], alignment: "right" as const, color: accent });
-  tableHeaders.push({ text: [{ text: "ส่วนลด\n", fontSize: 7.5, bold: true }, { text: "Discount", fontSize: 6 }], alignment: "right" as const, color: accent });
-  tableHeaders.push({ text: [{ text: "มูลค่า\n", fontSize: 7.5, bold: true }, { text: "Amount", fontSize: 6 }], alignment: "right" as const, color: accent });
+  tableHeaders.push({ text: [{ text: "จำนวน\n", fontSize: 7.5, bold: true }, { text: "Qty", fontSize: 6 }], alignment: "center", color: accent });
+  tableHeaders.push({ text: [{ text: "หน่วย\n", fontSize: 7.5, bold: true }, { text: "Unit", fontSize: 6 }], alignment: "center", color: accent });
+  tableHeaders.push({ text: [{ text: "ราคาต่อหน่วย\n", fontSize: 7.5, bold: true }, { text: "Unit Price", fontSize: 6 }], alignment: "right", color: accent });
+  tableHeaders.push({ text: [{ text: "ส่วนลด\n", fontSize: 7.5, bold: true }, { text: "Discount", fontSize: 6 }], alignment: "right", color: accent });
+  tableHeaders.push({ text: [{ text: "มูลค่า\n", fontSize: 7.5, bold: true }, { text: "Amount", fontSize: 6 }], alignment: "right", color: accent });
 
   const tableBody: TableCell[][] = [tableHeaders];
 
@@ -284,24 +336,23 @@ function buildDocDefinition(opts: GeneratePdfOptions): TDocumentDefinitions {
       : { text: item.productName || "", fontSize: 7.5 };
 
     const row: TableCell[] = [
-      { text: String(i + 1), alignment: "center" as const, fontSize: 7.5, color: "#6b7280" },
+      { text: String(i + 1), alignment: "center", fontSize: 7.5, color: "#6b7280" },
     ];
     if (showCode) row.push({ text: item.productCode || "-", fontSize: 7.5, color: "#4b5563" });
     row.push(descContent);
-    row.push({ text: fmtQty(item.qty), alignment: "center" as const, fontSize: 7.5 });
-    row.push({ text: item.unit || "ชิ้น", alignment: "center" as const, fontSize: 7.5 });
-    row.push({ text: fmtNum(displayUnitPrice), alignment: "right" as const, fontSize: 7.5 });
-    row.push({ text: displayDiscount, alignment: "right" as const, fontSize: 7.5 });
-    row.push({ text: fmtNum(displayTotal), alignment: "right" as const, fontSize: 7.5 });
+    row.push({ text: fmtQty(item.qty), alignment: "center", fontSize: 7.5 });
+    row.push({ text: item.unit || "ชิ้น", alignment: "center", fontSize: 7.5 });
+    row.push({ text: fmtNum(displayUnitPrice), alignment: "right", fontSize: 7.5 });
+    row.push({ text: displayDiscount, alignment: "right", fontSize: 7.5 });
+    row.push({ text: fmtNum(displayTotal), alignment: "right", fontSize: 7.5 });
     tableBody.push(row);
   });
 
   const minRows = 5;
   const emptyRowCount = Math.max(0, minRows - items.length);
   for (let i = 0; i < emptyRowCount; i++) {
-    const emptyRow: TableCell[] = [{ text: " ", fontSize: 7.5 }];
-    if (showCode) emptyRow.push({ text: " " });
-    emptyRow.push({ text: " " }, { text: " " }, { text: " " }, { text: " " }, { text: " " }, { text: " " });
+    const colCount = showCode ? 8 : 7;
+    const emptyRow: TableCell[] = Array.from({ length: colCount }, () => ({ text: " ", fontSize: 7.5 }));
     tableBody.push(emptyRow);
   }
 
@@ -312,7 +363,7 @@ function buildDocDefinition(opts: GeneratePdfOptions): TDocumentDefinitions {
   content.push({
     table: {
       headerRows: 1,
-      widths: colWidths as any,
+      widths: colWidths,
       body: tableBody,
     },
     layout: {
@@ -321,89 +372,96 @@ function buildDocDefinition(opts: GeneratePdfOptions): TDocumentDefinitions {
       hLineColor: (i: number, node: any) => i === 1 ? (theme.light || "#e5e7eb") : "#f3f4f6",
       paddingLeft: () => 3,
       paddingRight: () => 3,
-      paddingTop: () => 3,
-      paddingBottom: () => 3,
-      fillColor: (rowIndex: number) => rowIndex === 0 ? (theme.light + "40") : null,
+      paddingTop: () => 3.5,
+      paddingBottom: () => 3.5,
+      fillColor: (rowIndex: number) => rowIndex === 0 ? headerBgLight : null,
     },
-    margin: [0, 0, 0, 8] as [number, number, number, number],
-  } as ContentTable);
+    margin: [0, 0, 0, 8],
+  });
 
   const thaiAmountText = isForeignCurrency ? `${fmtNum(totalAmount)} ${currencyCode}` : numberToThaiText(totalAmount);
 
-  const totalsRows: Content[] = [];
-  totalsRows.push({
-    columns: [
-      { text: [{ text: "ยอดรวม\n", fontSize: 7.5 }, { text: "Sub Total", fontSize: 6, color: "#9ca3af" }], width: "*" },
-      { text: fmtNum(subtotal), fontSize: 7.5, alignment: "right" as const, width: 60 },
-    ],
-    margin: [0, 2, 0, 2] as [number, number, number, number],
-  } as ContentColumns);
-
+  const summaryBody: Content[][] = [];
+  summaryBody.push([
+    { text: [{ text: "ยอดรวม\n", fontSize: 7.5 }, { text: "Sub Total", fontSize: 6, color: "#9ca3af" }] },
+    { text: fmtNum(subtotal), fontSize: 7.5, alignment: "right" },
+  ]);
   if (discountAmount > 0) {
-    totalsRows.push({
-      columns: [
-        { text: [{ text: "ส่วนลดพิเศษ\n", fontSize: 7.5 }, { text: "Special Discount", fontSize: 6, color: "#9ca3af" }], width: "*" },
-        { text: fmtNum(discountAmount), fontSize: 7.5, alignment: "right" as const, width: 60 },
-      ],
-      margin: [0, 2, 0, 2] as [number, number, number, number],
-    } as ContentColumns);
+    summaryBody.push([
+      { text: [{ text: "ส่วนลดพิเศษ\n", fontSize: 7.5 }, { text: "Special Discount", fontSize: 6, color: "#9ca3af" }] },
+      { text: fmtNum(discountAmount), fontSize: 7.5, alignment: "right" },
+    ]);
   }
-
-  totalsRows.push({
-    columns: [
-      { text: [{ text: "มูลค่าก่อนภาษี\n", fontSize: 7.5 }, { text: "Value Before VAT", fontSize: 6, color: "#9ca3af" }], width: "*" },
-      { text: fmtNum(valueBeforeVat), fontSize: 7.5, alignment: "right" as const, width: 60 },
-    ],
-    margin: [0, 2, 0, 2] as [number, number, number, number],
-  } as ContentColumns);
-
-  totalsRows.push({
-    columns: [
-      { text: [{ text: "ภาษีมูลค่าเพิ่ม 7%\n", fontSize: 7.5 }, { text: "Value Added Tax", fontSize: 6, color: "#9ca3af" }], width: "*" },
-      { text: fmtNum(vatAmount), fontSize: 7.5, alignment: "right" as const, width: 60 },
-    ],
-    margin: [0, 2, 0, 2] as [number, number, number, number],
-  } as ContentColumns);
-
+  summaryBody.push([
+    { text: [{ text: "มูลค่าก่อนภาษี\n", fontSize: 7.5 }, { text: "Value Before VAT", fontSize: 6, color: "#9ca3af" }] },
+    { text: fmtNum(valueBeforeVat), fontSize: 7.5, alignment: "right" },
+  ]);
+  summaryBody.push([
+    { text: [{ text: "ภาษีมูลค่าเพิ่ม 7%\n", fontSize: 7.5 }, { text: "Value Added Tax", fontSize: 6, color: "#9ca3af" }] },
+    { text: fmtNum(vatAmount), fontSize: 7.5, alignment: "right" },
+  ]);
   if (withholdingTax > 0) {
-    totalsRows.push({
-      columns: [
-        { text: [{ text: "ภาษีหัก ณ ที่จ่าย\n", fontSize: 7.5 }, { text: "Withholding Tax", fontSize: 6, color: "#9ca3af" }], width: "*" },
-        { text: fmtNum(withholdingTax), fontSize: 7.5, alignment: "right" as const, width: 60 },
-      ],
-      margin: [0, 2, 0, 2] as [number, number, number, number],
-    } as ContentColumns);
+    summaryBody.push([
+      { text: [{ text: "ภาษีหัก ณ ที่จ่าย\n", fontSize: 7.5 }, { text: "Withholding Tax", fontSize: 6, color: "#9ca3af" }] },
+      { text: fmtNum(withholdingTax), fontSize: 7.5, alignment: "right" },
+    ]);
   }
-
-  totalsRows.push({
-    columns: [
-      { text: [{ text: `ยอดเงินสุทธิ ${isForeignCurrency ? `(${currencyCode})` : ""}\n`, fontSize: 9, bold: true, color: "white" }, { text: "Grand Total", fontSize: 6, color: "white" }], width: "*" },
-      { text: fmtNum(totalAmount), fontSize: 9, bold: true, color: "white", alignment: "right" as const, width: 60 },
-    ],
-    margin: [5, 5, 5, 5] as [number, number, number, number],
-    fillColor: primary,
-  } as any);
+  summaryBody.push([
+    { text: [{ text: `ยอดเงินสุทธิ ${isForeignCurrency ? `(${currencyCode})` : ""}\n`, fontSize: 9, bold: true, color: "white" }, { text: "Grand Total", fontSize: 6, color: "white" }], fillColor: primary },
+    { text: fmtNum(totalAmount), fontSize: 9, bold: true, color: "white", alignment: "right", fillColor: primary },
+  ]);
 
   const notesStack: Content[] = [];
   notesStack.push({
-    text: thaiAmountText,
-    fontSize: 7.5,
-    bold: true,
-    color: "#374151",
-    alignment: "center" as const,
-    margin: [0, 0, 0, 4] as [number, number, number, number],
+    table: {
+      widths: ["*"],
+      body: [[{
+        text: thaiAmountText,
+        fontSize: 7.5,
+        bold: true,
+        color: "#374151",
+        alignment: "center",
+      }]],
+    },
+    layout: {
+      hLineWidth: () => 0.5,
+      vLineWidth: () => 0.5,
+      hLineColor: () => headerBgLight,
+      vLineColor: () => headerBgLight,
+      paddingLeft: () => 6,
+      paddingRight: () => 6,
+      paddingTop: () => 6,
+      paddingBottom: () => 6,
+      fillColor: () => headerBgLight,
+    },
+    margin: [0, 0, 0, 4],
   });
-  if (doc.notes) notesStack.push({ text: doc.notes, fontSize: 7.5, color: "#6b7280", margin: [0, 4, 0, 0] as [number, number, number, number] });
-  if (doc.paymentTerms) notesStack.push({ text: [{ text: "เงื่อนไขการชำระ: ", bold: true }, doc.paymentTerms], fontSize: 7.5, color: "#6b7280", margin: [0, 2, 0, 0] as [number, number, number, number] });
+  if (doc.notes) notesStack.push({ text: doc.notes, fontSize: 7.5, color: "#6b7280", margin: [0, 4, 0, 0] });
+  if (doc.paymentTerms) notesStack.push({ text: [{ text: "เงื่อนไขการชำระ: ", bold: true }, doc.paymentTerms], fontSize: 7.5, color: "#6b7280", margin: [0, 2, 0, 0] });
   if (settings.footerNote) notesStack.push({ text: settings.footerNote, fontSize: 7.5, color: "#6b7280" });
 
   content.push({
     columns: [
-      { stack: notesStack, width: "*", margin: [0, 0, 10, 0] as [number, number, number, number] },
-      { stack: totalsRows, width: 180 },
+      { stack: notesStack, width: "*", margin: [0, 0, 10, 0] },
+      {
+        table: {
+          widths: ["*", 60],
+          body: summaryBody,
+        },
+        layout: {
+          hLineWidth: () => 0.3,
+          vLineWidth: () => 0,
+          hLineColor: () => "#f3f4f6",
+          paddingLeft: () => 3,
+          paddingRight: () => 3,
+          paddingTop: () => 2.5,
+          paddingBottom: () => 2.5,
+        },
+        width: 180,
+      },
     ],
-    margin: [0, 0, 0, 8] as [number, number, number, number],
-  } as ContentColumns);
+    margin: [0, 0, 0, 8],
+  });
 
   if (settings.showSignature !== false) {
     const sigLeftLabel = "ผู้อนุมัติ / ลูกค้า";
@@ -412,70 +470,72 @@ function buildDocDefinition(opts: GeneratePdfOptions): TDocumentDefinitions {
     const sigRightSub = documentType === "quotation" ? "Salesperson" : documentType === "receipt" ? "Cashier" : "Authorized";
 
     const sigRight: Content[] = [];
-    if (signature?.signatureBase64) {
+    const sigImg = ensureBase64DataUri(signature?.signatureBase64);
+    if (sigImg) {
       try {
-        sigRight.push({ image: signature.signatureBase64, width: 60, height: 30, alignment: "center" as const, margin: [0, 0, 0, 3] as [number, number, number, number] });
+        sigRight.push({ image: sigImg, width: 60, height: 30, alignment: "center", margin: [0, 0, 0, 3] });
       } catch {}
     } else {
-      sigRight.push({ text: " ", margin: [0, 30, 0, 0] as [number, number, number, number] });
+      sigRight.push({ text: " ", margin: [0, 30, 0, 0] });
     }
-    if (signature?.signatureName) sigRight.push({ text: signature.signatureName, fontSize: 7.5, bold: true, alignment: "center" as const });
-    sigRight.push({ text: sigRightLabel, fontSize: 7.5, bold: true, color: "#6b7280", alignment: "center" as const });
-    sigRight.push({ text: sigRightSub, fontSize: 7, color: "#6b7280", alignment: "center" as const });
+    if (signature?.signatureName) sigRight.push({ text: signature.signatureName, fontSize: 7.5, bold: true, alignment: "center" });
+    sigRight.push({ text: sigRightLabel, fontSize: 7.5, bold: true, color: "#6b7280", alignment: "center" });
+    sigRight.push({ text: sigRightSub, fontSize: 7, color: "#6b7280", alignment: "center" });
 
     content.push({
       columns: [
         {
           stack: [
-            { text: " ", margin: [0, 30, 0, 0] as [number, number, number, number] },
+            { text: " ", margin: [0, 30, 0, 0] },
             { canvas: [{ type: "line", x1: 0, y1: 0, x2: 115, y2: 0, lineWidth: 0.5, lineColor: "#9ca3af" }] },
-            { text: sigLeftLabel, fontSize: 7.5, bold: true, alignment: "center" as const, margin: [0, 3, 0, 0] as [number, number, number, number] },
-            { text: sigLeftSub, fontSize: 7, color: "#6b7280", alignment: "center" as const },
-            { text: "วันที่ ____/____/____", fontSize: 7, color: "#6b7280", alignment: "center" as const },
+            { text: sigLeftLabel, fontSize: 7.5, bold: true, alignment: "center", margin: [0, 3, 0, 0] },
+            { text: sigLeftSub, fontSize: 7, color: "#6b7280", alignment: "center" },
+            { text: "วันที่ ____/____/____", fontSize: 7, color: "#6b7280", alignment: "center" },
           ],
           width: 115,
-          alignment: "center" as const,
+          alignment: "center",
         },
         { text: "", width: "*" },
         {
           stack: [
             ...sigRight,
-            { canvas: [{ type: "line", x1: 0, y1: 0, x2: 115, y2: 0, lineWidth: 0.5, lineColor: "#9ca3af" }], margin: [0, 0, 0, 3] as [number, number, number, number] },
+            { canvas: [{ type: "line", x1: 0, y1: 0, x2: 115, y2: 0, lineWidth: 0.5, lineColor: "#9ca3af" }], margin: [0, 0, 0, 3] },
           ],
           width: 115,
-          alignment: "center" as const,
+          alignment: "center",
         },
       ],
-      margin: [0, 12, 0, 0] as [number, number, number, number],
-    } as ContentColumns);
+      margin: [0, 12, 0, 0],
+    });
   }
 
-  if (etaxEnabled && (documentType === "tax_invoice" || documentType === "receipt" || documentType === "tax_invoice_receipt")) {
+  if (etaxEnabled && isTaxDoc) {
     const etaxContent: Content[] = [];
-    etaxContent.push({ text: "ใบกำกับภาษีอิเล็กทรอนิกส์นี้ได้จัดทำและส่งข้อมูลให้แก่", fontSize: 6, color: "#6b7280", alignment: "right" as const });
-    etaxContent.push({ text: "กรมสรรพากรด้วยวิธีการทางอิเล็กทรอนิกส์", fontSize: 6, color: "#6b7280", alignment: "right" as const });
+    etaxContent.push({ text: "ใบกำกับภาษีอิเล็กทรอนิกส์นี้ได้จัดทำและส่งข้อมูลให้แก่", fontSize: 6, color: "#6b7280", alignment: "right" });
+    etaxContent.push({ text: "กรมสรรพากรด้วยวิธีการทางอิเล็กทรอนิกส์", fontSize: 6, color: "#6b7280", alignment: "right" });
 
-    if (etaxStampBase64) {
+    const etaxImg = ensureBase64DataUri(etaxStampBase64);
+    if (etaxImg) {
       try {
         content.push({
           columns: [
             { text: "", width: "*" },
-            { image: etaxStampBase64, width: 50, height: 20, margin: [0, 0, 6, 0] as [number, number, number, number] },
+            { image: etaxImg, width: 50, height: 20, margin: [0, 0, 6, 0] },
             { stack: etaxContent, width: "auto" },
           ],
-          margin: [0, 5, 0, 0] as [number, number, number, number],
-        } as ContentColumns);
+          margin: [0, 5, 0, 0],
+        });
       } catch {
-        content.push({ stack: etaxContent, margin: [0, 5, 0, 0] as [number, number, number, number] });
+        content.push({ stack: etaxContent, margin: [0, 5, 0, 0] });
       }
     } else {
-      content.push({ stack: etaxContent, margin: [0, 5, 0, 0] as [number, number, number, number] });
+      content.push({ stack: etaxContent, margin: [0, 5, 0, 0] });
     }
   }
 
   return {
-    pageSize: "A4" as const,
-    pageMargins: [28, 28, 28, 40] as [number, number, number, number],
+    pageSize: "A4",
+    pageMargins: [28, 28, 28, 40],
     defaultStyle: {
       font: "Sarabun",
       fontSize: 8,
@@ -483,10 +543,10 @@ function buildDocDefinition(opts: GeneratePdfOptions): TDocumentDefinitions {
     content,
     footer: (currentPage: number, pageCount: number) => ({
       columns: [
-        { text: [{ text: "Powered by ", color: "#9ca3af" }, { text: "E-Tax Center", bold: true, color: primary }], fontSize: 6, margin: [0, 4, 0, 0] as [number, number, number, number] },
-        { text: doc.docNo, fontSize: 6, color: "#d1d5db", alignment: "right" as const, margin: [0, 4, 0, 0] as [number, number, number, number] },
+        { text: [{ text: "Powered by ", color: "#9ca3af" }, { text: "E-Tax Center", bold: true, color: primary }], fontSize: 6, margin: [0, 4, 0, 0] },
+        { text: doc.docNo, fontSize: 6, color: "#d1d5db", alignment: "right", margin: [0, 4, 0, 0] },
       ],
-      margin: [28, 0, 28, 0] as [number, number, number, number],
+      margin: [28, 0, 28, 0],
     }),
   };
 }
