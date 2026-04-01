@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/lib/auth";
 import { formatDate as formatDateShared } from "@/lib/format";
+import { useLocation } from "wouter";
 
 interface ChatMessage {
   id: number;
