@@ -9,8 +9,9 @@ import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import type { Product } from "@shared/schema";
 
-export default function BundleManagement(props: { Wrapper?: React.ComponentType<{ children: React.ReactNode }> } & Record<string, any>) {
+export default function BundleManagement(props: { Wrapper?: React.ComponentType<{ children: React.ReactNode }>; basePath?: string } & Record<string, any>) {
   const LayoutComponent = props.Wrapper || Layout;
+  const basePath = props.basePath || "/inventory";
   const { selectedCompanyId } = useCompany();
   const [, navigate] = useLocation();
   const { toast } = useToast();
@@ -101,7 +102,7 @@ export default function BundleManagement(props: { Wrapper?: React.ComponentType<
                       <TableCell>{product.unit}</TableCell>
                       <TableCell className="text-right">{Number(product.price).toLocaleString("th-TH", { minimumFractionDigits: 2 })}</TableCell>
                       <TableCell className="text-right">
-                        <Button variant="outline" size="sm" data-testid={`button-edit-bundle-${product.id}`} onClick={() => navigate(`/inventory/bundles/edit/${product.id}`)}>
+                        <Button variant="outline" size="sm" data-testid={`button-edit-bundle-${product.id}`} onClick={() => navigate(`${basePath}/bundles/edit/${product.id}`)}>
                           <Pencil className="h-4 w-4 mr-1" /> แก้ไขชุดสินค้า
                         </Button>
                       </TableCell>

@@ -71,7 +71,9 @@ const POS_NAV: NavItem[] = [
     label: "สินค้า & คลังสินค้า", icon: Package, href: "/pos/products",
     children: [
       { label: "รายการสินค้า", href: "/pos/products", icon: Package },
+      { label: "จัดชุดสินค้า", href: "/pos/bundles", icon: Package },
       { label: "คลังสินค้า / สต็อก", href: "/pos/stock", icon: Warehouse },
+      { label: "สต็อกการ์ด", href: "/pos/stock-card", icon: FileText },
     ],
   },
   {
