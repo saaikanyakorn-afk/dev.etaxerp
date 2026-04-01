@@ -3,7 +3,7 @@ import { db } from "../db";
 import { storage } from "../storage";
 import { eq, desc, and, or, isNull, asc, ilike, inArray, notInArray, gte, lte, count, sum , sql } from "drizzle-orm";
 import { companies, ecommerceOrders, productStock, products, ecommerceReturns, taxInvoices, taxInvoiceItems, accounts, journalEntries, journalLines, ecommerceOrderItems, workBoards, workBoardColumns, workBoardItems, firmFolders, receipts, oauthStates, syncLogs, facebookChatOrders, chatOrderKeywords, chatOrders, productBundles, ecommerceReturnItems, salesCreditNotes, salesCreditNoteItems, paymentMethods, facebookPages, platformChatThreads, ecommerceConnections, ecommerceProductMappings } from "@shared/schema";
-import { requireAuth, requireModule, requireAnyModule, checkDocOwnership } from "../route-middleware";
+import { requireAuth, requireModule, requireAnyModule, checkDocOwnership, requireAdmin } from "../route-middleware";
 import { getNextDocNo, getNextJournalEntryNo, createAutoJournalEntry, generateTivFromEcommerceOrder, PLATFORM_DOC_PREFIX, PLATFORM_DISPLAY_NAME, logActivity, checkClosedPeriod } from "../route-helpers";
 import { parsePagination, paginatedResponse } from "./pagination";
 import multer from "multer";
@@ -2092,6 +2092,47 @@ app.post("/api/ecommerce/sku-mapping/auto-match", requireAuth, requireModule("ec
 
     res.json({ success: true, matched });
   } catch (err: any) { res.status(500).json({ message: err.message }); }
+});
+
+// ============ Gov Receipt Demo (PDF Stress Test) ============
+
+app.post("/api/tools/gov-receipt/demo-download", requireAuth, async (req, res) => {
+  try {
+    const { durationSec = 10 } = req.body;
+    const duration = Math.min(Math.max(Number(durationSec) || 10, 3), 30);
+    console.log(`[Demo PDF] Starting simulated PDF scrape (${duration}s)...`);
+    const startMem = process.memoryUsage();
+    await new Promise(resolve => setTimeout(resolve, duration * 1000));
+    const endMem = process.memoryUsage();
+    const files = [
+      { name: "ภพ.30_มกราคม_2569.pdf", url: "#demo", formCode: "ภ.พ.30", taxMonthYear: "01/2569", refNo: "DEMO-001", docType: "receipt" },
+      { name: "ภงด.3_มกราคม_2569.pdf", url: "#demo", formCode: "ภ.ง.ด.3", taxMonthYear: "01/2569", refNo: "DEMO-002", docType: "receipt" },
+      { name: "ใบเสร็จประกันสังคม_01-2569.pdf", url: "#demo", formCode: "สปส.1-10", taxMonthYear: "01/2569", refNo: "DEMO-003", docType: "receipt" },
+    ];
+    console.log(`[Demo PDF] Complete — RSS: ${Math.round(startMem.rss / 1024 / 1024)}MB → ${Math.round(endMem.rss / 1024 / 1024)}MB`);
+    res.json({
+      success: true,
+      message: `จำลองการดึงใบเสร็จเสร็จสิ้น (${duration} วินาที)`,
+      files,
+      demo: true,
+      stats: {
+        durationSec: duration,
+        memoryBeforeMB: Math.round(startMem.rss / 1024 / 1024),
+        memoryAfterMB: Math.round(endMem.rss / 1024 / 1024),
+      },
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+app.delete("/api/tools/gov-receipt/demo-purge", requireAuth, requireAdmin, async (_req, res) => {
+  try {
+    console.log("[Demo PDF] Purging demo data — nothing to delete (demo uses no persistent data)");
+    res.json({ success: true, message: "ลบข้อมูลสาธิตเรียบร้อยแล้ว" });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
 });
 
 // ============ Gov Receipt Downloader ============

@@ -13,7 +13,8 @@ import Layout from "@/components/layout";
 import {
   Download, Search, Building2, FileText, CheckCircle2,
   AlertCircle, Loader2, Shield, Calendar, Users,
-  ChevronDown, ChevronRight, X, BookOpen, Save, FolderOpen
+  ChevronDown, ChevronRight, X, BookOpen, Save, FolderOpen,
+  FlaskConical, Trash2, Activity
 } from "lucide-react";
 
 interface BoardClient {
@@ -75,6 +76,55 @@ export default function GovReceiptDownloader() {
   const [year, setYear] = useState(String(currentYear));
   const [results, setResults] = useState<DownloadResult[]>([]);
   const [expandedResults, setExpandedResults] = useState<Set<string>>(new Set());
+
+  const [demoRunning, setDemoRunning] = useState(false);
+  const [demoResult, setDemoResult] = useState<any>(null);
+  const [demoPurging, setDemoPurging] = useState(false);
+  const [demoElapsed, setDemoElapsed] = useState(0);
+
+  const runDemo = async () => {
+    setDemoRunning(true);
+    setDemoResult(null);
+    setDemoElapsed(0);
+    const t0 = Date.now();
+    const timer = setInterval(() => setDemoElapsed(Math.floor((Date.now() - t0) / 1000)), 500);
+    try {
+      const resp = await fetch("/api/tools/gov-receipt/demo-download", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ durationSec: 10 }),
+      });
+      const data = await resp.json();
+      setDemoResult(data);
+      toast({
+        title: data.success ? "ทดสอบสำเร็จ" : "ทดสอบล้มเหลว",
+        description: data.message,
+        variant: data.success ? undefined : "destructive",
+      });
+    } catch (err: any) {
+      setDemoResult({ success: false, message: err.message || "เชื่อมต่อ server ไม่ได้" });
+      toast({ title: "Server ไม่ตอบสนอง", description: "กรุณารอ server กลับมาแล้วลองใหม่", variant: "destructive" });
+    } finally {
+      clearInterval(timer);
+      setDemoRunning(false);
+    }
+  };
+
+  const purgeDemo = async () => {
+    if (!confirm("ยืนยันลบข้อมูลสาธิตทั้งหมด? การกระทำนี้ไม่สามารถย้อนกลับได้")) return;
+    setDemoPurging(true);
+    try {
+      const resp = await fetch("/api/tools/gov-receipt/demo-purge", { method: "DELETE", credentials: "include" });
+      const data = await resp.json();
+      toast({ title: data.success ? "ลบสำเร็จ" : "ลบล้มเหลว", description: data.message, variant: data.success ? undefined : "destructive" });
+      if (data.success) setDemoResult(null);
+    } catch (err: any) {
+      toast({ title: "เกิดข้อผิดพลาด", description: err.message, variant: "destructive" });
+    } finally {
+      setDemoPurging(false);
+    }
+  };
 
   const [journalDialog, setJournalDialog] = useState<{
     open: boolean;
@@ -357,6 +407,81 @@ export default function GovReceiptDownloader() {
       </div>
 
       <div className="max-w-6xl mx-auto px-6 py-6 space-y-6">
+        <Card className="border-amber-300 bg-amber-50/50">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base flex items-center gap-2">
+                <FlaskConical className="h-4 w-4 text-amber-600" />
+                <span className="text-amber-800">ทดสอบระบบ (Demo)</span>
+                <Badge className="bg-amber-200 text-amber-800 border-amber-300 text-[10px]">สำหรับทดสอบ</Badge>
+              </CardTitle>
+              {demoResult && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={purgeDemo}
+                  disabled={demoPurging}
+                  className="border-red-300 text-red-600 hover:bg-red-50"
+                  data-testid="btn-demo-purge"
+                >
+                  {demoPurging ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Trash2 className="h-3 w-3 mr-1" />}
+                  ลบข้อมูลสาธิตถาวร
+                </Button>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-amber-700 mb-3">
+              จำลองการดึง PDF ใบเสร็จ (~10 วินาที) เพื่อทดสอบว่า server รับ load ได้ ไม่มีการเชื่อมต่อระบบราชการจริง
+            </p>
+            <div className="flex items-center gap-3">
+              <Button
+                onClick={runDemo}
+                disabled={demoRunning}
+                className="bg-amber-600 hover:bg-amber-700 text-white"
+                data-testid="btn-demo-run"
+              >
+                {demoRunning ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    กำลังทดสอบ... ({demoElapsed} วินาที)
+                  </>
+                ) : (
+                  <>
+                    <FlaskConical className="h-4 w-4 mr-2" />
+                    เริ่มทดสอบ Demo PDF
+                  </>
+                )}
+              </Button>
+              {demoResult && (
+                <div className="flex items-center gap-2 text-sm">
+                  {demoResult.success ? (
+                    <Badge className="bg-green-100 text-green-700 border-green-200">
+                      <CheckCircle2 className="h-3 w-3 mr-1" /> สำเร็จ
+                    </Badge>
+                  ) : (
+                    <Badge className="bg-red-100 text-red-700 border-red-200">
+                      <AlertCircle className="h-3 w-3 mr-1" /> ล้มเหลว
+                    </Badge>
+                  )}
+                  <span className="text-gray-500">{demoResult.message}</span>
+                  {demoResult.stats && (
+                    <span className="text-xs text-gray-400 flex items-center gap-1">
+                      <Activity className="h-3 w-3" />
+                      RAM: {demoResult.stats.memoryBeforeMB}→{demoResult.stats.memoryAfterMB} MB
+                    </span>
+                  )}
+                </div>
+              )}
+              {demoResult?.files && (
+                <div className="text-xs text-gray-500">
+                  ไฟล์ตัวอย่าง: {demoResult.files.map((f: any) => f.name).join(", ")}
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-4">
             <Card>
