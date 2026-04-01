@@ -186,7 +186,7 @@ function fmtQty(q: number): string {
 }
 
 const s = StyleSheet.create({
-  page: { fontFamily: "Sarabun", fontSize: 8, padding: "10mm", backgroundColor: "white", letterSpacing: 0.2 },
+  page: { fontFamily: "Sarabun", fontSize: 8, padding: "10mm", backgroundColor: "white" },
   topBar: { height: 4, marginBottom: 0, marginLeft: -28, marginRight: -28, marginTop: -28 },
   headerRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: 8, paddingTop: 12 },
   companyBlock: { flexDirection: "row", gap: 8, flex: 1 },
