@@ -96,11 +96,11 @@ app.post("/api/sales-orders", requireAuth, requireAnyModule("sales", "ecommerce"
     }
     const order = await storage.createSalesOrder(body);
     if (items && Array.isArray(items) && items.length > 0) {
-      for (const item of items) {
+      const itemValues = items.map((item: any) => {
         const rawDiscount = String(item.discount || "0");
         const isPercent = rawDiscount.includes("%");
         const discountNum = parseFloat(rawDiscount.replace("%", "")) || 0;
-        await storage.createSalesOrderItem({
+        return {
           salesOrderId: order.id,
           productId: item.productId ? Number(item.productId) : null,
           productCode: item.productCode || null,
@@ -114,8 +114,9 @@ app.post("/api/sales-orders", requireAuth, requireAnyModule("sales", "ecommerce"
           discountType: isPercent ? "percent" : "amount",
           total: String(item.total || "0"),
           vatType: item.vatType || "vat7",
-        });
-      }
+        };
+      });
+      await db.insert(salesOrderItems).values(itemValues);
     }
     const savedItems = await storage.getSalesOrderItems(order.id);
     logActivity({ companyId: Number(body.companyId), userId: user.id, userName: user.username, action: "create", entityType: "sales_order", entityId: String(order.id), entityName: body.orderNo || "" }).catch(() => {});
@@ -138,25 +139,28 @@ app.patch("/api/sales-orders/:id", requireAuth, requireAnyModule("sales", "ecomm
     if (!order) return res.status(404).json({ message: "ไม่พบรายการขาย" });
     if (items && Array.isArray(items)) {
       await storage.deleteSalesOrderItems(order.id);
-      for (const item of items) {
-        const rawDiscount = String(item.discount || "0");
-        const isPercent = rawDiscount.includes("%");
-        const discountNum = parseFloat(rawDiscount.replace("%", "")) || 0;
-        await storage.createSalesOrderItem({
-          salesOrderId: order.id,
-          productId: item.productId ? Number(item.productId) : null,
-          productCode: item.productCode || null,
-          sku: item.productCode || null,
-          productName: item.productName || "",
-          description: item.description || null,
-          qty: String(item.qty || "1"),
-          unit: item.unit || "ชิ้น",
-          unitPrice: String(item.unitPrice || "0"),
-          discount: String(discountNum),
-          discountType: isPercent ? "percent" : "amount",
-          total: String(item.total || "0"),
-          vatType: item.vatType || "vat7",
+      if (items.length > 0) {
+        const itemValues = items.map((item: any) => {
+          const rawDiscount = String(item.discount || "0");
+          const isPercent = rawDiscount.includes("%");
+          const discountNum = parseFloat(rawDiscount.replace("%", "")) || 0;
+          return {
+            salesOrderId: order.id,
+            productId: item.productId ? Number(item.productId) : null,
+            productCode: item.productCode || null,
+            sku: item.productCode || null,
+            productName: item.productName || "",
+            description: item.description || null,
+            qty: String(item.qty || "1"),
+            unit: item.unit || "ชิ้น",
+            unitPrice: String(item.unitPrice || "0"),
+            discount: String(discountNum),
+            discountType: isPercent ? "percent" : "amount",
+            total: String(item.total || "0"),
+            vatType: item.vatType || "vat7",
+          };
         });
+        await db.insert(salesOrderItems).values(itemValues);
       }
     }
     const savedItems = await storage.getSalesOrderItems(order.id);
@@ -256,8 +260,8 @@ app.post("/api/sales-orders/:id/clone", requireAuth, requireAnyModule("sales", "
       linkJournal: order.linkJournal,
       createdBy: user.id,
     } as any);
-    for (const item of items) {
-      await storage.createSalesOrderItem({
+    if (items.length > 0) {
+      await db.insert(salesOrderItems).values(items.map((item: any) => ({
         salesOrderId: cloned.id,
         productId: item.productId,
         productCode: item.productCode,
@@ -271,7 +275,7 @@ app.post("/api/sales-orders/:id/clone", requireAuth, requireAnyModule("sales", "
         discountType: item.discountType,
         total: item.total,
         vatType: item.vatType,
-      } as any);
+      })));
     }
     res.status(201).json(cloned);
   } catch (err: any) { res.status(500).json({ message: err.message }); }
@@ -412,11 +416,11 @@ app.post("/api/quotations", requireAuth, requireAnyModule("sales", "ecommerce"),
     };
     const q = await storage.createQuotation(quotationData);
     if (items && Array.isArray(items) && items.length > 0) {
-      for (const item of items) {
+      const itemValues = items.map((item: any) => {
         const rawDiscount = String(item.discount || "0");
         const isPercent = rawDiscount.includes("%");
         const discountNum = parseFloat(rawDiscount.replace("%", "")) || 0;
-        await storage.createQuotationItem({
+        return {
           quotationId: q.id,
           productId: item.productId ? Number(item.productId) : null,
           productCode: item.productCode || null,
@@ -429,8 +433,9 @@ app.post("/api/quotations", requireAuth, requireAnyModule("sales", "ecommerce"),
           discountType: isPercent ? "percent" : "amount",
           total: String(item.total || "0"),
           vatType: item.vatType || "vat7",
-        });
-      }
+        };
+      });
+      await db.insert(quotationItems).values(itemValues);
     }
     const savedItems = await storage.getQuotationItems(q.id);
     logActivity({ companyId, userId: user.id, userName: user.username, action: "create", entityType: "quotation", entityId: String(q.id), entityName: quotationNo }).catch(() => {});
@@ -477,24 +482,27 @@ app.patch("/api/quotations/:id", requireAuth, requireAnyModule("sales", "ecommer
     if (!q) return res.status(404).json({ message: "ไม่พบใบเสนอราคา" });
     if (items && Array.isArray(items)) {
       await storage.deleteQuotationItems(q.id);
-      for (const item of items) {
-        const rawDiscount = String(item.discount || "0");
-        const isPercent = rawDiscount.includes("%");
-        const discountNum = parseFloat(rawDiscount.replace("%", "")) || 0;
-        await storage.createQuotationItem({
-          quotationId: q.id,
-          productId: item.productId ? Number(item.productId) : null,
-          productCode: item.productCode || null,
-          productName: item.productName || "",
-          description: item.description || null,
-          qty: String(item.qty || "1"),
-          unit: item.unit || "ชิ้น",
-          unitPrice: String(item.unitPrice || "0"),
-          discount: String(discountNum),
-          discountType: isPercent ? "percent" : "amount",
-          total: String(item.total || "0"),
-          vatType: item.vatType || "vat7",
+      if (items.length > 0) {
+        const itemValues = items.map((item: any) => {
+          const rawDiscount = String(item.discount || "0");
+          const isPercent = rawDiscount.includes("%");
+          const discountNum = parseFloat(rawDiscount.replace("%", "")) || 0;
+          return {
+            quotationId: q.id,
+            productId: item.productId ? Number(item.productId) : null,
+            productCode: item.productCode || null,
+            productName: item.productName || "",
+            description: item.description || null,
+            qty: String(item.qty || "1"),
+            unit: item.unit || "ชิ้น",
+            unitPrice: String(item.unitPrice || "0"),
+            discount: String(discountNum),
+            discountType: isPercent ? "percent" : "amount",
+            total: String(item.total || "0"),
+            vatType: item.vatType || "vat7",
+          };
         });
+        await db.insert(quotationItems).values(itemValues);
       }
     }
     const savedItems = await storage.getQuotationItems(q.id);
