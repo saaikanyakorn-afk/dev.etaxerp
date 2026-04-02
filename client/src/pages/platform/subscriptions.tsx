@@ -818,13 +818,29 @@ export default function PlatformSubscriptions() {
                                   {mp.yearlyPrice && <p className="text-xs text-gray-400">{formatPrice(mp.yearlyPrice)}/ปี</p>}
                                 </div>
                               </div>
-                              <div className="space-y-1 text-xs text-gray-500 mb-3">
+                              {mp.description && <p className="text-xs text-gray-400 mb-2">{mp.description}</p>}
+                              <div className="space-y-1 text-xs text-gray-500 mb-2">
                                 <div className="flex justify-between"><span>ผู้ใช้</span><span className="font-medium text-gray-700">{mp.maxUsers >= 999 ? "ไม่จำกัด" : mp.maxUsers}</span></div>
                                 <div className="flex justify-between"><span>เอกสาร</span><span className="font-medium text-gray-700">{mp.maxDocuments >= 999999 ? "ไม่จำกัด" : mp.maxDocuments?.toLocaleString()}</span></div>
                                 <div className="flex justify-between"><span>สมาชิกใช้อยู่</span><span className="font-bold" style={{ color }}>{msCount}</span></div>
                               </div>
-                              {mp.popular && <Badge className="text-[10px] mb-2 bg-amber-100 text-amber-700 border-amber-300">POPULAR</Badge>}
-                              {!mp.active && <Badge variant="secondary" className="text-[10px] mb-2">ปิดใช้งาน</Badge>}
+                              {mp.features && mp.features.length > 0 && (
+                                <div className="border-t pt-2 mb-2">
+                                  <p className="text-[10px] font-bold text-gray-500 uppercase mb-1">ฟีเจอร์ที่ได้รับ</p>
+                                  <ul className="space-y-0.5">
+                                    {mp.features.map((f: string, fi: number) => (
+                                      <li key={fi} className="flex items-start gap-1.5 text-xs text-gray-600">
+                                        <CheckCircle2 className="w-3 h-3 mt-0.5 flex-shrink-0" style={{ color }} />
+                                        {f}
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+                              <div className="flex gap-1 mb-2">
+                                {mp.popular && <Badge className="text-[10px] bg-amber-100 text-amber-700 border-amber-300">POPULAR</Badge>}
+                                {!mp.active && <Badge variant="secondary" className="text-[10px]">ปิดใช้งาน</Badge>}
+                              </div>
                               <Button
                                 variant="outline"
                                 size="sm"
@@ -1791,6 +1807,17 @@ export default function PlatformSubscriptions() {
                 <Input type="number" value={modulePlanForm.maxCompanies || 1} onChange={(e) => setModulePlanForm({ ...modulePlanForm, maxCompanies: parseInt(e.target.value) || 1 })} className="mt-1" data-testid="input-module-plan-companies" />
               </div>
             </div>
+            <div>
+              <Label className="text-sm font-medium text-gray-700">ฟีเจอร์ที่ได้รับ (บรรทัดละ 1 รายการ)</Label>
+              <Textarea
+                value={modulePlanForm.featuresText || (modulePlanForm.features ? modulePlanForm.features.join("\n") : "")}
+                onChange={(e) => setModulePlanForm({ ...modulePlanForm, featuresText: e.target.value })}
+                className="mt-1 text-sm"
+                rows={5}
+                placeholder={"สมุดบัญชีรายวัน\nงบทดลอง\nผังบัญชี\nใบกำกับภาษี"}
+                data-testid="input-module-plan-features"
+              />
+            </div>
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2">
                 <Switch checked={modulePlanForm.popular || false} onCheckedChange={(v) => setModulePlanForm({ ...modulePlanForm, popular: v })} />
@@ -1807,7 +1834,11 @@ export default function PlatformSubscriptions() {
             <Button
               className="bg-[#fb9678] hover:bg-[#f88565] gap-1"
               disabled={!modulePlanForm.name || createModulePlanMutation.isPending}
-              onClick={() => createModulePlanMutation.mutate(modulePlanForm)}
+              onClick={() => {
+                const { featuresText, ...rest } = modulePlanForm;
+                const features = featuresText ? featuresText.split("\n").map((f: string) => f.trim()).filter((f: string) => f) : rest.features || null;
+                createModulePlanMutation.mutate({ ...rest, features });
+              }}
               data-testid="btn-submit-create-module-plan"
             >
               {createModulePlanMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
@@ -1881,6 +1912,16 @@ export default function PlatformSubscriptions() {
                 <Input type="number" value={modulePlanForm.maxCompanies || 1} onChange={(e) => setModulePlanForm({ ...modulePlanForm, maxCompanies: parseInt(e.target.value) || 1 })} className="mt-1" />
               </div>
             </div>
+            <div>
+              <Label className="text-sm font-medium text-gray-700">ฟีเจอร์ที่ได้รับ (บรรทัดละ 1 รายการ)</Label>
+              <Textarea
+                value={modulePlanForm.featuresText !== undefined ? modulePlanForm.featuresText : (modulePlanForm.features ? modulePlanForm.features.join("\n") : "")}
+                onChange={(e) => setModulePlanForm({ ...modulePlanForm, featuresText: e.target.value })}
+                className="mt-1 text-sm"
+                rows={5}
+                placeholder={"ฟีเจอร์ 1\nฟีเจอร์ 2\nฟีเจอร์ 3"}
+              />
+            </div>
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2">
                 <Switch checked={modulePlanForm.popular || false} onCheckedChange={(v) => setModulePlanForm({ ...modulePlanForm, popular: v })} />
@@ -1901,7 +1942,12 @@ export default function PlatformSubscriptions() {
               <Button
                 className="bg-[#fb9678] hover:bg-[#f88565] gap-1"
                 disabled={updateModulePlanMutation.isPending}
-                onClick={() => editModulePlan && updateModulePlanMutation.mutate({ id: editModulePlan.id, data: modulePlanForm })}
+                onClick={() => {
+                  if (!editModulePlan) return;
+                  const { featuresText, ...rest } = modulePlanForm;
+                  const features = featuresText !== undefined ? featuresText.split("\n").map((f: string) => f.trim()).filter((f: string) => f) : rest.features || null;
+                  updateModulePlanMutation.mutate({ id: editModulePlan.id, data: { ...rest, features } });
+                }}
                 data-testid="btn-save-module-plan"
               >
                 {updateModulePlanMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
