@@ -333,6 +333,7 @@ import EcommerceInventorySlowMoving from "@/pages/ecommerce/ecommerce-inventory-
 import EcommerceStockSync from "@/pages/ecommerce/ecommerce-stock-sync";
 import SkuSmartMapping from "@/pages/ecommerce/sku-smart-mapping";
 import EcommerceSettings from "@/pages/ecommerce/ecommerce-settings";
+import EcomTeam from "@/pages/ecommerce/ecom-team";
 import PriceCalculator from "@/pages/ecommerce/price-calculator";
 import BusinessInsights from "@/pages/ecommerce/business-insights";
 import EcommerceSettlements from "@/pages/ecommerce/ecommerce-settlements";
@@ -917,6 +918,7 @@ function Router() {
       <Route path="/ecommerce/reconciliation" component={EcommerceReconciliation} />
       <Route path="/ecommerce/store-clone" component={EcommerceStoreClone} />
       <Route path="/ecommerce/settings" component={EcommerceSettings} />
+      <Route path="/ecommerce/team" component={EcomTeam} />
       <Route path="/ecommerce/price-calculator" component={PriceCalculator} />
       <Route path="/ecommerce/business-insights" component={BusinessInsights} />
       <Route path="/ecommerce/inventory" component={EcommerceInventory} />

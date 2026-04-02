@@ -5920,3 +5920,19 @@ export const customFormTemplates = pgTable("custom_form_templates", {
 export const insertCustomFormTemplateSchema = createInsertSchema(customFormTemplates).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertCustomFormTemplate = z.infer<typeof insertCustomFormTemplateSchema>;
 export type CustomFormTemplate = typeof customFormTemplates.$inferSelect;
+
+export const ecommerceTeamMembers = pgTable("ecommerce_team_members", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").references(() => companies.id).notNull(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  role: text("role").notNull().default("operator"),
+  permissions: text("permissions").array(),
+  assignedStoreIds: integer("assigned_store_ids").array(),
+  nickname: text("nickname"),
+  active: boolean("active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+export const insertEcommerceTeamMemberSchema = createInsertSchema(ecommerceTeamMembers).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertEcommerceTeamMember = z.infer<typeof insertEcommerceTeamMemberSchema>;
+export type EcommerceTeamMember = typeof ecommerceTeamMembers.$inferSelect;
