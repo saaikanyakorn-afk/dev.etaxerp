@@ -1195,6 +1195,65 @@ app.get("/api/module-plans", async (_req, res) => {
   } catch (err: any) { res.status(500).json({ message: err.message }); }
 });
 
+app.get("/api/admin/module-plans", requireAuth, requireSuperAdmin, async (_req, res) => {
+  try {
+    const plans = await db.select().from(modulePlans).orderBy(modulePlans.moduleKey, modulePlans.sortOrder);
+    res.json(plans);
+  } catch (err: any) { res.status(500).json({ message: err.message }); }
+});
+
+app.post("/api/admin/module-plans", requireAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const { id, createdAt, ...data } = req.body;
+    const [plan] = await db.insert(modulePlans).values(data).returning();
+    res.status(201).json(plan);
+  } catch (err: any) { res.status(400).json({ message: err.message }); }
+});
+
+app.patch("/api/admin/module-plans/:id", requireAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const { id, createdAt, ...data } = req.body;
+    const [plan] = await db.update(modulePlans).set(data).where(eq(modulePlans.id, Number(req.params.id))).returning();
+    if (!plan) return res.status(404).json({ message: "ไม่พบแพ็คเกจ" });
+    res.json(plan);
+  } catch (err: any) { res.status(500).json({ message: err.message }); }
+});
+
+app.delete("/api/admin/module-plans/:id", requireAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const planId = Number(req.params.id);
+    const [inUse] = await db.select().from(tenantModuleSubscriptions)
+      .where(eq(tenantModuleSubscriptions.modulePlanId, planId)).limit(1);
+    if (inUse) return res.status(400).json({ message: "ไม่สามารถลบได้ มีสมาชิกใช้งานอยู่" });
+    const result = await db.delete(modulePlans).where(eq(modulePlans.id, planId)).returning();
+    if (result.length === 0) return res.status(404).json({ message: "ไม่พบแพ็คเกจ" });
+    res.json({ message: "ลบสำเร็จ" });
+  } catch (err: any) { res.status(500).json({ message: err.message }); }
+});
+
+app.get("/api/admin/module-subscriptions", requireAuth, requireSuperAdmin, async (_req, res) => {
+  try {
+    const subs = await db.select({
+      id: tenantModuleSubscriptions.id,
+      tenantId: tenantModuleSubscriptions.tenantId,
+      moduleKey: tenantModuleSubscriptions.moduleKey,
+      modulePlanId: tenantModuleSubscriptions.modulePlanId,
+      tier: tenantModuleSubscriptions.tier,
+      status: tenantModuleSubscriptions.status,
+      billingCycle: tenantModuleSubscriptions.billingCycle,
+      startDate: tenantModuleSubscriptions.startDate,
+      endDate: tenantModuleSubscriptions.endDate,
+      trialEndsAt: tenantModuleSubscriptions.trialEndsAt,
+      autoRenew: tenantModuleSubscriptions.autoRenew,
+      planName: modulePlans.name,
+      monthlyPrice: modulePlans.monthlyPrice,
+    }).from(tenantModuleSubscriptions)
+      .leftJoin(modulePlans, eq(tenantModuleSubscriptions.modulePlanId, modulePlans.id))
+      .orderBy(tenantModuleSubscriptions.moduleKey);
+    res.json(subs);
+  } catch (err: any) { res.status(500).json({ message: err.message }); }
+});
+
 app.get("/api/my-modules", requireAuth, async (req, res) => {
   try {
     const user = req.user as any;
