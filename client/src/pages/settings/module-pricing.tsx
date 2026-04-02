@@ -14,7 +14,7 @@ import { apiRequest } from "@/lib/queryClient";
 import {
   Calculator, Users, ShoppingCart, Store, UtensilsCrossed, Building2, Warehouse,
   Check, Crown, Zap, ArrowUpRight, Clock, Calendar, RefreshCw, Shield,
-  Package, ChevronRight, Sparkles, AlertTriangle
+  Package, ChevronRight, Sparkles, AlertTriangle, X, Minus
 } from "lucide-react";
 
 const MODULE_META: Record<string, { label: string; icon: any; color: string; bgColor: string }> = {
@@ -38,6 +38,149 @@ const STATUS_BADGE: Record<string, { label: string; color: string; icon: any }> 
   trial:     { label: "ทดลองใช้",   color: "bg-amber-100 text-amber-700",  icon: Clock },
   expired:   { label: "หมดอายุ",    color: "bg-red-100 text-red-700",      icon: AlertTriangle },
   cancelled: { label: "ยกเลิก",     color: "bg-gray-100 text-gray-500",    icon: AlertTriangle },
+};
+
+type FeatureVal = true | false | string;
+interface FeatureRow {
+  category?: string;
+  feature: string;
+  free?: FeatureVal;
+  starter: FeatureVal;
+  pro: FeatureVal;
+}
+
+const MODULE_FEATURES: Record<string, FeatureRow[]> = {
+  accounting: [
+    { category: "เอกสาร", feature: "จำนวนเอกสาร/เดือน", free: "50 ใบ", starter: "500 ใบ", pro: "ไม่จำกัด" },
+    { feature: "ใบกำกับภาษี / ใบเสร็จ", free: true, starter: true, pro: true },
+    { feature: "ใบเสนอราคา / ใบวางบิล", free: true, starter: true, pro: true },
+    { feature: "ใบลดหนี้ / ใบเพิ่มหนี้", free: false, starter: true, pro: true },
+    { feature: "หนังสือรับรองหัก ณ ที่จ่าย", free: false, starter: true, pro: true },
+    { category: "บัญชี", feature: "ผังบัญชี (Chart of Accounts)", free: true, starter: true, pro: true },
+    { feature: "สมุดบัญชีรายวัน 5 เล่ม", free: true, starter: true, pro: true },
+    { feature: "งบทดลอง (Trial Balance)", free: true, starter: true, pro: true },
+    { feature: "งบกำไรขาดทุน", free: false, starter: true, pro: true },
+    { feature: "งบดุล (Balance Sheet)", free: false, starter: true, pro: true },
+    { feature: "งบกระแสเงินสด", free: false, starter: false, pro: true },
+    { feature: "อัตราส่วนทางการเงิน", free: false, starter: false, pro: true },
+    { category: "ภาษี", feature: "ภ.พ.30 สรุป VAT", free: false, starter: true, pro: true },
+    { feature: "ภ.ง.ด. (1, 3, 53)", free: false, starter: true, pro: true },
+    { feature: "รายงานภาษีซื้อ/ภาษีขาย", free: false, starter: true, pro: true },
+    { category: "อื่นๆ", feature: "Bank Reconciliation", free: false, starter: false, pro: true },
+    { feature: "AI วิเคราะห์", free: false, starter: false, pro: true },
+    { feature: "White Label", free: false, starter: false, pro: true },
+    { feature: "ส่ง LINE แจ้งเตือน", free: false, starter: true, pro: true },
+    { feature: "จำนวนผู้ใช้", free: "1 คน", starter: "3 คน", pro: "10 คน" },
+    { feature: "จำนวนบริษัท", free: "1", starter: "2", pro: "5" },
+  ],
+  hr: [
+    { category: "ข้อมูลพนักงาน", feature: "จำนวนพนักงาน", starter: "5 คน", pro: "50 คน" },
+    { feature: "ทะเบียนพนักงาน", starter: true, pro: true },
+    { feature: "แผนก/ตำแหน่ง", starter: true, pro: true },
+    { feature: "ประวัติการทำงาน", starter: true, pro: true },
+    { category: "เวลา & ลา", feature: "ลงเวลาเข้า-ออก", starter: true, pro: true },
+    { feature: "ขอลา (ลาป่วย/ลาพักร้อน)", starter: true, pro: true },
+    { feature: "ขอ OT / อนุมัติ OT", starter: true, pro: true },
+    { feature: "ปฏิทินลา & กะงาน", starter: true, pro: true },
+    { category: "เงินเดือน", feature: "สลิปเงินเดือน", starter: true, pro: true },
+    { feature: "คำนวณเงินเดือนอัตโนมัติ", starter: false, pro: true },
+    { feature: "คำนวณ OT / ค่ากะ", starter: false, pro: true },
+    { feature: "หักประกันสังคม / ภาษี", starter: false, pro: true },
+    { category: "ภาษี & รายงาน", feature: "ภ.ง.ด.1 (รายเดือน)", starter: false, pro: true },
+    { feature: "ภ.ง.ด.1ก (รายปี)", starter: false, pro: true },
+    { feature: "หนังสือรับรอง 50 ทวิ", starter: false, pro: true },
+    { category: "ESS Portal", feature: "พนักงานดูข้อมูลตัวเอง", starter: false, pro: true },
+    { feature: "พนักงานขอลา/OT ออนไลน์", starter: false, pro: true },
+    { feature: "ดาวน์โหลดสลิป/50ทวิ", starter: false, pro: true },
+    { feature: "จำนวนบริษัท", starter: "1", pro: "3" },
+  ],
+  ecommerce: [
+    { category: "เชื่อมต่อ", feature: "จำนวนร้านค้า", starter: "2 ร้าน", pro: "ไม่จำกัด" },
+    { feature: "Shopee", starter: true, pro: true },
+    { feature: "Lazada", starter: true, pro: true },
+    { feature: "TikTok Shop", starter: true, pro: true },
+    { category: "ออเดอร์", feature: "ดึงออเดอร์อัตโนมัติ", starter: true, pro: true },
+    { feature: "ออกใบกำกับภาษีอัตโนมัติ", starter: true, pro: true },
+    { feature: "Import ออเดอร์ Excel (50,000 แถว)", starter: true, pro: true },
+    { feature: "ดูรายละเอียดออเดอร์", starter: true, pro: true },
+    { category: "จัดส่ง", feature: "พิมพ์ใบจัดส่ง", starter: true, pro: true },
+    { feature: "Pick-Pack-Ship", starter: true, pro: true },
+    { feature: "แจ้ง Tracking ทาง LINE", starter: true, pro: true },
+    { category: "ขั้นสูง", feature: "Settlement ตรวจสอบรับเงิน", starter: false, pro: true },
+    { feature: "Live Selling Module", starter: false, pro: true },
+    { feature: "Stock Sync ข้ามแพลตฟอร์ม", starter: false, pro: true },
+    { feature: "ทีมงาน E-Commerce", starter: false, pro: true },
+    { feature: "Supplier Portal", starter: false, pro: true },
+    { feature: "AI วิเคราะห์ยอดขาย", starter: false, pro: true },
+    { feature: "Demand Forecasting", starter: false, pro: true },
+    { feature: "Store Clone ข้ามร้าน", starter: false, pro: true },
+    { feature: "จำนวนผู้ใช้", starter: "3 คน", pro: "10 คน" },
+  ],
+  pos: [
+    { category: "การขาย", feature: "หน้าจอขาย (Terminal)", starter: true, pro: true },
+    { feature: "จำนวนสินค้า", starter: "500 รายการ", pro: "ไม่จำกัด" },
+    { feature: "ชำระเงินหลายช่องทาง", starter: true, pro: true },
+    { feature: "พิมพ์ใบเสร็จ Thermal", starter: true, pro: true },
+    { feature: "ส่วนลดรายการ/ท้ายบิล", starter: true, pro: true },
+    { feature: "ค้นหาลูกค้า", starter: true, pro: true },
+    { feature: "พักบิล (Hold/Park)", starter: true, pro: true },
+    { category: "สต๊อก", feature: "ตัดสต๊อกอัตโนมัติ", starter: true, pro: true },
+    { feature: "Barcode Scanner", starter: true, pro: true },
+    { feature: "สร้าง Barcode EAN-13", starter: false, pro: true },
+    { feature: "พิมพ์ Label สินค้า", starter: false, pro: true },
+    { category: "พนักงาน & รายงาน", feature: "คอมมิชชั่นพนักงาน", starter: false, pro: true },
+    { feature: "กระทบยอดเงินสด", starter: true, pro: true },
+    { feature: "รายงานยอดขายรายวัน", starter: true, pro: true },
+    { feature: "รายงานขั้นสูง (ตามสาขา)", starter: false, pro: true },
+    { feature: "หลายสาขา", starter: false, pro: true },
+    { feature: "จำนวนพนักงาน", starter: "3 คน", pro: "10 คน" },
+  ],
+  restaurant: [
+    { category: "ร้านอาหาร", feature: "จัดการโต๊ะ & ผังร้าน", starter: true, pro: true },
+    { feature: "รับออเดอร์หน้าร้าน", starter: true, pro: true },
+    { feature: "Kitchen Display (จอครัว)", starter: true, pro: true },
+    { feature: "เมนู & หมวดหมู่", starter: true, pro: true },
+    { feature: "Service Charge", starter: true, pro: true },
+    { feature: "พิมพ์ใบเสร็จ", starter: true, pro: true },
+    { category: "ขั้นสูง", feature: "Modifier / ท็อปปิ้ง", starter: false, pro: true },
+    { feature: "แยกบิล (Split Bill)", starter: false, pro: true },
+    { feature: "จองโต๊ะล่วงหน้า", starter: false, pro: true },
+    { feature: "รายงานเมนูยอดนิยม", starter: false, pro: true },
+    { feature: "หลายสาขา", starter: false, pro: true },
+    { feature: "จำนวนพนักงาน", starter: "5 คน", pro: "15 คน" },
+    { feature: "จำนวนบริษัท", starter: "1", pro: "3" },
+  ],
+  "firm-mgmt": [
+    { category: "จัดการลูกค้า", feature: "จำนวนลูกค้า", starter: "10 ราย", pro: "ไม่จำกัด" },
+    { feature: "ทะเบียนลูกค้า", starter: true, pro: true },
+    { feature: "กำหนดงาน/ติดตามสถานะ", starter: true, pro: true },
+    { feature: "ผูกพนักงานกับลูกค้า", starter: true, pro: true },
+    { category: "เอกสาร & สัญญา", feature: "คลังเอกสาร", starter: true, pro: true },
+    { feature: "สัญญาบริการออนไลน์", starter: false, pro: true },
+    { feature: "ลายเซ็นอิเล็กทรอนิกส์", starter: false, pro: true },
+    { category: "ทำงาน", feature: "Work Board (บอร์ดงาน)", starter: false, pro: true },
+    { feature: "FTP Archive เก็บเอกสาร", starter: false, pro: true },
+    { category: "ลูกค้า", feature: "Client Portal", starter: false, pro: true },
+    { feature: "เรียกเก็บค่าบริการ", starter: false, pro: true },
+    { feature: "จำนวนพนักงาน", starter: "5 คน", pro: "20 คน" },
+    { feature: "จำนวนบริษัท", starter: "10", pro: "50" },
+  ],
+  warehouse: [
+    { category: "คลังสินค้า", feature: "จำนวนคลัง", starter: "1 แห่ง", pro: "หลายคลัง" },
+    { feature: "รับ-จ่ายสินค้า", starter: true, pro: true },
+    { feature: "สต๊อกการ์ด", starter: true, pro: true },
+    { feature: "แจ้งเตือนสต๊อกต่ำ", starter: true, pro: true },
+    { feature: "Barcode / QR Code", starter: true, pro: true },
+    { feature: "โอนย้ายสินค้าระหว่างคลัง", starter: false, pro: true },
+    { category: "WMS ขั้นสูง", feature: "Bin Location (ตำแหน่งชั้น)", starter: false, pro: true },
+    { feature: "Wave/Batch Picking", starter: false, pro: true },
+    { feature: "PDA Mobile Interface", starter: false, pro: true },
+    { feature: "Cycle Count (ตรวจนับ)", starter: false, pro: true },
+    { feature: "Stock Sync ข้ามแพลตฟอร์ม", starter: false, pro: true },
+    { feature: "แผนที่คลังสินค้า (Visual)", starter: false, pro: true },
+    { feature: "จำนวนผู้ใช้", starter: "3 คน", pro: "10 คน" },
+    { feature: "จำนวนบริษัท", starter: "1", pro: "3" },
+  ],
 };
 
 interface ModulePlan {
@@ -155,6 +298,7 @@ export default function ModulePricing() {
           <TabsList>
             <TabsTrigger value="my-modules" data-testid="tab-my-modules">โมดูลของฉัน</TabsTrigger>
             <TabsTrigger value="all-modules" data-testid="tab-all-modules">แพ็คเกจทั้งหมด</TabsTrigger>
+            <TabsTrigger value="compare" data-testid="tab-compare">เปรียบเทียบฟีเจอร์</TabsTrigger>
           </TabsList>
 
           <TabsContent value="my-modules" className="space-y-4">
@@ -381,6 +525,128 @@ export default function ModulePricing() {
                           </div>
                         );
                       })}
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </TabsContent>
+
+          <TabsContent value="compare" className="space-y-6">
+            {Object.entries(MODULE_FEATURES).map(([mk, rows]) => {
+              const meta = MODULE_META[mk] || { label: mk, icon: Package, color: "#666", bgColor: "bg-gray-100" };
+              const ModuleIcon = meta.icon;
+              const hasFree = rows.some(r => r.free !== undefined);
+              const tiers = hasFree ? ["free", "starter", "pro"] : ["starter", "pro"];
+              const tierLabels: Record<string, string> = { free: "Free", starter: "Starter", pro: "Professional" };
+              const modulePlanList = plansByModule.get(mk) || [];
+              const currentSub = subMap.get(mk);
+
+              return (
+                <Card key={mk} className="overflow-hidden" data-testid={`compare-${mk}`}>
+                  <CardHeader className="pb-0">
+                    <CardTitle className="flex items-center gap-2 text-base">
+                      <div className={`w-8 h-8 rounded-lg ${meta.bgColor} flex items-center justify-center`}>
+                        <ModuleIcon className="h-4 w-4" style={{ color: meta.color }} />
+                      </div>
+                      {meta.label}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="pt-4">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm" data-testid={`table-compare-${mk}`}>
+                        <thead>
+                          <tr className="border-b">
+                            <th className="text-left py-3 pr-4 font-medium text-muted-foreground w-[45%]">ฟีเจอร์</th>
+                            {tiers.map(t => {
+                              const plan = modulePlanList.find(p => p.tier === t);
+                              const isCurrent = currentSub?.tier === t;
+                              return (
+                                <th key={t} className="text-center py-3 px-2 min-w-[120px]">
+                                  <div className="flex flex-col items-center gap-1">
+                                    <Badge variant="outline" className={`${TIER_BADGE[t]?.color || ""} ${isCurrent ? "ring-2" : ""}`}
+                                      style={isCurrent ? { ["--tw-ring-color" as any]: meta.color } : {}}>
+                                      {tierLabels[t]}
+                                      {isCurrent && <Check className="h-3 w-3 ml-1" />}
+                                    </Badge>
+                                    {plan && (
+                                      <span className="text-xs font-bold" style={{ color: meta.color }}>
+                                        {formatPrice(billingCycle === "yearly" ? (plan.yearlyPrice || plan.monthlyPrice) : plan.monthlyPrice)}
+                                        {parseFloat(plan.monthlyPrice) > 0 && <span className="font-normal text-muted-foreground">/{billingCycle === "yearly" ? "ปี" : "ด."}</span>}
+                                      </span>
+                                    )}
+                                  </div>
+                                </th>
+                              );
+                            })}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {rows.map((row, idx) => (
+                            <>
+                              {row.category && (
+                                <tr key={`cat-${idx}`}>
+                                  <td colSpan={tiers.length + 1} className="pt-4 pb-1.5 px-0">
+                                    <span className="text-xs font-bold uppercase tracking-wide" style={{ color: meta.color }}>{row.category}</span>
+                                  </td>
+                                </tr>
+                              )}
+                              <tr key={idx} className="border-b border-dashed last:border-0 hover:bg-gray-50/50">
+                                <td className="py-2.5 pr-4 text-sm">{row.feature}</td>
+                                {tiers.map(t => {
+                                  const val = t === "free" ? row.free : t === "starter" ? row.starter : row.pro;
+                                  return (
+                                    <td key={t} className="py-2.5 text-center">
+                                      {val === true ? (
+                                        <Check className="h-4 w-4 mx-auto" style={{ color: meta.color }} />
+                                      ) : val === false ? (
+                                        <Minus className="h-4 w-4 mx-auto text-gray-300" />
+                                      ) : val === undefined ? (
+                                        <Minus className="h-4 w-4 mx-auto text-gray-300" />
+                                      ) : (
+                                        <span className="text-xs font-medium">{val}</span>
+                                      )}
+                                    </td>
+                                  );
+                                })}
+                              </tr>
+                            </>
+                          ))}
+                        </tbody>
+                        {isAdmin && (
+                          <tfoot>
+                            <tr>
+                              <td className="pt-3"></td>
+                              {tiers.map(t => {
+                                const plan = modulePlanList.find(p => p.tier === t);
+                                const isCurrent = currentSub?.tier === t;
+                                if (!plan) return <td key={t}></td>;
+                                return (
+                                  <td key={t} className="pt-3 text-center px-2">
+                                    {isCurrent ? (
+                                      <Badge className="bg-green-500 text-white text-xs">
+                                        <Check className="h-3 w-3 mr-1" />ใช้อยู่
+                                      </Badge>
+                                    ) : (
+                                      <Button
+                                        size="sm"
+                                        variant={plan.popular ? "default" : "outline"}
+                                        className="w-full gap-1 text-xs"
+                                        style={plan.popular ? { backgroundColor: meta.color } : { borderColor: meta.color, color: meta.color }}
+                                        disabled={subscribeMutation.isPending}
+                                        onClick={() => subscribeMutation.mutate({ modulePlanId: plan.id, billingCycle })}
+                                        data-testid={`compare-subscribe-${plan.id}`}
+                                      >
+                                        {parseFloat(plan.monthlyPrice) === 0 ? "เริ่มใช้ฟรี" : "เลือกแพ็คนี้"}
+                                      </Button>
+                                    )}
+                                  </td>
+                                );
+                              })}
+                            </tr>
+                          </tfoot>
+                        )}
+                      </table>
                     </div>
                   </CardContent>
                 </Card>
