@@ -625,6 +625,9 @@ export const documentSettings = pgTable("document_settings", {
   ecReceiptShowLogo: boolean("ec_receipt_show_logo").notNull().default(true),
   ecReceiptHeaderText: text("ec_receipt_header_text"),
   ecReceiptFooterText: text("ec_receipt_footer_text"),
+  ecReceiptFontSize: text("ec_receipt_font_size").notNull().default("large"),
+  ecReceiptShowCompanyInfo: boolean("ec_receipt_show_company_info").notNull().default(true),
+  ecReceiptShowQr: boolean("ec_receipt_show_qr").notNull().default(false),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 

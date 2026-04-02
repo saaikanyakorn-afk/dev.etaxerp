@@ -16,6 +16,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useCompany } from "@/lib/company-context";
 import { useUpload } from "@/hooks/use-upload";
+import { objectPathToUrl } from "@/lib/utils";
 import type { Company } from "@shared/schema";
 
 interface DocSettings {
@@ -33,6 +34,122 @@ interface DocSettings {
   ecReceiptShowLogo?: boolean;
   ecReceiptHeaderText?: string | null;
   ecReceiptFooterText?: string | null;
+  ecReceiptFontSize?: string;
+  ecReceiptShowCompanyInfo?: boolean;
+  ecReceiptShowQr?: boolean;
+}
+
+const EC_FONT_SIZES: Record<string, { base: string; total: string; label: string }> = {
+  small: { base: "11px", total: "14px", label: "เล็ก (11px)" },
+  medium: { base: "12px", total: "16px", label: "กลาง (12px)" },
+  large: { base: "14px", total: "18px", label: "ใหญ่ (14px) — แนะนำ" },
+  xlarge: { base: "16px", total: "20px", label: "ใหญ่พิเศษ (16px)" },
+};
+
+function EcDocPreview({ settings, company }: { settings: DocSettings; company: any }) {
+  const fontConf = EC_FONT_SIZES[settings.ecReceiptFontSize || "large"] || EC_FONT_SIZES.large;
+  const fontSize = fontConf.base;
+
+  return (
+    <div
+      className="bg-white mx-auto shadow-md border"
+      style={{ width: 320, fontFamily: "'Sarabun', 'Noto Sans Thai', sans-serif", fontSize, lineHeight: "1.5" }}
+      data-testid="ec-doc-preview"
+    >
+      {(settings.ecReceiptShowLogo ?? true) && settings.logoUrl && (
+        <div className="pt-4 pb-2 text-center">
+          <img src={objectPathToUrl(settings.logoUrl!) || settings.logoUrl!} alt="Logo" className="max-h-14 mx-auto object-contain" />
+        </div>
+      )}
+
+      {(settings.ecReceiptShowCompanyInfo ?? true) && company && (
+        <div className="text-center px-5 pb-3" style={{ fontSize }}>
+          <div className="font-bold text-base mb-0.5">{company.name || "ชื่อร้าน"}</div>
+          {company.address && <div className="text-gray-600 leading-snug">{company.address}</div>}
+          {company.phone && <div className="text-gray-500">โทร {company.phone}</div>}
+          {company.taxId && <div className="text-gray-500">เลขผู้เสียภาษี {company.taxId}</div>}
+        </div>
+      )}
+
+      {settings.ecReceiptHeaderText && (
+        <div className="text-center px-5 pb-2 text-gray-500 whitespace-pre-line" style={{ fontSize }}>
+          {settings.ecReceiptHeaderText}
+        </div>
+      )}
+
+      <div className="border-t border-dashed border-gray-400 mx-3" />
+
+      <div className="px-5 py-2 text-center" style={{ fontSize }}>
+        <div className="font-bold">ใบกำกับภาษีอย่างย่อ</div>
+        <div className="text-gray-500">{settings.ecDocPrefix || "EC"}-TIV-250402-0001</div>
+      </div>
+
+      <div className="border-t border-dashed border-gray-400 mx-3" />
+
+      <div className="px-5 py-3 space-y-2" style={{ fontSize }}>
+        <div className="text-gray-500 mb-1">ออเดอร์: SHP-250401-8821</div>
+        <div className="text-gray-500 mb-2">แพลตฟอร์ม: Shopee</div>
+        {[
+          { name: "เสื้อยืดคอกลม Size L", qty: 2, price: 299 },
+          { name: "กางเกงขาสั้น Free Size", qty: 1, price: 450 },
+        ].map((item, i) => (
+          <div key={i}>
+            <div className="font-medium">{item.name}</div>
+            <div className="flex justify-between text-gray-600">
+              <span>{item.qty} x ฿{item.price.toFixed(2)}</span>
+              <span>฿{(item.qty * item.price).toFixed(2)}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="border-t border-dashed border-gray-400 mx-3" />
+
+      <div className="px-5 py-3 space-y-1" style={{ fontSize }}>
+        <div className="flex justify-between text-gray-500">
+          <span>ค่าจัดส่ง</span><span>฿0.00</span>
+        </div>
+        <div className="flex justify-between text-gray-500">
+          <span>ส่วนลด</span><span>-฿50.00</span>
+        </div>
+        <div className="flex justify-between font-bold" style={{ fontSize: fontConf.total }}>
+          <span>รวมทั้งหมด</span>
+          <span>฿998.00</span>
+        </div>
+        <div className="flex justify-between text-gray-500">
+          <span>ภาษีมูลค่าเพิ่ม 7%</span>
+          <span>฿65.33</span>
+        </div>
+      </div>
+
+      {(settings.ecReceiptShowQr ?? false) && (
+        <>
+          <div className="border-t border-dashed border-gray-400 mx-3" />
+          <div className="py-3 text-center">
+            <div className="w-20 h-20 mx-auto border-2 border-gray-200 rounded-lg bg-gray-50 flex items-center justify-center">
+              <Receipt className="w-10 h-10 text-gray-300" />
+            </div>
+            <div className="text-xs text-gray-400 mt-1">QR ติดตามพัสดุ</div>
+          </div>
+        </>
+      )}
+
+      {settings.ecReceiptFooterText && (
+        <>
+          <div className="border-t border-dashed border-gray-400 mx-3" />
+          <div className="px-5 py-3 text-center text-gray-500 leading-snug whitespace-pre-line" style={{ fontSize }}>
+            {settings.ecReceiptFooterText}
+          </div>
+        </>
+      )}
+
+      <div className="border-t border-dashed border-gray-400 mx-3" />
+      <div className="px-5 py-2 flex justify-between text-gray-400" style={{ fontSize: "12px" }}>
+        <span>02/04/68 14:30 น.</span>
+        <span>Shopee #{settings.ecDocPrefix || "EC"}-0001</span>
+      </div>
+    </div>
+  );
 }
 
 function ImageUploadBox({ label, currentUrl, onUploaded, onClear, testId }: {
@@ -528,56 +645,113 @@ export default function EcommerceSettings() {
               </CardContent>
             </Card>
 
-            <Card className="rounded-xl border-cyan-200 bg-cyan-50/30">
-              <CardHeader className="pb-4">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Receipt className="h-4 w-4 text-cyan-600" />
-                  ตั้งค่าเอกสาร eCommerce
-                </CardTitle>
-                <p className="text-xs text-muted-foreground">Prefix และข้อความสำหรับเอกสารที่ออกจากโมดูล eCommerce โดยเฉพาะ</p>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <Label className="text-xs text-muted-foreground">Prefix เลขที่เอกสาร eCommerce</Label>
-                  <Input
-                    value={localDocSettings?.ecDocPrefix || "EC"}
-                    onChange={e => updateDocLocal("ecDocPrefix", e.target.value)}
-                    placeholder="EC"
-                    data-testid="input-ec-prefix"
-                  />
-                  <p className="text-[10px] text-muted-foreground mt-1">ตัวอย่าง: {localDocSettings?.ecDocPrefix || "EC"}-TIV-250402-0001</p>
-                </div>
-                <div>
-                  <Label className="text-xs text-muted-foreground">ข้อความหัวเอกสาร eCommerce</Label>
-                  <Textarea
-                    value={localDocSettings?.ecReceiptHeaderText || ""}
-                    onChange={e => updateDocLocal("ecReceiptHeaderText", e.target.value)}
-                    rows={2} placeholder="ข้อความเพิ่มเติมด้านบนเอกสาร eCommerce"
-                    data-testid="input-ec-header"
-                  />
-                </div>
-                <div>
-                  <Label className="text-xs text-muted-foreground">ข้อความท้ายเอกสาร eCommerce</Label>
-                  <Textarea
-                    value={localDocSettings?.ecReceiptFooterText || ""}
-                    onChange={e => updateDocLocal("ecReceiptFooterText", e.target.value)}
-                    rows={2} placeholder="เช่น ขอบคุณที่สั่งซื้อ ติดตามพัสดุที่..."
-                    data-testid="input-ec-footer"
-                  />
-                </div>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium">แสดงโลโก้บนเอกสาร eCommerce</p>
-                    <p className="text-xs text-muted-foreground">ใช้โลโก้เดียวกับที่ตั้งค่าด้านบน</p>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <Card className="rounded-xl border-cyan-200 bg-cyan-50/30">
+                <CardHeader className="pb-4">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Receipt className="h-4 w-4 text-cyan-600" />
+                    ตั้งค่าเอกสาร eCommerce
+                  </CardTitle>
+                  <p className="text-xs text-muted-foreground">Prefix ขนาดตัวอักษร และข้อความสำหรับเอกสาร eCommerce</p>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label className="text-xs text-muted-foreground">ขนาดตัวอักษร</Label>
+                      <Select
+                        value={localDocSettings?.ecReceiptFontSize || "large"}
+                        onValueChange={v => updateDocLocal("ecReceiptFontSize", v)}
+                      >
+                        <SelectTrigger data-testid="select-ec-font-size"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {Object.entries(EC_FONT_SIZES).map(([key, conf]) => (
+                            <SelectItem key={key} value={key}>{conf.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label className="text-xs text-muted-foreground">Prefix เลขที่เอกสาร</Label>
+                      <Input
+                        value={localDocSettings?.ecDocPrefix || "EC"}
+                        onChange={e => updateDocLocal("ecDocPrefix", e.target.value)}
+                        placeholder="EC"
+                        data-testid="input-ec-prefix"
+                      />
+                      <p className="text-[10px] text-muted-foreground mt-1">ตัวอย่าง: {localDocSettings?.ecDocPrefix || "EC"}-TIV-250402-0001</p>
+                    </div>
                   </div>
-                  <Switch
-                    checked={localDocSettings?.ecReceiptShowLogo ?? true}
-                    onCheckedChange={v => updateDocLocal("ecReceiptShowLogo", v)}
-                    data-testid="switch-ec-show-logo"
-                  />
-                </div>
-              </CardContent>
-            </Card>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">ข้อความหัวเอกสาร</Label>
+                    <Textarea
+                      value={localDocSettings?.ecReceiptHeaderText || ""}
+                      onChange={e => updateDocLocal("ecReceiptHeaderText", e.target.value)}
+                      rows={2} placeholder="ข้อความเพิ่มเติมด้านบนเอกสาร eCommerce"
+                      data-testid="input-ec-header"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">ข้อความท้ายเอกสาร</Label>
+                    <Textarea
+                      value={localDocSettings?.ecReceiptFooterText || ""}
+                      onChange={e => updateDocLocal("ecReceiptFooterText", e.target.value)}
+                      rows={2} placeholder="เช่น ขอบคุณที่สั่งซื้อ ติดตามพัสดุที่..."
+                      data-testid="input-ec-footer"
+                    />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium">แสดงโลโก้</p>
+                      <p className="text-xs text-muted-foreground">แสดงโลโก้บริษัทบนเอกสาร</p>
+                    </div>
+                    <Switch
+                      checked={localDocSettings?.ecReceiptShowLogo ?? true}
+                      onCheckedChange={v => updateDocLocal("ecReceiptShowLogo", v)}
+                      data-testid="switch-ec-show-logo"
+                    />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium">แสดงข้อมูลร้าน</p>
+                      <p className="text-xs text-muted-foreground">ชื่อร้าน ที่อยู่ เลขผู้เสียภาษี</p>
+                    </div>
+                    <Switch
+                      checked={localDocSettings?.ecReceiptShowCompanyInfo ?? true}
+                      onCheckedChange={v => updateDocLocal("ecReceiptShowCompanyInfo", v)}
+                      data-testid="switch-ec-show-company-info"
+                    />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium">แสดง QR ติดตามพัสดุ</p>
+                      <p className="text-xs text-muted-foreground">QR Code สำหรับตรวจสอบสถานะพัสดุ</p>
+                    </div>
+                    <Switch
+                      checked={localDocSettings?.ecReceiptShowQr ?? false}
+                      onCheckedChange={v => updateDocLocal("ecReceiptShowQr", v)}
+                      data-testid="switch-ec-show-qr"
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="rounded-xl">
+                <CardHeader className="pb-4">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Receipt className="h-4 w-4" style={{ color: "#03c9d7" }} />
+                    ตัวอย่างเอกสาร
+                  </CardTitle>
+                  <p className="text-xs text-muted-foreground">เปลี่ยนตามค่าที่ตั้งแบบเรียลไทม์</p>
+                </CardHeader>
+                <CardContent>
+                  <div className="bg-gray-100 rounded-lg p-4 flex items-start justify-center min-h-[500px] overflow-auto">
+                    {localDocSettings && (
+                      <EcDocPreview settings={localDocSettings} company={company} />
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
           </TabsContent>
 
           <TabsContent value="accounting" className="space-y-4">
