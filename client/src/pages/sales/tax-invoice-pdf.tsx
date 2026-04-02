@@ -380,9 +380,6 @@ export default function TaxInvoicePdf() {
               compact
               showFormTypeSelector
             />
-            <Button onClick={() => window.print()} variant="info" className="gap-1.5">
-              <Printer className="h-4 w-4" /> สั่งพิมพ์
-            </Button>
           </div>
         </div>
 

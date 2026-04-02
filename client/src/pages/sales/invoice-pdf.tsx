@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Printer } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import Layout from "@/components/layout";
 import DocumentRenderer from "@/components/document-renderer";
 import EDocumentActions from "@/components/e-document-actions";
@@ -73,9 +73,6 @@ export default function InvoicePdf() {
               customerName={data.customerName}
               compact
             />
-            <Button onClick={() => window.print()} variant="info" className="gap-1.5">
-              <Printer className="h-4 w-4" /> สั่งพิมพ์
-            </Button>
           </div>
         </div>
 
