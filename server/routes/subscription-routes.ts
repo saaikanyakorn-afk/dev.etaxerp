@@ -162,6 +162,23 @@ app.post("/api/subscription-plans", requireAuth, requireSuperAdmin, async (req, 
   }
 });
 
+app.delete("/api/subscription-plans/:id", requireAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const planId = Number(req.params.id);
+    const subs = await storage.getAllTenantSubscriptions();
+    const activeCount = subs.filter(s => s.planId === planId && s.status !== "cancelled").length;
+    if (activeCount > 0) {
+      return res.status(400).json({ message: `ไม่สามารถลบได้ มีสมาชิกใช้งานอยู่ ${activeCount} ราย` });
+    }
+    const deleted = await storage.deleteSubscriptionPlan(planId);
+    if (!deleted) return res.status(404).json({ message: "ไม่พบแพ็คเกจ" });
+    res.json({ message: "ลบแพ็คเกจสำเร็จ" });
+  } catch (err: any) {
+    console.error("[subscription-plans] DELETE error:", err.message);
+    res.status(500).json({ message: "เกิดข้อผิดพลาดในการลบ" });
+  }
+});
+
 app.patch("/api/subscription-plans/:id", requireAuth, requireSuperAdmin, async (req, res) => {
   try {
     const { id, code, createdAt, ...updateData } = req.body;

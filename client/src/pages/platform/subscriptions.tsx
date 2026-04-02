@@ -162,6 +162,9 @@ export default function PlatformSubscriptions() {
   const [selectedBillingCycle, setSelectedBillingCycle] = useState<string>("monthly");
   const [editPlan, setEditPlan] = useState<Plan | null>(null);
   const [editForm, setEditForm] = useState<Partial<Plan & { featuresText: string; landingFeaturesText: string; enabledModules: string[] }>>({});
+  const [createPlanOpen, setCreatePlanOpen] = useState(false);
+  const [createForm, setCreateForm] = useState<Record<string, any>>({});
+  const [deleteConfirm, setDeleteConfirm] = useState<Plan | null>(null);
   const [manageDialog, setManageDialog] = useState<{ sub: Subscription; action: "activate" | "extend" | "suspend" | "set-end-date" } | null>(null);
   const [editAddon, setEditAddon] = useState<Addon | null>(null);
   const [addonForm, setAddonForm] = useState<Partial<Addon>>({});
@@ -302,6 +305,49 @@ export default function PlatformSubscriptions() {
     },
     onError: () => {
       toast({ title: "เกิดข้อผิดพลาด", variant: "destructive" });
+    },
+  });
+
+  const createPlanMutation = useMutation({
+    mutationFn: async (data: Record<string, any>) => {
+      const r = await fetch("/api/subscription-plans", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(data),
+      });
+      if (!r.ok) { const err = await r.json(); throw new Error(err.message || "Failed"); }
+      return r.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/subscription-plans"] });
+      toast({ title: "สร้างแพ็คเกจสำเร็จ" });
+      setCreatePlanOpen(false);
+      setCreateForm({});
+    },
+    onError: (err: Error) => {
+      toast({ title: err.message || "เกิดข้อผิดพลาด", variant: "destructive" });
+    },
+  });
+
+  const deletePlanMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const r = await fetch(`/api/subscription-plans/${id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!r.ok) { const err = await r.json(); throw new Error(err.message || "Failed"); }
+      return r.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/subscription-plans"] });
+      toast({ title: "ลบแพ็คเกจสำเร็จ" });
+      setDeleteConfirm(null);
+      setEditPlan(null);
+    },
+    onError: (err: Error) => {
+      toast({ title: err.message, variant: "destructive" });
+      setDeleteConfirm(null);
     },
   });
 
@@ -484,6 +530,19 @@ export default function PlatformSubscriptions() {
 
         {activeTab === "plans" && (
           <>
+            <div className="flex justify-end mb-2">
+              <Button
+                className="bg-[#fb9678] hover:bg-[#f88565] gap-2"
+                onClick={() => {
+                  setCreateForm({ name: "", code: "", targetGroup: "general", monthlyPrice: "0", yearlyPrice: "0", maxUsers: 1, maxDocumentsPerMonth: 50, maxCompanies: 1, maxBranches: 1, maxEcommerceConnections: 0, maxProducts: 100 });
+                  setCreatePlanOpen(true);
+                }}
+                data-testid="btn-create-plan"
+              >
+                <Plus className="w-4 h-4" />
+                สร้างแพ็คเกจใหม่
+              </Button>
+            </div>
             {targetGroupOrder.map((groupKey) => {
               const groupPlans = groupedPlans[groupKey];
               if (!groupPlans || groupPlans.length === 0) return null;
@@ -1271,28 +1330,214 @@ export default function PlatformSubscriptions() {
               </div>
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEditPlan(null)} data-testid="btn-cancel-edit-plan">ยกเลิก</Button>
+          <DialogFooter className="flex !justify-between">
             <Button
-              className="bg-[#fb9678] hover:bg-[#f88565]"
-              onClick={() => {
-                if (editPlan) {
-                  const { id, code, featuresText, landingFeaturesText, ...rest } = editForm as any;
-                  const features = featuresText
-                    ? featuresText.split(",").map((f: string) => f.trim()).filter((f: string) => f.length > 0)
-                    : null;
-                  const landingFeatures = landingFeaturesText
-                    ? landingFeaturesText.split("\n").map((f: string) => f.trim()).filter((f: string) => f.length > 0)
-                    : null;
-                  const enabledModules = rest.enabledModules && rest.enabledModules.length > 0 ? rest.enabledModules : null;
-                  updatePlan.mutate({ id: editPlan.id, data: { ...rest, features, landingFeatures, enabledModules } });
-                }
-              }}
-              disabled={updatePlan.isPending}
-              data-testid="btn-save-edit-plan"
+              variant="outline"
+              className="text-red-500 border-red-300 hover:bg-red-50 hover:text-red-600 gap-1"
+              onClick={() => editPlan && setDeleteConfirm(editPlan)}
+              data-testid="btn-delete-plan"
             >
-              {updatePlan.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
-              บันทึกแพ็คเกจ
+              <XCircle className="w-4 h-4" />
+              ลบแพ็คเกจ
+            </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setEditPlan(null)} data-testid="btn-cancel-edit-plan">ยกเลิก</Button>
+              <Button
+                className="bg-[#fb9678] hover:bg-[#f88565]"
+                onClick={() => {
+                  if (editPlan) {
+                    const { id, code, featuresText, landingFeaturesText, ...rest } = editForm as any;
+                    const features = featuresText
+                      ? featuresText.split(",").map((f: string) => f.trim()).filter((f: string) => f.length > 0)
+                      : null;
+                    const landingFeatures = landingFeaturesText
+                      ? landingFeaturesText.split("\n").map((f: string) => f.trim()).filter((f: string) => f.length > 0)
+                      : null;
+                    const enabledModules = rest.enabledModules && rest.enabledModules.length > 0 ? rest.enabledModules : null;
+                    updatePlan.mutate({ id: editPlan.id, data: { ...rest, features, landingFeatures, enabledModules } });
+                  }
+                }}
+                disabled={updatePlan.isPending}
+                data-testid="btn-save-edit-plan"
+              >
+                {updatePlan.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
+                บันทึกแพ็คเกจ
+              </Button>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={createPlanOpen} onOpenChange={setCreatePlanOpen}>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Plus className="w-5 h-5 text-[#fb9678]" />
+              สร้างแพ็คเกจใหม่
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label className="text-sm font-medium text-gray-700">รหัสแพ็คเกจ (code)</Label>
+                <Input
+                  value={createForm.code || ""}
+                  onChange={(e) => setCreateForm({ ...createForm, code: e.target.value })}
+                  placeholder="เช่น starter-ecom"
+                  className="mt-1"
+                  data-testid="input-create-plan-code"
+                />
+              </div>
+              <div>
+                <Label className="text-sm font-medium text-gray-700">กลุ่มเป้าหมาย</Label>
+                <Select value={createForm.targetGroup || "general"} onValueChange={(v) => setCreateForm({ ...createForm, targetGroup: v })}>
+                  <SelectTrigger className="mt-1" data-testid="select-create-plan-target">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(targetGroupLabels).map(([k, v]) => (
+                      <SelectItem key={k} value={k}>{v}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label className="text-sm font-medium text-gray-700">ชื่อแพ็คเกจ (ไทย)</Label>
+                <Input
+                  value={createForm.name || ""}
+                  onChange={(e) => setCreateForm({ ...createForm, name: e.target.value })}
+                  className="mt-1"
+                  data-testid="input-create-plan-name"
+                />
+              </div>
+              <div>
+                <Label className="text-sm font-medium text-gray-700">ชื่อแพ็คเกจ (EN)</Label>
+                <Input
+                  value={createForm.nameEn || ""}
+                  onChange={(e) => setCreateForm({ ...createForm, nameEn: e.target.value })}
+                  className="mt-1"
+                  data-testid="input-create-plan-name-en"
+                />
+              </div>
+            </div>
+            <div>
+              <Label className="text-sm font-medium text-gray-700">คำอธิบาย</Label>
+              <Input
+                value={createForm.description || ""}
+                onChange={(e) => setCreateForm({ ...createForm, description: e.target.value })}
+                className="mt-1"
+                data-testid="input-create-plan-desc"
+              />
+            </div>
+            <div className="grid grid-cols-3 gap-4">
+              <div>
+                <Label className="text-sm font-medium text-gray-700">ราคา/เดือน (฿)</Label>
+                <Input
+                  type="number"
+                  value={createForm.monthlyPrice || "0"}
+                  onChange={(e) => setCreateForm({ ...createForm, monthlyPrice: e.target.value })}
+                  className="mt-1"
+                  data-testid="input-create-plan-monthly"
+                />
+              </div>
+              <div>
+                <Label className="text-sm font-medium text-gray-700">ราคา/ปี (฿)</Label>
+                <Input
+                  type="number"
+                  value={createForm.yearlyPrice || "0"}
+                  onChange={(e) => setCreateForm({ ...createForm, yearlyPrice: e.target.value })}
+                  className="mt-1"
+                  data-testid="input-create-plan-yearly"
+                />
+              </div>
+              <div>
+                <Label className="text-sm font-medium text-gray-700">ค่าติดตั้ง (฿)</Label>
+                <Input
+                  type="number"
+                  value={createForm.setupFee || "0"}
+                  onChange={(e) => setCreateForm({ ...createForm, setupFee: e.target.value })}
+                  className="mt-1"
+                  data-testid="input-create-plan-setup"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-4">
+              <div>
+                <Label className="text-sm font-medium text-gray-700">ผู้ใช้สูงสุด</Label>
+                <Input
+                  type="number"
+                  value={createForm.maxUsers || 1}
+                  onChange={(e) => setCreateForm({ ...createForm, maxUsers: parseInt(e.target.value) || 1 })}
+                  className="mt-1"
+                  data-testid="input-create-plan-users"
+                />
+              </div>
+              <div>
+                <Label className="text-sm font-medium text-gray-700">เอกสาร/เดือน</Label>
+                <Input
+                  type="number"
+                  value={createForm.maxDocumentsPerMonth || 50}
+                  onChange={(e) => setCreateForm({ ...createForm, maxDocumentsPerMonth: parseInt(e.target.value) || 50 })}
+                  className="mt-1"
+                  data-testid="input-create-plan-docs"
+                />
+              </div>
+              <div>
+                <Label className="text-sm font-medium text-gray-700">บริษัทสูงสุด</Label>
+                <Input
+                  type="number"
+                  value={createForm.maxCompanies || 1}
+                  onChange={(e) => setCreateForm({ ...createForm, maxCompanies: parseInt(e.target.value) || 1 })}
+                  className="mt-1"
+                  data-testid="input-create-plan-companies"
+                />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCreatePlanOpen(false)}>ยกเลิก</Button>
+            <Button
+              className="bg-[#fb9678] hover:bg-[#f88565] gap-1"
+              disabled={!createForm.code || !createForm.name || createPlanMutation.isPending}
+              onClick={() => createPlanMutation.mutate(createForm)}
+              data-testid="btn-submit-create-plan"
+            >
+              {createPlanMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+              สร้างแพ็คเกจ
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!deleteConfirm} onOpenChange={() => setDeleteConfirm(null)}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600">
+              <XCircle className="w-5 h-5" />
+              ยืนยันการลบแพ็คเกจ
+            </DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <p className="text-sm text-gray-600">
+              คุณต้องการลบแพ็คเกจ <span className="font-bold text-gray-900">"{deleteConfirm?.name}"</span> ({deleteConfirm?.code}) ใช่หรือไม่?
+            </p>
+            <p className="text-xs text-red-500 mt-2">
+              หากมีสมาชิกใช้งานแพ็คเกจนี้อยู่จะไม่สามารถลบได้
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteConfirm(null)}>ยกเลิก</Button>
+            <Button
+              variant="destructive"
+              className="gap-1"
+              disabled={deletePlanMutation.isPending}
+              onClick={() => deleteConfirm && deletePlanMutation.mutate(deleteConfirm.id)}
+              data-testid="btn-confirm-delete-plan"
+            >
+              {deletePlanMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <XCircle className="w-4 h-4" />}
+              ลบแพ็คเกจ
             </Button>
           </DialogFooter>
         </DialogContent>

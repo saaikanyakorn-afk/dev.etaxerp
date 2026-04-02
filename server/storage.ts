@@ -2579,6 +2579,10 @@ export class DatabaseStorage implements IStorage {
     const [plan] = await db.update(subscriptionPlans).set(data).where(eq(subscriptionPlans.id, id)).returning();
     return plan;
   }
+  async deleteSubscriptionPlan(id: number): Promise<boolean> {
+    const result = await db.delete(subscriptionPlans).where(eq(subscriptionPlans.id, id)).returning();
+    return result.length > 0;
+  }
 
   async getTenantSubscription(tenantId: number): Promise<(TenantSubscription & { plan?: SubscriptionPlan }) | undefined> {
     const [sub] = await db.select().from(tenantSubscriptions).where(eq(tenantSubscriptions.tenantId, tenantId)).orderBy(desc(tenantSubscriptions.createdAt)).limit(1);
