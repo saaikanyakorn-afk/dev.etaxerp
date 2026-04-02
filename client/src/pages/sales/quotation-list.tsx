@@ -375,10 +375,6 @@ export default function QuotationList() {
                                   <Edit2 className="h-4 w-4" /> แก้ไข
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator />
-                                <DropdownMenuItem onClick={() => navigate(`/sales/quote/new?clone=${qo.id}`)} className="flex gap-2">
-                                  <Copy className="h-4 w-4" /> คัดลอกเอกสาร
-                                </DropdownMenuItem>
-                                <DropdownMenuSeparator />
 
                                 <DropdownMenuLabel className="text-xs text-slate-400 font-normal">เปลี่ยนสถานะ</DropdownMenuLabel>
                                 {qo.status !== "approved" && (
@@ -406,6 +402,10 @@ export default function QuotationList() {
                                     <Clock className="h-4 w-4" /> หมดอายุ
                                   </DropdownMenuItem>
                                 )}
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem onClick={() => navigate(`/sales/quote/new?clone=${qo.id}`)} className="flex gap-2">
+                                  <Copy className="h-4 w-4" /> คัดลอกเอกสาร
+                                </DropdownMenuItem>
                                 <DropdownMenuSeparator />
 
                                 <DropdownMenuItem onClick={async () => {
