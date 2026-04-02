@@ -175,7 +175,7 @@ export default function InternalChatWidget() {
 
   const { data: rooms = [] } = useQuery<ChatRoom[]>({
     queryKey: ["/api/internal-chat/rooms"],
-    refetchInterval: isOpen ? 8000 : 60000,
+    refetchInterval: isOpen ? 8000 : 300000,
     enabled: !!user,
   });
 
