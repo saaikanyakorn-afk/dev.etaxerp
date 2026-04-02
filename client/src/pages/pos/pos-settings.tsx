@@ -16,8 +16,9 @@ import { useToast } from "@/hooks/use-toast";
 import { useUpload } from "@/hooks/use-upload";
 import {
   Settings, CreditCard, Receipt, Store, Plus, Pencil, Trash2, Save,
-  Banknote, QrCode, Smartphone, Wallet, FileImage, Upload, X, Loader2, FileText, Printer
+  Banknote, QrCode, Smartphone, Wallet, FileImage, Upload, X, Loader2, FileText, Printer, TestTube
 } from "lucide-react";
+import { printTestPage } from "@/lib/thermal-printer";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -628,12 +629,34 @@ export default function PosSettings() {
               <div className="space-y-4">
                 <Card className="border-none shadow-sm sticky top-4">
                   <CardHeader className="pb-3">
-                    <CardTitle className="text-base flex items-center gap-2">
-                      <Receipt className="w-5 h-5 text-[#fec90f]" /> ตัวอย่างใบเสร็จ
-                    </CardTitle>
-                    <p className="text-xs text-muted-foreground">
-                      ขนาด {localDoc?.posReceiptWidth || "80mm"}
-                    </p>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <CardTitle className="text-base flex items-center gap-2">
+                          <Receipt className="w-5 h-5 text-[#fec90f]" /> ตัวอย่างใบเสร็จ
+                        </CardTitle>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          ขนาด {localDoc?.posReceiptWidth || "80mm"}
+                        </p>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-1.5 border-[#03c9d7] text-[#03c9d7] hover:bg-[#03c9d7]/10"
+                        onClick={async () => {
+                          try {
+                            const pw = localDoc?.posReceiptWidth === "58mm" ? 58 : 80;
+                            await printTestPage(pw as 58 | 80);
+                            toast({ title: "ส่งเทสปริ้นท์แล้ว" });
+                          } catch (err: any) {
+                            toast({ title: "เทสปริ้นท์ไม่สำเร็จ", description: err.message, variant: "destructive" });
+                          }
+                        }}
+                        data-testid="button-test-print"
+                      >
+                        <Printer className="h-4 w-4" />
+                        เทสปริ้นท์
+                      </Button>
+                    </div>
                   </CardHeader>
                   <CardContent className="flex justify-center py-4 bg-gray-50 rounded-lg">
                     {localDoc && <ReceiptPreview settings={localDoc} company={company} />}
