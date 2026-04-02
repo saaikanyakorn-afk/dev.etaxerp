@@ -15,33 +15,6 @@ export const systemConfig = pgTable("system_config", {
 
 export type SystemConfig = typeof systemConfig.$inferSelect;
 
-export const machines = pgTable("machines", {
-  id: serial("id").primaryKey(),
-  localName: text("local_name").notNull(),
-  domainName: text("domain_name"),
-  lanIp: text("lan_ip"),
-  wanIp: text("wan_ip"),
-  os: text("os").notNull().default("linux"),
-  role: text("role").notNull().default("production"),
-  dbPort: text("db_port").notNull().default("5432"),
-  dbName: text("db_name").notNull(),
-  dbUser: text("db_user").notNull(),
-  dbPassword: text("db_password").notNull(),
-  ecomDbName: text("ecom_db_name"),
-  ecomDbUser: text("ecom_db_user"),
-  ecomDbPassword: text("ecom_db_password"),
-  posDbName: text("pos_db_name"),
-  posDbUser: text("pos_db_user"),
-  posDbPassword: text("pos_db_password"),
-  notes: text("notes"),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-});
-
-export const insertMachineSchema = createInsertSchema(machines).omit({ id: true, createdAt: true, updatedAt: true });
-export type Machine = typeof machines.$inferSelect;
-export type InsertMachine = z.infer<typeof insertMachineSchema>;
-
 export const tenants = pgTable("tenants", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
