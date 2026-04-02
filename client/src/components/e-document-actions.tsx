@@ -114,8 +114,11 @@ export default function EDocumentActions({
   }, []);
 
   const handleDownloadPdf = useCallback(() => {
+    const originalTitle = document.title;
+    document.title = docNo || originalTitle;
     window.print();
-  }, []);
+    document.title = originalTitle;
+  }, [docNo]);
 
   const handleCancelDownload = useCallback(() => {
     if (abortRef.current) {

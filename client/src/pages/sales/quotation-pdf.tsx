@@ -63,7 +63,7 @@ export default function QuotationPdf() {
           <Button variant="ghost" size="sm" className="gap-1.5" onClick={() => navigate("/sales/quote")}>
             <ArrowLeft className="h-4 w-4" /> กลับ
           </Button>
-          <Button onClick={() => window.print()} variant="info" className="gap-1.5">
+          <Button onClick={() => { const t = document.title; document.title = data.quotationNo || t; window.print(); document.title = t; }} variant="info" className="gap-1.5">
             <Printer className="h-4 w-4" /> บันทึก PDF / พิมพ์
           </Button>
         </div>

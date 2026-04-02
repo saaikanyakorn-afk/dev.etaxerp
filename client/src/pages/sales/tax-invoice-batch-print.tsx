@@ -293,8 +293,8 @@ export default function TaxInvoiceBatchPrint() {
               พิมพ์ใบกำกับภาษี {invoices.length} รายการ
             </span>
           </div>
-          <Button data-testid="button-print-all" onClick={() => window.print()} className="gap-1.5 bg-[var(--theme-primary)] hover:bg-[#e8734e]">
-            <Printer className="h-4 w-4" /> สั่งพิมพ์ทั้งหมด ({invoices.length} ใบ)
+          <Button data-testid="button-print-all" onClick={() => { const t = document.title; document.title = `ใบกำกับภาษี_${invoices.length}_ใบ`; window.print(); document.title = t; }} className="gap-1.5 bg-[var(--theme-primary)] hover:bg-[#e8734e]">
+            <Printer className="h-4 w-4" /> บันทึก PDF / พิมพ์ทั้งหมด ({invoices.length} ใบ)
           </Button>
         </div>
 

@@ -80,8 +80,8 @@ export default function PosInvoice() {
                 {opt.label}
               </button>
             ))}
-            <Button onClick={() => window.print()} className="gap-1.5 bg-[#fb9678] hover:bg-[#fb9678]/90" data-testid="btn-print">
-              <Printer className="h-4 w-4" /> สั่งพิมพ์
+            <Button onClick={() => { const t = document.title; document.title = data?.taxInvoiceNo || data?.invoiceNo || t; window.print(); document.title = t; }} className="gap-1.5 bg-[#fb9678] hover:bg-[#fb9678]/90" data-testid="btn-print">
+              <Printer className="h-4 w-4" /> บันทึก PDF / พิมพ์
             </Button>
           </div>
         </div>
