@@ -166,6 +166,7 @@ class PuppeteerPdfService {
         : item.html.replace("</head>", `<style>${fontFaces}</style></head>`);
 
       await page.setContent(fullHtml, { waitUntil: "networkidle0", timeout: 15_000 });
+      await page.evaluateHandle("document.fonts.ready");
 
       const pdfOptions: any = {
         printBackground: item.options.printBackground !== false,
