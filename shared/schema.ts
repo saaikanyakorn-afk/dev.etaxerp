@@ -5936,3 +5936,46 @@ export const ecommerceTeamMembers = pgTable("ecommerce_team_members", {
 export const insertEcommerceTeamMemberSchema = createInsertSchema(ecommerceTeamMembers).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertEcommerceTeamMember = z.infer<typeof insertEcommerceTeamMemberSchema>;
 export type EcommerceTeamMember = typeof ecommerceTeamMembers.$inferSelect;
+
+export const modulePlans = pgTable("module_plans", {
+  id: serial("id").primaryKey(),
+  moduleKey: text("module_key").notNull(),
+  tier: text("tier").notNull(),
+  name: text("name").notNull(),
+  nameEn: text("name_en"),
+  description: text("description"),
+  monthlyPrice: decimal("monthly_price", { precision: 10, scale: 2 }).notNull().default("0"),
+  yearlyPrice: decimal("yearly_price", { precision: 10, scale: 2 }),
+  maxUsers: integer("max_users").notNull().default(1),
+  maxDocuments: integer("max_documents").notNull().default(100),
+  maxCompanies: integer("max_companies").notNull().default(1),
+  limits: text("limits"),
+  features: text("features").array(),
+  popular: boolean("popular").notNull().default(false),
+  active: boolean("active").notNull().default(true),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export const insertModulePlanSchema = createInsertSchema(modulePlans).omit({ id: true, createdAt: true });
+export type InsertModulePlan = z.infer<typeof insertModulePlanSchema>;
+export type ModulePlan = typeof modulePlans.$inferSelect;
+
+export const tenantModuleSubscriptions = pgTable("tenant_module_subscriptions", {
+  id: serial("id").primaryKey(),
+  tenantId: integer("tenant_id").references(() => tenants.id).notNull(),
+  moduleKey: text("module_key").notNull(),
+  modulePlanId: integer("module_plan_id").references(() => modulePlans.id).notNull(),
+  tier: text("tier").notNull(),
+  status: text("status").notNull().default("trial"),
+  billingCycle: text("billing_cycle").notNull().default("monthly"),
+  startDate: timestamp("start_date").defaultNow(),
+  endDate: timestamp("end_date"),
+  trialEndsAt: timestamp("trial_ends_at"),
+  autoRenew: boolean("auto_renew").notNull().default(true),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+export const insertTenantModuleSubscriptionSchema = createInsertSchema(tenantModuleSubscriptions).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertTenantModuleSubscription = z.infer<typeof insertTenantModuleSubscriptionSchema>;
+export type TenantModuleSubscription = typeof tenantModuleSubscriptions.$inferSelect;
