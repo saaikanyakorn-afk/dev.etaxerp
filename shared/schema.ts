@@ -619,6 +619,7 @@ export const documentSettings = pgTable("document_settings", {
   posReceiptHeaderText: text("pos_receipt_header_text"),
   posReceiptFooterText: text("pos_receipt_footer_text"),
   posReceiptAutoPrint: boolean("pos_receipt_auto_print").notNull().default(false),
+  posReceiptFontSize: text("pos_receipt_font_size").notNull().default("large"),
   posReceiptPrefix: text("pos_receipt_prefix").notNull().default("POS"),
   ecDocPrefix: text("ec_doc_prefix").notNull().default("EC"),
   ecReceiptShowLogo: boolean("ec_receipt_show_logo").notNull().default(true),

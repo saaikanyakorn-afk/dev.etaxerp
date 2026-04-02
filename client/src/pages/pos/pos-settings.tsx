@@ -47,6 +47,7 @@ interface DocSettings {
   posReceiptHeaderText?: string | null;
   posReceiptFooterText?: string | null;
   posReceiptAutoPrint: boolean;
+  posReceiptFontSize: string;
   posReceiptPrefix: string;
 }
 
@@ -95,74 +96,117 @@ function ImageUploadBox({ label, currentUrl, onUploaded, onClear, testId }: {
   );
 }
 
+const FONT_SIZES: Record<string, { base: string; total: string; label: string }> = {
+  small: { base: "11px", total: "14px", label: "เล็ก (11px)" },
+  medium: { base: "12px", total: "16px", label: "กลาง (12px)" },
+  large: { base: "14px", total: "18px", label: "ใหญ่ (14px) — แนะนำ" },
+  xlarge: { base: "16px", total: "20px", label: "ใหญ่พิเศษ (16px)" },
+};
+
 function ReceiptPreview({ settings, company }: { settings: DocSettings; company: any }) {
-  const width = settings.posReceiptWidth === "58mm" ? 220 : 300;
+  const is58 = settings.posReceiptWidth === "58mm";
+  const width = is58 ? 240 : 320;
+  const fontConf = FONT_SIZES[settings.posReceiptFontSize] || FONT_SIZES.large;
+  const fontSize = fontConf.base;
+
   return (
-    <div className="border rounded-lg bg-white p-0 mx-auto" style={{ width, fontFamily: "monospace", fontSize: "11px" }}>
-      <div className="p-3 text-center border-b border-dashed border-gray-300">
-        {settings.posReceiptShowLogo && settings.logoUrl && (
-          <img src={settings.logoUrl} alt="Logo" className="h-10 mx-auto mb-2 object-contain" />
-        )}
-        {settings.posReceiptShowCompanyInfo && company && (
-          <div className="space-y-0.5">
-            <div className="font-bold text-xs">{company.name || "ชื่อร้าน"}</div>
-            {company.address && <div className="text-[10px] text-gray-600 leading-tight">{company.address}</div>}
-            {company.phone && <div className="text-[10px] text-gray-600">โทร {company.phone}</div>}
-            {company.taxId && <div className="text-[10px] text-gray-600">เลขผู้เสียภาษี {company.taxId}</div>}
-          </div>
-        )}
-        {settings.posReceiptHeaderText && (
-          <div className="text-[10px] text-gray-500 mt-1">{settings.posReceiptHeaderText}</div>
-        )}
-      </div>
-      <div className="p-3 border-b border-dashed border-gray-300">
-        <div className="flex justify-between text-[10px] text-gray-500 mb-2">
-          <span>{settings.posReceiptPrefix}-250402-0001</span>
-          <span>02/04/2568</span>
+    <div
+      className="bg-white mx-auto shadow-md"
+      style={{
+        width,
+        fontFamily: "'Sarabun', 'Noto Sans Thai', sans-serif",
+        fontSize,
+        lineHeight: "1.5",
+        borderRadius: "2px",
+      }}
+      data-testid="receipt-preview"
+    >
+      {settings.posReceiptShowLogo && settings.logoUrl && (
+        <div className="pt-4 pb-2 text-center">
+          <img src={settings.logoUrl} alt="Logo" className="max-h-16 mx-auto object-contain" />
         </div>
-        <div className="space-y-1.5">
-          {[
-            { name: "กาแฟลาเต้", qty: 2, price: 120 },
-            { name: "ครัวซองต์", qty: 1, price: 65 },
-            { name: "น้ำส้มคั้น", qty: 1, price: 45 },
-          ].map((item, i) => (
-            <div key={i} className="flex justify-between text-[10px]">
-              <span>{item.name} x{item.qty}</span>
-              <span>{(item.qty * item.price).toFixed(2)}</span>
+      )}
+
+      {settings.posReceiptShowCompanyInfo && company && (
+        <div className="text-center px-4 pb-3" style={{ fontSize }}>
+          <div className="font-bold text-base mb-0.5">{company.name || "ชื่อร้าน"}</div>
+          {settings.posReceiptHeaderText && (
+            <div className="text-gray-600 leading-snug whitespace-pre-line">{settings.posReceiptHeaderText}</div>
+          )}
+          {company.address && <div className="text-gray-600 leading-snug">{company.address}</div>}
+          {company.phone && <div className="text-gray-500">โทร {company.phone}</div>}
+          {company.taxId && <div className="text-gray-500">เลขผู้เสียภาษี {company.taxId}</div>}
+        </div>
+      )}
+
+      <div className="border-t border-dashed border-gray-400 mx-2" />
+
+      <div className="px-4 py-2" style={{ fontSize }}>
+        <div className="text-gray-500 mb-0.5">พนักงาน: สมชาย</div>
+        <div className="text-gray-500">ระบบขายหน้าร้าน: POS 1</div>
+      </div>
+
+      <div className="border-t border-dashed border-gray-400 mx-2" />
+
+      <div className="px-4 py-3 space-y-2" style={{ fontSize }}>
+        {[
+          { name: "ปลอกหมอนจัมโบ้", qty: 1, price: 200 },
+          { name: "ผ้าห่มนาโน", qty: 2, price: 350 },
+        ].map((item, i) => (
+          <div key={i}>
+            <div className="font-medium">{item.name}</div>
+            <div className="flex justify-between text-gray-600">
+              <span>{item.qty} x ฿{item.price.toFixed(2)}</span>
+              <span>฿{(item.qty * item.price).toFixed(2)}</span>
             </div>
-          ))}
-        </div>
-      </div>
-      <div className="p-3 border-b border-dashed border-gray-300 space-y-1">
-        <div className="flex justify-between text-[10px]">
-          <span>รวม</span><span>350.00</span>
-        </div>
-        <div className="flex justify-between text-[10px]">
-          <span>VAT 7%</span><span>22.90</span>
-        </div>
-        <div className="flex justify-between font-bold text-xs">
-          <span>รวมทั้งสิ้น</span><span>372.90</span>
-        </div>
-        <div className="flex justify-between text-[10px] text-gray-500 mt-1">
-          <span>เงินสด</span><span>400.00</span>
-        </div>
-        <div className="flex justify-between text-[10px] text-gray-500">
-          <span>เงินทอน</span><span>27.10</span>
-        </div>
-      </div>
-      {settings.posReceiptShowQr && (
-        <div className="p-3 border-b border-dashed border-gray-300 text-center">
-          <div className="w-16 h-16 mx-auto border rounded bg-gray-100 flex items-center justify-center">
-            <QrCode className="w-10 h-10 text-gray-300" />
           </div>
-          <div className="text-[9px] text-gray-400 mt-1">PromptPay QR</div>
+        ))}
+      </div>
+
+      <div className="border-t border-dashed border-gray-400 mx-2" />
+
+      <div className="px-4 py-3 space-y-1" style={{ fontSize }}>
+        <div className="flex justify-between font-bold" style={{ fontSize: fontConf.total }}>
+          <span>รวมทั้งหมด</span>
+          <span>฿900.00</span>
         </div>
+        <div className="flex justify-between text-gray-500">
+          <span>ภาษีมูลค่าเพิ่ม, 7%</span>
+          <span>฿58.88</span>
+        </div>
+        <div className="flex justify-between text-gray-500">
+          <span>โอนเข้าเครื่องรูด</span>
+          <span>฿900.00</span>
+        </div>
+      </div>
+
+      {settings.posReceiptShowQr && (
+        <>
+          <div className="border-t border-dashed border-gray-400 mx-2" />
+          <div className="py-3 text-center">
+            <div className="w-20 h-20 mx-auto border-2 border-gray-200 rounded-lg bg-gray-50 flex items-center justify-center">
+              <QrCode className="w-12 h-12 text-gray-300" />
+            </div>
+            <div className="text-xs text-gray-400 mt-1">PromptPay QR</div>
+          </div>
+        </>
       )}
+
       {settings.posReceiptFooterText && (
-        <div className="p-3 text-center text-[10px] text-gray-500">
-          {settings.posReceiptFooterText}
-        </div>
+        <>
+          <div className="border-t border-dashed border-gray-400 mx-2" />
+          <div className="px-4 py-3 text-center text-gray-500 leading-snug whitespace-pre-line" style={{ fontSize }}>
+            {settings.posReceiptFooterText}
+          </div>
+        </>
       )}
+
+      <div className="border-t border-dashed border-gray-400 mx-2" />
+
+      <div className="px-4 py-2 flex justify-between text-gray-400" style={{ fontSize: is58 ? "11px" : "12px" }}>
+        <span>02/04/68 16:52 น.</span>
+        <span>#{settings.posReceiptPrefix}-0001</span>
+      </div>
     </div>
   );
 }
@@ -208,6 +252,7 @@ export default function PosSettings() {
         posReceiptShowCompanyInfo: true,
         posReceiptShowQr: true,
         posReceiptAutoPrint: false,
+        posReceiptFontSize: "large",
         posReceiptPrefix: "POS",
       };
       return r.json();
@@ -457,6 +502,20 @@ export default function PosSettings() {
                         <SelectContent>
                           <SelectItem value="58mm">58mm (กระดาษเล็ก)</SelectItem>
                           <SelectItem value="80mm">80mm (มาตรฐาน)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label className="text-xs text-muted-foreground">ขนาดตัวอักษร</Label>
+                      <Select
+                        value={localDoc?.posReceiptFontSize || "large"}
+                        onValueChange={v => updateDoc("posReceiptFontSize", v)}
+                      >
+                        <SelectTrigger data-testid="select-font-size"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {Object.entries(FONT_SIZES).map(([key, conf]) => (
+                            <SelectItem key={key} value={key}>{conf.label}</SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                     </div>
