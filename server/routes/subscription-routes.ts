@@ -1195,6 +1195,18 @@ app.get("/api/module-plans", async (_req, res) => {
   } catch (err: any) { res.status(500).json({ message: err.message }); }
 });
 
+app.get("/api/public/module-plans", async (req, res) => {
+  try {
+    const { module } = req.query;
+    let query = db.select().from(modulePlans).where(eq(modulePlans.active, true)).orderBy(modulePlans.moduleKey, modulePlans.sortOrder);
+    let plans = await query;
+    if (module && typeof module === "string") {
+      plans = plans.filter((p: any) => p.moduleKey === module);
+    }
+    res.json(plans);
+  } catch (err: any) { res.status(500).json({ message: err.message }); }
+});
+
 app.get("/api/admin/module-plans", requireAuth, requireSuperAdmin, async (_req, res) => {
   try {
     const plans = await db.select().from(modulePlans).orderBy(modulePlans.moduleKey, modulePlans.sortOrder);

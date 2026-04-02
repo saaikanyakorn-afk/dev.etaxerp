@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useRef, type ReactNode } from "react";
+import React, { useState, useEffect, useRef, useMemo, type ReactNode } from "react";
 import { useLocation } from "wouter";
+import { useQuery } from "@tanstack/react-query";
 import { useForceLightMode } from "@/hooks/use-force-light";
 import PublicNavbar from "@/components/public-navbar";
 import PublicFooter from "@/components/public-footer";
@@ -196,9 +197,47 @@ const PLAN_HEADERS = [
   { name: "Firm Enterprise", group: "สำนักงานบัญชี", color: "#fec90f" },
 ];
 
+const MODULE_ICONS: Record<string, any> = {
+  hr: Users, ecommerce: ShoppingCart, pos: Store, restaurant: UtensilsCrossed,
+  warehouse: Warehouse, "firm-mgmt": Shield, "live-selling": Radio, ai: Bot, chat: MessageSquare,
+};
+const MODULE_COLORS: Record<string, string> = {
+  hr: "#03c9d7", ecommerce: "#fb9678", pos: "#fec90f", restaurant: "#f94d4d",
+  warehouse: "#fb9678", "firm-mgmt": "#03c9d7", "live-selling": "#f94d4d", ai: "#05b187", chat: "#03c9d7",
+};
+
 export default function PricingPage() {
   const [, navigate] = useLocation();
   useForceLightMode();
+
+  const { data: allModulePlans } = useQuery<any[]>({
+    queryKey: ["/api/public/module-plans"],
+    queryFn: () => fetch("/api/public/module-plans").then(r => r.json()),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const dynamicAddons = useMemo(() => {
+    if (!allModulePlans || allModulePlans.length === 0) return null;
+    const grouped: Record<string, any[]> = {};
+    allModulePlans.forEach((p: any) => {
+      if (p.moduleKey === "accounting") return;
+      if (!grouped[p.moduleKey]) grouped[p.moduleKey] = [];
+      grouped[p.moduleKey].push(p);
+    });
+    return Object.entries(grouped).map(([key, plans]) => {
+      const cheapest = plans.reduce((min: any, p: any) => Number(p.monthlyPrice) < Number(min.monthlyPrice) ? p : min, plans[0]);
+      const Icon = MODULE_ICONS[key] || Zap;
+      return {
+        name: plans[0].name.replace(/ (Starter|Pro|Free|Enterprise)/i, "").trim() || key,
+        moduleKey: key,
+        price: Number(cheapest.monthlyPrice) > 0 ? Number(cheapest.monthlyPrice).toLocaleString("th-TH") : "ฟรี",
+        icon: Icon,
+        color: MODULE_COLORS[key] || "#03c9d7",
+        desc: cheapest.description || "",
+        features: cheapest.features || [],
+      };
+    });
+  }, [allModulePlans]);
 
   return (
     <div className="min-h-screen bg-white force-light-mode" style={{ fontFamily: "'Sarabun', 'IBM Plex Sans Thai', sans-serif" }}>
@@ -303,18 +342,18 @@ export default function PricingPage() {
           </AnimateOnScroll>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            {[
-              { name: "White Label", price: "490", icon: Shield, color: "#fb9678", desc: "ปรับแต่งระบบเป็นแบรนด์ของคุณ โลโก้ สี โดเมน" },
-              { name: "POS ขายหน้าร้าน", price: "390", icon: Store, color: "#fec90f", desc: "ระบบแคชเชียร์ สแกนบาร์โค้ด ตัดสต็อก Cash Reconciliation" },
-              { name: "POS ร้านอาหาร", price: "490", icon: UtensilsCrossed, color: "#f94d4d", desc: "จัดการโต๊ะ/โซน ส่งครัว KDS Modifier Groups แยกบิล" },
-              { name: "HR & เงินเดือน", price: "390", icon: Users, color: "#03c9d7", desc: "ลงเวลา OT เงินเดือน สลิป ภงด. ESS Portal สัญญาจ้าง" },
-              { name: "WMS คลังสินค้า", price: "390", icon: Warehouse, color: "#fb9678", desc: "Bin Location Wave Picking PDA Interface Stock Sync" },
-              { name: "Live Selling", price: "390", icon: Radio, color: "#f94d4d", desc: "จัดการ Live ขาย จับ CF Lucky Draw AI Agency" },
-              { name: "AI อัจฉริยะ", price: "290", icon: Bot, color: "#05b187", desc: "AI ตรวจสลิป Demand Forecasting VAT Dictionary" },
-              { name: "Unified Chat", price: "290", icon: MessageSquare, color: "#03c9d7", desc: "รวมแชท Facebook Chat Orders AI อ่าน CF ตรวจสลิป" },
-              { name: "API เชื่อมต่อ", price: "190", icon: Zap, color: "#fec90f", desc: "REST API เชื่อมต่อระบบภายนอก Webhook" },
-            ].map((addon, i) => {
-              const Icon = addon.icon;
+            {(dynamicAddons || [
+              { name: "White Label", price: "490", icon: Shield, color: "#fb9678", desc: "ปรับแต่งระบบเป็นแบรนด์ของคุณ โลโก้ สี โดเมน", features: [] },
+              { name: "POS ขายหน้าร้าน", price: "390", icon: Store, color: "#fec90f", desc: "ระบบแคชเชียร์ สแกนบาร์โค้ด ตัดสต็อก Cash Reconciliation", features: [] },
+              { name: "POS ร้านอาหาร", price: "490", icon: UtensilsCrossed, color: "#f94d4d", desc: "จัดการโต๊ะ/โซน ส่งครัว KDS Modifier Groups แยกบิล", features: [] },
+              { name: "HR & เงินเดือน", price: "390", icon: Users, color: "#03c9d7", desc: "ลงเวลา OT เงินเดือน สลิป ภงด. ESS Portal สัญญาจ้าง", features: [] },
+              { name: "WMS คลังสินค้า", price: "390", icon: Warehouse, color: "#fb9678", desc: "Bin Location Wave Picking PDA Interface Stock Sync", features: [] },
+              { name: "Live Selling", price: "390", icon: Radio, color: "#f94d4d", desc: "จัดการ Live ขาย จับ CF Lucky Draw AI Agency", features: [] },
+              { name: "AI อัจฉริยะ", price: "290", icon: Bot, color: "#05b187", desc: "AI ตรวจสลิป Demand Forecasting VAT Dictionary", features: [] },
+              { name: "Unified Chat", price: "290", icon: MessageSquare, color: "#03c9d7", desc: "รวมแชท Facebook Chat Orders AI อ่าน CF ตรวจสลิป", features: [] },
+              { name: "API เชื่อมต่อ", price: "190", icon: Zap, color: "#fec90f", desc: "REST API เชื่อมต่อระบบภายนอก Webhook", features: [] },
+            ]).map((addon: any, i: number) => {
+              const Icon = addon.icon || Zap;
               return (
                 <AnimateOnScroll key={i} delay={i * 0.05}>
                   <div className="bg-white rounded-xl border border-gray-100 p-5 hover:shadow-lg hover:-translate-y-0.5 transition-all" data-testid={`addon-card-${i}`}>
@@ -324,10 +363,25 @@ export default function PricingPage() {
                       </div>
                       <div>
                         <div className="text-sm font-bold text-gray-900">{addon.name}</div>
-                        <div className="text-xs font-bold" style={{ color: addon.color }}>+฿{addon.price}/เดือน</div>
+                        <div className="text-xs font-bold" style={{ color: addon.color }}>
+                          {addon.price === "ฟรี" ? "เริ่มต้นฟรี" : `เริ่ม ฿${addon.price}/เดือน`}
+                        </div>
                       </div>
                     </div>
                     <p className="text-xs text-gray-400 leading-relaxed">{addon.desc}</p>
+                    {addon.features && addon.features.length > 0 && (
+                      <div className="mt-3 space-y-1">
+                        {addon.features.slice(0, 3).map((f: string, fi: number) => (
+                          <div key={fi} className="flex items-center gap-1.5 text-xs text-gray-500">
+                            <CheckCircle2 className="w-3 h-3 shrink-0" style={{ color: addon.color }} />
+                            <span>{f}</span>
+                          </div>
+                        ))}
+                        {addon.features.length > 3 && (
+                          <div className="text-xs text-gray-400 pl-4.5">+{addon.features.length - 3} ฟีเจอร์เพิ่มเติม</div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </AnimateOnScroll>
               );
