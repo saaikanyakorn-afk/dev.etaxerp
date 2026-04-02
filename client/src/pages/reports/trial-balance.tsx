@@ -405,7 +405,7 @@ export default function TrialBalance() {
                 className="border-b border-slate-100 cursor-pointer group transition-colors hover:bg-blue-50/30"
                 style={{ ...(idx % 2 !== 0 ? { background: "var(--theme-table-stripe)" } : {}) }}
                 onClick={() => {
-                  if (startDate && endDate) window.open(`/reports/general-ledger?accountCode=${row.accountCode}&startDate=${startDate}&endDate=${endDate}`, '_blank');
+                  if (startDate && endDate) navigate(`/reports/general-ledger?accountCode=${row.accountCode}&startDate=${startDate}&endDate=${endDate}`);
                 }}
                 data-testid={`row-account-${row.accountCode}`}
               >
@@ -512,7 +512,7 @@ export default function TrialBalance() {
                     className="border-b border-slate-100 cursor-pointer group transition-colors hover:bg-blue-50/30"
                     style={idx % 2 !== 0 ? { background: "var(--theme-table-stripe)" } : undefined}
                     onClick={() => {
-                      if (startDate && endDate) window.open(`/reports/general-ledger?accountCode=${row.accountCode}&startDate=${startDate}&endDate=${endDate}`, '_blank');
+                      if (startDate && endDate) navigate(`/reports/general-ledger?accountCode=${row.accountCode}&startDate=${startDate}&endDate=${endDate}`);
                     }}
                     data-testid={`row-account-${row.accountCode}`}
                   >
