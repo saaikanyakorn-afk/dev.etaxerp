@@ -170,6 +170,23 @@ app.put("/api/document-settings/:companyId", requireAuth, requireAdmin, async (r
       docPrefixes: z.string().nullable().optional(),
       certSignerName: z.string().nullable().optional(),
       certSignerPosition: z.string().nullable().optional(),
+      docFontSize: z.string().optional(),
+      showQrOnDoc: z.boolean().optional(),
+      posReceiptWidth: z.string().optional(),
+      posReceiptShowLogo: z.boolean().optional(),
+      posReceiptShowCompanyInfo: z.boolean().optional(),
+      posReceiptShowQr: z.boolean().optional(),
+      posReceiptHeaderText: z.string().nullable().optional(),
+      posReceiptFooterText: z.string().nullable().optional(),
+      posReceiptAutoPrint: z.boolean().optional(),
+      posReceiptFontSize: z.string().optional(),
+      posReceiptPrefix: z.string().optional(),
+      ecReceiptFontSize: z.string().optional(),
+      ecReceiptShowCompanyInfo: z.boolean().optional(),
+      ecReceiptShowQr: z.boolean().optional(),
+      ecReceiptShowLogo: z.boolean().optional(),
+      ecReceiptHeaderText: z.string().nullable().optional(),
+      ecReceiptFooterText: z.string().nullable().optional(),
     });
     const validated = docSettingsSchema.parse(req.body);
     const settings = await storage.upsertDocumentSettings(companyId, validated);
