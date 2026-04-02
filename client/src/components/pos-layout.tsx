@@ -433,7 +433,19 @@ export default function PosLayout({ children }: { children: React.ReactNode }) {
               {selectedCompany ? selectedCompany.name : "POS ขายหน้าร้าน"}
             </span>
           </div>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-2">
+            {location !== "/pos/terminal" && (
+              <Link href="/pos/terminal">
+                <Button
+                  className="gap-2 bg-[#03c9d7] hover:bg-[#03c9d7]/90 text-white font-semibold shadow-md px-5"
+                  data-testid="button-open-pos-terminal"
+                >
+                  <ShoppingCart className="h-4 w-4" />
+                  <span className="hidden sm:inline">เปิดหน้าขาย</span>
+                  <span className="sm:hidden">ขาย</span>
+                </Button>
+              </Link>
+            )}
             <SubscriptionNavButton />
           </div>
         </header>
