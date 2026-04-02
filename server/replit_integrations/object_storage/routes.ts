@@ -81,9 +81,14 @@ export function registerObjectStorageRoutes(app: Express): void {
           contentType: req.file.mimetype,
         },
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error in direct upload:", error);
-      res.status(500).json({ error: "Failed to upload file" });
+      const msg = error?.message || "";
+      if (msg.includes("subject_token") || msg.includes("credential_source")) {
+        res.status(503).json({ error: "ระบบจัดเก็บไฟล์ยังไม่พร้อม กรุณาลองอีกครั้งในอีกสักครู่" });
+      } else {
+        res.status(500).json({ error: "อัพโหลดไฟล์ไม่สำเร็จ กรุณาลองอีกครั้ง" });
+      }
     }
   });
 

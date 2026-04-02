@@ -55,12 +55,17 @@ function ImageUploadBox({ label, currentUrl, onUploaded, onClear, testId }: {
   label: string; currentUrl?: string | null; onUploaded: (path: string) => void; onClear: () => void; testId: string;
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
-  const { uploadFile, isUploading } = useUpload({ onSuccess: (r) => onUploaded(r.objectPath) });
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const { uploadFile, isUploading } = useUpload({
+    onSuccess: (r) => { setUploadError(null); onUploaded(r.objectPath); },
+    onError: (err) => setUploadError(err.message || "อัพโหลดไม่สำเร็จ"),
+  });
 
   const handleFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > 5 * 1024 * 1024) { alert("ไฟล์ต้องมีขนาดไม่เกิน 5MB"); return; }
+    setUploadError(null);
     await uploadFile(file);
     if (fileRef.current) fileRef.current.value = "";
   }, [uploadFile]);
@@ -92,6 +97,9 @@ function ImageUploadBox({ label, currentUrl, onUploaded, onClear, testId }: {
         </div>
       )}
       <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
+      {uploadError && (
+        <p className="text-xs text-rose-500 mt-1" data-testid={`error-${testId}`}>{uploadError}</p>
+      )}
     </div>
   );
 }
