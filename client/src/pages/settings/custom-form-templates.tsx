@@ -181,10 +181,10 @@ function emptyTemplate(companyId: number): FormTemplate {
 }
 
 export default function CustomFormTemplates() {
-  const { company } = useCompany();
+  const { selectedCompany } = useCompany();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const companyId = company?.id;
+  const companyId = selectedCompany?.id;
 
   const [editing, setEditing] = useState<FormTemplate | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);

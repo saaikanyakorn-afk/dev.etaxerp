@@ -4,7 +4,8 @@ import { useAuth } from "@/lib/auth";
 import { useLocation } from "wouter";
 import {
   Building2, Calculator, ShoppingCart, Monitor, Users,
-  LayoutGrid, Fuel, BarChart3, Truck, Lock, Sparkles
+  LayoutGrid, Fuel, BarChart3, Truck, Lock, Sparkles,
+  LogOut, Home
 } from "lucide-react";
 
 interface ModuleCard {
@@ -31,7 +32,7 @@ const MODULE_CARDS: ModuleCard[] = [
 ];
 
 export default function ModuleSelectPage() {
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, logout } = useAuth();
   const [, setLocation] = useLocation();
 
   const { data: permData, isLoading: permLoading } = useQuery<{ modules: string[]; subModules: string[] }>({
@@ -133,6 +134,25 @@ export default function ModuleSelectPage() {
               </button>
             );
           })}
+        </div>
+
+        <div className="flex items-center justify-center gap-3 mt-8">
+          <button
+            onClick={() => setLocation("/landing")}
+            className="flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-gray-500 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 hover:border-gray-300 transition-all"
+            data-testid="btn-back-landing"
+          >
+            <Home className="w-4 h-4" />
+            หน้าแรก
+          </button>
+          <button
+            onClick={async () => { await logout(); setLocation("/landing"); }}
+            className="flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-red-500 bg-white border border-red-200 rounded-xl hover:bg-red-50 hover:border-red-300 transition-all"
+            data-testid="btn-logout"
+          >
+            <LogOut className="w-4 h-4" />
+            ออกจากระบบ
+          </button>
         </div>
       </div>
     </div>
