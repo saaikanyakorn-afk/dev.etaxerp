@@ -58,6 +58,7 @@ import RegisterPage from "@/pages/register";
 const ChoosePlanPage = lazy(() => import("@/pages/choose-plan"));
 import PlatformDashboard from "@/pages/platform/dashboard";
 import PlatformTenants from "@/pages/platform/tenants";
+import TenantOverview from "@/pages/platform/tenant-overview";
 import ChatManagement from "@/pages/platform/chat-management";
 import PlatformSubscriptions from "@/pages/platform/subscriptions";
 import PlatformPaymentSettings from "@/pages/platform/payment-settings";
@@ -579,6 +580,7 @@ function Router() {
       <Route path="/login" component={Login} />
       <Route path="/platform" component={PlatformDashboard} />
       <Route path="/platform/tenants" component={PlatformTenants} />
+      <Route path="/platform/tenant-overview" component={TenantOverview} />
       <Route path="/platform/subscriptions" component={PlatformSubscriptions} />
       <Route path="/platform/payment-settings" component={PlatformPaymentSettings} />
       <Route path="/platform/chat" component={ChatManagement} />
