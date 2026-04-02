@@ -163,7 +163,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         .catch(() => {});
     };
     checkAlert();
-    const interval = setInterval(checkAlert, 30000);
+    const interval = setInterval(checkAlert, 300000);
     return () => clearInterval(interval);
   }, [isSuperAdmin, cloneAlertDismissed]);
 
