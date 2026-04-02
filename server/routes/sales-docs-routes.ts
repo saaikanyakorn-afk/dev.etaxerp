@@ -2654,75 +2654,121 @@ app.get("/api/related-documents/:docType/:docId", requireAuth, async (req, res) 
     } else if (docType === "invoice") {
       const [iv] = await db.select().from(invoices).where(and(eq(invoices.id, id), eq(invoices.companyId, companyId)));
       if (!iv) return res.status(404).json({ message: "Document not found" });
+      const seenIds = new Set<string>();
+      const addUnique = (doc: any) => {
+        const key = `${doc.type}-${doc.id}`;
+        if (!seenIds.has(key)) { seenIds.add(key); related.push(doc); }
+      };
       if (iv.quotationId) {
         const [qo] = await db.select().from(quotations).where(and(eq(quotations.id, iv.quotationId), eq(quotations.companyId, companyId)));
-        if (qo) related.push({ type: "quotation", id: qo.id, docNo: qo.quotationNo, date: qo.quotationDate, status: qo.status, totalAmount: qo.totalAmount });
+        if (qo) addUnique({ type: "quotation", id: qo.id, docNo: qo.quotationNo, date: qo.quotationDate, status: qo.status, totalAmount: qo.totalAmount });
       }
       if (iv.salesOrderId) {
         const [so] = await db.select().from(salesOrders).where(and(eq(salesOrders.id, iv.salesOrderId), eq(salesOrders.companyId, companyId)));
-        if (so) related.push({ type: "sales_order", id: so.id, docNo: so.orderNo, date: so.orderDate, status: so.status, totalAmount: so.totalAmount });
+        if (so) addUnique({ type: "sales_order", id: so.id, docNo: so.orderNo, date: so.orderDate, status: so.status, totalAmount: so.totalAmount });
+      }
+      if ((iv as any).refDoc && !iv.quotationId && !iv.salesOrderId) {
+        const refDocNo = (iv as any).refDoc.trim();
+        const qoByRef = await db.select().from(quotations).where(and(eq(quotations.quotationNo, refDocNo), eq(quotations.companyId, companyId)));
+        for (const qo of qoByRef) addUnique({ type: "quotation", id: qo.id, docNo: qo.quotationNo, date: qo.quotationDate, status: qo.status, totalAmount: qo.totalAmount });
+        const soByRef = await db.select().from(salesOrders).where(and(eq(salesOrders.orderNo, refDocNo), eq(salesOrders.companyId, companyId)));
+        for (const so of soByRef) addUnique({ type: "sales_order", id: so.id, docNo: so.orderNo, date: so.orderDate, status: so.status, totalAmount: so.totalAmount });
       }
       const txs = await db.select().from(taxInvoices).where(and(eq(taxInvoices.invoiceId, id), eq(taxInvoices.companyId, companyId)));
-      for (const tx of txs) related.push({ type: "tax_invoice", id: tx.id, docNo: tx.taxInvoiceNo, date: tx.taxInvoiceDate, status: tx.status, totalAmount: tx.totalAmount });
+      for (const tx of txs) addUnique({ type: "tax_invoice", id: tx.id, docNo: tx.taxInvoiceNo, date: tx.taxInvoiceDate, status: tx.status, totalAmount: tx.totalAmount });
+      const txsByRef = await db.select().from(taxInvoices).where(and(eq(taxInvoices.refDoc, iv.invoiceNo), eq(taxInvoices.companyId, companyId)));
+      for (const tx of txsByRef) addUnique({ type: "tax_invoice", id: tx.id, docNo: tx.taxInvoiceNo, date: tx.taxInvoiceDate, status: tx.status, totalAmount: tx.totalAmount });
       const rcs = await db.select().from(receipts).where(and(eq(receipts.invoiceId, id), eq(receipts.companyId, companyId)));
-      for (const rc of rcs) related.push({ type: "receipt", id: rc.id, docNo: rc.receiptNo, date: rc.receiptDate, status: rc.status, totalAmount: rc.totalAmount });
+      for (const rc of rcs) addUnique({ type: "receipt", id: rc.id, docNo: rc.receiptNo, date: rc.receiptDate, status: rc.status, totalAmount: rc.totalAmount });
+      const rcsByRef = await db.select().from(receipts).where(and(eq(receipts.refDoc, iv.invoiceNo), eq(receipts.companyId, companyId)));
+      for (const rc of rcsByRef) addUnique({ type: "receipt", id: rc.id, docNo: rc.receiptNo, date: rc.receiptDate, status: rc.status, totalAmount: rc.totalAmount });
 
     } else if (docType === "tax_invoice") {
       const [tx] = await db.select().from(taxInvoices).where(and(eq(taxInvoices.id, id), eq(taxInvoices.companyId, companyId)));
       if (!tx) return res.status(404).json({ message: "Document not found" });
+      const seenIds = new Set<string>();
+      const addUnique = (doc: any) => {
+        const key = `${doc.type}-${doc.id}`;
+        if (!seenIds.has(key)) { seenIds.add(key); related.push(doc); }
+      };
       if (tx.invoiceId) {
         const [iv] = await db.select().from(invoices).where(and(eq(invoices.id, tx.invoiceId), eq(invoices.companyId, companyId)));
         if (iv) {
-          related.push({ type: "invoice", id: iv.id, docNo: iv.invoiceNo, date: iv.invoiceDate, status: iv.status, totalAmount: iv.totalAmount });
+          addUnique({ type: "invoice", id: iv.id, docNo: iv.invoiceNo, date: iv.invoiceDate, status: iv.status, totalAmount: iv.totalAmount });
           if (iv.quotationId) {
             const [qo] = await db.select().from(quotations).where(and(eq(quotations.id, iv.quotationId), eq(quotations.companyId, companyId)));
-            if (qo) related.push({ type: "quotation", id: qo.id, docNo: qo.quotationNo, date: qo.quotationDate, status: qo.status, totalAmount: qo.totalAmount });
+            if (qo) addUnique({ type: "quotation", id: qo.id, docNo: qo.quotationNo, date: qo.quotationDate, status: qo.status, totalAmount: qo.totalAmount });
           }
           if (iv.salesOrderId) {
             const [so] = await db.select().from(salesOrders).where(and(eq(salesOrders.id, iv.salesOrderId), eq(salesOrders.companyId, companyId)));
-            if (so) related.push({ type: "sales_order", id: so.id, docNo: so.orderNo, date: so.orderDate, status: so.status, totalAmount: so.totalAmount });
+            if (so) addUnique({ type: "sales_order", id: so.id, docNo: so.orderNo, date: so.orderDate, status: so.status, totalAmount: so.totalAmount });
           }
         }
       }
+      if (tx.refDoc && !tx.invoiceId) {
+        const refDocNo = tx.refDoc.trim();
+        const ivByRef = await db.select().from(invoices).where(and(eq(invoices.invoiceNo, refDocNo), eq(invoices.companyId, companyId)));
+        for (const iv of ivByRef) {
+          addUnique({ type: "invoice", id: iv.id, docNo: iv.invoiceNo, date: iv.invoiceDate, status: iv.status, totalAmount: iv.totalAmount });
+          if (iv.quotationId) {
+            const [qo] = await db.select().from(quotations).where(and(eq(quotations.id, iv.quotationId), eq(quotations.companyId, companyId)));
+            if (qo) addUnique({ type: "quotation", id: qo.id, docNo: qo.quotationNo, date: qo.quotationDate, status: qo.status, totalAmount: qo.totalAmount });
+          }
+          if (iv.salesOrderId) {
+            const [so] = await db.select().from(salesOrders).where(and(eq(salesOrders.id, iv.salesOrderId), eq(salesOrders.companyId, companyId)));
+            if (so) addUnique({ type: "sales_order", id: so.id, docNo: so.orderNo, date: so.orderDate, status: so.status, totalAmount: so.totalAmount });
+          }
+        }
+        const qoByRef = await db.select().from(quotations).where(and(eq(quotations.quotationNo, refDocNo), eq(quotations.companyId, companyId)));
+        for (const qo of qoByRef) addUnique({ type: "quotation", id: qo.id, docNo: qo.quotationNo, date: qo.quotationDate, status: qo.status, totalAmount: qo.totalAmount });
+        const soByRef = await db.select().from(salesOrders).where(and(eq(salesOrders.orderNo, refDocNo), eq(salesOrders.companyId, companyId)));
+        for (const so of soByRef) addUnique({ type: "sales_order", id: so.id, docNo: so.orderNo, date: so.orderDate, status: so.status, totalAmount: so.totalAmount });
+      }
       const rcs = await db.select().from(receipts).where(and(eq(receipts.taxInvoiceId, id), eq(receipts.companyId, companyId)));
-      for (const rc of rcs) related.push({ type: "receipt", id: rc.id, docNo: rc.receiptNo, date: rc.receiptDate, status: rc.status, totalAmount: rc.totalAmount });
+      for (const rc of rcs) addUnique({ type: "receipt", id: rc.id, docNo: rc.receiptNo, date: rc.receiptDate, status: rc.status, totalAmount: rc.totalAmount });
+      const rcsByRef = await db.select().from(receipts).where(and(eq(receipts.refDoc, tx.taxInvoiceNo), eq(receipts.companyId, companyId)));
+      for (const rc of rcsByRef) addUnique({ type: "receipt", id: rc.id, docNo: rc.receiptNo, date: rc.receiptDate, status: rc.status, totalAmount: rc.totalAmount });
 
     } else if (docType === "receipt") {
       const [rc] = await db.select().from(receipts).where(and(eq(receipts.id, id), eq(receipts.companyId, companyId)));
       if (!rc) return res.status(404).json({ message: "Document not found" });
+      const seenIds = new Set<string>();
+      const addUnique = (doc: any) => {
+        const key = `${doc.type}-${doc.id}`;
+        if (!seenIds.has(key)) { seenIds.add(key); related.push(doc); }
+      };
       if (rc.invoiceId) {
         const [iv] = await db.select().from(invoices).where(and(eq(invoices.id, rc.invoiceId), eq(invoices.companyId, companyId)));
         if (iv) {
-          related.push({ type: "invoice", id: iv.id, docNo: iv.invoiceNo, date: iv.invoiceDate, status: iv.status, totalAmount: iv.totalAmount });
+          addUnique({ type: "invoice", id: iv.id, docNo: iv.invoiceNo, date: iv.invoiceDate, status: iv.status, totalAmount: iv.totalAmount });
           if (iv.quotationId) {
             const [qo] = await db.select().from(quotations).where(and(eq(quotations.id, iv.quotationId), eq(quotations.companyId, companyId)));
-            if (qo) related.push({ type: "quotation", id: qo.id, docNo: qo.quotationNo, date: qo.quotationDate, status: qo.status, totalAmount: qo.totalAmount });
+            if (qo) addUnique({ type: "quotation", id: qo.id, docNo: qo.quotationNo, date: qo.quotationDate, status: qo.status, totalAmount: qo.totalAmount });
           }
           if (iv.salesOrderId) {
             const [so] = await db.select().from(salesOrders).where(and(eq(salesOrders.id, iv.salesOrderId), eq(salesOrders.companyId, companyId)));
-            if (so) related.push({ type: "sales_order", id: so.id, docNo: so.orderNo, date: so.orderDate, status: so.status, totalAmount: so.totalAmount });
+            if (so) addUnique({ type: "sales_order", id: so.id, docNo: so.orderNo, date: so.orderDate, status: so.status, totalAmount: so.totalAmount });
           }
         }
       }
       if (rc.taxInvoiceId) {
         const [tx] = await db.select().from(taxInvoices).where(and(eq(taxInvoices.id, rc.taxInvoiceId), eq(taxInvoices.companyId, companyId)));
         if (tx) {
-          related.push({ type: "tax_invoice", id: tx.id, docNo: tx.taxInvoiceNo, date: tx.taxInvoiceDate, status: tx.status, totalAmount: tx.totalAmount });
+          addUnique({ type: "tax_invoice", id: tx.id, docNo: tx.taxInvoiceNo, date: tx.taxInvoiceDate, status: tx.status, totalAmount: tx.totalAmount });
           if (tx.invoiceId && tx.invoiceId !== rc.invoiceId) {
             const [iv2] = await db.select().from(invoices).where(and(eq(invoices.id, tx.invoiceId), eq(invoices.companyId, companyId)));
-            if (iv2) {
-              related.push({ type: "invoice", id: iv2.id, docNo: iv2.invoiceNo, date: iv2.invoiceDate, status: iv2.status, totalAmount: iv2.totalAmount });
-              if (iv2.quotationId) {
-                const [qo2] = await db.select().from(quotations).where(and(eq(quotations.id, iv2.quotationId), eq(quotations.companyId, companyId)));
-                if (qo2) related.push({ type: "quotation", id: qo2.id, docNo: qo2.quotationNo, date: qo2.quotationDate, status: qo2.status, totalAmount: qo2.totalAmount });
-              }
-              if (iv2.salesOrderId) {
-                const [so2] = await db.select().from(salesOrders).where(and(eq(salesOrders.id, iv2.salesOrderId), eq(salesOrders.companyId, companyId)));
-                if (so2) related.push({ type: "sales_order", id: so2.id, docNo: so2.orderNo, date: so2.orderDate, status: so2.status, totalAmount: so2.totalAmount });
-              }
-            }
+            if (iv2) addUnique({ type: "invoice", id: iv2.id, docNo: iv2.invoiceNo, date: iv2.invoiceDate, status: iv2.status, totalAmount: iv2.totalAmount });
           }
         }
+      }
+      if ((rc as any).refDoc && !rc.invoiceId && !rc.taxInvoiceId) {
+        const refDocNo = (rc as any).refDoc.trim();
+        const ivByRef = await db.select().from(invoices).where(and(eq(invoices.invoiceNo, refDocNo), eq(invoices.companyId, companyId)));
+        for (const iv of ivByRef) addUnique({ type: "invoice", id: iv.id, docNo: iv.invoiceNo, date: iv.invoiceDate, status: iv.status, totalAmount: iv.totalAmount });
+        const txByRef = await db.select().from(taxInvoices).where(and(eq(taxInvoices.taxInvoiceNo, refDocNo), eq(taxInvoices.companyId, companyId)));
+        for (const tx of txByRef) addUnique({ type: "tax_invoice", id: tx.id, docNo: tx.taxInvoiceNo, date: tx.taxInvoiceDate, status: tx.status, totalAmount: tx.totalAmount });
+        const qoByRef = await db.select().from(quotations).where(and(eq(quotations.quotationNo, refDocNo), eq(quotations.companyId, companyId)));
+        for (const qo of qoByRef) addUnique({ type: "quotation", id: qo.id, docNo: qo.quotationNo, date: qo.quotationDate, status: qo.status, totalAmount: qo.totalAmount });
       }
     } else if (docType === "purchase-request") {
       const [pr] = await db.select().from(purchaseRequests).where(and(eq(purchaseRequests.id, id), eq(purchaseRequests.companyId, companyId)));
