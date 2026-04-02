@@ -286,8 +286,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       return r.json();
     },
     enabled: !!user && !!selectedCompanyId,
-    refetchInterval: 300000,
-    staleTime: 120000,
+    refetchInterval: 900000,
+    staleTime: 300000,
   });
 
   const { data: clientUploadData } = useQuery<{ totalUnread: number }>({
