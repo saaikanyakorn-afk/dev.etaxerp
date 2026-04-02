@@ -590,6 +590,8 @@ export const documentSettings = pgTable("document_settings", {
   footerNoteEn: text("footer_note_en"),
   footerNoteZh: text("footer_note_zh"),
   paperSize: text("paper_size").notNull().default("A4"),
+  docFontSize: text("doc_font_size").notNull().default("medium"),
+  showQrOnDoc: boolean("show_qr_on_doc").notNull().default(true),
   bankAccountName: text("bank_account_name"),
   bankAccountNameEn: text("bank_account_name_en"),
   bankAccountNameZh: text("bank_account_name_zh"),
