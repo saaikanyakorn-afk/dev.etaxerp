@@ -63,7 +63,7 @@ app.post("/api/pdf/demo-generate", requireAuth, async (req, res) => {
     };
 
     const html = renderDocumentHtml(fakePdfOpts as any);
-    const pdfBuffer = await pdfService.generatePdf(html, { format: "A4", margin: { top: "0mm", right: "0mm", bottom: "0mm", left: "0mm" } });
+    const pdfBuffer = await pdfService.generatePdf(html, { format: "A4", printBackground: true, margin: { top: "0mm", right: "0mm", bottom: "0mm", left: "0mm" } });
     const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
     const endMem = process.memoryUsage();
     console.log(`[Demo PDF] Complete in ${elapsed}s — RSS: ${Math.round(startMem.rss / 1024 / 1024)}MB → ${Math.round(endMem.rss / 1024 / 1024)}MB, PDF size: ${pdfBuffer.length} bytes`);
@@ -204,7 +204,7 @@ app.get("/api/documents/:docType/:id/pdf", requireAuth, async (req, res) => {
 
     const docNo = pdfOpts.document.docNo || "document";
     const html = renderDocumentHtml(pdfOpts);
-    const pdfBuffer = await pdfService.generatePdf(html, { format: "A4", margin: { top: "0mm", right: "0mm", bottom: "0mm", left: "0mm" } });
+    const pdfBuffer = await pdfService.generatePdf(html, { format: "A4", printBackground: true, margin: { top: "0mm", right: "0mm", bottom: "0mm", left: "0mm" } });
     pdfOpts = null as any;
 
     if (companyId) {
@@ -246,7 +246,7 @@ app.get("/api/share/:docType/:token/pdf", async (req, res) => {
     let pdfOpts = await buildPdfDataByToken(docType, token, pt);
     const docNo = pdfOpts.document.docNo || "document";
     const html = renderDocumentHtml(pdfOpts);
-    const pdfBuffer = await pdfService.generatePdf(html, { format: "A4", margin: { top: "0mm", right: "0mm", bottom: "0mm", left: "0mm" } });
+    const pdfBuffer = await pdfService.generatePdf(html, { format: "A4", printBackground: true, margin: { top: "0mm", right: "0mm", bottom: "0mm", left: "0mm" } });
     pdfOpts = null as any;
     const filename = encodeURIComponent(`${docNo}.pdf`);
     res.set({
