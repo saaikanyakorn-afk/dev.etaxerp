@@ -1,54 +1,22 @@
 import { useState, useEffect } from "react";
 import { useParams, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Printer } from "lucide-react";
+import { ArrowLeft, Printer, Download } from "lucide-react";
 import Layout from "@/components/layout";
-import DocumentRenderer from "@/components/document-renderer";
+import NativePdfViewer from "@/components/native-pdf-viewer";
 import EDocumentActions from "@/components/e-document-actions";
 
 export default function ReceiptPdf() {
   const { id } = useParams<{ id: string }>();
   const [, navigate] = useLocation();
   const [data, setData] = useState<any>(null);
-  const [company, setCompany] = useState<any>(null);
-  const [docSettings, setDocSettings] = useState<any>({});
-  const [userSig, setUserSig] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     (async () => {
       try {
-        const [docRes, meRes] = await Promise.all([
-          fetch(`/api/receipts/${id}`, { credentials: "include" }),
-          fetch(`/api/auth/me`, { credentials: "include" }),
-        ]);
-
-        if (meRes.ok) {
-          const me = await meRes.json();
-          setUserSig({
-            signatureUrl: me.signatureUrl || null,
-            signatureName: me.signatureName || me.fullName,
-            signatureTitle: me.signatureTitle || null,
-          });
-        }
-
-        if (docRes.ok) {
-          const d = await docRes.json();
-          setData(d);
-
-          const [cRes, dsRes] = await Promise.all([
-            fetch(`/api/companies`, { credentials: "include" }),
-            fetch(`/api/document-settings/${d.companyId}`, { credentials: "include" }),
-          ]);
-
-          if (cRes.ok) {
-            const companies = await cRes.json();
-            setCompany(companies.find((co: any) => co.id === d.companyId) || null);
-          }
-          if (dsRes.ok) {
-            setDocSettings(await dsRes.json());
-          }
-        }
+        const res = await fetch(`/api/receipts/${id}`, { credentials: "include" });
+        if (res.ok) setData(await res.json());
       } catch {}
       setLoading(false);
     })();
@@ -57,10 +25,14 @@ export default function ReceiptPdf() {
   if (loading) return <Layout><div className="text-center py-12 text-slate-500">กำลังโหลด...</div></Layout>;
   if (!data) return <Layout><div className="text-center py-12 text-red-500">ไม่พบเอกสาร</div></Layout>;
 
+  const handleDownload = () => {
+    window.open(`/api/documents/receipt/${id}/pdf`, "_blank");
+  };
+
   return (
     <Layout>
-      <div className="space-y-4 print:!space-y-0">
-        <div className="flex items-center justify-between print:!hidden">
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
           <Button variant="ghost" size="sm" className="gap-1.5" onClick={() => navigate("/sales/receipt")}>
             <ArrowLeft className="h-4 w-4" /> กลับ
           </Button>
@@ -73,21 +45,16 @@ export default function ReceiptPdf() {
               customerName={data.customerName}
               compact
             />
+            <Button onClick={handleDownload} variant="outline" size="sm" className="gap-1.5" data-testid="button-download-pdf">
+              <Download className="h-4 w-4" /> ดาวน์โหลด PDF
+            </Button>
             <Button onClick={() => window.print()} variant="info" className="gap-1.5">
               <Printer className="h-4 w-4" /> สั่งพิมพ์
             </Button>
           </div>
         </div>
 
-        <div className="max-w-3xl mx-auto print:!max-w-none print:!m-0">
-          <DocumentRenderer
-            settings={docSettings}
-            company={company}
-            quotation={data}
-            documentType="receipt"
-            userSignature={userSig}
-          />
-        </div>
+        <NativePdfViewer docType="receipt" docId={Number(id)} />
       </div>
     </Layout>
   );
