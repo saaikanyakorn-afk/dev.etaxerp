@@ -147,9 +147,8 @@ class PuppeteerPdfService {
       if (cookies.length > 0) {
         await page.setCookie(...cookies);
       }
-      await page.goto(url, { waitUntil: "networkidle0", timeout: 30_000 });
+      await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30_000 });
       await page.evaluateHandle("document.fonts.ready");
-      await new Promise(r => setTimeout(r, 500));
 
       const pdfOptions: any = {
         printBackground: options.printBackground !== false,
@@ -212,7 +211,7 @@ class PuppeteerPdfService {
           ? item.html
           : item.html.replace("</head>", `<style>${fontFaces}</style></head>`);
 
-        await page.setContent(fullHtml, { waitUntil: "networkidle0", timeout: 20_000 });
+        await page.setContent(fullHtml, { waitUntil: "domcontentloaded", timeout: 15_000 });
         await page.evaluateHandle("document.fonts.ready");
 
         const pdfOptions: any = {
@@ -273,6 +272,16 @@ class PuppeteerPdfService {
     };
   }
 
+  async warmup() {
+    try {
+      console.log("[PDF Service] Pre-warming Chromium...");
+      await this.ensureBrowser();
+      console.log("[PDF Service] Chromium pre-warmed and ready");
+    } catch (err: any) {
+      console.log("[PDF Service] Warmup failed (will retry on first request):", err.message);
+    }
+  }
+
   async shutdown() {
     if (this.idleTimer) clearTimeout(this.idleTimer);
     this.queue.forEach(item => item.reject(new Error("Service shutting down")));
@@ -283,3 +292,7 @@ class PuppeteerPdfService {
 }
 
 export const pdfService = new PuppeteerPdfService();
+
+setTimeout(() => {
+  pdfService.warmup().catch(() => {});
+}, 10_000);
