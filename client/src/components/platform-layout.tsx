@@ -19,12 +19,14 @@ import {
   FolderArchive,
   Server,
   CreditCard,
+  Eye,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 const PLATFORM_NAV = [
   { icon: LayoutDashboard, label: "ภาพรวมแพลตฟอร์ม", href: "/platform" },
   { icon: Building2, label: "จัดการ Tenant", href: "/platform/tenants" },
+  { icon: Eye, label: "ภาพรวมลูกค้า & ข้อมูล", href: "/platform/tenant-overview" },
   { icon: Crown, label: "จัดการแพ็คเกจ", href: "/platform/subscriptions" },
   { icon: CreditCard, label: "ตั้งค่าการชำระเงิน", href: "/platform/payment-settings" },
   { icon: MessageCircle, label: "แชทสนับสนุน", href: "/platform/chat" },

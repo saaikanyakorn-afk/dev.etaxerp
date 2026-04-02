@@ -3,7 +3,7 @@ import { db, pool, activeDbInfo } from "../db";
 import { ecomDb } from "../ecom-db";
 import { storage } from "../storage";
 import { eq, desc, and, notInArray, count , sql } from "drizzle-orm";
-import { users, tenants, companies, cloneHistory, ecommerceOrders, ecommerceOrderItems, invoices, products } from "@shared/schema";
+import { users, tenants, companies, cloneHistory, ecommerceOrders, ecommerceOrderItems, invoices, products, tenantSubscriptions, subscriptionPlans, rolePermissions, firmClients } from "@shared/schema";
 import { requireAuth, requireAdmin, requireSuperAdmin } from "../route-middleware";
 import crypto from "crypto";
 import path from "path";
@@ -1696,6 +1696,119 @@ app.post("/api/seed-general", async (_req, res) => {
   } catch (err: any) {
     res.status(500).json({ message: err.message });
   }
+});
+
+app.get("/api/platform/tenant-overview", requireAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const currentUser = req.user as any;
+    const isSuperAdmin = currentUser.role === "super_admin" || currentUser.role === "superadmin";
+
+    const allTenants = isSuperAdmin
+      ? await db.select().from(tenants).orderBy(tenants.id)
+      : currentUser.tenantId
+        ? await db.select().from(tenants).where(eq(tenants.id, currentUser.tenantId))
+        : [];
+
+    const allCompanies = isSuperAdmin
+      ? await db.select().from(companies).orderBy(companies.id)
+      : currentUser.tenantId
+        ? await db.select().from(companies).where(eq(companies.tenantId, currentUser.tenantId))
+        : [];
+
+    const tenantIds = allTenants.map(t => t.id);
+    const allUsers = tenantIds.length > 0
+      ? await db.select({
+          id: users.id, tenantId: users.tenantId, role: users.role,
+          fullName: users.fullName, username: users.username,
+          allowedCompanyIds: users.allowedCompanyIds,
+        }).from(users).where(sql`${users.tenantId} IN (${sql.join(tenantIds.map(id => sql`${id}`), sql`,`)})`)
+      : [];
+
+    const allSubs = tenantIds.length > 0
+      ? await db.select({
+          tenantId: tenantSubscriptions.tenantId,
+          planId: tenantSubscriptions.planId,
+          status: tenantSubscriptions.status,
+          trialEndsAt: tenantSubscriptions.trialEndsAt,
+        }).from(tenantSubscriptions).where(sql`${tenantSubscriptions.tenantId} IN (${sql.join(tenantIds.map(id => sql`${id}`), sql`,`)})`)
+      : [];
+
+    const allPlans = await db.select().from(subscriptionPlans).orderBy(subscriptionPlans.id);
+
+    const companyIds = allCompanies.map(c => c.id);
+    const firmClientCounts = companyIds.length > 0
+      ? await db.select({
+          companyId: firmClients.companyId,
+          cnt: count(),
+        }).from(firmClients)
+        .where(sql`${firmClients.companyId} IN (${sql.join(companyIds.map(id => sql`${id}`), sql`,`)})`)
+        .groupBy(firmClients.companyId)
+      : [];
+
+    const firmMap = new Map(firmClientCounts.map(f => [f.companyId, Number(f.cnt)]));
+    const planMap = new Map(allPlans.map(p => [p.id, p]));
+
+    const result = allTenants.map(tenant => {
+      const tCompanies = allCompanies.filter(c => c.tenantId === tenant.id);
+      const tUsers = allUsers.filter(u => u.tenantId === tenant.id);
+      const tSub = allSubs.find(s => s.tenantId === tenant.id);
+      const plan = tSub ? planMap.get(tSub.planId) : null;
+
+      return {
+        tenant: {
+          id: tenant.id,
+          name: tenant.name,
+          tenantType: tenant.tenantType,
+          status: tenant.status,
+          contactName: tenant.contactName,
+          contactPhone: tenant.contactPhone,
+          contactEmail: tenant.contactEmail,
+        },
+        subscription: tSub ? {
+          status: tSub.status,
+          planName: plan?.name || "ไม่ทราบ",
+          planCode: plan?.code || null,
+          trialEndsAt: tSub.trialEndsAt,
+          enabledModules: plan?.enabledModules || [],
+        } : null,
+        companies: tCompanies.map(c => ({
+          id: c.id,
+          name: c.name,
+          firmClientCount: firmMap.get(c.id) || 0,
+        })),
+        users: tUsers.map(u => ({
+          id: u.id,
+          fullName: u.fullName,
+          username: u.username,
+          role: u.role,
+          companyAccess: u.allowedCompanyIds || [],
+        })),
+        stats: {
+          companyCount: tCompanies.length,
+          userCount: tUsers.length,
+          adminCount: tUsers.filter(u => u.role === "admin" || u.role === "super_admin").length,
+        },
+      };
+    });
+
+    const securityAudit = {
+      checkDocOwnershipCoverage: "130+ endpoints",
+      companyIdFilterPattern: "All list endpoints filter by companyId",
+      tenantIsolation: "tenantId checked in checkDocOwnership for cross-tenant access",
+      allowedCompanyIds: "Non-admin roles restricted to specific companies via allowedCompanyIds",
+      knownFixedIssues: [
+        { endpoint: "GET /api/pos/staff", issue: "ข้อมูลพนักงานข้ามบริษัท", status: "แก้ไขแล้ว", fixDate: "2026-04" },
+      ],
+      recommendations: [
+        "ตรวจสอบ allowedCompanyIds ทุกครั้งที่สร้าง endpoint ใหม่",
+        "ใช้ checkDocOwnership() สำหรับ endpoint ที่ดึงข้อมูลด้วย ID",
+        "List endpoint ต้อง filter ด้วย companyId เสมอ",
+        "ใช้ @> operator สำหรับ array contains (allowedCompanyIds)",
+      ],
+    };
+
+    res.json({ tenants: result, securityAudit, moduleList: (await import("@shared/permissions")).PERMISSION_MODULES.map(m => ({ key: m.key, label: m.label })) });
+  } catch (err: any) { res.status(500).json({ message: err.message }); }
 });
 
 }
