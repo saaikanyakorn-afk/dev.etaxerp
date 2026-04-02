@@ -111,7 +111,7 @@ export default function ChatWidget() {
       if (!res.ok) return { count: 0 };
       return res.json();
     },
-    refetchInterval: open ? false : 300000,
+    refetchInterval: false,
     enabled: !!user,
     staleTime: 120000,
   });
