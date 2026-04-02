@@ -113,52 +113,9 @@ export default function EDocumentActions({
     };
   }, []);
 
-  const handleDownloadPdf = useCallback(async () => {
-    if (abortRef.current) abortRef.current.abort();
-    const controller = new AbortController();
-    abortRef.current = controller;
-
-    setDownloading(true);
-    setElapsedSec(0);
-    setPdfError(null);
-
-    const startTime = Date.now();
-    timerRef.current = setInterval(() => {
-      setElapsedSec(Math.floor((Date.now() - startTime) / 1000));
-    }, 1000);
-
-    try {
-      const res = await fetch(`/api/documents/${documentType}/${documentId}/pdf`, {
-        credentials: "include",
-        signal: controller.signal,
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ message: "ไม่สามารถสร้าง PDF ได้" }));
-        throw new Error(err.message);
-      }
-      const blob = await res.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `${docNo}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      a.remove();
-      toast({ title: "ดาวน์โหลด PDF สำเร็จ", variant: "success" as any });
-    } catch (err: any) {
-      if (err.name === "AbortError") return;
-      const classified = classifyError(err, controller.signal.aborted);
-      setPdfError(classified);
-    } finally {
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-        timerRef.current = null;
-      }
-      setDownloading(false);
-      abortRef.current = null;
-    }
-  }, [documentType, documentId, docNo, toast]);
+  const handleDownloadPdf = useCallback(() => {
+    window.print();
+  }, []);
 
   const handleCancelDownload = useCallback(() => {
     if (abortRef.current) {
@@ -347,38 +304,16 @@ export default function EDocumentActions({
   );
 
   const downloadButton = (size: "sm" | "default" = "sm") => (
-    <div className="relative inline-flex items-center">
-      <Button
-        variant="outline"
-        size={size}
-        className={`gap-1.5 ${compact ? "text-sm" : ""}`}
-        onClick={handleDownloadPdf}
-        disabled={downloading}
-        data-testid="btn-download-pdf"
-      >
-        {downloading ? (
-          <>
-            <Loader2 className={`${compact ? "h-3.5 w-3.5" : "h-4 w-4"} animate-spin`} />
-            <span>กำลังสร้าง PDF{elapsedSec > 0 ? ` (${elapsedSec}s)` : "..."}</span>
-          </>
-        ) : (
-          <>
-            <Download className={`${compact ? "h-3.5 w-3.5" : "h-4 w-4"} ${compact ? "" : "text-[#05b187]"}`} />
-            {compact ? "PDF" : "ดาวน์โหลด PDF"}
-          </>
-        )}
-      </Button>
-      {downloading && (
-        <button
-          onClick={handleCancelDownload}
-          className="ml-1 p-1 rounded-full hover:bg-red-100 text-red-500 transition-colors"
-          title="ยกเลิก"
-          data-testid="btn-cancel-pdf"
-        >
-          <X className="h-3.5 w-3.5" />
-        </button>
-      )}
-    </div>
+    <Button
+      variant="outline"
+      size={size}
+      className={`gap-1.5 ${compact ? "text-sm" : ""}`}
+      onClick={handleDownloadPdf}
+      data-testid="btn-download-pdf"
+    >
+      <Download className={`${compact ? "h-3.5 w-3.5" : "h-4 w-4"} ${compact ? "" : "text-[#05b187]"}`} />
+      {compact ? "PDF" : "บันทึก PDF / พิมพ์"}
+    </Button>
   );
 
   if (compact) {

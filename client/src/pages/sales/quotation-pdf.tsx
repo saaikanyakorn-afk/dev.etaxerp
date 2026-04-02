@@ -64,7 +64,7 @@ export default function QuotationPdf() {
             <ArrowLeft className="h-4 w-4" /> กลับ
           </Button>
           <Button onClick={() => window.print()} variant="info" className="gap-1.5">
-            <Printer className="h-4 w-4" /> สั่งพิมพ์
+            <Printer className="h-4 w-4" /> บันทึก PDF / พิมพ์
           </Button>
         </div>
 
