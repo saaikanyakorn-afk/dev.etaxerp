@@ -63,7 +63,7 @@ export default function SalesOrderPdf() {
           <Button variant="ghost" size="sm" className="gap-1.5" onClick={() => navigate("/sales/order")}>
             <ArrowLeft className="h-4 w-4" /> กลับ
           </Button>
-          <Button onClick={() => window.print()} variant="info" className="gap-1.5" data-testid="button-print">
+          <Button onClick={() => { const t = document.title; document.title = data.salesOrderNo || t; window.print(); document.title = t; }} variant="info" className="gap-1.5" data-testid="button-print">
             <Printer className="h-4 w-4" /> บันทึก PDF / พิมพ์
           </Button>
         </div>

@@ -96,7 +96,7 @@ export default function BillingNotePdf() {
             <ArrowLeft className="h-4 w-4" /> กลับ
           </Button>
           <div className="flex items-center gap-2">
-            <Button onClick={() => window.print()} variant="info" className="gap-1.5" data-testid="button-print">
+            <Button onClick={() => { const t = document.title; document.title = data.billingNoteNo || t; window.print(); document.title = t; }} variant="info" className="gap-1.5" data-testid="button-print">
               <Printer className="h-4 w-4" /> บันทึก PDF / พิมพ์
             </Button>
           </div>
