@@ -612,6 +612,18 @@ export const documentSettings = pgTable("document_settings", {
   certSignerPosition: text("cert_signer_position"),
   showProductCode: boolean("show_product_code").notNull().default(true),
   docPrefixes: text("doc_prefixes"),
+  posReceiptWidth: text("pos_receipt_width").notNull().default("80mm"),
+  posReceiptShowLogo: boolean("pos_receipt_show_logo").notNull().default(true),
+  posReceiptShowCompanyInfo: boolean("pos_receipt_show_company_info").notNull().default(true),
+  posReceiptShowQr: boolean("pos_receipt_show_qr").notNull().default(true),
+  posReceiptHeaderText: text("pos_receipt_header_text"),
+  posReceiptFooterText: text("pos_receipt_footer_text"),
+  posReceiptAutoPrint: boolean("pos_receipt_auto_print").notNull().default(false),
+  posReceiptPrefix: text("pos_receipt_prefix").notNull().default("POS"),
+  ecDocPrefix: text("ec_doc_prefix").notNull().default("EC"),
+  ecReceiptShowLogo: boolean("ec_receipt_show_logo").notNull().default(true),
+  ecReceiptHeaderText: text("ec_receipt_header_text"),
+  ecReceiptFooterText: text("ec_receipt_footer_text"),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 

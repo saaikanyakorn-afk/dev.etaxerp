@@ -29,6 +29,10 @@ interface DocSettings {
   headerNote?: string | null;
   footerNote?: string | null;
   signatureUrl?: string | null;
+  ecDocPrefix?: string | null;
+  ecReceiptShowLogo?: boolean;
+  ecReceiptHeaderText?: string | null;
+  ecReceiptFooterText?: string | null;
 }
 
 function ImageUploadBox({ label, currentUrl, onUploaded, onClear, testId }: {
@@ -519,6 +523,57 @@ export default function EcommerceSettings() {
                     onChange={e => updateDocLocal("footerNote", e.target.value)}
                     rows={2} placeholder="ข้อความที่จะแสดงด้านล่างเอกสาร"
                     data-testid="input-footer-note"
+                  />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="rounded-xl border-cyan-200 bg-cyan-50/30">
+              <CardHeader className="pb-4">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Receipt className="h-4 w-4 text-cyan-600" />
+                  ตั้งค่าเอกสาร eCommerce
+                </CardTitle>
+                <p className="text-xs text-muted-foreground">Prefix และข้อความสำหรับเอกสารที่ออกจากโมดูล eCommerce โดยเฉพาะ</p>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <Label className="text-xs text-muted-foreground">Prefix เลขที่เอกสาร eCommerce</Label>
+                  <Input
+                    value={localDocSettings?.ecDocPrefix || "EC"}
+                    onChange={e => updateDocLocal("ecDocPrefix", e.target.value)}
+                    placeholder="EC"
+                    data-testid="input-ec-prefix"
+                  />
+                  <p className="text-[10px] text-muted-foreground mt-1">ตัวอย่าง: {localDocSettings?.ecDocPrefix || "EC"}-TIV-250402-0001</p>
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground">ข้อความหัวเอกสาร eCommerce</Label>
+                  <Textarea
+                    value={localDocSettings?.ecReceiptHeaderText || ""}
+                    onChange={e => updateDocLocal("ecReceiptHeaderText", e.target.value)}
+                    rows={2} placeholder="ข้อความเพิ่มเติมด้านบนเอกสาร eCommerce"
+                    data-testid="input-ec-header"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground">ข้อความท้ายเอกสาร eCommerce</Label>
+                  <Textarea
+                    value={localDocSettings?.ecReceiptFooterText || ""}
+                    onChange={e => updateDocLocal("ecReceiptFooterText", e.target.value)}
+                    rows={2} placeholder="เช่น ขอบคุณที่สั่งซื้อ ติดตามพัสดุที่..."
+                    data-testid="input-ec-footer"
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium">แสดงโลโก้บนเอกสาร eCommerce</p>
+                    <p className="text-xs text-muted-foreground">ใช้โลโก้เดียวกับที่ตั้งค่าด้านบน</p>
+                  </div>
+                  <Switch
+                    checked={localDocSettings?.ecReceiptShowLogo ?? true}
+                    onCheckedChange={v => updateDocLocal("ecReceiptShowLogo", v)}
+                    data-testid="switch-ec-show-logo"
                   />
                 </div>
               </CardContent>
