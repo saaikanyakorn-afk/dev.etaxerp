@@ -195,55 +195,70 @@ class PuppeteerPdfService {
   }
 
   private async doGenerate(item: QueueItem): Promise<Buffer> {
-    const browser = await this.ensureBrowser();
-    let page: Page | null = null;
-    try {
-      page = await browser.newPage();
+    const maxRetries = 2;
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      let page: Page | null = null;
+      try {
+        if (attempt > 0) {
+          await this.closeBrowser();
+          await new Promise(r => setTimeout(r, 500));
+        }
+        const browser = await this.ensureBrowser();
+        if (this.idleTimer) clearTimeout(this.idleTimer);
+        page = await browser.newPage();
 
-      const fontFaces = getFontFaces();
-      const fullHtml = item.html.includes("@font-face")
-        ? item.html
-        : item.html.replace("</head>", `<style>${fontFaces}</style></head>`);
+        const fontFaces = getFontFaces();
+        const fullHtml = item.html.includes("@font-face")
+          ? item.html
+          : item.html.replace("</head>", `<style>${fontFaces}</style></head>`);
 
-      await page.setContent(fullHtml, { waitUntil: "networkidle0", timeout: 15_000 });
-      await page.evaluateHandle("document.fonts.ready");
+        await page.setContent(fullHtml, { waitUntil: "networkidle0", timeout: 20_000 });
+        await page.evaluateHandle("document.fonts.ready");
 
-      const pdfOptions: any = {
-        printBackground: item.options.printBackground !== false,
-        preferCSSPageSize: false,
-      };
+        const pdfOptions: any = {
+          printBackground: item.options.printBackground !== false,
+          preferCSSPageSize: false,
+        };
 
-      if (item.options.width && item.options.height) {
-        pdfOptions.width = item.options.width;
-        pdfOptions.height = item.options.height;
-      } else {
-        pdfOptions.format = item.options.format || "A4";
-      }
+        if (item.options.width && item.options.height) {
+          pdfOptions.width = item.options.width;
+          pdfOptions.height = item.options.height;
+        } else {
+          pdfOptions.format = item.options.format || "A4";
+        }
 
-      if (item.options.landscape) {
-        pdfOptions.landscape = true;
-      }
+        if (item.options.landscape) {
+          pdfOptions.landscape = true;
+        }
 
-      pdfOptions.margin = item.options.margin || {
-        top: "10mm",
-        right: "10mm",
-        bottom: "10mm",
-        left: "10mm",
-      };
+        pdfOptions.margin = item.options.margin || {
+          top: "10mm",
+          right: "10mm",
+          bottom: "10mm",
+          left: "10mm",
+        };
 
-      const pdfBuffer = await page.pdf(pdfOptions);
-      this.totalGenerated++;
-      this.resetIdleTimer();
-      return Buffer.from(pdfBuffer);
-    } catch (err: any) {
-      this.errors++;
-      console.error("[PDF Service] Generation error:", err.message);
-      throw err;
-    } finally {
-      if (page) {
-        try { await page.close(); } catch {}
+        const pdfBuffer = await page.pdf(pdfOptions);
+        this.totalGenerated++;
+        this.resetIdleTimer();
+        return Buffer.from(pdfBuffer);
+      } catch (err: any) {
+        if (page) { try { await page.close(); } catch {} page = null; }
+        const isRetryable = err.message?.includes("detached") || err.message?.includes("disconnected") || err.message?.includes("closed") || err.message?.includes("Target closed");
+        if (isRetryable && attempt < maxRetries) {
+          console.log(`[PDF Service] Retrying (attempt ${attempt + 1}/${maxRetries}): ${err.message}`);
+          continue;
+        }
+        this.errors++;
+        console.error("[PDF Service] Generation error:", err.message);
+        throw err;
+      } finally {
+        if (page) {
+          try { await page.close(); } catch {}
+        }
       }
     }
+    throw new Error("PDF generation failed after retries");
   }
 
   getStats() {
