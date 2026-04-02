@@ -245,6 +245,23 @@ export interface AutoJournalParams {
 }
 
 export async function createAutoJournalEntry(params: AutoJournalParams): Promise<{ journalEntryId: number | null; skipped: boolean; reason?: string }> {
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      return await _createAutoJournalEntryInner(params);
+    } catch (err: any) {
+      const isConnTimeout = err.message?.includes("timeout") && err.message?.includes("connect");
+      if (isConnTimeout && attempt < 3) {
+        console.warn(`[AutoJournal] Connection timeout, retry ${attempt}/3...`);
+        await new Promise(r => setTimeout(r, 500 * attempt));
+        continue;
+      }
+      throw err;
+    }
+  }
+  return { journalEntryId: null, skipped: true, reason: "retry exhausted" };
+}
+
+async function _createAutoJournalEntryInner(params: AutoJournalParams): Promise<{ journalEntryId: number | null; skipped: boolean; reason?: string }> {
   const {
     companyId, documentType, sourceDocType, sourceDocId,
     docDate, docNo, subtotal, vatAmount, totalAmount, withholdingTax,
