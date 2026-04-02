@@ -67,12 +67,13 @@ export default function PosStaff() {
   });
 
   const { data: staff = [], isLoading } = useQuery<StaffMember[]>({
-    queryKey: ["/api/pos/staff"],
+    queryKey: ["/api/pos/staff", selectedCompanyId],
     queryFn: async () => {
-      const r = await fetch("/api/pos/staff", { credentials: "include" });
+      const r = await fetch(`/api/pos/staff?companyId=${selectedCompanyId}`, { credentials: "include" });
       if (!r.ok) return [];
       return r.json();
     },
+    enabled: !!selectedCompanyId,
   });
 
   const { data: branches = [] } = useQuery<Branch[]>({
@@ -97,7 +98,7 @@ export default function PosStaff() {
       return r.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/pos/staff"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/pos/staff", selectedCompanyId] });
       toast({ title: "สร้างพนักงานสำเร็จ", variant: "success" as any });
       resetForm();
     },
@@ -116,7 +117,7 @@ export default function PosStaff() {
       return r.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/pos/staff"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/pos/staff", selectedCompanyId] });
       toast({ title: "อัปเดตพนักงานสำเร็จ", variant: "success" as any });
       resetForm();
     },
@@ -137,7 +138,7 @@ export default function PosStaff() {
       return r.json();
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/pos/staff"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/pos/staff", selectedCompanyId] });
       setShowImportResult(data);
       toast({ title: "นำเข้าสำเร็จ", description: `สร้าง ${data.created} คน, ข้าม ${data.skipped} คน`, variant: "success" as any });
     },

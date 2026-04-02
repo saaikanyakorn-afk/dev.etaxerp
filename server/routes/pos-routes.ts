@@ -1486,6 +1486,13 @@ export function registerPosRoutes(app: Express) {
       const tenantId = currentUser.tenantId;
       if (!tenantId) return res.status(403).json({ message: "ไม่มีสิทธิ์" });
 
+      const companyId = Number(req.query.companyId);
+
+      const conditions = [eq(users.tenantId, tenantId)];
+      if (companyId) {
+        conditions.push(sql`${users.allowedCompanyIds} @> ARRAY[${companyId}]::int[]`);
+      }
+
       const allUsers = await db.select({
         id: users.id,
         username: users.username,
@@ -1494,14 +1501,16 @@ export function registerPosRoutes(app: Express) {
         active: users.active,
         allowedCompanyIds: users.allowedCompanyIds,
         allowedBranchIds: users.allowedBranchIds,
-      }).from(users).where(eq(users.tenantId, tenantId));
+      }).from(users).where(and(...conditions));
 
-      const allBranches = await db.select().from(branches);
+      const companyBranches = companyId
+        ? await db.select().from(branches).where(eq(branches.companyId, companyId))
+        : await db.select().from(branches);
 
       const staffList = allUsers.map(u => ({
         ...u,
         branchNames: u.allowedBranchIds?.map(bid => {
-          const b = allBranches.find(br => br.id === bid);
+          const b = companyBranches.find(br => br.id === bid);
           return b ? b.name : `สาขา #${bid}`;
         }) || [],
       }));
