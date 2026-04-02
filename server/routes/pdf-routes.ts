@@ -3,8 +3,9 @@ import { db } from "../db";
 import { eq, desc, and } from "drizzle-orm";
 import { invoices, taxInvoices, receipts, quotations, salesOrders, purchaseInvoices, expenses, companies, purchaseRequests, purchaseOrders, documentDeliveryLogs } from "@shared/schema";
 import { requireAuth, checkDocOwnership } from "../route-middleware";
-import { generatePdfDirect } from "../pdf-react-generator";
 import { buildPdfDataById, buildPdfDataByToken } from "../pdf-data-fetcher";
+import { renderDocumentHtml } from "../pdf-html-renderer";
+import { pdfService } from "../pdf-puppeteer-service";
 
 export function registerPdfRoutes(app: Express) {
 
@@ -61,7 +62,8 @@ app.post("/api/pdf/demo-generate", requireAuth, async (req, res) => {
       documentType: "tax_invoice",
     };
 
-    const pdfBuffer = await generatePdfDirect(fakePdfOpts as any);
+    const html = renderDocumentHtml(fakePdfOpts as any);
+    const pdfBuffer = await pdfService.generatePdf(html, { format: "A4", margin: { top: "0mm", right: "0mm", bottom: "0mm", left: "0mm" } });
     const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
     const endMem = process.memoryUsage();
     console.log(`[Demo PDF] Complete in ${elapsed}s — RSS: ${Math.round(startMem.rss / 1024 / 1024)}MB → ${Math.round(endMem.rss / 1024 / 1024)}MB, PDF size: ${pdfBuffer.length} bytes`);
@@ -190,14 +192,19 @@ app.get("/api/documents/:docType/:id/pdf", requireAuth, async (req, res) => {
     const user = req.user as any;
     const companyId = user?.companyId;
 
-    let pdfOpts = await buildPdfDataById(docType, docId);
+    const printType = String(req.query.printType || "");
+    const validPrintTypes = ["tax_invoice", "tax_invoice_receipt", "receipt", "invoice", "delivery_note"];
+    const pt = printType && validPrintTypes.includes(printType) ? printType : undefined;
+
+    let pdfOpts = await buildPdfDataById(docType, docId, pt);
 
     if (companyId && pdfOpts.company && Number(pdfOpts.company.id) !== Number(companyId)) {
       return res.status(403).json({ error: "ไม่มีสิทธิ์เข้าถึงเอกสารนี้" });
     }
 
     const docNo = pdfOpts.document.docNo || "document";
-    const pdfBuffer = await generatePdfDirect(pdfOpts);
+    const html = renderDocumentHtml(pdfOpts);
+    const pdfBuffer = await pdfService.generatePdf(html, { format: "A4", margin: { top: "0mm", right: "0mm", bottom: "0mm", left: "0mm" } });
     pdfOpts = null as any;
 
     if (companyId) {
@@ -238,7 +245,8 @@ app.get("/api/share/:docType/:token/pdf", async (req, res) => {
 
     let pdfOpts = await buildPdfDataByToken(docType, token, pt);
     const docNo = pdfOpts.document.docNo || "document";
-    const pdfBuffer = await generatePdfDirect(pdfOpts);
+    const html = renderDocumentHtml(pdfOpts);
+    const pdfBuffer = await pdfService.generatePdf(html, { format: "A4", margin: { top: "0mm", right: "0mm", bottom: "0mm", left: "0mm" } });
     pdfOpts = null as any;
     const filename = encodeURIComponent(`${docNo}.pdf`);
     res.set({
@@ -412,7 +420,8 @@ app.get("/api/test/pdf-concurrent", requireAuth, async (req, res) => {
       const t0 = Date.now();
       try {
         const pdfOpts = await buildPdfDataById(docType, docId);
-        const buf = await generatePdfDirect(pdfOpts);
+        const html = renderDocumentHtml(pdfOpts);
+        const buf = await pdfService.generatePdf(html, { format: "A4", margin: { top: "0mm", right: "0mm", bottom: "0mm", left: "0mm" } });
         return { index: i, success: true, ms: Date.now() - t0, bytes: buf.length };
       } catch (err: any) {
         return { index: i, success: false, ms: Date.now() - t0, error: err.message };
@@ -440,6 +449,83 @@ app.get("/api/test/pdf-concurrent", requireAuth, async (req, res) => {
       },
       results,
     });
+  } catch (err: any) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+app.post("/api/documents/batch-pdf", requireAuth, async (req, res) => {
+  try {
+    const { items } = req.body;
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ message: "กรุณาระบุรายการเอกสาร" });
+    }
+    if (items.length > 50) {
+      return res.status(400).json({ message: "สูงสุด 50 เอกสารต่อครั้ง" });
+    }
+
+    const user = req.user as any;
+    const companyId = user?.companyId;
+    const results: Array<{ docType: string; docId: number; docNo: string; success: boolean; error?: string }> = [];
+    const pdfBuffers: Array<{ filename: string; buffer: Buffer }> = [];
+
+    for (const item of items) {
+      const docType = String(item.docType || "");
+      const docId = Number(item.docId || 0);
+      const printType = item.printType || undefined;
+      try {
+        const pdfOpts = await buildPdfDataById(docType, docId, printType);
+        if (companyId && pdfOpts.company && Number(pdfOpts.company.id) !== Number(companyId)) {
+          results.push({ docType, docId, docNo: "", success: false, error: "ไม่มีสิทธิ์" });
+          continue;
+        }
+        const docNo = pdfOpts.document.docNo || "document";
+        const html = renderDocumentHtml(pdfOpts);
+        const buf = await pdfService.generatePdf(html, { format: "A4", margin: { top: "0mm", right: "0mm", bottom: "0mm", left: "0mm" } });
+        pdfBuffers.push({ filename: `${docNo}.pdf`, buffer: buf });
+        results.push({ docType, docId, docNo, success: true });
+      } catch (err: any) {
+        results.push({ docType, docId, docNo: "", success: false, error: err.message });
+      }
+    }
+
+    if (pdfBuffers.length === 1) {
+      const { filename, buffer } = pdfBuffers[0];
+      const enc = encodeURIComponent(filename);
+      res.set({
+        "Content-Type": "application/pdf",
+        "Content-Disposition": `attachment; filename="${enc}"; filename*=UTF-8''${enc}`,
+        "Content-Length": buffer.length.toString(),
+      });
+      return res.send(buffer);
+    }
+
+    if (pdfBuffers.length > 1) {
+      const archiver = (await import("archiver")).default;
+      const archive = archiver("zip", { zlib: { level: 1 } });
+      res.set({
+        "Content-Type": "application/zip",
+        "Content-Disposition": `attachment; filename="documents.zip"`,
+      });
+      archive.pipe(res);
+      for (const { filename, buffer } of pdfBuffers) {
+        archive.append(buffer, { name: filename });
+      }
+      await archive.finalize();
+      return;
+    }
+
+    res.status(400).json({ message: "ไม่สามารถสร้าง PDF ได้", results });
+  } catch (err: any) {
+    console.error("Batch PDF error:", err);
+    res.status(500).json({ message: "ไม่สามารถสร้าง PDF แบบ Batch ได้: " + err.message });
+  }
+});
+
+app.get("/api/pdf/stats", requireAuth, async (req, res) => {
+  try {
+    const stats = pdfService.getStats();
+    res.json(stats);
   } catch (err: any) {
     res.status(500).json({ message: err.message });
   }

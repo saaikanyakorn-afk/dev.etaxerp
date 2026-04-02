@@ -303,6 +303,9 @@ async function buildPdfDataFromDoc(
     colorMode: docSetting?.colorMode || null,
     dateEra: docSetting?.dateEra || null,
     dateFormat: docSetting?.dateFormat || null,
+    docFontSize: docSetting?.docFontSize || "medium",
+    showQrOnDoc: docSetting?.showQrOnDoc !== false,
+    qrBase64: qrCodeBase64 || promptpayQrBase64 || null,
   };
 
   const custBranch = doc.branch || doc.customerBranch || "";
