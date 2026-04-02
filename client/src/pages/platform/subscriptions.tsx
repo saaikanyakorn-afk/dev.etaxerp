@@ -150,7 +150,7 @@ function formatPrice(price: string) {
   return `฿${num.toLocaleString()}`;
 }
 
-type TabKey = "plans" | "members" | "payments" | "addons";
+type TabKey = "plans" | "modules" | "members" | "payments" | "addons";
 
 export default function PlatformSubscriptions() {
   const { toast } = useToast();
@@ -165,6 +165,10 @@ export default function PlatformSubscriptions() {
   const [createPlanOpen, setCreatePlanOpen] = useState(false);
   const [createForm, setCreateForm] = useState<Record<string, any>>({});
   const [deleteConfirm, setDeleteConfirm] = useState<Plan | null>(null);
+  const [editModulePlan, setEditModulePlan] = useState<any>(null);
+  const [modulePlanForm, setModulePlanForm] = useState<Record<string, any>>({});
+  const [createModulePlanOpen, setCreateModulePlanOpen] = useState(false);
+  const [deleteModuleConfirm, setDeleteModuleConfirm] = useState<any>(null);
   const [manageDialog, setManageDialog] = useState<{ sub: Subscription; action: "activate" | "extend" | "suspend" | "set-end-date" } | null>(null);
   const [editAddon, setEditAddon] = useState<Addon | null>(null);
   const [addonForm, setAddonForm] = useState<Partial<Addon>>({});
@@ -221,6 +225,30 @@ export default function PlatformSubscriptions() {
     staleTime: 0,
     refetchOnMount: "always",
     enabled: activeTab === "addons",
+  });
+
+  const { data: adminModulePlans = [] } = useQuery<any[]>({
+    queryKey: ["/api/admin/module-plans"],
+    queryFn: async () => {
+      const r = await fetch("/api/admin/module-plans", { credentials: "include" });
+      if (!r.ok) return [];
+      return r.json();
+    },
+    staleTime: 0,
+    refetchOnMount: "always",
+    enabled: activeTab === "modules",
+  });
+
+  const { data: moduleSubscriptions = [] } = useQuery<any[]>({
+    queryKey: ["/api/admin/module-subscriptions"],
+    queryFn: async () => {
+      const r = await fetch("/api/admin/module-subscriptions", { credentials: "include" });
+      if (!r.ok) return [];
+      return r.json();
+    },
+    staleTime: 0,
+    refetchOnMount: "always",
+    enabled: activeTab === "modules",
   });
 
   const updateAddon = useMutation({
@@ -349,6 +377,36 @@ export default function PlatformSubscriptions() {
       toast({ title: err.message, variant: "destructive" });
       setDeleteConfirm(null);
     },
+  });
+
+  const createModulePlanMutation = useMutation({
+    mutationFn: async (data: Record<string, any>) => {
+      const r = await fetch("/api/admin/module-plans", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(data) });
+      if (!r.ok) { const err = await r.json(); throw new Error(err.message || "Failed"); }
+      return r.json();
+    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/admin/module-plans"] }); toast({ title: "สร้างแพ็คเกจโมดูลสำเร็จ" }); setCreateModulePlanOpen(false); setModulePlanForm({}); },
+    onError: (err: Error) => toast({ title: err.message, variant: "destructive" }),
+  });
+
+  const updateModulePlanMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: Record<string, any> }) => {
+      const r = await fetch(`/api/admin/module-plans/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(data) });
+      if (!r.ok) { const err = await r.json(); throw new Error(err.message || "Failed"); }
+      return r.json();
+    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/admin/module-plans"] }); toast({ title: "บันทึกแพ็คเกจโมดูลสำเร็จ" }); setEditModulePlan(null); },
+    onError: (err: Error) => toast({ title: err.message, variant: "destructive" }),
+  });
+
+  const deleteModulePlanMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const r = await fetch(`/api/admin/module-plans/${id}`, { method: "DELETE", credentials: "include" });
+      if (!r.ok) { const err = await r.json(); throw new Error(err.message || "Failed"); }
+      return r.json();
+    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/admin/module-plans"] }); toast({ title: "ลบแพ็คเกจโมดูลสำเร็จ" }); setDeleteModuleConfirm(null); setEditModulePlan(null); },
+    onError: (err: Error) => { toast({ title: err.message, variant: "destructive" }); setDeleteModuleConfirm(null); },
   });
 
   const manageSub = useMutation({
@@ -491,6 +549,7 @@ export default function PlatformSubscriptions() {
 
   const tabs: { key: TabKey; label: string; badge?: number }[] = [
     { key: "plans", label: "แพ็คเกจ" },
+    { key: "modules", label: "โมดูลแยกขาย" },
     { key: "addons", label: "Add-on Module" },
     { key: "members", label: "สมาชิก" },
     { key: "payments", label: "รอยืนยันชำระเงิน", badge: pendingPaymentsCount },
@@ -691,6 +750,112 @@ export default function PlatformSubscriptions() {
             })}
           </>
         )}
+
+        {activeTab === "modules" && (() => {
+          const MODULE_LABELS: Record<string, string> = {
+            accounting: "บัญชี", hr: "HR บุคคล", ecommerce: "E-Commerce",
+            pos: "POS ขายหน้าร้าน", restaurant: "ร้านอาหาร",
+            "firm-mgmt": "บริหารสำนักงาน", warehouse: "คลังสินค้า",
+          };
+          const MODULE_COLORS: Record<string, string> = {
+            accounting: "#fb9678", hr: "#03c9d7", ecommerce: "#fec90f",
+            pos: "#05b187", restaurant: "#f94d4d", "firm-mgmt": "#539BFF", warehouse: "#8b5cf6",
+          };
+          const groupedModules = adminModulePlans.reduce<Record<string, any[]>>((acc, p) => {
+            (acc[p.moduleKey] = acc[p.moduleKey] || []).push(p);
+            return acc;
+          }, {});
+          const moduleKeys = Object.keys(MODULE_LABELS);
+          return (
+            <>
+              <div className="flex justify-end mb-2">
+                <Button
+                  className="bg-[#fb9678] hover:bg-[#f88565] gap-2"
+                  onClick={() => {
+                    setModulePlanForm({ moduleKey: "accounting", tier: "starter", name: "", monthlyPrice: "0", yearlyPrice: "0", maxUsers: 1, maxDocuments: 100, maxCompanies: 1 });
+                    setCreateModulePlanOpen(true);
+                  }}
+                  data-testid="btn-create-module-plan"
+                >
+                  <Plus className="w-4 h-4" />
+                  สร้างแพ็คเกจโมดูล
+                </Button>
+              </div>
+
+              {moduleKeys.map((mk) => {
+                const mPlans = groupedModules[mk];
+                if (!mPlans || mPlans.length === 0) return null;
+                const color = MODULE_COLORS[mk] || "#666";
+                const subCount = moduleSubscriptions.filter(s => s.moduleKey === mk).length;
+                return (
+                  <Card key={mk} className="border-t-4" style={{ borderTopColor: color }}>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-base flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Package className="w-5 h-5" style={{ color }} />
+                          {MODULE_LABELS[mk] || mk}
+                          <Badge variant="secondary" className="text-xs">{mPlans.length} แพ็คเกจ</Badge>
+                          {subCount > 0 && <Badge className="text-xs" style={{ backgroundColor: color + "18", color, border: `1px solid ${color}30` }}>{subCount} สมาชิก</Badge>}
+                        </div>
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                        {mPlans.map((mp: any) => {
+                          const msCount = moduleSubscriptions.filter(s => s.modulePlanId === mp.id).length;
+                          return (
+                            <div key={mp.id} className="border rounded-xl p-4 hover:shadow-sm transition-shadow" data-testid={`card-module-plan-${mp.id}`}>
+                              <div className="flex items-center justify-between mb-2">
+                                <div>
+                                  <p className="font-bold text-gray-900">{mp.name}</p>
+                                  <p className="text-xs text-gray-500">
+                                    <Badge variant="outline" className="text-[10px] mr-1" style={{ borderColor: color, color }}>{mp.tier}</Badge>
+                                    {mp.nameEn && <span className="text-gray-400">{mp.nameEn}</span>}
+                                  </p>
+                                </div>
+                                <div className="text-right">
+                                  <p className="font-bold" style={{ color }}>{formatPrice(mp.monthlyPrice)}<span className="text-xs font-normal text-gray-400">/ด.</span></p>
+                                  {mp.yearlyPrice && <p className="text-xs text-gray-400">{formatPrice(mp.yearlyPrice)}/ปี</p>}
+                                </div>
+                              </div>
+                              <div className="space-y-1 text-xs text-gray-500 mb-3">
+                                <div className="flex justify-between"><span>ผู้ใช้</span><span className="font-medium text-gray-700">{mp.maxUsers >= 999 ? "ไม่จำกัด" : mp.maxUsers}</span></div>
+                                <div className="flex justify-between"><span>เอกสาร</span><span className="font-medium text-gray-700">{mp.maxDocuments >= 999999 ? "ไม่จำกัด" : mp.maxDocuments?.toLocaleString()}</span></div>
+                                <div className="flex justify-between"><span>สมาชิกใช้อยู่</span><span className="font-bold" style={{ color }}>{msCount}</span></div>
+                              </div>
+                              {mp.popular && <Badge className="text-[10px] mb-2 bg-amber-100 text-amber-700 border-amber-300">POPULAR</Badge>}
+                              {!mp.active && <Badge variant="secondary" className="text-[10px] mb-2">ปิดใช้งาน</Badge>}
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="w-full text-xs gap-1"
+                                style={{ borderColor: color + "50", color }}
+                                onClick={() => { setEditModulePlan(mp); setModulePlanForm({ ...mp }); }}
+                                data-testid={`btn-edit-module-plan-${mp.id}`}
+                              >
+                                <Pencil className="w-3 h-3" />
+                                แก้ไข
+                              </Button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+
+              {adminModulePlans.length === 0 && (
+                <Card>
+                  <CardContent className="py-12 text-center text-gray-400">
+                    <Package className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                    <p>ยังไม่มีแพ็คเกจโมดูล กด "สร้างแพ็คเกจโมดูล" เพื่อเริ่มต้น</p>
+                  </CardContent>
+                </Card>
+              )}
+            </>
+          );
+        })()}
 
         {activeTab === "members" && (
           <Card>
@@ -1552,6 +1717,225 @@ export default function PlatformSubscriptions() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <Dialog open={createModulePlanOpen} onOpenChange={setCreateModulePlanOpen}>
+        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Plus className="w-5 h-5 text-[#fb9678]" />
+              สร้างแพ็คเกจโมดูล
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label className="text-sm font-medium text-gray-700">โมดูล</Label>
+                <Select value={modulePlanForm.moduleKey || "accounting"} onValueChange={(v) => setModulePlanForm({ ...modulePlanForm, moduleKey: v })}>
+                  <SelectTrigger className="mt-1" data-testid="select-module-plan-module"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {[
+                      { key: "accounting", label: "บัญชี" }, { key: "hr", label: "HR บุคคล" },
+                      { key: "ecommerce", label: "E-Commerce" }, { key: "pos", label: "POS" },
+                      { key: "restaurant", label: "ร้านอาหาร" }, { key: "firm-mgmt", label: "บริหารสำนักงาน" },
+                      { key: "warehouse", label: "คลังสินค้า" },
+                    ].map(m => <SelectItem key={m.key} value={m.key}>{m.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-sm font-medium text-gray-700">ระดับ (tier)</Label>
+                <Select value={modulePlanForm.tier || "starter"} onValueChange={(v) => setModulePlanForm({ ...modulePlanForm, tier: v })}>
+                  <SelectTrigger className="mt-1" data-testid="select-module-plan-tier"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="free">Free</SelectItem>
+                    <SelectItem value="starter">Starter</SelectItem>
+                    <SelectItem value="pro">Professional</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label className="text-sm font-medium text-gray-700">ชื่อแพ็คเกจ (ไทย)</Label>
+                <Input value={modulePlanForm.name || ""} onChange={(e) => setModulePlanForm({ ...modulePlanForm, name: e.target.value })} className="mt-1" data-testid="input-module-plan-name" />
+              </div>
+              <div>
+                <Label className="text-sm font-medium text-gray-700">ชื่อแพ็คเกจ (EN)</Label>
+                <Input value={modulePlanForm.nameEn || ""} onChange={(e) => setModulePlanForm({ ...modulePlanForm, nameEn: e.target.value })} className="mt-1" data-testid="input-module-plan-name-en" />
+              </div>
+            </div>
+            <div>
+              <Label className="text-sm font-medium text-gray-700">คำอธิบาย</Label>
+              <Input value={modulePlanForm.description || ""} onChange={(e) => setModulePlanForm({ ...modulePlanForm, description: e.target.value })} className="mt-1" data-testid="input-module-plan-desc" />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label className="text-sm font-medium text-gray-700">ราคา/เดือน (฿)</Label>
+                <Input type="number" value={modulePlanForm.monthlyPrice || "0"} onChange={(e) => setModulePlanForm({ ...modulePlanForm, monthlyPrice: e.target.value })} className="mt-1" data-testid="input-module-plan-monthly" />
+              </div>
+              <div>
+                <Label className="text-sm font-medium text-gray-700">ราคา/ปี (฿)</Label>
+                <Input type="number" value={modulePlanForm.yearlyPrice || "0"} onChange={(e) => setModulePlanForm({ ...modulePlanForm, yearlyPrice: e.target.value })} className="mt-1" data-testid="input-module-plan-yearly" />
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-4">
+              <div>
+                <Label className="text-sm font-medium text-gray-700">ผู้ใช้สูงสุด</Label>
+                <Input type="number" value={modulePlanForm.maxUsers || 1} onChange={(e) => setModulePlanForm({ ...modulePlanForm, maxUsers: parseInt(e.target.value) || 1 })} className="mt-1" data-testid="input-module-plan-users" />
+              </div>
+              <div>
+                <Label className="text-sm font-medium text-gray-700">เอกสารสูงสุด</Label>
+                <Input type="number" value={modulePlanForm.maxDocuments || 100} onChange={(e) => setModulePlanForm({ ...modulePlanForm, maxDocuments: parseInt(e.target.value) || 100 })} className="mt-1" data-testid="input-module-plan-docs" />
+              </div>
+              <div>
+                <Label className="text-sm font-medium text-gray-700">บริษัทสูงสุด</Label>
+                <Input type="number" value={modulePlanForm.maxCompanies || 1} onChange={(e) => setModulePlanForm({ ...modulePlanForm, maxCompanies: parseInt(e.target.value) || 1 })} className="mt-1" data-testid="input-module-plan-companies" />
+              </div>
+            </div>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <Switch checked={modulePlanForm.popular || false} onCheckedChange={(v) => setModulePlanForm({ ...modulePlanForm, popular: v })} />
+                <Label className="text-sm">แพ็คเกจยอดนิยม</Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <Switch checked={modulePlanForm.active !== false} onCheckedChange={(v) => setModulePlanForm({ ...modulePlanForm, active: v })} />
+                <Label className="text-sm">เปิดใช้งาน</Label>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCreateModulePlanOpen(false)}>ยกเลิก</Button>
+            <Button
+              className="bg-[#fb9678] hover:bg-[#f88565] gap-1"
+              disabled={!modulePlanForm.name || createModulePlanMutation.isPending}
+              onClick={() => createModulePlanMutation.mutate(modulePlanForm)}
+              data-testid="btn-submit-create-module-plan"
+            >
+              {createModulePlanMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+              สร้างแพ็คเกจ
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!editModulePlan} onOpenChange={() => setEditModulePlan(null)}>
+        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Pencil className="w-5 h-5 text-[#fb9678]" />
+              แก้ไขแพ็คเกจโมดูล: {editModulePlan?.name}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label className="text-sm font-medium text-gray-700">โมดูล</Label>
+                <Input value={modulePlanForm.moduleKey || ""} disabled className="mt-1 bg-gray-50" />
+              </div>
+              <div>
+                <Label className="text-sm font-medium text-gray-700">ระดับ (tier)</Label>
+                <Select value={modulePlanForm.tier || "starter"} onValueChange={(v) => setModulePlanForm({ ...modulePlanForm, tier: v })}>
+                  <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="free">Free</SelectItem>
+                    <SelectItem value="starter">Starter</SelectItem>
+                    <SelectItem value="pro">Professional</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label className="text-sm font-medium text-gray-700">ชื่อแพ็คเกจ (ไทย)</Label>
+                <Input value={modulePlanForm.name || ""} onChange={(e) => setModulePlanForm({ ...modulePlanForm, name: e.target.value })} className="mt-1" />
+              </div>
+              <div>
+                <Label className="text-sm font-medium text-gray-700">ชื่อแพ็คเกจ (EN)</Label>
+                <Input value={modulePlanForm.nameEn || ""} onChange={(e) => setModulePlanForm({ ...modulePlanForm, nameEn: e.target.value })} className="mt-1" />
+              </div>
+            </div>
+            <div>
+              <Label className="text-sm font-medium text-gray-700">คำอธิบาย</Label>
+              <Input value={modulePlanForm.description || ""} onChange={(e) => setModulePlanForm({ ...modulePlanForm, description: e.target.value })} className="mt-1" />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label className="text-sm font-medium text-gray-700">ราคา/เดือน (฿)</Label>
+                <Input type="number" value={modulePlanForm.monthlyPrice || "0"} onChange={(e) => setModulePlanForm({ ...modulePlanForm, monthlyPrice: e.target.value })} className="mt-1" />
+              </div>
+              <div>
+                <Label className="text-sm font-medium text-gray-700">ราคา/ปี (฿)</Label>
+                <Input type="number" value={modulePlanForm.yearlyPrice || "0"} onChange={(e) => setModulePlanForm({ ...modulePlanForm, yearlyPrice: e.target.value })} className="mt-1" />
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-4">
+              <div>
+                <Label className="text-sm font-medium text-gray-700">ผู้ใช้สูงสุด</Label>
+                <Input type="number" value={modulePlanForm.maxUsers || 1} onChange={(e) => setModulePlanForm({ ...modulePlanForm, maxUsers: parseInt(e.target.value) || 1 })} className="mt-1" />
+              </div>
+              <div>
+                <Label className="text-sm font-medium text-gray-700">เอกสารสูงสุด</Label>
+                <Input type="number" value={modulePlanForm.maxDocuments || 100} onChange={(e) => setModulePlanForm({ ...modulePlanForm, maxDocuments: parseInt(e.target.value) || 100 })} className="mt-1" />
+              </div>
+              <div>
+                <Label className="text-sm font-medium text-gray-700">บริษัทสูงสุด</Label>
+                <Input type="number" value={modulePlanForm.maxCompanies || 1} onChange={(e) => setModulePlanForm({ ...modulePlanForm, maxCompanies: parseInt(e.target.value) || 1 })} className="mt-1" />
+              </div>
+            </div>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <Switch checked={modulePlanForm.popular || false} onCheckedChange={(v) => setModulePlanForm({ ...modulePlanForm, popular: v })} />
+                <Label className="text-sm">แพ็คเกจยอดนิยม</Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <Switch checked={modulePlanForm.active !== false} onCheckedChange={(v) => setModulePlanForm({ ...modulePlanForm, active: v })} />
+                <Label className="text-sm">เปิดใช้งาน</Label>
+              </div>
+            </div>
+          </div>
+          <DialogFooter className="flex !justify-between">
+            <Button variant="outline" className="text-red-500 border-red-300 hover:bg-red-50 gap-1" onClick={() => editModulePlan && setDeleteModuleConfirm(editModulePlan)} data-testid="btn-delete-module-plan">
+              <XCircle className="w-4 h-4" />ลบ
+            </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setEditModulePlan(null)}>ยกเลิก</Button>
+              <Button
+                className="bg-[#fb9678] hover:bg-[#f88565] gap-1"
+                disabled={updateModulePlanMutation.isPending}
+                onClick={() => editModulePlan && updateModulePlanMutation.mutate({ id: editModulePlan.id, data: modulePlanForm })}
+                data-testid="btn-save-module-plan"
+              >
+                {updateModulePlanMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                บันทึก
+              </Button>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!deleteModuleConfirm} onOpenChange={() => setDeleteModuleConfirm(null)}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600">
+              <XCircle className="w-5 h-5" />
+              ยืนยันการลบแพ็คเกจโมดูล
+            </DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <p className="text-sm text-gray-600">
+              ลบแพ็คเกจ <span className="font-bold text-gray-900">"{deleteModuleConfirm?.name}"</span> ({deleteModuleConfirm?.moduleKey} - {deleteModuleConfirm?.tier}) ใช่หรือไม่?
+            </p>
+            <p className="text-xs text-red-500 mt-2">หากมีสมาชิกใช้งานอยู่จะไม่สามารถลบได้</p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteModuleConfirm(null)}>ยกเลิก</Button>
+            <Button variant="destructive" className="gap-1" disabled={deleteModulePlanMutation.isPending} onClick={() => deleteModuleConfirm && deleteModulePlanMutation.mutate(deleteModuleConfirm.id)} data-testid="btn-confirm-delete-module-plan">
+              {deleteModulePlanMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <XCircle className="w-4 h-4" />}
+              ลบแพ็คเกจ
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={!!manageDialog} onOpenChange={() => setManageDialog(null)}>
         <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
