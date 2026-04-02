@@ -22,7 +22,11 @@ function resolveConfigDbUrl(): string | null {
   if (process.env.DATABASE_URL) return process.env.DATABASE_URL;
 
   const machineName = process.env.MACHINE_NAME;
-  if (!machineName) return null;
+  const machineDbPort = process.env.MACHINE_DB_PORT;
+  if (!machineName || !machineDbPort) {
+    if (machineName && !machineDbPort) console.warn("[Config] MACHINE_NAME set but MACHINE_DB_PORT missing");
+    return null;
+  }
 
   const encFile = path.join(process.cwd(), "config", "etax-config.enc");
   if (!fs.existsSync(encFile)) {
@@ -52,7 +56,7 @@ function resolveConfigDbUrl(): string | null {
     }
 
     const encrypted = fs.readFileSync(encFile, "utf-8").trim();
-    const key = deriveKey(hostname, mac);
+    const key = deriveKey(hostname, mac, machineDbPort);
     const decrypted = JSON.parse(decrypt(encrypted, key));
     const cfg = decrypted.configDb;
     const url = `postgresql://${cfg.user}:${encodeURIComponent(cfg.password)}@${cfg.host}:${cfg.port}/${cfg.database}`;

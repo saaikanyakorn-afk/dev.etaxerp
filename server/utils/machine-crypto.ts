@@ -2,8 +2,8 @@ import crypto from "crypto";
 
 const ALGORITHM = "aes-256-gcm";
 
-export function deriveKey(hostname: string, macAddress: string): Buffer {
-  const raw = `${hostname.trim().toLowerCase()}::${macAddress.trim().toLowerCase().replace(/[:-]/g, "")}`;
+export function deriveKey(hostname: string, macAddress: string, dbPort: string = "5432"): Buffer {
+  const raw = `${hostname.trim().toLowerCase()}::${macAddress.trim().toLowerCase().replace(/[:-]/g, "")}::${dbPort.trim()}`;
   return crypto.createHash("sha256").update(raw).digest();
 }
 
@@ -41,7 +41,7 @@ export function generateEncryptedConfigFile(
   configDbPort: string = "5432",
   configDbName: string = "etax_config"
 ): { encryptedContent: string; keyPreview: string } {
-  const key = deriveKey(hostname, macAddress);
+  const key = deriveKey(hostname, macAddress, configDbPort);
   const config = {
     configDb: {
       host: "127.0.0.1",

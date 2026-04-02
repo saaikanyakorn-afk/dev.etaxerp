@@ -264,7 +264,7 @@ function EncryptionKeyGenerator() {
   const { toast } = useToast();
   const [hostname, setHostname] = useState("");
   const [macAddress, setMacAddress] = useState("");
-  const [configDbPort, setConfigDbPort] = useState("5432");
+  const [configDbPort, setConfigDbPort] = useState("");
   const [configDbName, setConfigDbName] = useState("etax_config");
   const [result, setResult] = useState<{
     configDbUser: string;
@@ -297,7 +297,7 @@ function EncryptionKeyGenerator() {
       const res = await fetch("/api/platform/machines/test-decrypt", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ hostname, macAddress, encryptedContent: result?.encryptedContent }),
+        body: JSON.stringify({ hostname, macAddress, dbPort: configDbPort, encryptedContent: result?.encryptedContent }),
       });
       if (!res.ok) throw new Error((await res.json()).message);
       return res.json();
@@ -364,8 +364,9 @@ function EncryptionKeyGenerator() {
 
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <Label className="text-sm font-medium">Config DB Port</Label>
-            <Input value={configDbPort} onChange={e => setConfigDbPort(e.target.value)} placeholder="5432" data-testid="input-enc-port" />
+            <Label className="text-sm font-medium">PostgreSQL Port ของเครื่องเป้าหมาย *</Label>
+            <Input value={configDbPort} onChange={e => setConfigDbPort(e.target.value)} placeholder="ห้ามใช้ 5432 — ใส่ port จริง" data-testid="input-enc-port" />
+            <p className="text-xs text-red-400 mt-1">port นี้เป็นส่วนหนึ่งของ Encryption Key — ต้องตรงกับ port จริงบนเครื่อง</p>
           </div>
           <div>
             <Label className="text-sm font-medium">Config DB Name</Label>
@@ -376,7 +377,7 @@ function EncryptionKeyGenerator() {
         <Button
           className="bg-amber-500 hover:bg-amber-600 text-white w-full"
           onClick={() => generateMut.mutate()}
-          disabled={!hostname || !macAddress || generateMut.isPending}
+          disabled={!hostname || !macAddress || !configDbPort || generateMut.isPending}
           data-testid="button-generate-key"
         >
           <Key className="h-4 w-4 mr-2" />
@@ -450,7 +451,8 @@ function EncryptionKeyGenerator() {
                   <li>สร้าง PostgreSQL user: <code className="bg-blue-100 px-1 rounded">{result.configDbUser}</code> ด้วย password ข้างบน</li>
                   <li>สร้าง database: <code className="bg-blue-100 px-1 rounded">{configDbName}</code></li>
                   <li>วาง .enc file ไว้ที่ <code className="bg-blue-100 px-1 rounded">./config/etax-config.enc</code></li>
-                  <li>ตั้ง <code className="bg-blue-100 px-1 rounded">MACHINE_NAME={hostname}</code> ใน .env</li>
+                  <li>ตั้งใน .env: <code className="bg-blue-100 px-1 rounded">MACHINE_NAME={hostname}</code></li>
+                  <li>ตั้งใน .env: <code className="bg-blue-100 px-1 rounded">MACHINE_DB_PORT={configDbPort}</code></li>
                   <li>App จะ decrypt อัตโนมัติตอน startup</li>
                 </ol>
               </div>
