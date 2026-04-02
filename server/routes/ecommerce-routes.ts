@@ -3,7 +3,7 @@ import { db } from "../db";
 import { ecomDb } from "../ecom-db";
 import { storage } from "../storage";
 import { eq, desc, and, or, isNull, asc, ilike, inArray, notInArray, gte, lte, count, sum , sql } from "drizzle-orm";
-import { companies, ecommerceOrders, productStock, products, ecommerceReturns, taxInvoices, taxInvoiceItems, accounts, journalEntries, journalLines, ecommerceOrderItems, workBoards, workBoardColumns, workBoardItems, firmFolders, receipts, oauthStates, syncLogs, facebookChatOrders, chatOrderKeywords, chatOrders, productBundles, ecommerceReturnItems, salesCreditNotes, salesCreditNoteItems, paymentMethods, facebookPages, platformChatThreads, ecommerceConnections, ecommerceProductMappings, deliveryNotes, stockTransfers, warehouses, fulfillmentBatches, fulfillmentItems } from "@shared/schema";
+import { companies, ecommerceOrders, productStock, products, ecommerceReturns, taxInvoices, taxInvoiceItems, accounts, journalEntries, journalLines, ecommerceOrderItems, workBoards, workBoardColumns, workBoardItems, firmFolders, receipts, oauthStates, syncLogs, facebookChatOrders, chatOrderKeywords, chatOrders, productBundles, ecommerceReturnItems, salesCreditNotes, salesCreditNoteItems, paymentMethods, facebookPages, platformChatThreads, ecommerceConnections, ecommerceProductMappings, deliveryNotes, stockTransfers, warehouses, fulfillmentBatches, fulfillmentItems, ecommerceTeamMembers, users } from "@shared/schema";
 import { requireAuth, requireModule, requireAnyModule, checkDocOwnership } from "../route-middleware";
 import { getNextDocNo, getNextJournalEntryNo, createAutoJournalEntry, generateTivFromEcommerceOrder, PLATFORM_DOC_PREFIX, PLATFORM_DISPLAY_NAME, logActivity, checkClosedPeriod } from "../route-helpers";
 import { parsePagination, paginatedResponse } from "./pagination";
@@ -6233,6 +6233,176 @@ app.get("/api/ecommerce/quick-invoice/recent", requireAuth, requireModule("ecomm
   } catch (err: any) {
     res.status(500).json({ message: err.message });
   }
+});
+
+app.get("/api/ecommerce/team", requireAuth, requireModule("ecommerce"), async (req, res) => {
+  try {
+    const companyId = Number(req.query.companyId);
+    if (!companyId) return res.status(400).json({ message: "companyId required" });
+    const ac = await checkDocOwnership(companyId, req.user);
+    if (!ac.allowed) return res.status(403).json({ message: ac.message });
+
+    const members = await db.select({
+      id: ecommerceTeamMembers.id,
+      companyId: ecommerceTeamMembers.companyId,
+      userId: ecommerceTeamMembers.userId,
+      role: ecommerceTeamMembers.role,
+      permissions: ecommerceTeamMembers.permissions,
+      assignedStoreIds: ecommerceTeamMembers.assignedStoreIds,
+      nickname: ecommerceTeamMembers.nickname,
+      active: ecommerceTeamMembers.active,
+      createdAt: ecommerceTeamMembers.createdAt,
+      userFullName: users.fullName,
+      username: users.username,
+      userRole: users.role,
+    }).from(ecommerceTeamMembers)
+      .leftJoin(users, eq(ecommerceTeamMembers.userId, users.id))
+      .where(eq(ecommerceTeamMembers.companyId, companyId))
+      .orderBy(ecommerceTeamMembers.role, ecommerceTeamMembers.id);
+
+    const connections = await ecomDb.select({
+      id: ecommerceConnections.id,
+      storeName: ecommerceConnections.storeName,
+      platform: ecommerceConnections.platform,
+    }).from(ecommerceConnections).where(eq(ecommerceConnections.companyId, companyId));
+
+    res.json({ members, stores: connections });
+  } catch (err: any) { res.status(500).json({ message: err.message }); }
+});
+
+app.get("/api/ecommerce/team/available-users", requireAuth, requireModule("ecommerce"), async (req, res) => {
+  try {
+    const companyId = Number(req.query.companyId);
+    if (!companyId) return res.status(400).json({ message: "companyId required" });
+    const ac = await checkDocOwnership(companyId, req.user);
+    if (!ac.allowed) return res.status(403).json({ message: ac.message });
+
+    const user = req.user as any;
+    const tenantId = user.tenantId;
+    if (!tenantId) return res.json([]);
+
+    const tenantUsers = await db.select({
+      id: users.id,
+      fullName: users.fullName,
+      username: users.username,
+      role: users.role,
+    }).from(users).where(eq(users.tenantId, tenantId)).orderBy(users.fullName);
+
+    const existing = await db.select({ userId: ecommerceTeamMembers.userId })
+      .from(ecommerceTeamMembers)
+      .where(eq(ecommerceTeamMembers.companyId, companyId));
+    const existingIds = new Set(existing.map(e => e.userId));
+
+    const available = tenantUsers.filter(u => !existingIds.has(u.id));
+    res.json(available);
+  } catch (err: any) { res.status(500).json({ message: err.message }); }
+});
+
+const VALID_ECOM_ROLES = ["manager", "operator", "viewer"] as const;
+const VALID_ECOM_PERMISSIONS = ["orders", "fulfillment", "inventory", "returns", "analytics", "settlements", "settings"] as const;
+
+app.post("/api/ecommerce/team", requireAuth, requireModule("ecommerce"), async (req, res) => {
+  try {
+    const { companyId, userId, role, permissions, assignedStoreIds, nickname } = req.body;
+    if (!companyId || !userId) return res.status(400).json({ message: "กรุณาระบุบริษัทและผู้ใช้งาน" });
+    const cid = Number(companyId);
+    const uid = Number(userId);
+    const ac = await checkDocOwnership(cid, req.user);
+    if (!ac.allowed) return res.status(403).json({ message: ac.message });
+
+    const caller = req.user as any;
+    const [targetUser] = await db.select({ id: users.id, tenantId: users.tenantId }).from(users).where(eq(users.id, uid));
+    if (!targetUser || targetUser.tenantId !== caller.tenantId) return res.status(403).json({ message: "ไม่สามารถเพิ่มผู้ใช้จาก tenant อื่น" });
+
+    const safeRole = VALID_ECOM_ROLES.includes(role) ? role : "operator";
+    const safePerms = Array.isArray(permissions)
+      ? permissions.filter((p: string) => (VALID_ECOM_PERMISSIONS as readonly string[]).includes(p))
+      : ["orders", "fulfillment"];
+
+    let safeStoreIds: number[] | null = null;
+    if (Array.isArray(assignedStoreIds) && assignedStoreIds.length > 0) {
+      const numIds = assignedStoreIds.map(Number).filter(n => !isNaN(n));
+      const validStores = await ecomDb.select({ id: ecommerceConnections.id })
+        .from(ecommerceConnections)
+        .where(and(eq(ecommerceConnections.companyId, cid), inArray(ecommerceConnections.id, numIds)));
+      safeStoreIds = validStores.map(s => s.id);
+    }
+
+    const [existing] = await db.select().from(ecommerceTeamMembers)
+      .where(and(eq(ecommerceTeamMembers.companyId, cid), eq(ecommerceTeamMembers.userId, uid)));
+    if (existing) return res.status(400).json({ message: "ผู้ใช้งานนี้อยู่ในทีมแล้ว" });
+
+    const safeNickname = typeof nickname === "string" && nickname.trim() ? nickname.trim().slice(0, 100) : null;
+
+    const [member] = await db.insert(ecommerceTeamMembers).values({
+      companyId: cid,
+      userId: uid,
+      role: safeRole,
+      permissions: safePerms,
+      assignedStoreIds: safeStoreIds,
+      nickname: safeNickname,
+      active: true,
+    }).returning();
+
+    const [userInfo] = await db.select({ fullName: users.fullName, username: users.username, role: users.role })
+      .from(users).where(eq(users.id, member.userId));
+
+    res.status(201).json({ ...member, userFullName: userInfo?.fullName, username: userInfo?.username, userRole: userInfo?.role });
+  } catch (err: any) { res.status(500).json({ message: err.message }); }
+});
+
+app.patch("/api/ecommerce/team/:id", requireAuth, requireModule("ecommerce"), async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const [existing] = await db.select().from(ecommerceTeamMembers).where(eq(ecommerceTeamMembers.id, id));
+    if (!existing) return res.status(404).json({ message: "ไม่พบสมาชิก" });
+    const ac = await checkDocOwnership(existing.companyId, req.user);
+    if (!ac.allowed) return res.status(403).json({ message: ac.message });
+
+    const { role, permissions, assignedStoreIds, nickname, active } = req.body;
+    const updates: Record<string, any> = { updatedAt: new Date() };
+
+    if (role !== undefined && VALID_ECOM_ROLES.includes(role)) updates.role = role;
+    if (permissions !== undefined) {
+      updates.permissions = Array.isArray(permissions)
+        ? permissions.filter((p: string) => (VALID_ECOM_PERMISSIONS as readonly string[]).includes(p))
+        : [];
+    }
+    if (assignedStoreIds !== undefined) {
+      if (Array.isArray(assignedStoreIds) && assignedStoreIds.length > 0) {
+        const numIds = assignedStoreIds.map(Number).filter(n => !isNaN(n));
+        const validStores = await ecomDb.select({ id: ecommerceConnections.id })
+          .from(ecommerceConnections)
+          .where(and(eq(ecommerceConnections.companyId, existing.companyId), inArray(ecommerceConnections.id, numIds)));
+        updates.assignedStoreIds = validStores.map(s => s.id);
+      } else {
+        updates.assignedStoreIds = null;
+      }
+    }
+    if (nickname !== undefined) updates.nickname = typeof nickname === "string" && nickname.trim() ? nickname.trim().slice(0, 100) : null;
+    if (active !== undefined && typeof active === "boolean") updates.active = active;
+
+    const [updated] = await db.update(ecommerceTeamMembers).set(updates)
+      .where(eq(ecommerceTeamMembers.id, id)).returning();
+
+    const [userInfo] = await db.select({ fullName: users.fullName, username: users.username, role: users.role })
+      .from(users).where(eq(users.id, updated.userId));
+
+    res.json({ ...updated, userFullName: userInfo?.fullName, username: userInfo?.username, userRole: userInfo?.role });
+  } catch (err: any) { res.status(500).json({ message: err.message }); }
+});
+
+app.delete("/api/ecommerce/team/:id", requireAuth, requireModule("ecommerce"), async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const [existing] = await db.select().from(ecommerceTeamMembers).where(eq(ecommerceTeamMembers.id, id));
+    if (!existing) return res.status(404).json({ message: "ไม่พบสมาชิก" });
+    const ac = await checkDocOwnership(existing.companyId, req.user);
+    if (!ac.allowed) return res.status(403).json({ message: ac.message });
+
+    await db.delete(ecommerceTeamMembers).where(eq(ecommerceTeamMembers.id, id));
+    res.json({ success: true });
+  } catch (err: any) { res.status(500).json({ message: err.message }); }
 });
 
 }

@@ -176,6 +176,7 @@ const ECOMMERCE_NAV: NavItem[] = [
     label: "ตั้งค่า", icon: Settings, href: "/ecommerce/settings",
     children: [
       { label: "ตั้งค่าทั่วไป", href: "/ecommerce/settings", icon: Settings },
+      { label: "ทีมงาน E-Commerce", href: "/ecommerce/team", icon: Users },
       { label: "API Credentials", href: "/ecommerce/platform-credentials", icon: Key },
       { label: "ตั้งค่ากล้อง CCTV", href: "/ecommerce/packing-cameras", icon: Camera },
       { label: "Supplier Portal", href: "/ecommerce/supplier-portal", icon: Key },

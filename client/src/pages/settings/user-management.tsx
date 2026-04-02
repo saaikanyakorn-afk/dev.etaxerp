@@ -10,7 +10,8 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Shield, UserPlus, Pencil, UserCheck, UserX, Users, Lock, ChevronRight, Settings2, KeyRound, Eye, EyeOff } from "lucide-react";
+import { Shield, UserPlus, Pencil, UserCheck, UserX, Users, Lock, ChevronRight, Settings2, KeyRound, Eye, EyeOff, ShoppingCart, ExternalLink } from "lucide-react";
+import { Link } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useCompany } from "@/lib/company-context";
@@ -477,6 +478,21 @@ export default function UserManagement() {
             </CardContent>
           </Card>
         </div>
+
+        <Card className="bg-[#03c9d7]/5 border-[#03c9d7]/20">
+          <CardContent className="py-3 flex items-center justify-between">
+            <div className="flex items-center gap-2 text-sm">
+              <ShoppingCart className="h-4 w-4 text-[#03c9d7]" />
+              <span>จัดการทีมงาน E-Commerce เฉพาะทาง — กำหนดร้าน/สิทธิ์แยกต่างหาก</span>
+            </div>
+            <Link href="/ecommerce/team">
+              <Button variant="outline" size="sm" className="gap-1 border-[#03c9d7] text-[#03c9d7]" data-testid="link-ecom-team">
+                <ExternalLink className="h-3.5 w-3.5" />
+                ทีมงาน E-Commerce
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
 
         <Tabs defaultValue="users">
           <TabsList>
