@@ -139,6 +139,46 @@ class PuppeteerPdfService {
     });
   }
 
+  async generatePdfFromUrl(url: string, cookies: Array<{name: string; value: string; domain: string}>, options: PdfOptions = {}): Promise<Buffer> {
+    const browser = await this.ensureBrowser();
+    let page: Page | null = null;
+    try {
+      page = await browser.newPage();
+      if (cookies.length > 0) {
+        await page.setCookie(...cookies);
+      }
+      await page.goto(url, { waitUntil: "networkidle0", timeout: 30_000 });
+      await page.evaluateHandle("document.fonts.ready");
+      await new Promise(r => setTimeout(r, 500));
+
+      const pdfOptions: any = {
+        printBackground: options.printBackground !== false,
+        preferCSSPageSize: false,
+      };
+      if (options.width && options.height) {
+        pdfOptions.width = options.width;
+        pdfOptions.height = options.height;
+      } else {
+        pdfOptions.format = options.format || "A4";
+      }
+      if (options.landscape) pdfOptions.landscape = true;
+      pdfOptions.margin = options.margin || { top: "0mm", right: "0mm", bottom: "0mm", left: "0mm" };
+
+      const pdfBuffer = await page.pdf(pdfOptions);
+      this.totalGenerated++;
+      this.resetIdleTimer();
+      return Buffer.from(pdfBuffer);
+    } catch (err: any) {
+      this.errors++;
+      console.error("[PDF Service] URL generation error:", err.message);
+      throw err;
+    } finally {
+      if (page) {
+        try { await page.close(); } catch {}
+      }
+    }
+  }
+
   private async processQueue() {
     while (this.queue.length > 0 && this.activeCount < MAX_CONCURRENT) {
       const item = this.queue.shift()!;
