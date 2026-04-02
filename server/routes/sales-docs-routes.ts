@@ -754,6 +754,7 @@ app.get("/api/invoices/:id", requireAuth, requireAnyModule("sales", "ecommerce")
 
 app.post("/api/invoices", requireAuth, requireAnyModule("sales", "ecommerce"), async (req, res) => {
   try {
+    const t0 = Date.now();
     if (!(await checkDocumentLimit(req, res))) return;
     const { items, ...body } = req.body;
     if (body.creditDays === "" || body.creditDays === undefined || body.creditDays === null) body.creditDays = null;
@@ -775,6 +776,7 @@ app.post("/api/invoices", requireAuth, requireAnyModule("sales", "ecommerce"), a
         invoiceNo = await getNextDocNo(companyId, prefix, invoices, invoices.invoiceNo, invoices.companyId, body.invoiceDate);
       }
     }
+    console.log(`[Invoice] t1 docNo=${Date.now()-t0}ms`);
     const result = await db.transaction(async (tx) => {
       const [doc] = await tx.insert(invoices).values({
         companyId,
@@ -839,7 +841,9 @@ app.post("/api/invoices", requireAuth, requireAnyModule("sales", "ecommerce"), a
       }
       return doc;
     });
+    console.log(`[Invoice] t2 insert=${Date.now()-t0}ms`);
     const savedItems = await db.select().from(invoiceItems).where(eq(invoiceItems.invoiceId, result.id));
+    console.log(`[Invoice] t3 items=${Date.now()-t0}ms`);
 
     let journalResult = null;
     try {
@@ -863,8 +867,10 @@ app.post("/api/invoices", requireAuth, requireAnyModule("sales", "ecommerce"), a
       });
       console.log(`[Invoice] Journal result:`, JSON.stringify(journalResult));
     } catch (e: any) { console.error(`[Invoice] Auto journal error:`, e.message); }
+    console.log(`[Invoice] t4 journal=${Date.now()-t0}ms`);
 
     logActivity({ companyId, userId: user.id, userName: user.username, action: "create", entityType: "invoice", entityId: String(result.id), entityName: invoiceNo }).catch(() => {});
+    console.log(`[Invoice] TOTAL=${Date.now()-t0}ms`);
     res.status(201).json({ ...result, items: savedItems, journalResult });
   } catch (err: any) { res.status(400).json({ message: err.message }); }
 });

@@ -254,11 +254,27 @@ export async function createAutoJournalEntry(params: AutoJournalParams): Promise
   } = params;
   const isCreditPayment = paymentMethod === "เครดิต" || !paymentMethod;
 
-  const [[company], allAccounts] = await Promise.all([
+  const existingJEPromise = db.select().from(journalEntries)
+    .where(and(
+      eq(journalEntries.companyId, companyId),
+      eq(journalEntries.sourceDocType, sourceDocType),
+      eq(journalEntries.sourceDocId, sourceDocId),
+    ));
+  const periodCheckPromise = sourceDocType !== "period_closing" ? checkClosedPeriod(companyId, docDate) : Promise.resolve(null);
+
+  const [[company], allAccounts, existingJEArr, periodCheck] = await Promise.all([
     db.select().from(companies).where(eq(companies.id, companyId)),
     db.select().from(accounts).where(eq(accounts.companyId, companyId)),
+    existingJEPromise,
+    periodCheckPromise,
   ]);
   if (!company) return { journalEntryId: null, skipped: true, reason: "ไม่พบบริษัท" };
+  if (existingJEArr.length > 0) {
+    return { journalEntryId: existingJEArr[0].id, skipped: true, reason: "มีรายการบัญชีสำหรับเอกสารนี้แล้ว" };
+  }
+  if (periodCheck && periodCheck.blocked) {
+    return { journalEntryId: null, skipped: true, reason: periodCheck.message };
+  }
 
   const businessType = company.businessType || "mixed";
   const accountMap = new Map(allAccounts.map(a => [a.code, a]));
@@ -268,23 +284,13 @@ export async function createAutoJournalEntry(params: AutoJournalParams): Promise
   const formulaBusinessType = overrideBusinessType || ((businessType === "accounting" || businessType === "accounting_firm") ? "service" : businessType);
 
   let dbFormulas: typeof accountingFormulas.$inferSelect[] = [];
-  if (formulaId) {
-    const [specificFormula] = await db.select().from(accountingFormulas)
-      .where(and(
-        eq(accountingFormulas.id, formulaId),
-        eq(accountingFormulas.companyId, companyId),
-        eq(accountingFormulas.active, true),
-      ));
-    if (specificFormula) dbFormulas = [specificFormula];
-  } else {
-    dbFormulas = await db.select().from(accountingFormulas)
-      .where(and(
-        eq(accountingFormulas.companyId, companyId),
-        eq(accountingFormulas.documentType, documentType),
-        eq(accountingFormulas.businessType, formulaBusinessType),
-        eq(accountingFormulas.active, true),
-      ));
-  }
+  const formulaQuery = formulaId
+    ? db.select().from(accountingFormulas)
+        .where(and(eq(accountingFormulas.id, formulaId), eq(accountingFormulas.companyId, companyId), eq(accountingFormulas.active, true)))
+    : db.select().from(accountingFormulas)
+        .where(and(eq(accountingFormulas.companyId, companyId), eq(accountingFormulas.documentType, documentType), eq(accountingFormulas.businessType, formulaBusinessType), eq(accountingFormulas.active, true)));
+  dbFormulas = await formulaQuery;
+  if (formulaId && dbFormulas.length > 0) dbFormulas = [dbFormulas[0]];
 
   let formulaLines: { accountCode: string; accountName: string; direction: string; sortOrder: number }[] = [];
   let noJournalEntry = false;
@@ -355,22 +361,6 @@ export async function createAutoJournalEntry(params: AutoJournalParams): Promise
       }
       return line;
     });
-  }
-
-  const [existingJEArr, periodCheck] = await Promise.all([
-    db.select().from(journalEntries)
-      .where(and(
-        eq(journalEntries.companyId, companyId),
-        eq(journalEntries.sourceDocType, sourceDocType),
-        eq(journalEntries.sourceDocId, sourceDocId),
-      )),
-    sourceDocType !== "period_closing" ? checkClosedPeriod(companyId, docDate) : Promise.resolve(null),
-  ]);
-  if (existingJEArr.length > 0) {
-    return { journalEntryId: existingJEArr[0].id, skipped: true, reason: "มีรายการบัญชีสำหรับเอกสารนี้แล้ว" };
-  }
-  if (periodCheck && periodCheck.blocked) {
-    return { journalEntryId: null, skipped: true, reason: periodCheck.message };
   }
 
   const sub = parseFloat(subtotal) || 0;
