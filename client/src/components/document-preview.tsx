@@ -22,6 +22,8 @@ interface DocSettings {
   bankAccountNumber?: string | null;
   bankName?: string | null;
   qrCodeUrl?: string | null;
+  docFontSize?: string;
+  showQrOnDoc?: boolean;
   docTypeColors?: string | null;
   colorMode?: string | null;
   docNumberFormat?: string | null;
@@ -411,14 +413,16 @@ export default function DocumentPreview({
 
       {showBankInfo && (settings.bankName || settings.qrCodeUrl) && (
         <div className="flex items-start gap-3 mb-4 border-t pt-3">
-          {settings.qrCodeUrl ? (
-            <div className="w-16 h-16 border rounded overflow-hidden flex items-center justify-center bg-gray-50">
-              <img src={objectPathToUrl(settings.qrCodeUrl)} alt="QR Code" className="max-w-full max-h-full object-contain" />
-            </div>
-          ) : (
-            <div className="w-16 h-16 border-2 border-dashed rounded flex items-center justify-center bg-gray-50">
-              <span className="text-[8px] text-muted-foreground text-center leading-tight">QR<br />Code</span>
-            </div>
+          {(settings.showQrOnDoc ?? true) && (
+            settings.qrCodeUrl ? (
+              <div className="w-16 h-16 border rounded overflow-hidden flex items-center justify-center bg-gray-50">
+                <img src={objectPathToUrl(settings.qrCodeUrl)} alt="QR Code" className="max-w-full max-h-full object-contain" />
+              </div>
+            ) : (
+              <div className="w-16 h-16 border-2 border-dashed rounded flex items-center justify-center bg-gray-50">
+                <span className="text-[8px] text-muted-foreground text-center leading-tight">QR<br />Code</span>
+              </div>
+            )
           )}
           <div className="text-[10px] text-gray-600">
             <div className="font-medium text-gray-700 mb-0.5">ข้อมูลชำระเงิน</div>
@@ -442,7 +446,7 @@ export default function DocumentPreview({
   return (
     <div
       className="doc-preview-paper bg-white dark:bg-white border dark:border-gray-300 rounded-lg shadow-sm overflow-hidden"
-      style={{ fontSize: "11px", lineHeight: 1.5, colorScheme: "light" }}
+      style={{ fontSize: ({ small: "10px", medium: "12px", large: "14px", xlarge: "16px" } as Record<string,string>)[settings.docFontSize || "medium"] || "12px", lineHeight: 1.5, colorScheme: "light" }}
       data-testid="document-preview"
     >
       <div className="h-1.5" style={{ background: primary }} />

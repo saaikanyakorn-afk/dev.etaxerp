@@ -56,6 +56,8 @@ interface DocSettings {
   footerNoteEn?: string | null;
   footerNoteZh?: string | null;
   paperSize: string;
+  docFontSize?: string;
+  showQrOnDoc?: boolean;
   bankAccountName?: string | null;
   bankAccountNameEn?: string | null;
   bankAccountNameZh?: string | null;
@@ -521,6 +523,8 @@ export default function DocumentTemplates() {
     showBranch: true,
     showProductCode: true,
     paperSize: "A4",
+    docFontSize: "medium",
+    showQrOnDoc: true,
     docTypeColors: null,
     colorMode: "color",
     docNumberFormat: "Y_SEQ",
@@ -576,6 +580,8 @@ export default function DocumentTemplates() {
       footerNoteEn: currentSettings.footerNoteEn,
       footerNoteZh: currentSettings.footerNoteZh,
       paperSize: currentSettings.paperSize,
+      docFontSize: currentSettings.docFontSize,
+      showQrOnDoc: currentSettings.showQrOnDoc,
       bankAccountName: currentSettings.bankAccountName,
       bankAccountNameEn: currentSettings.bankAccountNameEn,
       bankAccountNameZh: currentSettings.bankAccountNameZh,
@@ -1235,21 +1241,58 @@ export default function DocumentTemplates() {
 
                 <Card>
                   <CardHeader className="pb-3">
-                    <CardTitle className="text-sm">ขนาดกระดาษ</CardTitle>
+                    <CardTitle className="text-sm">ขนาดกระดาษ & ตัวอักษร</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div>
+                      <Label className="text-xs text-muted-foreground mb-1.5 block">ขนาดกระดาษ</Label>
+                      <div className="flex gap-2">
+                        {["A4", "A5"].map(size => (
+                          <Button
+                            key={size}
+                            variant={currentSettings.paperSize === size ? "default" : "outline"}
+                            size="sm"
+                            onClick={() => updateLocal("paperSize", size)}
+                            data-testid={`button-paper-${size.toLowerCase()}`}
+                          >
+                            {size}
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <Label className="text-xs text-muted-foreground mb-1.5 block">ขนาดตัวอักษร</Label>
+                      <Select
+                        value={currentSettings.docFontSize || "medium"}
+                        onValueChange={v => updateLocal("docFontSize", v)}
+                      >
+                        <SelectTrigger data-testid="select-doc-font-size"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="small">เล็ก (10px)</SelectItem>
+                          <SelectItem value="medium">กลาง (12px) — แนะนำ</SelectItem>
+                          <SelectItem value="large">ใหญ่ (14px)</SelectItem>
+                          <SelectItem value="xlarge">ใหญ่พิเศษ (16px)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm">QR Code บนเอกสาร</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="flex gap-2">
-                      {["A4", "A5"].map(size => (
-                        <Button
-                          key={size}
-                          variant={currentSettings.paperSize === size ? "default" : "outline"}
-                          size="sm"
-                          onClick={() => updateLocal("paperSize", size)}
-                          data-testid={`button-paper-${size.toLowerCase()}`}
-                        >
-                          {size}
-                        </Button>
-                      ))}
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium">แสดง QR Code</p>
+                        <p className="text-xs text-muted-foreground">แสดง QR Code (PromptPay / ลิงก์ชำระเงิน) บนเอกสาร</p>
+                      </div>
+                      <Switch
+                        checked={currentSettings.showQrOnDoc ?? true}
+                        onCheckedChange={v => updateLocal("showQrOnDoc", v)}
+                        data-testid="switch-show-qr-on-doc"
+                      />
                     </div>
                   </CardContent>
                 </Card>
