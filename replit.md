@@ -615,7 +615,8 @@ The test/backup database (`db_rp_tst`) is temporarily on tax-gateway because dee
 - **PDF Generator (Server-side):** `server/pdf-react-generator.tsx` — uses `@react-pdf/renderer` to generate PDFs directly on the server WITHOUT Chromium/browser. Thai font: Sarabun (TTF in `server/fonts/`). Supports all document types (QO, IV, TX, RC, SO, etc.). Concurrent-safe: 10 simultaneous PDFs use only ~20MB RAM (vs ~1GB with Chromium).
 - **PDF Data Fetcher:** `server/pdf-data-fetcher.ts` — gathers all document data from DB (company, settings, items, images) and converts to PDF template format. Supports lookup by ID or shareToken.
 - **PDF/A-3 Generator:** `server/etax-pdf-a3.ts` — converts server-generated PDF to PDF/A-3 (ISO 19005-3) using pdf-lib. Embeds XML as attachment, adds XMP metadata (pdfaid:part=3, conformance=U), ICC color profile (sRGB), OutputIntent, MarkInfo.
-- **Legacy PDF Generator:** `server/pdf-generator.ts` — old Chromium/Puppeteer-based generator. Kept as backup but no longer used by any routes. Can be removed after production validation.
+- **PDF Engine (pdfmake):** All PDF routes now use `server/pdf-pdfmake-generator.ts` (pdfmake + Sarabun font embed). No Chromium/Puppeteer needed — saves ~100-200MB RAM per render. Font embedded directly in PDF = no font corruption.
+- **Legacy PDF files (not used by routes):** `server/pdf-puppeteer-service.ts`, `server/pdf-html-renderer.ts` — old Chromium/Puppeteer-based generators. Kept as backup but no longer imported by any routes.
 - **e-Tax Stamp:** Logo + text displayed at document footer when etaxEnabled (document-renderer.tsx)
 - **Email Subject Format:** `[วันเดือนปี พ.ศ.][INV|DBN|CRN][เลขที่เอกสาร]`
 - **Email Sending:** Via Resend API. Sends PDF/A-3 attachment + HTML body. CC to timestamp email (etaxTimestampEmail) + seller email. Falls back to etaxBuyerTestEmail if buyer has no email.
