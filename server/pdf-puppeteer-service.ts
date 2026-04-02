@@ -5,7 +5,7 @@ import fs from "fs";
 const CHROMIUM_PATH = "/nix/store/zi4f80l169xlmivz8vja8wlphq74qqk0-chromium-125.0.6422.141/bin/chromium";
 const MAX_CONCURRENT = 3;
 const MAX_QUEUE_LENGTH = 50;
-const IDLE_TIMEOUT_MS = 10 * 60 * 1000;
+const IDLE_TIMEOUT_MS = 30_000;
 const LAUNCH_TIMEOUT_MS = 30_000;
 
 interface QueueItem {
@@ -93,9 +93,8 @@ class PuppeteerPdfService {
           "--disable-sync",
           "--disable-translate",
           "--no-first-run",
+          "--single-process",
           "--font-render-hinting=none",
-          "--disable-features=TranslateUI",
-          "--js-flags=--max-old-space-size=256",
         ],
       });
 
@@ -293,6 +292,3 @@ class PuppeteerPdfService {
 
 export const pdfService = new PuppeteerPdfService();
 
-setTimeout(() => {
-  pdfService.warmup().catch(() => {});
-}, 10_000);
