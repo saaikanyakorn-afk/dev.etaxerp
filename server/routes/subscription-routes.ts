@@ -163,9 +163,15 @@ app.post("/api/subscription-plans", requireAuth, requireSuperAdmin, async (req, 
 });
 
 app.patch("/api/subscription-plans/:id", requireAuth, requireSuperAdmin, async (req, res) => {
-  const plan = await storage.updateSubscriptionPlan(Number(req.params.id), req.body);
-  if (!plan) return res.status(404).json({ message: "ไม่พบแพ็คเกจ" });
-  res.json(plan);
+  try {
+    const { id, code, createdAt, ...updateData } = req.body;
+    const plan = await storage.updateSubscriptionPlan(Number(req.params.id), updateData);
+    if (!plan) return res.status(404).json({ message: "ไม่พบแพ็คเกจ" });
+    res.json(plan);
+  } catch (err: any) {
+    console.error("[subscription-plans] PATCH error:", err.message);
+    res.status(500).json({ message: "เกิดข้อผิดพลาดในการบันทึก" });
+  }
 });
 
 app.get("/api/tenant-subscription", requireAuth, async (req, res) => {
