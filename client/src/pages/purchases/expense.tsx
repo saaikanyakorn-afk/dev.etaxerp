@@ -1265,13 +1265,51 @@ export default function Expense() {
                         </Popover>
                       </td>
                       <td className="py-1 px-1">
-                        <Input
-                          data-testid={`input-account-name-${idx}`}
-                          value={item.accountName}
-                          onChange={e => updateItem(idx, "accountName", e.target.value)}
-                          className="h-7 text-xs border-dashed"
-                          placeholder="ชื่อบัญชี"
-                        />
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button
+                              variant="outline"
+                              role="combobox"
+                              className={cn("h-7 w-full justify-between text-xs border-dashed font-normal", !item.accountName && "text-muted-foreground")}
+                              data-testid={`input-account-name-${idx}`}
+                            >
+                              <span className="truncate">{item.accountName || "ค้นหาชื่อบัญชี"}</span>
+                              <ChevronsUpDown className="ml-1 h-3 w-3 shrink-0 opacity-50" />
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-[320px] p-0" align="start">
+                            <Command>
+                              <CommandInput placeholder="พิมพ์ค้นหารหัส/ชื่อบัญชี..." className="h-8 text-xs" />
+                              <CommandList>
+                                <CommandEmpty>ไม่พบบัญชี</CommandEmpty>
+                                <CommandGroup>
+                                  {accounts.map((acc: any) => (
+                                    <CommandItem
+                                      key={acc.id}
+                                      value={`${acc.code} ${acctName(acc)}`}
+                                      onSelect={() => {
+                                        updateItem(idx, "accountCode", acc.code);
+                                        updateItem(idx, "accountName", acctName(acc) || acc.code);
+                                        const prefix = String(acc.code).charAt(0);
+                                        if (prefix === "1") {
+                                          updateItem(idx, "expenseType", "asset");
+                                        } else if (prefix === "5") {
+                                          updateItem(idx, "expenseType", "expense");
+                                        } else {
+                                          updateItem(idx, "expenseType", "other");
+                                        }
+                                      }}
+                                      className="text-xs"
+                                    >
+                                      <Check className={cn("mr-1 h-3 w-3", item.accountCode === acc.code ? "opacity-100" : "opacity-0")} />
+                                      {acc.code} - {acctName(acc)}
+                                    </CommandItem>
+                                  ))}
+                                </CommandGroup>
+                              </CommandList>
+                            </Command>
+                          </PopoverContent>
+                        </Popover>
                       </td>
                       <td className="py-1 px-1">
                         <textarea
