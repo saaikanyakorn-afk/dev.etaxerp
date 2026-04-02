@@ -5901,3 +5901,22 @@ export const firmLinks = pgTable("firm_links", {
 export const insertFirmLinkSchema = createInsertSchema(firmLinks).omit({ id: true, createdAt: true });
 export type InsertFirmLink = z.infer<typeof insertFirmLinkSchema>;
 export type FirmLink = typeof firmLinks.$inferSelect;
+
+export const customFormTemplates = pgTable("custom_form_templates", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").references(() => companies.id).notNull(),
+  name: text("name").notNull(),
+  docType: text("doc_type").notNull(),
+  paperSize: text("paper_size").notNull().default("A4"),
+  orientation: text("orientation").notNull().default("portrait"),
+  backgroundImageUrl: text("background_image_url"),
+  fields: text("fields").notNull().default("[]"),
+  itemsTable: text("items_table"),
+  totals: text("totals"),
+  isDefault: boolean("is_default").notNull().default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+export const insertCustomFormTemplateSchema = createInsertSchema(customFormTemplates).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertCustomFormTemplate = z.infer<typeof insertCustomFormTemplateSchema>;
+export type CustomFormTemplate = typeof customFormTemplates.$inferSelect;

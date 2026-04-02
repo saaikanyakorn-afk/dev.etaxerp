@@ -266,6 +266,7 @@ import WhiteLabelSettings from "@/pages/settings/white-label";
 import LandingCmsPage from "@/pages/settings/landing-cms";
 import FtpArchiveSettings from "@/pages/settings/ftp-archive";
 import EtaxSettings from "@/pages/settings/etax-settings";
+import CustomFormTemplates from "@/pages/settings/custom-form-templates";
 import LineSettings from "@/pages/settings/line-settings";
 import GeneralSettings from "@/pages/settings/general-settings";
 import DeptBranchSettings from "@/pages/settings/dept-branch";
@@ -858,6 +859,7 @@ function Router() {
       <Route path="/settings/landing-cms" component={LandingCmsPage} />
       <Route path="/settings/ftp-archive" component={FtpArchiveSettings} />
       <Route path="/settings/etax" component={EtaxSettings} />
+      <Route path="/settings/custom-forms" component={CustomFormTemplates} />
       <Route path="/settings/line" component={LineSettings} />
       <Route path="/settings/approval" component={ApprovalSettingsPage} />
       <Route path="/settings/general" component={GeneralSettings} />

@@ -4,7 +4,7 @@ import { useAuth } from "@/lib/auth";
 import { useQuery } from "@tanstack/react-query";
 import {
   UserCircle, Users, Building2, FileText, Banknote,
-  Palette, HardDrive, Receipt, Sliders, MessageCircle, GitBranch, Lock
+  Palette, HardDrive, Receipt, Sliders, MessageCircle, GitBranch, Lock, Printer
 } from "lucide-react";
 import {
   Tooltip,
@@ -32,6 +32,7 @@ const SETTINGS_TABS: SettingsTab[] = [
   { label: "FTP Archive", href: "/settings/ftp-archive", icon: HardDrive, adminOnly: true },
   { label: "e-Tax Invoice", href: "/settings/etax", icon: Receipt, adminOnly: true },
   { label: "LINE", href: "/settings/line", icon: MessageCircle, adminOnly: true },
+  { label: "ฟอร์มพิมพ์", href: "/settings/custom-forms", icon: Printer, adminOnly: true },
   { label: "ทั่วไป", href: "/settings/general", icon: Sliders, adminOnly: true },
 ];
 
