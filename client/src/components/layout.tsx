@@ -105,17 +105,18 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const [companySwitching, setCompanySwitching] = useState(false);
   const prevCompanyIdRef = useRef(selectedCompanyId);
 
-  const { data: maintenanceData } = useQuery<{ enabled: boolean; message?: string; scheduledAt?: string | null; scheduledEnd?: string | null; cloneInProgress?: boolean }>({
+  const maintenanceQuery = useQuery<{ enabled: boolean; message?: string; scheduledAt?: string | null; scheduledEnd?: string | null; cloneInProgress?: boolean }>({
     queryKey: ["/api/maintenance/status"],
     queryFn: async () => {
       const r = await fetch("/api/maintenance/status", { credentials: "include" });
       if (!r.ok) return { enabled: false };
       return r.json();
     },
-    refetchInterval: () => {
-      if (maintenanceData?.enabled) return 30000;
-      if (maintenanceData?.scheduledAt) {
-        const msUntil = new Date(maintenanceData.scheduledAt).getTime() - Date.now();
+    refetchInterval: (query) => {
+      const d = query.state.data;
+      if (d?.enabled) return 30000;
+      if (d?.scheduledAt) {
+        const msUntil = new Date(d.scheduledAt).getTime() - Date.now();
         if (msUntil < 3600000) return 60000;
         return 1800000;
       }
@@ -123,6 +124,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     },
     staleTime: 120000,
   });
+  const maintenanceData = maintenanceQuery.data;
   const isUnderMaintenance = maintenanceData?.enabled === true;
 
   const [cancelledAlerts, setCancelledAlerts] = useState<Array<{ id: number; scheduledAt: string; message: string; cancelledByCloneUser: string; cancelledAt: string }>>([]);
