@@ -111,9 +111,9 @@ export default function ChatWidget() {
       if (!res.ok) return { count: 0 };
       return res.json();
     },
-    refetchInterval: open ? false : 60000,
+    refetchInterval: open ? false : 300000,
     enabled: !!user,
-    staleTime: 30000,
+    staleTime: 120000,
   });
 
   const [aiTyping, setAiTyping] = useState(false);

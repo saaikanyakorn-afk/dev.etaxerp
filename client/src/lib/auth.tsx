@@ -112,6 +112,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!user) return;
     const interval = setInterval(async () => {
+      if (document.visibilityState !== "visible") return;
       try {
         const res = await fetch("/api/auth/me", { headers: authMeHeaders(), credentials: "include" });
         if (res.status === 401 || res.status === 403) {
@@ -123,7 +124,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setLocation("/login");
         }
       } catch {}
-    }, 60000);
+    }, 300000);
     return () => clearInterval(interval);
   }, [user]);
 

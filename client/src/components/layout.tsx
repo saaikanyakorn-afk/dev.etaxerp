@@ -112,8 +112,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       if (!r.ok) return { enabled: false };
       return r.json();
     },
-    refetchInterval: 60000,
-    staleTime: 30000,
+    refetchInterval: 300000,
+    staleTime: 120000,
   });
   const isUnderMaintenance = maintenanceData?.enabled === true;
 
@@ -278,8 +278,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       return r.json();
     },
     enabled: !!user && !!selectedCompanyId,
-    refetchInterval: 60000,
-    staleTime: 30000,
+    refetchInterval: 300000,
+    staleTime: 120000,
   });
 
   const { data: clientUploadData } = useQuery<{ totalUnread: number }>({
@@ -291,8 +291,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       return r.json();
     },
     enabled: !!user && !!selectedCompanyId,
-    refetchInterval: 60000,
-    staleTime: 30000,
+    refetchInterval: 300000,
+    staleTime: 120000,
   });
 
   const permCacheKey = `perm_cache_${user?.id}_${selectedCompanyId || "all"}`;
@@ -1488,8 +1488,8 @@ function NotificationBell({ companyId }: { companyId: number | null }) {
       return r.json();
     },
     enabled: !!companyId,
-    refetchInterval: 60000,
-    staleTime: 30000,
+    refetchInterval: 300000,
+    staleTime: 120000,
   });
 
   const markRead = useMutation({
