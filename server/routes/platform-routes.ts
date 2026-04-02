@@ -1882,17 +1882,17 @@ app.post("/api/platform/machines/generate-config", requireAuth, requireSuperAdmi
 
 app.post("/api/platform/machines/test-decrypt", requireAuth, requireSuperAdmin, async (req, res) => {
   try {
-    const { hostname, macAddress, encryptedContent } = req.body;
-    if (!hostname || !macAddress || !encryptedContent) {
-      return res.status(400).json({ message: "ต้องระบุ hostname, MAC address และ encrypted content" });
+    const { hostname, macAddress, dbPort, encryptedContent } = req.body;
+    if (!hostname || !macAddress || !dbPort || !encryptedContent) {
+      return res.status(400).json({ message: "ต้องระบุ hostname, MAC address, DB port และ encrypted content" });
     }
     const { deriveKey, decrypt } = await import("../utils/machine-crypto");
-    const key = deriveKey(hostname, macAddress);
+    const key = deriveKey(hostname, macAddress, dbPort);
     const decrypted = decrypt(encryptedContent, key);
     const config = JSON.parse(decrypted);
     res.json({ success: true, config });
   } catch (err: any) {
-    res.status(400).json({ success: false, message: "Decrypt ไม่สำเร็จ — hostname หรือ MAC address ไม่ตรงกัน" });
+    res.status(400).json({ success: false, message: "Decrypt ไม่สำเร็จ — hostname, MAC address หรือ port ไม่ตรงกัน" });
   }
 });
 

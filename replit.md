@@ -908,7 +908,7 @@ Once Stage 3 begins, revisit the JOIN inventory below and add appropriate indexe
 
 **Encrypted Config File System (พี่ช้าง's config DB architecture):**
 - **Purpose:** Each app server has a local PostgreSQL "config DB" storing credentials for ALL known machines. No passwords in `.env` — only `MACHINE_NAME`.
-- **Encryption:** AES-256-GCM. Key derived from `SHA-256(hostname + MAC address)`. Copy `.enc` file to another machine → decrypt fails (different hostname/MAC).
+- **Encryption:** AES-256-GCM. Key derived from `SHA-256(hostname + MAC address + PostgreSQL port)`. Copy `.enc` file to another machine → decrypt fails (different hostname/MAC/port). Port is a secret only พี่ช้าง knows, adding a layer even if hostname+MAC are discoverable.
 - **Files:** `server/utils/machine-crypto.ts` (encrypt/decrypt), `server/config-bootstrap.ts` (startup resolver).
 - **Startup flow on target machine:** Read `MACHINE_NAME` from `.env` → read `./config/etax-config.enc` → derive key from `os.hostname()` + first non-internal MAC → decrypt → get config DB connection string → connect → read all other credentials.
 - **Startup flow on Replit:** Detect `REPL_ID` env var → use `DATABASE_URL` directly (no `.enc` file needed).
