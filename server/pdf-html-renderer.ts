@@ -357,6 +357,8 @@ export function renderDocumentHtml(opts: GeneratePdfOptions): string {
       line-height: 1.5;
       color: #111827;
       background: white;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
     }
     .page {
       width: 210mm;
@@ -366,7 +368,6 @@ export function renderDocumentHtml(opts: GeneratePdfOptions): string {
       display: flex;
       flex-direction: column;
     }
-    .color-bar { height: 6px; background: ${primary}; }
     .content {
       padding: 20px 32px;
       flex: 1;
@@ -380,7 +381,7 @@ export function renderDocumentHtml(opts: GeneratePdfOptions): string {
 </head>
 <body>
   <div class="page">
-    <div class="color-bar"></div>
+    <div style="height:6px;width:100%;background-color:${primary};-webkit-print-color-adjust:exact;print-color-adjust:exact;"></div>
     <div class="content">
 
       <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:16px">
