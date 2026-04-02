@@ -350,7 +350,6 @@ export function renderDocumentHtml(opts: GeneratePdfOptions): string {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${esc(docInfo.label)} ${esc(doc.docNo)}</title>
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap');
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
       font-family: 'Sarabun', 'Noto Sans Thai', sans-serif;
@@ -362,12 +361,8 @@ export function renderDocumentHtml(opts: GeneratePdfOptions): string {
     .page {
       width: 210mm;
       min-height: 297mm;
-      margin: 0 auto;
+      margin: 0;
       background: white;
-      border: 1px solid #e5e7eb;
-      border-radius: 8px;
-      overflow: hidden;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
       display: flex;
       flex-direction: column;
     }
@@ -380,10 +375,6 @@ export function renderDocumentHtml(opts: GeneratePdfOptions): string {
       min-height: calc(297mm - 6px - 40px);
     }
     table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
-    @media print {
-      body { background: white; }
-      .page { border: none; box-shadow: none; border-radius: 0; margin: 0; width: 100%; }
-    }
     @page { size: A4; margin: 0; }
   </style>
 </head>
