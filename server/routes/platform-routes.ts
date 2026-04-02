@@ -1797,7 +1797,13 @@ app.get("/api/platform/tenant-overview", requireAuth, requireSuperAdmin, async (
       tenantIsolation: "tenantId checked in checkDocOwnership for cross-tenant access",
       allowedCompanyIds: "Non-admin roles restricted to specific companies via allowedCompanyIds",
       knownFixedIssues: [
-        { endpoint: "GET /api/pos/staff", issue: "ข้อมูลพนักงานข้ามบริษัท", status: "แก้ไขแล้ว", fixDate: "2026-04" },
+        { endpoint: "GET /api/pos/staff", issue: "ข้อมูลพนักงาน POS ข้ามบริษัท (tenantId→companyId)", status: "แก้ไขแล้ว", fixDate: "2026-04" },
+        { endpoint: "GET /api/ecommerce/orders/:id", issue: "ดูออเดอร์ข้ามบริษัทโดยไม่มี ownership check", status: "แก้ไขแล้ว", fixDate: "2026-04" },
+        { endpoint: "POST /api/ecommerce/orders", issue: "สร้างออเดอร์ไม่เช็ค tenant/company", status: "แก้ไขแล้ว", fixDate: "2026-04" },
+        { endpoint: "PATCH /api/ecommerce/orders/:id", issue: "แก้ไขออเดอร์ไม่เช็คเจ้าของ", status: "แก้ไขแล้ว", fixDate: "2026-04" },
+        { endpoint: "GET /api/ecommerce/orders/:id/items", issue: "ดูรายการสินค้าออเดอร์ข้ามบริษัท", status: "แก้ไขแล้ว", fixDate: "2026-04" },
+        { endpoint: "GET /api/attendance/:employeeId", issue: "ดูเวลาพนักงานข้ามบริษัท", status: "แก้ไขแล้ว", fixDate: "2026-04" },
+        { endpoint: "GET /api/leaves/:employeeId", issue: "ดูลาพนักงานข้ามบริษัท", status: "แก้ไขแล้ว", fixDate: "2026-04" },
       ],
       recommendations: [
         "ตรวจสอบ allowedCompanyIds ทุกครั้งที่สร้าง endpoint ใหม่",

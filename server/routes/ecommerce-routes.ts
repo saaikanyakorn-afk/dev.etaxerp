@@ -241,12 +241,17 @@ app.get("/api/ecommerce/orders/:id", requireAuth, requireModule("ecommerce"), as
   try {
     const order = await storage.getEcommerceOrder(Number(req.params.id));
     if (!order) return res.status(404).json({ message: "ไม่พบออเดอร์" });
+    const ac = await checkDocOwnership(order.companyId, req.user);
+    if (!ac.allowed) return res.status(403).json({ message: ac.message });
     res.json(order);
   } catch (err: any) { res.status(400).json({ message: err.message }); }
 });
 
 app.post("/api/ecommerce/orders", requireAuth, requireModule("ecommerce"), async (req, res) => {
   try {
+    if (!req.body.companyId) return res.status(400).json({ message: "companyId required" });
+    const ac = await checkDocOwnership(Number(req.body.companyId), req.user);
+    if (!ac.allowed) return res.status(403).json({ message: ac.message });
     const order = await storage.createEcommerceOrder(req.body);
     res.status(201).json(order);
   } catch (err: any) { res.status(400).json({ message: err.message }); }
@@ -259,6 +264,8 @@ app.patch("/api/ecommerce/orders/:id", requireAuth, requireModule("ecommerce"), 
 
     const [existingOrder] = await ecomDb.select().from(ecommerceOrders).where(eq(ecommerceOrders.id, orderId));
     if (!existingOrder) return res.status(404).json({ message: "ไม่พบออเดอร์" });
+    const ac = await checkDocOwnership(existingOrder.companyId, req.user);
+    if (!ac.allowed) return res.status(403).json({ message: ac.message });
 
     const order = await storage.updateEcommerceOrder(orderId, req.body);
     if (!order) return res.status(404).json({ message: "ไม่พบออเดอร์" });
@@ -301,7 +308,12 @@ app.patch("/api/ecommerce/orders/:id", requireAuth, requireModule("ecommerce"), 
 
 app.get("/api/ecommerce/orders/:id/items", requireAuth, requireModule("ecommerce"), async (req, res) => {
   try {
-    const items = await storage.getEcommerceOrderItems(Number(req.params.id));
+    const orderId = Number(req.params.id);
+    const [order] = await ecomDb.select({ companyId: ecommerceOrders.companyId }).from(ecommerceOrders).where(eq(ecommerceOrders.id, orderId));
+    if (!order) return res.status(404).json({ message: "ไม่พบออเดอร์" });
+    const ac = await checkDocOwnership(order.companyId, req.user);
+    if (!ac.allowed) return res.status(403).json({ message: ac.message });
+    const items = await storage.getEcommerceOrderItems(orderId);
     res.json(items);
   } catch (err: any) { res.status(400).json({ message: err.message }); }
 });

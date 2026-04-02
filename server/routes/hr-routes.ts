@@ -648,8 +648,15 @@ export function registerHrRoutes(app: Express) {
   });
 
   app.get("/api/attendance/:employeeId", requireAuth, requireModule("hr"), async (req, res) => {
-    const records = await storage.getAttendanceByEmployee(Number(req.params.employeeId));
-    res.json(records);
+    try {
+      const empId = Number(req.params.employeeId);
+      const [emp] = await db.select({ companyId: employees.companyId }).from(employees).where(eq(employees.id, empId));
+      if (!emp) return res.status(404).json({ message: "ไม่พบพนักงาน" });
+      const ac = await checkDocOwnership(emp.companyId, req.user);
+      if (!ac.allowed) return res.status(403).json({ message: ac.message });
+      const records = await storage.getAttendanceByEmployee(empId);
+      res.json(records);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
   app.post("/api/attendance/check-in", requireAuth, requireModule("hr"), async (req, res) => {
@@ -1894,8 +1901,15 @@ export function registerHrRoutes(app: Express) {
   // ========== Leave Request Routes ==========
 
   app.get("/api/leaves/:employeeId", requireAuth, requireModule("hr"), async (req, res) => {
-    const records = await storage.getLeavesByEmployee(Number(req.params.employeeId));
-    res.json(records);
+    try {
+      const empId = Number(req.params.employeeId);
+      const [emp] = await db.select({ companyId: employees.companyId }).from(employees).where(eq(employees.id, empId));
+      if (!emp) return res.status(404).json({ message: "ไม่พบพนักงาน" });
+      const ac = await checkDocOwnership(emp.companyId, req.user);
+      if (!ac.allowed) return res.status(403).json({ message: ac.message });
+      const records = await storage.getLeavesByEmployee(empId);
+      res.json(records);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
   app.get("/api/leaves", requireAuth, requireModule("hr"), async (req, res) => {
