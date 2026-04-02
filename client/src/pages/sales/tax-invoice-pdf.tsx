@@ -1,10 +1,10 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Printer, FileText, Receipt, FlaskConical, Loader2, CheckCircle2, AlertCircle, Activity, WifiOff, RefreshCw } from "lucide-react";
+import { ArrowLeft, Printer, FileText, Receipt, FlaskConical, Loader2, CheckCircle2, AlertCircle, Activity, WifiOff, RefreshCw, Download } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import Layout from "@/components/layout";
-import DocumentRenderer from "@/components/document-renderer";
+import NativePdfViewer from "@/components/native-pdf-viewer";
 import EDocumentActions from "@/components/e-document-actions";
 
 type PrintType = "tax_invoice" | "tax_invoice_receipt" | "invoice" | "delivery_note" | "abbreviated_tax_invoice";
@@ -241,8 +241,6 @@ export default function TaxInvoicePdf() {
   const [, navigate] = useLocation();
   const [data, setData] = useState<any>(null);
   const [company, setCompany] = useState<any>(null);
-  const [docSettings, setDocSettings] = useState<any>({});
-  const [userSig, setUserSig] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [printType, setPrintType] = useState<PrintType>("tax_invoice");
   const [serverError, setServerError] = useState(false);
@@ -281,35 +279,14 @@ export default function TaxInvoicePdf() {
   useEffect(() => {
     (async () => {
       try {
-        const [docRes, meRes] = await Promise.all([
-          fetch(`/api/tax-invoices/${id}`, { credentials: "include" }),
-          fetch(`/api/auth/me`, { credentials: "include" }),
-        ]);
-
-        if (meRes.ok) {
-          const me = await meRes.json();
-          setUserSig({
-            signatureUrl: me.signatureUrl || null,
-            signatureName: me.signatureName || me.fullName,
-            signatureTitle: me.signatureTitle || null,
-          });
-        }
-
+        const docRes = await fetch(`/api/tax-invoices/${id}`, { credentials: "include" });
         if (docRes.ok) {
           const d = await docRes.json();
           setData(d);
-
-          const [cRes, dsRes] = await Promise.all([
-            fetch(`/api/companies`, { credentials: "include" }),
-            fetch(`/api/document-settings/${d.companyId}`, { credentials: "include" }),
-          ]);
-
+          const cRes = await fetch(`/api/companies`, { credentials: "include" });
           if (cRes.ok) {
             const companies = await cRes.json();
             setCompany(companies.find((co: any) => co.id === d.companyId) || null);
-          }
-          if (dsRes.ok) {
-            setDocSettings(await dsRes.json());
           }
         }
       } catch {}
@@ -331,17 +308,11 @@ export default function TaxInvoicePdf() {
 
   const isThermal = printType === "abbreviated_tax_invoice";
 
-  const renderData = { ...data };
-  if (printType === "invoice") {
-    renderData.invoiceNo = data.taxInvoiceNo;
-    renderData.invoiceDate = data.taxInvoiceDate;
-  } else if (printType === "tax_invoice_receipt") {
-    renderData.receiptNo = data.taxInvoiceNo;
-    renderData.receiptDate = data.taxInvoiceDate;
-  } else if (printType === "delivery_note") {
-    renderData.orderNo = data.taxInvoiceNo;
-    renderData.orderDate = data.taxInvoiceDate;
-  }
+  const handleDownload = () => {
+    const params = new URLSearchParams();
+    if (printType !== "tax_invoice") params.set("printType", printType);
+    window.open(`/api/documents/tax_invoice/${id}/pdf${params.toString() ? "?" + params.toString() : ""}`, "_blank");
+  };
 
   return (
     <Layout>
@@ -380,6 +351,9 @@ export default function TaxInvoicePdf() {
               compact
               showFormTypeSelector
             />
+            <Button onClick={handleDownload} variant="outline" size="sm" className="gap-1.5" data-testid="button-download-pdf">
+              <Download className="h-4 w-4" /> ดาวน์โหลด PDF
+            </Button>
             <Button onClick={() => window.print()} variant="info" className="gap-1.5">
               <Printer className="h-4 w-4" /> สั่งพิมพ์
             </Button>
@@ -459,16 +433,11 @@ export default function TaxInvoicePdf() {
         {isThermal ? (
           <AbbreviatedTaxInvoice data={data} company={company} />
         ) : (
-          <div className="max-w-3xl mx-auto print:!max-w-none print:!m-0">
-            <DocumentRenderer
-              settings={docSettings}
-              company={company}
-              quotation={renderData}
-              documentType={printType}
-              userSignature={userSig}
-              etaxEnabled={false}
-            />
-          </div>
+          <NativePdfViewer
+            docType="tax_invoice"
+            docId={Number(id)}
+            printType={printType !== "tax_invoice" ? printType : undefined}
+          />
         )}
       </div>
     </Layout>

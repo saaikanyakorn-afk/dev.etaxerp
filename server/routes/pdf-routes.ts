@@ -204,7 +204,9 @@ app.get("/api/documents/:docType/:id/pdf", requireAuth, async (req, res) => {
     const pdfBuffer = await generatePdfMake(pdfOpts);
     pdfOpts = null as any;
 
-    if (companyId) {
+    const isInline = req.query.inline === "1";
+
+    if (companyId && !isInline) {
       await db.insert(documentDeliveryLogs).values({
         companyId,
         documentType: docType,
@@ -217,9 +219,10 @@ app.get("/api/documents/:docType/:id/pdf", requireAuth, async (req, res) => {
     }
 
     const filename = encodeURIComponent(`${docNo}.pdf`);
+    const disposition = isInline ? "inline" : "attachment";
     res.set({
       "Content-Type": "application/pdf",
-      "Content-Disposition": `attachment; filename="${filename}"; filename*=UTF-8''${filename}`,
+      "Content-Disposition": `${disposition}; filename="${filename}"; filename*=UTF-8''${filename}`,
       "Content-Length": pdfBuffer.length.toString(),
     });
     res.send(pdfBuffer);
