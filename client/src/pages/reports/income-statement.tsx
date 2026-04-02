@@ -354,7 +354,7 @@ export default function IncomeStatement() {
             const prevBal = prevItem?.balance || 0;
             return (
               <TableRow key={item.code} className="border-b border-slate-100 hover:bg-blue-50/30 cursor-pointer" style={idx % 2 !== 0 ? { background: "var(--theme-table-stripe)" } : undefined}
-                onClick={() => window.open(`/reports/general-ledger?accountCode=${item.code}&startDate=${basicStartDate}&endDate=${basicEndDate}`, '_blank')}>
+                onClick={() => navigate(`/reports/general-ledger?accountCode=${item.code}&startDate=${basicStartDate}&endDate=${basicEndDate}`)}>
                 <TableCell className="text-sm py-1.5 pl-10 text-slate-700">{item.code} : {acctName(item)}</TableCell>
                 <TableCell className="text-sm py-1.5 text-right tabular-nums">{fmt(item.balance)}</TableCell>
                 <TableCell className="text-xs py-1.5 text-right tabular-nums text-slate-400">{baseRevenue ? pct(item.balance, baseRevenue) : "-"}</TableCell>
@@ -453,7 +453,7 @@ export default function IncomeStatement() {
               {isExpanded && g.items.map((item, idx) => (
                 <TableRow key={item.code} className="border-b border-slate-100 hover:bg-blue-50/30 cursor-pointer"
                   style={idx % 2 !== 0 ? { background: "var(--theme-table-stripe)" } : undefined}
-                  onClick={() => window.open(`/reports/general-ledger?accountCode=${item.code}&startDate=${startDate}&endDate=${endDate}`, '_blank')}>
+                  onClick={() => navigate(`/reports/general-ledger?accountCode=${item.code}&startDate=${startDate}&endDate=${endDate}`)}>
                   <TableCell className="text-sm py-1.5 pl-4 text-slate-500 w-[90px]">{item.code}</TableCell>
                   <TableCell className="text-sm py-1.5 text-slate-700">{acctName(item)}</TableCell>
                   <TableCell className="text-sm py-1.5 text-right tabular-nums">{fmt(item.totalDebit)}</TableCell>
