@@ -204,8 +204,7 @@ export default function EcommerceLayout({ children }: { children: React.ReactNod
       return r.json();
     },
     enabled: !!selectedCompanyId,
-    refetchInterval: 600000,
-    staleTime: 300000,
+    staleTime: Infinity,
   });
   const lowStockCount = Array.isArray(lowStockData) ? lowStockData.length : 0;
 
