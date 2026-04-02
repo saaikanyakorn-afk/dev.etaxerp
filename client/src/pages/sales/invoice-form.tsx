@@ -135,6 +135,8 @@ export default function InvoiceForm() {
   const [items, setItems] = useState<InvoiceItemForm[]>([emptyItem()]);
   const [productSearches, setProductSearches] = useState<Record<number, string>>({});
   const [showProductDropdown, setShowProductDropdown] = useState<Record<number, boolean>>({});
+  const [productNameSearches, setProductNameSearches] = useState<Record<number, string>>({});
+  const [showProductNameDropdown, setShowProductNameDropdown] = useState<Record<number, boolean>>({});
   const [editingPriceIdx, setEditingPriceIdx] = useState<number | null>(null);
   const [discountMode, setDiscountMode] = useState<"amount" | "percent">("amount");
   const [loaded, setLoaded] = useState(false);
@@ -568,6 +570,8 @@ export default function InvoiceForm() {
     setItems(items.filter((_, i) => i !== idx));
     setProductSearches({});
     setShowProductDropdown({});
+    setProductNameSearches({});
+    setShowProductNameDropdown({});
   }
 
   function calcTotals() {
@@ -653,6 +657,8 @@ export default function InvoiceForm() {
     setCustomerSearch("");
     setProductSearches({});
     setShowProductDropdown({});
+    setProductNameSearches({});
+    setShowProductNameDropdown({});
   }
 
   async function handleSaveNewContact(): Promise<{ id: number; code: string } | null> {
@@ -1129,7 +1135,56 @@ export default function InvoiceForm() {
                         </div>
                       </td>
                       <td className="px-1 pt-1.5">
-                        <textarea className="w-full min-w-0 text-xs border border-dashed rounded px-2 py-1.5 resize-y min-h-[28px] focus:outline-none focus:ring-1 focus:ring-sky-400 bg-transparent" rows={1} placeholder="พิมพ์ชื่อสินค้า/บริการ" value={item.productName} onChange={e => updateItem(idx, "productName", e.target.value)} />
+                        <div className="relative">
+                          <textarea
+                            className="w-full min-w-0 text-xs border border-dashed rounded px-2 py-1.5 resize-y min-h-[28px] focus:outline-none focus:ring-1 focus:ring-sky-400 bg-transparent"
+                            rows={1}
+                            placeholder="พิมพ์ชื่อสินค้า/บริการ"
+                            value={productNameSearches[idx] !== undefined ? productNameSearches[idx] : (item.productName || "")}
+                            onChange={e => {
+                              const val = e.target.value;
+                              setProductNameSearches(prev => ({ ...prev, [idx]: val }));
+                              setShowProductNameDropdown(prev => ({ ...prev, [idx]: true }));
+                              updateItem(idx, "productName", val);
+                            }}
+                            onFocus={() => setShowProductNameDropdown(prev => ({ ...prev, [idx]: true }))}
+                            onBlur={() => setTimeout(() => setShowProductNameDropdown(prev => ({ ...prev, [idx]: false })), 200)}
+                          />
+                          {showProductNameDropdown[idx] && (() => {
+                            const nameVal = (productNameSearches[idx] !== undefined ? productNameSearches[idx] : (item.productName || "")).toLowerCase();
+                            if (!nameVal || nameVal.length < 1) return null;
+                            const filtered = products.filter(p =>
+                              p.name.toLowerCase().includes(nameVal) ||
+                              ((p as any).nameEn || "").toLowerCase().includes(nameVal) ||
+                              ((p as any).nameZh || "").toLowerCase().includes(nameVal) ||
+                              (p.code || "").toLowerCase().includes(nameVal)
+                            );
+                            if (filtered.length === 0) return null;
+                            return (
+                              <div className="absolute z-50 top-full left-0 mt-1 bg-white border rounded-md shadow-lg max-h-48 overflow-y-auto" style={{minWidth:"280px"}}>
+                                {filtered.map(p => (
+                                  <button
+                                    key={p.id}
+                                    data-testid={`product-name-option-${idx}-${p.id}`}
+                                    className="w-full text-left px-3 py-2 text-xs hover:bg-sky-50 border-b last:border-b-0"
+                                    onMouseDown={e => {
+                                      e.preventDefault();
+                                      handleProductSelect(idx, String(p.id));
+                                      setProductNameSearches(prev => ({ ...prev, [idx]: undefined as any }));
+                                      setShowProductNameDropdown(prev => ({ ...prev, [idx]: false }));
+                                    }}
+                                  >
+                                    <div className="font-medium">{p.code ? `[${p.code}] ` : ""}{p.name}</div>
+                                    {((p as any).nameEn || (p as any).nameZh) && (
+                                      <span className="text-slate-400 text-[10px]">{(p as any).nameEn}{(p as any).nameEn && (p as any).nameZh ? " / " : ""}{(p as any).nameZh}</span>
+                                    )}
+                                    {p.price && <span className="text-slate-400 text-[10px] ml-1">฿{fmt(p.price)}</span>}
+                                  </button>
+                                ))}
+                              </div>
+                            );
+                          })()}
+                        </div>
                       </td>
                       <td className="px-1 pt-1.5">
                         <Input data-testid={`input-qty-${idx}`} inputMode="decimal" className="h-9 text-sm text-center border-dashed w-full min-w-0 px-1" value={item.qty} onChange={e => { const v = e.target.value; if (/^\d*\.?\d*$/.test(v)) updateItem(idx, "qty", v); }} />
