@@ -149,7 +149,8 @@ export async function getNextDocNo(
       eq(companyIdColumn, companyId),
       sql`${noColumn} LIKE ${likePattern}`
     ))
-    .orderBy(desc(noColumn));
+    .orderBy(desc(noColumn))
+    .limit(1);
 
   let nextSeq = 1;
   if (existing.length > 0) {
@@ -207,7 +208,8 @@ export async function getNextJournalEntryNo(companyId: number, journalBook: stri
       eq(journalEntries.companyId, companyId),
       sql`${journalEntries.entryNo} LIKE ${likePattern}`
     ))
-    .orderBy(desc(journalEntries.entryNo));
+    .orderBy(desc(journalEntries.entryNo))
+    .limit(1);
 
   let nextSeq = 1;
   if (existing.length > 0 && existing[0].docNo) {
@@ -262,6 +264,7 @@ export async function createAutoJournalEntry(params: AutoJournalParams): Promise
 }
 
 async function _createAutoJournalEntryInner(params: AutoJournalParams): Promise<{ journalEntryId: number | null; skipped: boolean; reason?: string }> {
+  const _t0 = performance.now();
   const {
     companyId, documentType, sourceDocType, sourceDocId,
     docDate, docNo, subtotal, vatAmount, totalAmount, withholdingTax,
@@ -285,6 +288,8 @@ async function _createAutoJournalEntryInner(params: AutoJournalParams): Promise<
     existingJEPromise,
     periodCheckPromise,
   ]);
+  const _t1 = performance.now();
+  console.log(`[AutoJournal] ${docNo} parallel-queries ${Math.round(_t1 - _t0)}ms, accounts=${allAccounts.length}`);
   if (!company) return { journalEntryId: null, skipped: true, reason: "ไม่พบบริษัท" };
   if (existingJEArr.length > 0) {
     return { journalEntryId: existingJEArr[0].id, skipped: true, reason: "มีรายการบัญชีสำหรับเอกสารนี้แล้ว" };
@@ -687,6 +692,7 @@ async function _createAutoJournalEntryInner(params: AutoJournalParams): Promise<
 
     return entry;
   });
+  console.log(`[AutoJournal] ${docNo} total ${Math.round(performance.now() - _t0)}ms`);
 
   if (!result) {
     return { journalEntryId: null, skipped: true, reason: "ไม่พบบัญชีที่ตรงกับสูตร — ตรวจสอบผังบัญชีของบริษัท" };
