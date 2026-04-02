@@ -1817,4 +1817,83 @@ app.get("/api/platform/tenant-overview", requireAuth, requireSuperAdmin, async (
   } catch (err: any) { res.status(500).json({ message: err.message }); }
 });
 
+// ========== Machines (Server Registry) ==========
+
+app.get("/api/platform/machines", requireAuth, requireSuperAdmin, async (_req, res) => {
+  try {
+    const { machines: machinesTable } = await import("@shared/schema");
+    const rows = await db.select().from(machinesTable).orderBy(machinesTable.id);
+    res.json(rows);
+  } catch (err: any) { res.status(500).json({ message: err.message }); }
+});
+
+app.post("/api/platform/machines", requireAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const { machines: machinesTable, insertMachineSchema } = await import("@shared/schema");
+    const parsed = insertMachineSchema.parse(req.body);
+    const [row] = await db.insert(machinesTable).values(parsed).returning();
+    res.json(row);
+  } catch (err: any) { res.status(400).json({ message: err.message }); }
+});
+
+app.patch("/api/platform/machines/:id", requireAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const { machines: machinesTable } = await import("@shared/schema");
+    const id = Number(req.params.id);
+    const { id: _id, createdAt: _ca, ...updates } = req.body;
+    const [row] = await db.update(machinesTable).set({ ...updates, updatedAt: new Date() }).where(eq(machinesTable.id, id)).returning();
+    if (!row) return res.status(404).json({ message: "ไม่พบเครื่องนี้" });
+    res.json(row);
+  } catch (err: any) { res.status(400).json({ message: err.message }); }
+});
+
+app.delete("/api/platform/machines/:id", requireAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const { machines: machinesTable } = await import("@shared/schema");
+    const id = Number(req.params.id);
+    const [row] = await db.delete(machinesTable).where(eq(machinesTable.id, id)).returning();
+    if (!row) return res.status(404).json({ message: "ไม่พบเครื่องนี้" });
+    res.json({ success: true });
+  } catch (err: any) { res.status(500).json({ message: err.message }); }
+});
+
+app.post("/api/platform/machines/generate-config", requireAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const { hostname, macAddress, configDbPort, configDbName } = req.body;
+    if (!hostname || !macAddress) {
+      return res.status(400).json({ message: "ต้องระบุ hostname และ MAC address" });
+    }
+    const { deriveKey, encrypt, generateConfigDbCredentials, generateEncryptedConfigFile } = await import("../utils/machine-crypto");
+    const creds = generateConfigDbCredentials();
+    const { encryptedContent, keyPreview } = generateEncryptedConfigFile(
+      hostname, macAddress, creds.username, creds.password,
+      configDbPort || "5432", configDbName || "etax_config"
+    );
+    res.json({
+      configDbUser: creds.username,
+      configDbPassword: creds.password,
+      encryptedContent,
+      keyPreview,
+      hostname: hostname.trim(),
+      macAddress: macAddress.trim(),
+    });
+  } catch (err: any) { res.status(500).json({ message: err.message }); }
+});
+
+app.post("/api/platform/machines/test-decrypt", requireAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const { hostname, macAddress, encryptedContent } = req.body;
+    if (!hostname || !macAddress || !encryptedContent) {
+      return res.status(400).json({ message: "ต้องระบุ hostname, MAC address และ encrypted content" });
+    }
+    const { deriveKey, decrypt } = await import("../utils/machine-crypto");
+    const key = deriveKey(hostname, macAddress);
+    const decrypted = decrypt(encryptedContent, key);
+    const config = JSON.parse(decrypted);
+    res.json({ success: true, config });
+  } catch (err: any) {
+    res.status(400).json({ success: false, message: "Decrypt ไม่สำเร็จ — hostname หรือ MAC address ไม่ตรงกัน" });
+  }
+});
+
 }
