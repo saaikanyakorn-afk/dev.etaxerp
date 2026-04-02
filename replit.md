@@ -904,7 +904,18 @@ Once Stage 3 begins, revisit the JOIN inventory below and add appropriate indexe
 
 **Asus H97M-E specs:** Micro ATX, Intel H97 chipset, LGA1150, 4×DDR3 DIMM (max 32GB), 1×PCIe x16, 3×PCIe x1, 1×M.2 (2260/2280), 4×SATA III 6Gb/s. No overclocking (H97). Best CPU upgrade: Xeon E3-1281 v3 (3.7/4.1GHz, +12% vs current E3-1230 v3).
 
-**Database Servers page:** `client/src/pages/platform/database-servers.tsx` — UI only, hardcoded DEMO_MACHINES, no backend API yet.
+**Database Servers page:** `client/src/pages/platform/database-servers.tsx` — fully wired to API, data stored in `machines` table.
+
+**Encrypted Config File System (พี่ช้าง's config DB architecture):**
+- **Purpose:** Each app server has a local PostgreSQL "config DB" storing credentials for ALL known machines. No passwords in `.env` — only `MACHINE_NAME`.
+- **Encryption:** AES-256-GCM. Key derived from `SHA-256(hostname + MAC address)`. Copy `.enc` file to another machine → decrypt fails (different hostname/MAC).
+- **Files:** `server/utils/machine-crypto.ts` (encrypt/decrypt), `server/config-bootstrap.ts` (startup resolver).
+- **Startup flow on target machine:** Read `MACHINE_NAME` from `.env` → read `./config/etax-config.enc` → derive key from `os.hostname()` + first non-internal MAC → decrypt → get config DB connection string → connect → read all other credentials.
+- **Startup flow on Replit:** Detect `REPL_ID` env var → use `DATABASE_URL` directly (no `.enc` file needed).
+- **API endpoints:** `POST /api/platform/machines/generate-config` (generate encrypted config + credentials), `POST /api/platform/machines/test-decrypt` (verify).
+- **Frontend:** "สร้าง Encryption Key" section on database-servers page — enter target hostname + MAC → get encrypted file + PostgreSQL credentials to set up on target.
+- **Schema note:** `machines` table added to `shared/schema.ts` — requires `db:push` on deep-main when deploying.
+- **Status:** Backend + frontend complete, tested encrypt/decrypt round-trip. พี่ช้าง still deciding final deployment strategy (pg_hba.conf trust vs encrypted file for aaPanel Linux servers). Conversation paused — พี่ช้าง went out, will continue later.
 
 ## External Dependencies
 - **Replit Object Storage:** Stores document template assets.
