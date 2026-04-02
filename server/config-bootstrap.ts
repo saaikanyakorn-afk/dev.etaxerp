@@ -1,4 +1,7 @@
 import pg from "pg";
+import fs from "fs";
+import path from "path";
+import os from "os";
 
 interface ConfigEntry {
   config_key: string;
@@ -11,14 +14,64 @@ let _configCache: Map<string, string> = new Map();
 let _configDbUrl: string = "";
 let _bootstrapped = false;
 
+function isReplit(): boolean {
+  return !!(process.env.REPL_ID || process.env.REPL_SLUG || process.env.REPLIT_DOMAINS);
+}
+
+function resolveConfigDbUrl(): string | null {
+  if (process.env.DATABASE_URL) return process.env.DATABASE_URL;
+
+  const machineName = process.env.MACHINE_NAME;
+  if (!machineName) return null;
+
+  const encFile = path.join(process.cwd(), "config", "etax-config.enc");
+  if (!fs.existsSync(encFile)) {
+    console.warn(`[Config] Encrypted config not found at ${encFile}`);
+    return null;
+  }
+
+  try {
+    const { deriveKey, decrypt } = require("./utils/machine-crypto");
+    const hostname = os.hostname();
+    const nets = os.networkInterfaces();
+    let mac = "";
+    for (const ifaces of Object.values(nets)) {
+      if (!ifaces) continue;
+      for (const iface of ifaces) {
+        if (!iface.internal && iface.mac && iface.mac !== "00:00:00:00:00:00") {
+          mac = iface.mac;
+          break;
+        }
+      }
+      if (mac) break;
+    }
+
+    if (!mac) {
+      console.error("[Config] Could not determine MAC address");
+      return null;
+    }
+
+    const encrypted = fs.readFileSync(encFile, "utf-8").trim();
+    const key = deriveKey(hostname, mac);
+    const decrypted = JSON.parse(decrypt(encrypted, key));
+    const cfg = decrypted.configDb;
+    const url = `postgresql://${cfg.user}:${encodeURIComponent(cfg.password)}@${cfg.host}:${cfg.port}/${cfg.database}`;
+    console.log(`[Config] Decrypted config for machine: ${hostname}`);
+    return url;
+  } catch (err: any) {
+    console.error(`[Config] Failed to decrypt config: ${err.message}`);
+    return null;
+  }
+}
+
 export function getConfigDbUrl(): string {
   return _configDbUrl || process.env.DATABASE_URL || "";
 }
 
 export async function bootstrapConfig(): Promise<Map<string, string>> {
-  const configDbUrl = process.env.DATABASE_URL;
+  const configDbUrl = isReplit() ? process.env.DATABASE_URL : resolveConfigDbUrl();
   if (!configDbUrl) {
-    console.warn("[Config] No DATABASE_URL set, skipping config bootstrap");
+    console.warn("[Config] No config DB URL resolved, skipping config bootstrap");
     return _configCache;
   }
 
