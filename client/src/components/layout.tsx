@@ -105,14 +105,22 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const [companySwitching, setCompanySwitching] = useState(false);
   const prevCompanyIdRef = useRef(selectedCompanyId);
 
-  const { data: maintenanceData } = useQuery<{ enabled: boolean; message?: string; scheduledEnd?: string | null; cloneInProgress?: boolean }>({
+  const { data: maintenanceData } = useQuery<{ enabled: boolean; message?: string; scheduledAt?: string | null; scheduledEnd?: string | null; cloneInProgress?: boolean }>({
     queryKey: ["/api/maintenance/status"],
     queryFn: async () => {
       const r = await fetch("/api/maintenance/status", { credentials: "include" });
       if (!r.ok) return { enabled: false };
       return r.json();
     },
-    refetchInterval: 300000,
+    refetchInterval: () => {
+      if (maintenanceData?.enabled) return 30000;
+      if (maintenanceData?.scheduledAt) {
+        const msUntil = new Date(maintenanceData.scheduledAt).getTime() - Date.now();
+        if (msUntil < 3600000) return 60000;
+        return 1800000;
+      }
+      return 3600000;
+    },
     staleTime: 120000,
   });
   const isUnderMaintenance = maintenanceData?.enabled === true;
@@ -291,8 +299,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       return r.json();
     },
     enabled: !!user && !!selectedCompanyId,
-    refetchInterval: 300000,
-    staleTime: 120000,
+    refetchInterval: 1800000,
+    staleTime: 600000,
   });
 
   const permCacheKey = `perm_cache_${user?.id}_${selectedCompanyId || "all"}`;
