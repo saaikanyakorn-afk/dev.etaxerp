@@ -1,18 +1,22 @@
-import { useState } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useCompany } from "@/lib/company-context";
 import PosLayout from "@/components/pos-layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import { useUpload } from "@/hooks/use-upload";
 import {
-  Settings, CreditCard, Receipt, Store, Printer, Plus, Pencil, Trash2, Save,
-  Banknote, QrCode, Smartphone, Wallet
+  Settings, CreditCard, Receipt, Store, Plus, Pencil, Trash2, Save,
+  Banknote, QrCode, Smartphone, Wallet, FileImage, Upload, X, Loader2, FileText, Printer
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import {
@@ -24,10 +28,150 @@ const PM_ICONS: Record<string, any> = {
   cash: Banknote, credit_card: CreditCard, promptpay: QrCode, transfer: Smartphone, ewallet: Wallet,
 };
 
+const PM_TYPES = [
+  { value: "cash", label: "เงินสด" },
+  { value: "credit_card", label: "บัตรเครดิต" },
+  { value: "promptpay", label: "พร้อมเพย์" },
+  { value: "transfer", label: "โอนเงิน" },
+  { value: "ewallet", label: "E-Wallet" },
+];
+
+interface DocSettings {
+  id?: number;
+  companyId: number;
+  logoUrl?: string | null;
+  posReceiptWidth: string;
+  posReceiptShowLogo: boolean;
+  posReceiptShowCompanyInfo: boolean;
+  posReceiptShowQr: boolean;
+  posReceiptHeaderText?: string | null;
+  posReceiptFooterText?: string | null;
+  posReceiptAutoPrint: boolean;
+  posReceiptPrefix: string;
+}
+
+function ImageUploadBox({ label, currentUrl, onUploaded, onClear, testId }: {
+  label: string; currentUrl?: string | null; onUploaded: (path: string) => void; onClear: () => void; testId: string;
+}) {
+  const fileRef = useRef<HTMLInputElement>(null);
+  const { uploadFile, isUploading } = useUpload({ onSuccess: (r) => onUploaded(r.objectPath) });
+
+  const handleFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) { alert("ไฟล์ต้องมีขนาดไม่เกิน 5MB"); return; }
+    await uploadFile(file);
+    if (fileRef.current) fileRef.current.value = "";
+  }, [uploadFile]);
+
+  return (
+    <div className="space-y-2">
+      <Label className="text-sm font-medium">{label}</Label>
+      {currentUrl ? (
+        <div className="relative border rounded-lg p-3 bg-muted/30">
+          <img src={currentUrl} alt={label} className="max-h-24 max-w-full object-contain mx-auto" data-testid={`img-${testId}`} />
+          <Button variant="ghost" size="sm" className="absolute top-1 right-1 h-6 w-6 p-0 text-muted-foreground hover:text-rose-500" onClick={onClear} data-testid={`button-clear-${testId}`}>
+            <X className="h-3 w-3" />
+          </Button>
+        </div>
+      ) : (
+        <div
+          className="border-2 border-dashed rounded-lg p-6 text-center cursor-pointer hover:border-[#fb9678] hover:bg-[#fb9678]/5 transition-colors"
+          onClick={() => fileRef.current?.click()}
+          data-testid={`dropzone-${testId}`}
+        >
+          {isUploading ? (
+            <Loader2 className="h-8 w-8 animate-spin mx-auto text-muted-foreground" />
+          ) : (
+            <>
+              <Upload className="h-8 w-8 mx-auto text-muted-foreground/50 mb-2" />
+              <p className="text-xs text-muted-foreground">คลิกเพื่ออัพโหลด (PNG, JPG ไม่เกิน 5MB)</p>
+            </>
+          )}
+        </div>
+      )}
+      <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
+    </div>
+  );
+}
+
+function ReceiptPreview({ settings, company }: { settings: DocSettings; company: any }) {
+  const width = settings.posReceiptWidth === "58mm" ? 220 : 300;
+  return (
+    <div className="border rounded-lg bg-white p-0 mx-auto" style={{ width, fontFamily: "monospace", fontSize: "11px" }}>
+      <div className="p-3 text-center border-b border-dashed border-gray-300">
+        {settings.posReceiptShowLogo && settings.logoUrl && (
+          <img src={settings.logoUrl} alt="Logo" className="h-10 mx-auto mb-2 object-contain" />
+        )}
+        {settings.posReceiptShowCompanyInfo && company && (
+          <div className="space-y-0.5">
+            <div className="font-bold text-xs">{company.name || "ชื่อร้าน"}</div>
+            {company.address && <div className="text-[10px] text-gray-600 leading-tight">{company.address}</div>}
+            {company.phone && <div className="text-[10px] text-gray-600">โทร {company.phone}</div>}
+            {company.taxId && <div className="text-[10px] text-gray-600">เลขผู้เสียภาษี {company.taxId}</div>}
+          </div>
+        )}
+        {settings.posReceiptHeaderText && (
+          <div className="text-[10px] text-gray-500 mt-1">{settings.posReceiptHeaderText}</div>
+        )}
+      </div>
+      <div className="p-3 border-b border-dashed border-gray-300">
+        <div className="flex justify-between text-[10px] text-gray-500 mb-2">
+          <span>{settings.posReceiptPrefix}-250402-0001</span>
+          <span>02/04/2568</span>
+        </div>
+        <div className="space-y-1.5">
+          {[
+            { name: "กาแฟลาเต้", qty: 2, price: 120 },
+            { name: "ครัวซองต์", qty: 1, price: 65 },
+            { name: "น้ำส้มคั้น", qty: 1, price: 45 },
+          ].map((item, i) => (
+            <div key={i} className="flex justify-between text-[10px]">
+              <span>{item.name} x{item.qty}</span>
+              <span>{(item.qty * item.price).toFixed(2)}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="p-3 border-b border-dashed border-gray-300 space-y-1">
+        <div className="flex justify-between text-[10px]">
+          <span>รวม</span><span>350.00</span>
+        </div>
+        <div className="flex justify-between text-[10px]">
+          <span>VAT 7%</span><span>22.90</span>
+        </div>
+        <div className="flex justify-between font-bold text-xs">
+          <span>รวมทั้งสิ้น</span><span>372.90</span>
+        </div>
+        <div className="flex justify-between text-[10px] text-gray-500 mt-1">
+          <span>เงินสด</span><span>400.00</span>
+        </div>
+        <div className="flex justify-between text-[10px] text-gray-500">
+          <span>เงินทอน</span><span>27.10</span>
+        </div>
+      </div>
+      {settings.posReceiptShowQr && (
+        <div className="p-3 border-b border-dashed border-gray-300 text-center">
+          <div className="w-16 h-16 mx-auto border rounded bg-gray-100 flex items-center justify-center">
+            <QrCode className="w-10 h-10 text-gray-300" />
+          </div>
+          <div className="text-[9px] text-gray-400 mt-1">PromptPay QR</div>
+        </div>
+      )}
+      {settings.posReceiptFooterText && (
+        <div className="p-3 text-center text-[10px] text-gray-500">
+          {settings.posReceiptFooterText}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function PosSettings() {
-  const { selectedCompanyId } = useCompany();
+  const { selectedCompanyId, selectedCompany: company } = useCompany();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
   const [pmDialogOpen, setPmDialogOpen] = useState(false);
   const [editPm, setEditPm] = useState<any>(null);
   const [deletePmId, setDeletePmId] = useState<number | null>(null);
@@ -51,6 +195,43 @@ export default function PosSettings() {
       return r.json();
     },
     enabled: !!selectedCompanyId,
+  });
+
+  const { data: docSettings } = useQuery<DocSettings>({
+    queryKey: ["/api/document-settings", selectedCompanyId],
+    queryFn: async () => {
+      const r = await fetch(`/api/document-settings/${selectedCompanyId}`, { credentials: "include" });
+      if (!r.ok) return {
+        companyId: selectedCompanyId!,
+        posReceiptWidth: "80mm",
+        posReceiptShowLogo: true,
+        posReceiptShowCompanyInfo: true,
+        posReceiptShowQr: true,
+        posReceiptAutoPrint: false,
+        posReceiptPrefix: "POS",
+      };
+      return r.json();
+    },
+    enabled: !!selectedCompanyId,
+  });
+
+  const [localDoc, setLocalDoc] = useState<DocSettings | null>(null);
+  useEffect(() => { if (docSettings) setLocalDoc(docSettings); }, [docSettings]);
+
+  const docMutation = useMutation({
+    mutationFn: async (data: Partial<DocSettings>) => {
+      const r = await fetch(`/api/document-settings/${selectedCompanyId}`, {
+        method: "PUT", headers: { "Content-Type": "application/json" }, credentials: "include",
+        body: JSON.stringify({ ...data, companyId: selectedCompanyId }),
+      });
+      if (!r.ok) throw new Error("บันทึกไม่สำเร็จ");
+      return r.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/document-settings", selectedCompanyId] });
+      toast({ title: "บันทึกตั้งค่าเอกสารสำเร็จ" });
+    },
+    onError: () => toast({ title: "เกิดข้อผิดพลาด", variant: "destructive" }),
   });
 
   const createPmMutation = useMutation({
@@ -118,13 +299,7 @@ export default function PosSettings() {
     else createPmMutation.mutate(pmForm);
   };
 
-  const PM_TYPES = [
-    { value: "cash", label: "เงินสด" },
-    { value: "credit_card", label: "บัตรเครดิต" },
-    { value: "promptpay", label: "พร้อมเพย์" },
-    { value: "transfer", label: "โอนเงิน" },
-    { value: "ewallet", label: "E-Wallet" },
-  ];
+  const updateDoc = (key: string, val: any) => setLocalDoc(prev => prev ? { ...prev, [key]: val } : prev);
 
   return (
     <PosLayout>
@@ -133,128 +308,301 @@ export default function PosSettings() {
           <h1 className="text-xl font-bold text-slate-800 flex items-center gap-2" data-testid="text-page-title">
             <Settings className="w-6 h-6 text-[#03c9d7]" /> ตั้งค่า POS
           </h1>
-          <p className="text-sm text-slate-500 mt-0.5">จัดการช่องทางชำระเงิน สาขา และการตั้งค่าทั่วไป</p>
+          <p className="text-sm text-slate-500 mt-0.5">จัดการช่องทางชำระเงิน สาขา และตั้งค่าเอกสาร</p>
         </div>
 
-        <Card className="border-none shadow-sm">
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-base flex items-center gap-2">
-                <CreditCard className="w-5 h-5 text-[#03c9d7]" /> ช่องทางชำระเงิน
-              </CardTitle>
-              <Button size="sm" onClick={openCreatePm} className="bg-[#03c9d7] hover:bg-[#02b5c2] text-white" data-testid="button-add-payment">
-                <Plus className="w-4 h-4 mr-1" /> เพิ่มช่องทาง
+        <Tabs defaultValue="general" className="space-y-4">
+          <TabsList className="grid grid-cols-3 w-full max-w-md">
+            <TabsTrigger value="general" data-testid="tab-general">ทั่วไป</TabsTrigger>
+            <TabsTrigger value="receipt" data-testid="tab-receipt">ใบเสร็จ/เอกสาร</TabsTrigger>
+            <TabsTrigger value="branches" data-testid="tab-branches">สาขา</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="general" className="space-y-4">
+            <Card className="border-none shadow-sm">
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <CreditCard className="w-5 h-5 text-[#03c9d7]" /> ช่องทางชำระเงิน
+                  </CardTitle>
+                  <Button size="sm" onClick={openCreatePm} className="bg-[#03c9d7] hover:bg-[#02b5c2] text-white" data-testid="button-add-payment">
+                    <Plus className="w-4 h-4 mr-1" /> เพิ่มช่องทาง
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {pmLoading ? (
+                  <div className="text-center py-8 text-slate-400">กำลังโหลด...</div>
+                ) : paymentMethods.length === 0 ? (
+                  <div className="text-center py-8 text-slate-400">
+                    <CreditCard className="w-10 h-10 mx-auto mb-2 text-slate-300" />
+                    <p>ยังไม่มีช่องทางชำระเงิน</p>
+                    <Button variant="outline" size="sm" className="mt-2" onClick={openCreatePm}>เพิ่มช่องทาง</Button>
+                  </div>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>ชื่อ</TableHead>
+                        <TableHead>ประเภท</TableHead>
+                        <TableHead>สถานะ</TableHead>
+                        <TableHead className="text-right">จัดการ</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {paymentMethods.map((pm: any) => {
+                        const Icon = PM_ICONS[pm.type] || CreditCard;
+                        return (
+                          <TableRow key={pm.id} data-testid={`row-pm-${pm.id}`}>
+                            <TableCell className="font-medium flex items-center gap-2">
+                              <Icon className="w-4 h-4 text-slate-500" /> {pm.name}
+                            </TableCell>
+                            <TableCell className="text-sm">{PM_TYPES.find(t => t.value === pm.type)?.label || pm.type}</TableCell>
+                            <TableCell>
+                              {pm.isActive !== false
+                                ? <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 text-xs">เปิดใช้งาน</Badge>
+                                : <Badge className="bg-slate-100 text-slate-500 border-slate-200 text-xs">ปิดใช้งาน</Badge>
+                              }
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex items-center justify-end gap-1">
+                                <Button variant="ghost" size="sm" onClick={() => openEditPm(pm)} data-testid={`button-edit-pm-${pm.id}`}>
+                                  <Pencil className="w-4 h-4 text-slate-500" />
+                                </Button>
+                                <Button variant="ghost" size="sm" onClick={() => setDeletePmId(pm.id)} data-testid={`button-delete-pm-${pm.id}`}>
+                                  <Trash2 className="w-4 h-4 text-red-400" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card className="border-none shadow-sm">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Receipt className="w-5 h-5 text-[#03c9d7]" /> การตั้งค่าใบเสร็จ
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between p-3 rounded-lg border">
+                  <div>
+                    <div className="font-medium text-sm text-slate-800">ออกใบกำกับภาษีอัตโนมัติ</div>
+                    <div className="text-xs text-slate-400">ออกใบกำกับภาษีทุกครั้งเมื่อปิดกะขาย</div>
+                  </div>
+                  <Switch defaultChecked data-testid="switch-auto-invoice" />
+                </div>
+                <div className="flex items-center justify-between p-3 rounded-lg border">
+                  <div>
+                    <div className="font-medium text-sm text-slate-800">แสดง QR PromptPay</div>
+                    <div className="text-xs text-slate-400">แสดง QR Code พร้อมเพย์ในหน้าชำระเงิน</div>
+                  </div>
+                  <Switch defaultChecked data-testid="switch-promptpay-qr" />
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="receipt" className="space-y-4">
+            <div className="flex justify-end">
+              <Button
+                onClick={() => localDoc && docMutation.mutate(localDoc)}
+                disabled={docMutation.isPending}
+                data-testid="button-save-doc"
+              >
+                {docMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
+                บันทึก
               </Button>
             </div>
-          </CardHeader>
-          <CardContent>
-            {pmLoading ? (
-              <div className="text-center py-8 text-slate-400">กำลังโหลด...</div>
-            ) : paymentMethods.length === 0 ? (
-              <div className="text-center py-8 text-slate-400">
-                <CreditCard className="w-10 h-10 mx-auto mb-2 text-slate-300" />
-                <p>ยังไม่มีช่องทางชำระเงิน</p>
-                <Button variant="outline" size="sm" className="mt-2" onClick={openCreatePm}>เพิ่มช่องทาง</Button>
-              </div>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>ชื่อ</TableHead>
-                    <TableHead>ประเภท</TableHead>
-                    <TableHead>สถานะ</TableHead>
-                    <TableHead className="text-right">จัดการ</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {paymentMethods.map((pm: any) => {
-                    const Icon = PM_ICONS[pm.type] || CreditCard;
-                    return (
-                      <TableRow key={pm.id} data-testid={`row-pm-${pm.id}`}>
-                        <TableCell className="font-medium flex items-center gap-2">
-                          <Icon className="w-4 h-4 text-slate-500" /> {pm.name}
-                        </TableCell>
-                        <TableCell className="text-sm">{PM_TYPES.find(t => t.value === pm.type)?.label || pm.type}</TableCell>
-                        <TableCell>
-                          {pm.isActive !== false
-                            ? <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 text-xs">เปิดใช้งาน</Badge>
-                            : <Badge className="bg-slate-100 text-slate-500 border-slate-200 text-xs">ปิดใช้งาน</Badge>
-                          }
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex items-center justify-end gap-1">
-                            <Button variant="ghost" size="sm" onClick={() => openEditPm(pm)} data-testid={`button-edit-pm-${pm.id}`}>
-                              <Pencil className="w-4 h-4 text-slate-500" />
-                            </Button>
-                            <Button variant="ghost" size="sm" onClick={() => setDeletePmId(pm.id)} data-testid={`button-delete-pm-${pm.id}`}>
-                              <Trash2 className="w-4 h-4 text-red-400" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            )}
-          </CardContent>
-        </Card>
 
-        <Card className="border-none shadow-sm">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2">
-              <Store className="w-5 h-5 text-[#03c9d7]" /> สาขาที่เปิดใช้งาน
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {branches.length === 0 ? (
-              <div className="text-center py-6 text-slate-400 text-sm">ยังไม่มีสาขา</div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {branches.map((b: any) => (
-                  <div key={b.id} className="flex items-center justify-between p-3 rounded-lg border bg-white" data-testid={`card-branch-${b.id}`}>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className="space-y-4">
+                <Card className="border-none shadow-sm">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <FileImage className="w-5 h-5 text-[#fb9678]" /> โลโก้ร้านค้า
+                    </CardTitle>
+                    <p className="text-xs text-muted-foreground">โลโก้จะแสดงด้านบนใบเสร็จอย่างย่อ</p>
+                  </CardHeader>
+                  <CardContent>
+                    <ImageUploadBox
+                      label="โลโก้ร้าน"
+                      currentUrl={localDoc?.logoUrl}
+                      onUploaded={(path) => updateDoc("logoUrl", path)}
+                      onClear={() => updateDoc("logoUrl", null)}
+                      testId="pos-logo"
+                    />
+                  </CardContent>
+                </Card>
+
+                <Card className="border-none shadow-sm">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Printer className="w-5 h-5 text-[#03c9d7]" /> ขนาดกระดาษ & Prefix
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
                     <div>
-                      <div className="font-medium text-slate-800">{b.name}</div>
-                      <div className="text-xs text-slate-400">{b.code || ""} {b.address ? `• ${b.address}` : ""}</div>
+                      <Label className="text-xs text-muted-foreground">ขนาดกระดาษใบเสร็จ</Label>
+                      <Select
+                        value={localDoc?.posReceiptWidth || "80mm"}
+                        onValueChange={v => updateDoc("posReceiptWidth", v)}
+                      >
+                        <SelectTrigger data-testid="select-receipt-width"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="58mm">58mm (กระดาษเล็ก)</SelectItem>
+                          <SelectItem value="80mm">80mm (มาตรฐาน)</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
-                    <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 text-xs">เปิดใช้งาน</Badge>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+                    <div>
+                      <Label className="text-xs text-muted-foreground">Prefix เลขที่ใบเสร็จ</Label>
+                      <Input
+                        value={localDoc?.posReceiptPrefix || "POS"}
+                        onChange={e => updateDoc("posReceiptPrefix", e.target.value)}
+                        placeholder="POS"
+                        data-testid="input-receipt-prefix"
+                      />
+                      <p className="text-[10px] text-muted-foreground mt-1">ตัวอย่าง: {localDoc?.posReceiptPrefix || "POS"}-250402-0001</p>
+                    </div>
+                  </CardContent>
+                </Card>
 
-        <Card className="border-none shadow-sm">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2">
-              <Receipt className="w-5 h-5 text-[#03c9d7]" /> การตั้งค่าใบเสร็จ
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between p-3 rounded-lg border">
-              <div>
-                <div className="font-medium text-sm text-slate-800">ออกใบกำกับภาษีอัตโนมัติ</div>
-                <div className="text-xs text-slate-400">ออกใบกำกับภาษีทุกครั้งเมื่อปิดกะขาย</div>
+                <Card className="border-none shadow-sm">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <FileText className="w-5 h-5 text-[#05b187]" /> ข้อความบนใบเสร็จ
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div>
+                      <Label className="text-xs text-muted-foreground">ข้อความหัวบิล (ใต้ข้อมูลร้าน)</Label>
+                      <Textarea
+                        value={localDoc?.posReceiptHeaderText || ""}
+                        onChange={e => updateDoc("posReceiptHeaderText", e.target.value)}
+                        placeholder="เช่น สาขาสยามสแควร์ เปิดบริการ 10:00-22:00"
+                        rows={2}
+                        data-testid="input-receipt-header"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs text-muted-foreground">ข้อความท้ายบิล</Label>
+                      <Textarea
+                        value={localDoc?.posReceiptFooterText || ""}
+                        onChange={e => updateDoc("posReceiptFooterText", e.target.value)}
+                        placeholder="เช่น ขอบคุณที่ใช้บริการ ❤️ ติดตาม @shopname"
+                        rows={2}
+                        data-testid="input-receipt-footer"
+                      />
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="border-none shadow-sm">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Settings className="w-5 h-5 text-[#539BFF]" /> ตัวเลือกแสดงผล
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div className="flex items-center justify-between p-3 rounded-lg border">
+                      <div>
+                        <div className="font-medium text-sm">แสดงโลโก้</div>
+                        <div className="text-xs text-muted-foreground">แสดงโลโก้ร้านค้าบนใบเสร็จ</div>
+                      </div>
+                      <Switch
+                        checked={localDoc?.posReceiptShowLogo ?? true}
+                        onCheckedChange={v => updateDoc("posReceiptShowLogo", v)}
+                        data-testid="switch-show-logo"
+                      />
+                    </div>
+                    <div className="flex items-center justify-between p-3 rounded-lg border">
+                      <div>
+                        <div className="font-medium text-sm">แสดงข้อมูลร้าน</div>
+                        <div className="text-xs text-muted-foreground">ชื่อร้าน ที่อยู่ เบอร์โทร เลขผู้เสียภาษี</div>
+                      </div>
+                      <Switch
+                        checked={localDoc?.posReceiptShowCompanyInfo ?? true}
+                        onCheckedChange={v => updateDoc("posReceiptShowCompanyInfo", v)}
+                        data-testid="switch-show-company"
+                      />
+                    </div>
+                    <div className="flex items-center justify-between p-3 rounded-lg border">
+                      <div>
+                        <div className="font-medium text-sm">แสดง QR Code</div>
+                        <div className="text-xs text-muted-foreground">แสดง PromptPay QR บนใบเสร็จ</div>
+                      </div>
+                      <Switch
+                        checked={localDoc?.posReceiptShowQr ?? true}
+                        onCheckedChange={v => updateDoc("posReceiptShowQr", v)}
+                        data-testid="switch-show-qr"
+                      />
+                    </div>
+                    <div className="flex items-center justify-between p-3 rounded-lg border">
+                      <div>
+                        <div className="font-medium text-sm">พิมพ์อัตโนมัติ</div>
+                        <div className="text-xs text-muted-foreground">พิมพ์ใบเสร็จทันทีหลังชำระเงินสำเร็จ</div>
+                      </div>
+                      <Switch
+                        checked={localDoc?.posReceiptAutoPrint ?? false}
+                        onCheckedChange={v => updateDoc("posReceiptAutoPrint", v)}
+                        data-testid="switch-auto-print"
+                      />
+                    </div>
+                  </CardContent>
+                </Card>
               </div>
-              <Switch defaultChecked data-testid="switch-auto-invoice" />
-            </div>
-            <div className="flex items-center justify-between p-3 rounded-lg border">
-              <div>
-                <div className="font-medium text-sm text-slate-800">พิมพ์ใบเสร็จอัตโนมัติ</div>
-                <div className="text-xs text-slate-400">พิมพ์ใบเสร็จทันทีหลังจากชำระเงินสำเร็จ</div>
+
+              <div className="space-y-4">
+                <Card className="border-none shadow-sm sticky top-4">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Receipt className="w-5 h-5 text-[#fec90f]" /> ตัวอย่างใบเสร็จ
+                    </CardTitle>
+                    <p className="text-xs text-muted-foreground">
+                      ขนาด {localDoc?.posReceiptWidth || "80mm"}
+                    </p>
+                  </CardHeader>
+                  <CardContent className="flex justify-center py-4 bg-gray-50 rounded-lg">
+                    {localDoc && <ReceiptPreview settings={localDoc} company={company} />}
+                  </CardContent>
+                </Card>
               </div>
-              <Switch data-testid="switch-auto-print" />
             </div>
-            <div className="flex items-center justify-between p-3 rounded-lg border">
-              <div>
-                <div className="font-medium text-sm text-slate-800">แสดง QR PromptPay</div>
-                <div className="text-xs text-slate-400">แสดง QR Code พร้อมเพย์ในหน้าชำระเงิน</div>
-              </div>
-              <Switch defaultChecked data-testid="switch-promptpay-qr" />
-            </div>
-          </CardContent>
-        </Card>
+          </TabsContent>
+
+          <TabsContent value="branches" className="space-y-4">
+            <Card className="border-none shadow-sm">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Store className="w-5 h-5 text-[#03c9d7]" /> สาขาที่เปิดใช้งาน
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {branches.length === 0 ? (
+                  <div className="text-center py-6 text-slate-400 text-sm">ยังไม่มีสาขา</div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {branches.map((b: any) => (
+                      <div key={b.id} className="flex items-center justify-between p-3 rounded-lg border bg-white" data-testid={`card-branch-${b.id}`}>
+                        <div>
+                          <div className="font-medium text-slate-800">{b.name}</div>
+                          <div className="text-xs text-slate-400">{b.code || ""} {b.address ? `• ${b.address}` : ""}</div>
+                        </div>
+                        <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 text-xs">เปิดใช้งาน</Badge>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
       </div>
 
       <Dialog open={pmDialogOpen} onOpenChange={setPmDialogOpen}>
