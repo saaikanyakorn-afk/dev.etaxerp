@@ -1,5 +1,6 @@
-import { useState, useEffect, useRef, type ReactNode } from "react";
+import { useState, useEffect, useRef, type ReactNode, useMemo } from "react";
 import { useLocation } from "wouter";
+import { useQuery } from "@tanstack/react-query";
 import logoWhite from "@assets/Logo_Etax_W_1771262337378.png";
 import ecomDashboardImg from "@assets/image_1771262787029.png";
 import logoShopee from "@assets/Shopee_1771303135650.png";
@@ -240,10 +241,39 @@ function CellValue({ val }: { val: boolean | string }) {
   return <span className="text-sm text-gray-700 font-medium">{val}</span>;
 }
 
+const TIER_COLORS: Record<string, string> = { free: "#05b187", starter: "#fb9678", pro: "#03c9d7", enterprise: "#fec90f" };
+
+function formatPlanPrice(price: string | number): string {
+  const n = Number(price);
+  if (!n || n <= 0) return "ฟรี";
+  return n.toLocaleString("th-TH");
+}
+
 export default function EcommercePricing() {
   const [, navigate] = useLocation();
   const [mobileMenu, setMobileMenu] = useState(false);
   useEffect(() => { window.scrollTo(0, 0); }, []);
+
+  const { data: apiPlans } = useQuery<any[]>({
+    queryKey: ["/api/public/module-plans", "ecommerce"],
+    queryFn: () => fetch("/api/public/module-plans?module=ecommerce").then(r => r.json()),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const plans = useMemo(() => {
+    if (!apiPlans || apiPlans.length === 0) return ECOM_PLANS;
+    return apiPlans.map((p: any) => ({
+      name: p.name,
+      price: Number(p.monthlyPrice) <= 0 ? "ฟรี" : formatPlanPrice(p.monthlyPrice),
+      period: Number(p.monthlyPrice) > 0 ? "บาท/เดือน" : "",
+      desc: p.description || "",
+      color: TIER_COLORS[p.tier] || "#03c9d7",
+      popular: p.popular || false,
+      cta: Number(p.monthlyPrice) <= 0 ? "เริ่มใช้ฟรี" : (Number(p.monthlyPrice) >= 990 ? "ติดต่อฝ่ายขาย" : "เริ่มทดลองใช้"),
+      limits: p.limits || `ผู้ใช้ ${p.maxUsers} คน`,
+      features: p.features || [],
+    }));
+  }, [apiPlans]);
 
   return (
     <div className="min-h-screen bg-white font-[Sarabun] force-light-mode">
@@ -678,8 +708,8 @@ export default function EcommercePricing() {
             <p className="text-gray-400 text-[15px]">เริ่มต้นฟรี ไม่ต้องผูกบัตรเครดิต อัปเกรดเมื่อพร้อม</p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {ECOM_PLANS.map((plan, i) => (
+          <div className={`grid grid-cols-1 sm:grid-cols-2 ${plans.length <= 3 ? "lg:grid-cols-3" : "lg:grid-cols-4"} gap-6`}>
+            {plans.map((plan, i) => (
               <div
                 key={i}
                 className={`bg-white rounded-2xl overflow-hidden transition-all hover:shadow-2xl relative ${plan.popular ? "shadow-2xl ring-2" : "border border-gray-100 hover:-translate-y-1"}`}
@@ -773,7 +803,7 @@ export default function EcommercePricing() {
                 <thead>
                   <tr className="border-b border-gray-100">
                     <th className="text-left px-6 py-4 text-sm font-bold text-gray-900 w-[240px]">ฟีเจอร์</th>
-                    {ECOM_PLANS.map((p) => (
+                    {plans.map((p) => (
                       <th key={p.name} className="text-center px-4 py-4 min-w-[120px]">
                         <div className="text-sm font-bold text-gray-900">{p.name}</div>
                         <div className="text-xs font-bold mt-1" style={{ color: p.color }}>
