@@ -1,42 +1,27 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useParams } from "wouter";
 import { Button } from "@/components/ui/button";
-import { Download, Printer, Loader2, FileText, AlertCircle, RefreshCw } from "lucide-react";
+import { Download, Printer, Loader2, FileText } from "lucide-react";
+import DocumentRenderer from "@/components/document-renderer";
 
 export default function InvoiceShare() {
   const { token } = useParams<{ token: string }>();
+  const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [docNo, setDocNo] = useState("");
-  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [downloading, setDownloading] = useState(false);
-  const prevUrlRef = useRef<string | null>(null);
-
-  const loadPdf = async () => {
-    setLoading(true);
-    setError("");
-    try {
-      const metaRes = await fetch(`/api/share/invoice/${token}`);
-      if (!metaRes.ok) throw new Error("ไม่พบเอกสาร หรือลิงก์หมดอายุ");
-      const meta = await metaRes.json();
-      setDocNo(meta.invoiceNo || "invoice");
-
-      const pdfRes = await fetch(`/api/share/invoice/${token}/pdf`);
-      if (!pdfRes.ok) throw new Error("ไม่สามารถสร้าง PDF ได้");
-      const blob = await pdfRes.blob();
-      if (prevUrlRef.current) URL.revokeObjectURL(prevUrlRef.current);
-      const url = URL.createObjectURL(blob);
-      prevUrlRef.current = url;
-      setPdfUrl(url);
-    } catch (err: any) {
-      setError(err.message);
-    }
-    setLoading(false);
-  };
 
   useEffect(() => {
-    loadPdf();
-    return () => { if (prevUrlRef.current) URL.revokeObjectURL(prevUrlRef.current); };
+    (async () => {
+      try {
+        const res = await fetch(`/api/share/invoice/${token}`);
+        if (!res.ok) throw new Error("ไม่พบเอกสาร หรือลิงก์หมดอายุ");
+        setData(await res.json());
+      } catch (err: any) {
+        setError(err.message);
+      }
+      setLoading(false);
+    })();
   }, [token]);
 
   const handleDownloadPdf = async () => {
@@ -48,28 +33,25 @@ export default function InvoiceShare() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `${docNo || "invoice"}.pdf`;
+      a.download = `${data?.invoiceNo || "invoice"}.pdf`;
       a.click();
       URL.revokeObjectURL(url);
     } catch {}
     setDownloading(false);
   };
 
-  if (loading) return <div className="flex items-center justify-center min-h-screen text-slate-500"><Loader2 className="h-6 w-6 animate-spin mr-2" /> กำลังโหลด...</div>;
-  if (error) return (
-    <div className="flex flex-col items-center justify-center min-h-screen text-red-500">
-      <AlertCircle className="h-8 w-8 mb-3" />
-      <span className="mb-3">{error}</span>
-      <Button variant="outline" size="sm" onClick={loadPdf} className="gap-1.5"><RefreshCw className="h-4 w-4" /> ลองใหม่</Button>
-    </div>
-  );
+  if (loading) return <div className="flex items-center justify-center min-h-screen text-slate-500">กำลังโหลด...</div>;
+  if (error) return <div className="flex items-center justify-center min-h-screen text-red-500">{error}</div>;
+  if (!data) return null;
+
+  const docSettings = data.documentSettings || {};
 
   return (
-    <div className="min-h-screen bg-slate-700 flex flex-col">
-      <div className="sticky top-0 z-50 bg-slate-800 border-b border-slate-600 px-4 py-2.5 flex items-center justify-between">
+    <div className="min-h-screen bg-slate-700 print:bg-white">
+      <div className="sticky top-0 z-50 bg-slate-800 border-b border-slate-600 px-4 py-2.5 flex items-center justify-between print:hidden">
         <div className="flex items-center gap-2 text-white min-w-0">
           <FileText className="h-5 w-5 text-[var(--theme-primary)] flex-shrink-0" />
-          <span className="text-sm font-medium truncate">{docNo || "ใบแจ้งหนี้"}</span>
+          <span className="text-sm font-medium truncate">{data.invoiceNo || "ใบแจ้งหนี้"}</span>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
           <Button
@@ -96,15 +78,14 @@ export default function InvoiceShare() {
         </div>
       </div>
 
-      <div className="flex-1">
-        {pdfUrl && (
-          <iframe
-            src={pdfUrl}
-            className="w-full h-full border-0"
-            style={{ minHeight: "calc(100vh - 52px)", background: "#525659" }}
-            title="PDF Preview"
-          />
-        )}
+      <div className="max-w-3xl mx-auto py-6 px-4 print:!py-0 print:!px-0 print:!max-w-none print:!m-0">
+        <DocumentRenderer
+          settings={docSettings}
+          company={data.company}
+          quotation={data}
+          documentType="invoice"
+          userSignature={data.userSignature}
+        />
       </div>
     </div>
   );
