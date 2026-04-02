@@ -577,7 +577,8 @@ function FloatingChatButton() {
       if (!res.ok) return { count: 0 };
       return res.json();
     },
-    refetchInterval: 30000,
+    refetchInterval: 300000,
+    staleTime: 120000,
     enabled: !!selectedCompanyId,
   });
 
