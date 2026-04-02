@@ -35,7 +35,7 @@ app.get("/api/reports/general-ledger", requireAuth, requireModule("accounting"),
     const [allAccounts, lines, bRows] = await Promise.all([
       db.select().from(accounts).where(eq(accounts.companyId, companyId)).orderBy(accounts.code),
       getGeneralLedgerLines(companyId, startDate || undefined, endDate || undefined, accountCode || undefined),
-      startDate ? getAccountBalancesBefore(companyId, startDate) : Promise.resolve([]),
+      startDate ? getAccountBalancesBefore(companyId, startDate, accountCode) : Promise.resolve([]),
     ]);
 
     const beginBalances = new Map<number, number>();

@@ -585,6 +585,7 @@ export default function SalesOrderForm() {
       customerId: newContact ? newContact.id : (form.customerId ? Number(form.customerId) : null),
       customerCode: newContact ? newContact.code : (form.customerCode || ""),
       companyId,
+      quotationId: fromQuoteId ? Number(fromQuoteId) : (form as any).quotationId || null,
       priceMode,
       docPrefix: form.docPrefix,
       subtotal: totals.afterDiscount.toFixed(2),

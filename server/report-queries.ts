@@ -33,8 +33,18 @@ export async function getAccountBalances(
 
 export async function getAccountBalancesBefore(
   companyId: number,
-  beforeDate: string
+  beforeDate: string,
+  accountCode?: string | null
 ): Promise<AccountBalance[]> {
+  const conditions = [
+    sql`je.company_id = ${companyId}`,
+    sql`je.status IN ('posted','approved')`,
+    sql`je.entry_date < ${beforeDate}`,
+  ];
+  if (accountCode) {
+    conditions.push(sql`a.code = ${accountCode}`);
+  }
+  const whereClause = sql.join(conditions, sql` AND `);
   const rows = await db.execute(sql`
     SELECT
       jl.account_id AS "accountId",
@@ -42,9 +52,8 @@ export async function getAccountBalancesBefore(
       COALESCE(SUM(CAST(jl.credit AS numeric)), 0) AS "totalCredit"
     FROM journal_lines jl
     INNER JOIN journal_entries je ON je.id = jl.journal_entry_id
-    WHERE je.company_id = ${companyId}
-      AND je.status IN ('posted','approved')
-      AND je.entry_date < ${beforeDate}
+    INNER JOIN accounts a ON a.id = jl.account_id
+    WHERE ${whereClause}
     GROUP BY jl.account_id
   `);
   return (rows.rows || rows) as AccountBalance[];
