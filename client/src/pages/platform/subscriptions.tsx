@@ -618,67 +618,77 @@ export default function PlatformSubscriptions() {
               );
             })}
 
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <Package className="w-5 h-5 text-[#fb9678]" />
-                  ฟีเจอร์ตามแพ็คเกจ
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm" data-testid="table-plan-features">
-                    <thead>
-                      <tr className="border-b border-gray-100">
-                        <th className="text-left py-3 px-4 font-semibold text-gray-600">ฟีเจอร์</th>
-                        {plans.map((p) => (
-                          <th key={p.id} className="text-center py-3 px-4 font-semibold" style={{ color: planColors[p.code] || "#333" }}>{p.name}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {[
-                        { label: "จำนวนผู้ใช้", key: "maxUsers" },
-                        { label: "เอกสาร/เดือน", key: "maxDocumentsPerMonth" },
-                        { label: "จำนวนบริษัท", key: "maxCompanies" },
-                        { label: "สาขาสูงสุด", key: "maxBranches" },
-                        { label: "เชื่อมต่อ E-Commerce", key: "maxEcommerceConnections" },
-                        { label: "จำนวนสินค้า", key: "maxProducts" },
-                        { label: "AI Features", key: "hasAiFeatures" },
-                        { label: "HR Module", key: "hasHrModule" },
-                        { label: "POS Module", key: "hasPosModule" },
-                        { label: "Firm Module", key: "hasFirmModule" },
-                        { label: "Delivery Module", key: "hasDeliveryModule" },
-                        { label: "API Access", key: "hasApiAccess" },
-                        { label: "White Label", key: "hasWhiteLabel" },
-                      ].map((feat) => (
-                        <tr key={feat.key} className="border-b border-gray-50">
-                          <td className="py-2.5 px-4 text-gray-700 font-medium">{feat.label}</td>
-                          {plans.map((p) => {
-                            const val = (p as any)[feat.key];
-                            return (
-                              <td key={p.id} className="py-2.5 px-4 text-center">
-                                {typeof val === "boolean" ? (
-                                  val ? <CheckCircle2 className="w-5 h-5 text-green-500 mx-auto" /> : <XCircle className="w-5 h-5 text-gray-300 mx-auto" />
-                                ) : (
-                                  <span className="font-semibold text-gray-800">{val >= 999 ? "ไม่จำกัด" : val?.toLocaleString()}</span>
-                                )}
-                              </td>
-                            );
-                          })}
-                        </tr>
-                      ))}
-                      <tr className="border-b border-gray-50 bg-gray-50/50">
-                        <td className="py-2.5 px-4 text-gray-700 font-bold">ราคา/เดือน</td>
-                        {plans.map((p) => (
-                          <td key={p.id} className="py-2.5 px-4 text-center font-bold" style={{ color: planColors[p.code] }}>{formatPrice(p.monthlyPrice)}</td>
-                        ))}
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-              </CardContent>
-            </Card>
+            {targetGroupOrder.map((groupKey) => {
+              const gPlans = groupedPlans[groupKey];
+              if (!gPlans || gPlans.length === 0) return null;
+              const GroupIcon = targetGroupIcons[groupKey] || Building2;
+              const featureRows = [
+                { label: "จำนวนผู้ใช้", key: "maxUsers" },
+                { label: "เอกสาร/เดือน", key: "maxDocumentsPerMonth" },
+                { label: "จำนวนบริษัท", key: "maxCompanies" },
+                { label: "สาขาสูงสุด", key: "maxBranches" },
+                { label: "เชื่อมต่อ E-Commerce", key: "maxEcommerceConnections" },
+                { label: "จำนวนสินค้า", key: "maxProducts" },
+                { label: "AI Features", key: "hasAiFeatures" },
+                { label: "HR Module", key: "hasHrModule" },
+                { label: "POS Module", key: "hasPosModule" },
+                { label: "Firm Module", key: "hasFirmModule" },
+                { label: "Delivery Module", key: "hasDeliveryModule" },
+                { label: "API Access", key: "hasApiAccess" },
+                { label: "White Label", key: "hasWhiteLabel" },
+              ];
+              return (
+                <Card key={`feat-${groupKey}`}>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <GroupIcon className="w-5 h-5 text-[#03c9d7]" />
+                      เปรียบเทียบฟีเจอร์ — {targetGroupLabels[groupKey] || groupKey}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm" data-testid={`table-plan-features-${groupKey}`}>
+                        <thead>
+                          <tr className="border-b border-gray-100">
+                            <th className="text-left py-3 px-4 font-semibold text-gray-600 min-w-[160px]">ฟีเจอร์</th>
+                            {gPlans.map((p) => (
+                              <th key={p.id} className="text-center py-3 px-4 font-semibold min-w-[120px]" style={{ color: planColors[p.code] || "#333" }}>
+                                {p.name}
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {featureRows.map((feat) => (
+                            <tr key={feat.key} className="border-b border-gray-50">
+                              <td className="py-2.5 px-4 text-gray-700 font-medium">{feat.label}</td>
+                              {gPlans.map((p) => {
+                                const val = (p as any)[feat.key];
+                                return (
+                                  <td key={p.id} className="py-2.5 px-4 text-center">
+                                    {typeof val === "boolean" ? (
+                                      val ? <CheckCircle2 className="w-5 h-5 text-green-500 mx-auto" /> : <XCircle className="w-5 h-5 text-gray-300 mx-auto" />
+                                    ) : (
+                                      <span className="font-semibold text-gray-800">{val >= 999 ? "ไม่จำกัด" : val?.toLocaleString()}</span>
+                                    )}
+                                  </td>
+                                );
+                              })}
+                            </tr>
+                          ))}
+                          <tr className="border-b border-gray-50 bg-gray-50/50">
+                            <td className="py-2.5 px-4 text-gray-700 font-bold">ราคา/เดือน</td>
+                            {gPlans.map((p) => (
+                              <td key={p.id} className="py-2.5 px-4 text-center font-bold" style={{ color: planColors[p.code] }}>{formatPrice(p.monthlyPrice)}</td>
+                            ))}
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
           </>
         )}
 
