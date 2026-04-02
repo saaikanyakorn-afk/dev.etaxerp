@@ -75,6 +75,9 @@ export interface PdfSettings {
   colorMode?: string | null;
   dateEra?: string | null;
   dateFormat?: string | null;
+  docFontSize?: string | null;
+  showQrOnDoc?: boolean;
+  qrBase64?: string | null;
 }
 
 export interface PdfDocumentData {
