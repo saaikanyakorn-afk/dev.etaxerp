@@ -153,7 +153,7 @@ export default function BalanceSheet() {
                 className="cursor-pointer group hover:bg-blue-50/30"
                 onClick={() => {
                   const y = new Date(asOfDate + "T00:00:00").getFullYear();
-                  window.open(`/reports/general-ledger?accountCode=${item.code}&startDate=${y}-01-01&endDate=${asOfDate}`, '_blank');
+                  navigate(`/reports/general-ledger?accountCode=${item.code}&startDate=${y}-01-01&endDate=${asOfDate}`);
                 }}
               >
                 <TableCell className="text-sm tabular-nums py-2 group-hover:text-blue-600" data-testid={`text-code-${testIdPrefix}-${idx}`}>
