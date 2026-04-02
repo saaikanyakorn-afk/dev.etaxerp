@@ -433,16 +433,21 @@ export function registerExpenseRoutes(app: Express) {
             description: `บันทึกบัญชีจากค่าใช้จ่าย ${result.expNo}`, journalBook: "payment",
             entryNo, createdBy: user.id, status: "posted", sourceDocType: "expense", sourceDocId: result.id,
           }).returning();
-          for (const ln of jL) {
-            const acc = acctMap.get(ln.accountCode);
-            if (!acc) continue;
-            const dr = parseFloat(ln.debit || "0"); const cr = parseFloat(ln.credit || "0");
-            if (dr === 0 && cr === 0) continue;
-            await db.insert(journalLines).values({
-              journalEntryId: entry.id, accountId: acc.id,
-              description: acc.nameTh ? `${acc.nameTh} (${acc.name})` : acc.name || ln.accountName,
-              debit: dr.toFixed(2), credit: cr.toFixed(2),
-            });
+          const linesToInsert = jL
+            .map(ln => {
+              const acc = acctMap.get(ln.accountCode);
+              if (!acc) return null;
+              const dr = parseFloat(ln.debit || "0"); const cr = parseFloat(ln.credit || "0");
+              if (dr === 0 && cr === 0) return null;
+              return {
+                journalEntryId: entry.id, accountId: acc.id,
+                description: acc.nameTh ? `${acc.nameTh} (${acc.name})` : acc.name || ln.accountName,
+                debit: dr.toFixed(2), credit: cr.toFixed(2),
+              };
+            })
+            .filter(Boolean) as any[];
+          if (linesToInsert.length > 0) {
+            await db.insert(journalLines).values(linesToInsert);
           }
           journalResult = entry;
         } catch (e) {
@@ -598,16 +603,21 @@ export function registerExpenseRoutes(app: Express) {
             description: `บันทึกบัญชีจากค่าใช้จ่าย ${updated.expNo}`, journalBook: "payment",
             entryNo: entryNoUp, createdBy: user.id, status: "posted", sourceDocType: "expense", sourceDocId: updated.id,
           }).returning();
-          for (const ln of jL) {
-            const acc = acctMap.get(ln.accountCode);
-            if (!acc) continue;
-            const drV = parseFloat(ln.debit || "0"); const crV = parseFloat(ln.credit || "0");
-            if (drV === 0 && crV === 0) continue;
-            await db.insert(journalLines).values({
-              journalEntryId: entry.id, accountId: acc.id,
-              description: acc.nameTh ? `${acc.nameTh} (${acc.name})` : acc.name || ln.accountName,
-              debit: drV.toFixed(2), credit: crV.toFixed(2),
-            });
+          const linesToInsert = jL
+            .map(ln => {
+              const acc = acctMap.get(ln.accountCode);
+              if (!acc) return null;
+              const drV = parseFloat(ln.debit || "0"); const crV = parseFloat(ln.credit || "0");
+              if (drV === 0 && crV === 0) return null;
+              return {
+                journalEntryId: entry.id, accountId: acc.id,
+                description: acc.nameTh ? `${acc.nameTh} (${acc.name})` : acc.name || ln.accountName,
+                debit: drV.toFixed(2), credit: crV.toFixed(2),
+              };
+            })
+            .filter(Boolean) as any[];
+          if (linesToInsert.length > 0) {
+            await db.insert(journalLines).values(linesToInsert);
           }
           journalResult = entry;
         } catch (e) {
