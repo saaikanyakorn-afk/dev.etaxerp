@@ -3,9 +3,9 @@ import path from "path";
 import fs from "fs";
 
 const CHROMIUM_PATH = "/nix/store/zi4f80l169xlmivz8vja8wlphq74qqk0-chromium-125.0.6422.141/bin/chromium";
-const MAX_CONCURRENT = 5;
-const MAX_QUEUE_LENGTH = 100;
-const IDLE_TIMEOUT_MS = 5 * 60 * 1000;
+const MAX_CONCURRENT = 3;
+const MAX_QUEUE_LENGTH = 50;
+const IDLE_TIMEOUT_MS = 10 * 60 * 1000;
 const LAUNCH_TIMEOUT_MS = 30_000;
 
 interface QueueItem {
@@ -24,19 +24,19 @@ export interface PdfOptions {
   printBackground?: boolean;
 }
 
-let cachedFontFaces: string | null = null;
-function getFontFaces(): string {
-  if (cachedFontFaces) return cachedFontFaces;
+let cachedFontFacesCSS: string | null = null;
+function getFontFacesCSS(): string {
+  if (cachedFontFacesCSS) return cachedFontFacesCSS;
   const fontsDir = path.join(process.cwd(), "server/fonts");
   const regular = fs.readFileSync(path.join(fontsDir, "Sarabun-Regular.ttf")).toString("base64");
   const bold = fs.readFileSync(path.join(fontsDir, "Sarabun-Bold.ttf")).toString("base64");
   const semiBold = fs.readFileSync(path.join(fontsDir, "Sarabun-SemiBold.ttf")).toString("base64");
-  cachedFontFaces = `
-    @font-face { font-family:'Sarabun'; src:url(data:font/ttf;base64,${regular}) format('truetype'); font-weight:normal; font-style:normal; }
-    @font-face { font-family:'Sarabun'; src:url(data:font/ttf;base64,${bold}) format('truetype'); font-weight:bold; font-style:normal; }
+  cachedFontFacesCSS = `
+    @font-face { font-family:'Sarabun'; src:url(data:font/ttf;base64,${regular}) format('truetype'); font-weight:400; font-style:normal; }
+    @font-face { font-family:'Sarabun'; src:url(data:font/ttf;base64,${bold}) format('truetype'); font-weight:700; font-style:normal; }
     @font-face { font-family:'Sarabun'; src:url(data:font/ttf;base64,${semiBold}) format('truetype'); font-weight:600; font-style:normal; }
   `;
-  return cachedFontFaces;
+  return cachedFontFacesCSS;
 }
 
 class PuppeteerPdfService {
@@ -93,8 +93,9 @@ class PuppeteerPdfService {
           "--disable-sync",
           "--disable-translate",
           "--no-first-run",
-          "--single-process",
           "--font-render-hinting=none",
+          "--disable-features=TranslateUI",
+          "--js-flags=--max-old-space-size=256",
         ],
       });
 
@@ -206,12 +207,11 @@ class PuppeteerPdfService {
         if (this.idleTimer) clearTimeout(this.idleTimer);
         page = await browser.newPage();
 
-        const fontFaces = getFontFaces();
-        const fullHtml = item.html.includes("@font-face")
-          ? item.html
-          : item.html.replace("</head>", `<style>${fontFaces}</style></head>`);
+        await page.setContent(item.html, { waitUntil: "domcontentloaded", timeout: 10_000 });
 
-        await page.setContent(fullHtml, { waitUntil: "domcontentloaded", timeout: 15_000 });
+        if (!item.html.includes("@font-face")) {
+          await page.addStyleTag({ content: getFontFacesCSS() });
+        }
         await page.evaluateHandle("document.fonts.ready");
 
         const pdfOptions: any = {
