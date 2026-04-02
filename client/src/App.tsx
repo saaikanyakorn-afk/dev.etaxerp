@@ -262,6 +262,7 @@ import ModuleSelectPage from "@/pages/module-select";
 import CompanyInfo from "@/pages/settings/company-info";
 import PaymentMethodSettings from "@/pages/settings/payment-methods";
 import MySubscription from "@/pages/settings/my-subscription";
+import ModulePricing from "@/pages/settings/module-pricing";
 import UpgradePlan from "@/pages/settings/upgrade";
 import WhiteLabelSettings from "@/pages/settings/white-label";
 import LandingCmsPage from "@/pages/settings/landing-cms";
@@ -857,6 +858,7 @@ function Router() {
       <Route path="/settings/company-info" component={CompanyInfo} />
       <Route path="/settings/payment-methods" component={PaymentMethodSettings} />
       <Route path="/settings/my-subscription" component={MySubscription} />
+      <Route path="/settings/module-pricing" component={ModulePricing} />
       <Route path="/settings/upgrade" component={UpgradePlan} />
       <Route path="/settings/white-label" component={WhiteLabelSettings} />
       <Route path="/settings/landing-cms" component={LandingCmsPage} />

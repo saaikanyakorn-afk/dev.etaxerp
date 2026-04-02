@@ -2,7 +2,8 @@ import type { Express, Request, Response } from "express";
 import { db } from "../db";
 import { storage } from "../storage";
 import { eq, and, asc } from "drizzle-orm";
-import { users, companies, products, subscriptionAddons, tenantAddonSubscriptions, taxInvoices, taxInvoiceItems, tenants, subscriptionPaymentOrders } from "@shared/schema";
+import { users, companies, products, subscriptionAddons, tenantAddonSubscriptions, taxInvoices, taxInvoiceItems, tenants, subscriptionPaymentOrders, modulePlans, tenantModuleSubscriptions } from "@shared/schema";
+import { desc } from "drizzle-orm";
 import { requireAuth, requireAdmin, requireSuperAdmin } from "../route-middleware";
 import { pool } from "../db";
 import { getConfig, setConfig } from "../config-bootstrap";
@@ -1160,6 +1161,125 @@ app.post("/api/seed-plans", requireAuth, requireAdmin, async (_req, res) => {
   } catch (err: any) {
     res.status(500).json({ message: err.message });
   }
+});
+
+app.get("/api/module-plans", async (_req, res) => {
+  try {
+    const plans = await db.select().from(modulePlans)
+      .where(eq(modulePlans.active, true))
+      .orderBy(modulePlans.moduleKey, modulePlans.sortOrder);
+    res.json(plans);
+  } catch (err: any) { res.status(500).json({ message: err.message }); }
+});
+
+app.get("/api/my-modules", requireAuth, async (req, res) => {
+  try {
+    const user = req.user as any;
+    if (!user.tenantId) return res.json({ subscriptions: [], plans: [] });
+
+    const subs = await db.select({
+      id: tenantModuleSubscriptions.id,
+      tenantId: tenantModuleSubscriptions.tenantId,
+      moduleKey: tenantModuleSubscriptions.moduleKey,
+      modulePlanId: tenantModuleSubscriptions.modulePlanId,
+      tier: tenantModuleSubscriptions.tier,
+      status: tenantModuleSubscriptions.status,
+      billingCycle: tenantModuleSubscriptions.billingCycle,
+      startDate: tenantModuleSubscriptions.startDate,
+      endDate: tenantModuleSubscriptions.endDate,
+      trialEndsAt: tenantModuleSubscriptions.trialEndsAt,
+      autoRenew: tenantModuleSubscriptions.autoRenew,
+      planName: modulePlans.name,
+      monthlyPrice: modulePlans.monthlyPrice,
+      yearlyPrice: modulePlans.yearlyPrice,
+      maxUsers: modulePlans.maxUsers,
+      maxDocuments: modulePlans.maxDocuments,
+      features: modulePlans.features,
+    }).from(tenantModuleSubscriptions)
+      .leftJoin(modulePlans, eq(tenantModuleSubscriptions.modulePlanId, modulePlans.id))
+      .where(eq(tenantModuleSubscriptions.tenantId, user.tenantId))
+      .orderBy(tenantModuleSubscriptions.moduleKey);
+
+    const now = new Date();
+    const enriched = subs.map(s => {
+      const endDate = s.endDate ? new Date(s.endDate) : null;
+      const trialEnd = s.trialEndsAt ? new Date(s.trialEndsAt) : null;
+      let daysRemaining: number | null = null;
+      let isExpiring = false;
+
+      if (s.status === "trial" && trialEnd) {
+        daysRemaining = Math.max(0, Math.ceil((trialEnd.getTime() - now.getTime()) / 86400000));
+        isExpiring = daysRemaining <= 5;
+      } else if (endDate) {
+        daysRemaining = Math.max(0, Math.ceil((endDate.getTime() - now.getTime()) / 86400000));
+        isExpiring = daysRemaining <= 7;
+      }
+
+      return { ...s, daysRemaining, isExpiring };
+    });
+
+    const allPlans = await db.select().from(modulePlans)
+      .where(eq(modulePlans.active, true))
+      .orderBy(modulePlans.moduleKey, modulePlans.sortOrder);
+
+    res.json({ subscriptions: enriched, plans: allPlans });
+  } catch (err: any) { res.status(500).json({ message: err.message }); }
+});
+
+app.post("/api/my-modules/subscribe", requireAuth, async (req, res) => {
+  try {
+    const user = req.user as any;
+    if (!user.tenantId) return res.status(400).json({ message: "ไม่พบ tenant" });
+    if (!["admin", "manager", "super_admin"].includes(user.role)) {
+      return res.status(403).json({ message: "เฉพาะผู้ดูแลระบบเท่านั้น" });
+    }
+
+    const { modulePlanId, billingCycle } = req.body;
+    if (!modulePlanId) return res.status(400).json({ message: "กรุณาเลือกแพ็คเกจ" });
+
+    const safeBilling = billingCycle === "yearly" ? "yearly" : "monthly";
+
+    const [plan] = await db.select().from(modulePlans).where(eq(modulePlans.id, Number(modulePlanId)));
+    if (!plan || !plan.active) return res.status(404).json({ message: "ไม่พบแพ็คเกจ" });
+
+    const now = new Date();
+    const isFree = Number(plan.monthlyPrice) === 0;
+
+    const [existing] = await db.select().from(tenantModuleSubscriptions)
+      .where(and(
+        eq(tenantModuleSubscriptions.tenantId, user.tenantId),
+        eq(tenantModuleSubscriptions.moduleKey, plan.moduleKey),
+      ));
+
+    if (existing) {
+      const hadTrial = existing.trialEndsAt !== null;
+      const [updated] = await db.update(tenantModuleSubscriptions).set({
+        modulePlanId: plan.id,
+        tier: plan.tier,
+        status: isFree ? "active" : (hadTrial ? existing.status : "trial"),
+        billingCycle: safeBilling,
+        trialEndsAt: isFree ? null : (hadTrial ? existing.trialEndsAt : new Date(now.getTime() + 15 * 86400000)),
+        updatedAt: now,
+      }).where(eq(tenantModuleSubscriptions.id, existing.id)).returning();
+      return res.json({ ...updated, planName: plan.name });
+    }
+
+    const trialEnd = isFree ? null : new Date(now.getTime() + 15 * 86400000);
+
+    const [sub] = await db.insert(tenantModuleSubscriptions).values({
+      tenantId: user.tenantId,
+      moduleKey: plan.moduleKey,
+      modulePlanId: plan.id,
+      tier: plan.tier,
+      status: isFree ? "active" : "trial",
+      billingCycle: safeBilling,
+      startDate: now,
+      trialEndsAt: trialEnd,
+      autoRenew: true,
+    }).returning();
+
+    res.status(201).json({ ...sub, planName: plan.name });
+  } catch (err: any) { res.status(500).json({ message: err.message }); }
 });
 
 }
