@@ -1021,8 +1021,25 @@ async function runMigrationsInBackground() {
   await reinitializeFromConfig();
   log("Config bootstrap complete");
 
-  const PRE_READY_PATHS = ["/api/public-config", "/api/maintenance/status"];
+  const { testMainDbConnection, isRecoveryMode, setRecoveryMode } = await import("./db");
+  const mainDbTest = await testMainDbConnection();
+  if (!mainDbTest.ok) {
+    log(`Main database unreachable: ${mainDbTest.error}`);
+    setRecoveryMode(true);
+    log("RECOVERY MODE ENABLED — waiting for new database connection");
+  } else {
+    log(`Main database connected: ${mainDbTest.db} (port ${mainDbTest.port})`);
+  }
+
+  const PRE_READY_PATHS = ["/api/public-config", "/api/maintenance/status", "/api/recovery/status", "/api/recovery/update-connection", "/api/recovery/test-connection"];
   app.use((req: Request, res: Response, next: NextFunction) => {
+    if (req.path.startsWith("/api/recovery/")) return next();
+    if (isRecoveryMode()) {
+      if (req.path.startsWith("/api/")) {
+        return res.status(503).json({ message: "ระบบอยู่ใน Recovery Mode — ฐานข้อมูลหลักเข้าไม่ได้", recoveryMode: true });
+      }
+      return next();
+    }
     if (migrationReady) return next();
     if (req.path.startsWith("/api/") && !PRE_READY_PATHS.includes(req.path)) {
       return res.status(503).json({ message: "ระบบกำลังเตรียมพร้อม กรุณารอสักครู่..." });
@@ -1031,6 +1048,81 @@ async function runMigrationsInBackground() {
   });
 
   await registerRoutes(httpServer, app);
+
+  app.get("/api/recovery/status", async (_req, res) => {
+    const { isRecoveryMode, testMainDbConnection } = await import("./db");
+    const { isBootstrapped, getConfigDbUrl } = await import("./config-bootstrap");
+    const dbTest = await testMainDbConnection();
+    res.json({
+      recoveryMode: isRecoveryMode(),
+      configBootstrapped: isBootstrapped(),
+      hasConfigDb: !!getConfigDbUrl(),
+      mainDbReachable: dbTest.ok,
+      mainDbError: dbTest.error || null,
+      mainDbName: dbTest.db || null,
+    });
+  });
+
+  app.post("/api/recovery/test-connection", async (req, res) => {
+    const { isRecoveryMode } = await import("./db");
+    if (!isRecoveryMode()) {
+      return res.status(403).json({ message: "ระบบไม่ได้อยู่ใน Recovery Mode" });
+    }
+    const { connectionString } = req.body;
+    if (!connectionString) {
+      return res.status(400).json({ message: "กรุณาระบุ connection string" });
+    }
+    const pg = await import("pg");
+    const testPool = new pg.default.Pool({ connectionString, max: 1, connectionTimeoutMillis: 8000 });
+    try {
+      const r = await testPool.query("SELECT current_database() as db, inet_server_port() as port, version()");
+      await testPool.end();
+      res.json({ ok: true, db: r.rows[0].db, port: r.rows[0].port, version: r.rows[0].version.split(",")[0] });
+    } catch (err: any) {
+      try { await testPool.end(); } catch {}
+      res.json({ ok: false, error: err.message });
+    }
+  });
+
+  app.post("/api/recovery/update-connection", async (req, res) => {
+    const { isRecoveryMode, setRecoveryMode } = await import("./db");
+    const { reinitializeFromConfig } = await import("./db");
+    const { updateConfig } = await import("./config-bootstrap");
+    if (!isRecoveryMode()) {
+      return res.status(403).json({ message: "ระบบไม่ได้อยู่ใน Recovery Mode" });
+    }
+    const { connectionString } = req.body;
+    if (!connectionString) {
+      return res.status(400).json({ message: "กรุณาระบุ connection string" });
+    }
+
+    const pg = await import("pg");
+    const testPool = new pg.default.Pool({ connectionString, max: 1, connectionTimeoutMillis: 8000 });
+    try {
+      await testPool.query("SELECT 1");
+      await testPool.end();
+    } catch (err: any) {
+      try { await testPool.end(); } catch {}
+      return res.status(400).json({ message: `ต่อ DB ไม่ได้: ${err.message}` });
+    }
+
+    const keys = ["DB_MAIN_URL", "DB_PROD_URL"];
+    for (const key of keys) {
+      const ok = await updateConfig(key, connectionString);
+      if (ok) console.log(`[Recovery] Updated ${key} in config DB`);
+    }
+
+    await reinitializeFromConfig();
+    const { testMainDbConnection } = await import("./db");
+    const verify = await testMainDbConnection();
+    if (verify.ok) {
+      setRecoveryMode(false);
+      console.log(`[Recovery] Database reconnected: ${verify.db} (port ${verify.port})`);
+      res.json({ ok: true, message: "เชื่อมต่อสำเร็จ — ระบบกลับมาปกติ", db: verify.db, port: verify.port });
+    } else {
+      res.status(500).json({ ok: false, message: `บันทึกแล้วแต่ยังต่อไม่ได้: ${verify.error}` });
+    }
+  });
 
   app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
     const status = err.status || err.statusCode || 500;

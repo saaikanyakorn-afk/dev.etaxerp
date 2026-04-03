@@ -85,8 +85,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     fetchAuthMe(5, 2000)
-      .then(res => {
+      .then(async res => {
         if (res.status === 503) {
+          try {
+            const errData = await res.json();
+            if (errData.recoveryMode) {
+              setUser(null);
+              setLocation("/recovery");
+              throw new Error("RecoveryMode");
+            }
+          } catch (e: any) {
+            if (e.message === "RecoveryMode") throw e;
+          }
           setUser(null);
           setLocation("/login");
           throw new Error("Maintenance");
