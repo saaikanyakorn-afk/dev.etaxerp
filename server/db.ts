@@ -165,11 +165,19 @@ export function getDbSwitchVersion(): number {
 
 export async function reinitializeFromConfig(): Promise<void> {
   const newActiveDb = getActiveDbUrl();
+  console.log(`[DB] reinitializeFromConfig: current="${activeDb.label}" (url=${activeDb.url ? "set" : "empty"}), new=${newActiveDb ? `"${newActiveDb.label}" (url=${newActiveDb.url ? "set" : "empty"})` : "null"}`);
   if (!newActiveDb) {
     console.error("[DB] reinitializeFromConfig: still no database URL available after config bootstrap");
     return;
   }
-  if (newActiveDb.url === activeDb.url) return;
+  if (!newActiveDb.url) {
+    console.error("[DB] reinitializeFromConfig: new URL is empty");
+    return;
+  }
+  if (newActiveDb.url === activeDb.url) {
+    console.log("[DB] reinitializeFromConfig: URL unchanged, skipping");
+    return;
+  }
 
   console.log(`[DB] Reinitializing connection: ${activeDb.label} → ${newActiveDb.label}`);
   const oldPool = _pool;
