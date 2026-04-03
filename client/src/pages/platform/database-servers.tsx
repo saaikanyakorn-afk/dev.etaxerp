@@ -289,7 +289,7 @@ function EditMachineDialog({
           </div>
 
           <div className="border-t pt-4">
-            <h3 className="text-sm font-semibold mb-3">การเชื่อมต่อฐานข้อมูล</h3>
+            <h3 className="text-sm font-semibold mb-3">Local Config Database (ฐานข้อมูล config บนเครื่องนี้)</h3>
             <div className="grid grid-cols-3 gap-4">
               <div>
                 <Label className="text-sm font-medium">Port</Label>
