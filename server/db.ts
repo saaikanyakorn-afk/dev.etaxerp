@@ -205,7 +205,8 @@ export async function reinitializeFromConfig(): Promise<void> {
     return;
   }
 
-  if (process.env.NODE_ENV === "production" && process.env.DB_MAIN_LAN === "true") {
+  console.log(`[DB] LAN check: NODE_ENV=${JSON.stringify(process.env.NODE_ENV)} DB_MAIN_LAN=${JSON.stringify(process.env.DB_MAIN_LAN)}`);
+  if (process.env.NODE_ENV === "production" && process.env.DB_MAIN_LAN?.trim() === "true") {
     const lanUrl = getConfig("DB_MAIN_LAN_URL");
     if (lanUrl) {
       console.log("[DB] DB_MAIN_LAN=true — probing LAN connection (5s timeout)...");
