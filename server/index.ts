@@ -1073,13 +1073,14 @@ async function runMigrationsInBackground() {
       return res.status(400).json({ message: "กรุณาระบุ connection string" });
     }
     const pg = await import("pg");
-    const testPool = new pg.default.Pool({ connectionString, max: 1, connectionTimeoutMillis: 8000 });
+    const client = new pg.default.Client({ connectionString, connectionTimeoutMillis: 8000 });
     try {
-      const r = await testPool.query("SELECT current_database() as db, inet_server_port() as port, version()");
-      await testPool.end();
+      await client.connect();
+      const r = await client.query("SELECT current_database() as db, inet_server_port() as port, version()");
+      await client.end();
       res.json({ ok: true, db: r.rows[0].db, port: r.rows[0].port, version: r.rows[0].version.split(",")[0] });
     } catch (err: any) {
-      try { await testPool.end(); } catch {}
+      try { await client.end(); } catch {}
       res.json({ ok: false, error: err.message });
     }
   });
@@ -1097,12 +1098,13 @@ async function runMigrationsInBackground() {
     }
 
     const pg = await import("pg");
-    const testPool = new pg.default.Pool({ connectionString, max: 1, connectionTimeoutMillis: 8000 });
+    const testClient = new pg.default.Client({ connectionString, connectionTimeoutMillis: 8000 });
     try {
-      await testPool.query("SELECT 1");
-      await testPool.end();
+      await testClient.connect();
+      await testClient.query("SELECT 1");
+      await testClient.end();
     } catch (err: any) {
-      try { await testPool.end(); } catch {}
+      try { await testClient.end(); } catch {}
       return res.status(400).json({ message: `ต่อ DB ไม่ได้: ${err.message}` });
     }
 
