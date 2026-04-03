@@ -17,7 +17,10 @@ function getActiveDbUrl(): { url: string; label: string; target: "usa" | "thaila
     if (prodUrl) {
       return { url: prodUrl, label: prodLabel, target: "thailand" };
     }
-    return { url: process.env.DATABASE_URL!, label: "Replit (Production)", target: "usa" };
+    if (process.env.DATABASE_URL) {
+      return { url: process.env.DATABASE_URL, label: "Replit (Production)", target: "usa" };
+    }
+    throw new Error("No database URL available: config DB has no DB_PROD_URL/DB_MAIN_URL and DATABASE_URL is not set");
   }
 
   try {
@@ -33,11 +36,10 @@ function getActiveDbUrl(): { url: string; label: string; target: "usa" | "thaila
     }
   } catch {}
 
-  return { url: process.env.DATABASE_URL!, label: "Replit (Dev/US)", target: "usa" };
-}
-
-if (!process.env.DATABASE_URL) {
-  throw new Error("DATABASE_URL must be set (used as Config DB bootstrap)");
+  if (!process.env.DATABASE_URL) {
+    throw new Error("DATABASE_URL must be set for development mode");
+  }
+  return { url: process.env.DATABASE_URL, label: "Replit (Dev/US)", target: "usa" };
 }
 
 let activeDb = getActiveDbUrl();
