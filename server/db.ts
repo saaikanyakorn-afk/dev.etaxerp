@@ -16,18 +16,18 @@ function appendLanLog(message: string) {
 }
 
 async function probeLanConnection(lanUrl: string, timeoutMs: number = 5000): Promise<boolean> {
-  const testPool = new pg.Pool({
+  const client = new pg.Client({
     connectionString: lanUrl,
-    max: 1,
     connectionTimeoutMillis: timeoutMs,
     statement_timeout: timeoutMs,
   });
   try {
-    const res = await testPool.query("SELECT 1 AS ok");
-    await testPool.end();
+    await client.connect();
+    const res = await client.query("SELECT 1 AS ok");
+    await client.end();
     return res.rows[0]?.ok === 1;
   } catch (err: any) {
-    try { await testPool.end(); } catch {}
+    try { await client.end(); } catch {}
     return false;
   }
 }
