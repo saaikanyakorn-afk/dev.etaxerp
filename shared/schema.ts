@@ -24,6 +24,7 @@ export const machines = pgTable("machines", {
   lanIp: text("lan_ip"),
   wanIp: text("wan_ip"),
   os: text("os").notNull().default("linux"),
+  serverType: text("server_type").notNull().default("app_database"),
   role: text("role").notNull().default("production"),
   cpuModel: text("cpu_model"),
   ramSize: text("ram_size"),

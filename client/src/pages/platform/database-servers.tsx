@@ -24,6 +24,7 @@ interface MachineRecord {
   lanIp: string | null;
   wanIp: string | null;
   os: string;
+  serverType: string;
   role: string;
   cpuModel: string | null;
   ramSize: string | null;
@@ -51,6 +52,12 @@ const OS_CONFIG: Record<string, { icon: any; label: string; color: string; remot
   cloud: { icon: Cloud, label: "Cloud", color: "text-purple-600 bg-purple-50 border-purple-200", remoteAccess: true, cloneMethod: "pg_dump → Remote psql" },
 };
 
+const SERVER_TYPE_CONFIG: Record<string, { label: string; badge: string; badgeBg: string }> = {
+  app: { label: "App Server", badge: "text-blue-700", badgeBg: "bg-blue-100" },
+  database: { label: "Database Server", badge: "text-purple-700", badgeBg: "bg-purple-100" },
+  app_database: { label: "App + Database", badge: "text-orange-700", badgeBg: "bg-orange-100" },
+};
+
 const ROLE_CONFIG: Record<string, { label: string; color: string; bgColor: string }> = {
   dev_source: { label: "Dev Source", color: "text-cyan-700", bgColor: "bg-cyan-100" },
   production: { label: "Production", color: "text-green-700", bgColor: "bg-green-100" },
@@ -62,6 +69,7 @@ function MachineCard({ machine, onEdit }: { machine: MachineRecord; onEdit: (m: 
   const [showPw, setShowPw] = useState(false);
   const osConfig = OS_CONFIG[machine.os] || OS_CONFIG.linux;
   const roleConfig = ROLE_CONFIG[machine.role] || ROLE_CONFIG.testing;
+  const serverTypeConfig = SERVER_TYPE_CONFIG[machine.serverType] || SERVER_TYPE_CONFIG.app_database;
   const OsIcon = osConfig.icon;
 
   return (
@@ -72,9 +80,14 @@ function MachineCard({ machine, onEdit }: { machine: MachineRecord; onEdit: (m: 
             <OsIcon className="h-5 w-5" />
             <span className="font-bold text-base">{machine.localName}</span>
           </div>
-          <Badge className={`${roleConfig.bgColor} ${roleConfig.color} text-xs`}>
-            {roleConfig.label}
-          </Badge>
+          <div className="flex gap-1">
+            <Badge className={`${serverTypeConfig.badgeBg} ${serverTypeConfig.badge} text-xs`}>
+              {serverTypeConfig.label}
+            </Badge>
+            <Badge className={`${roleConfig.bgColor} ${roleConfig.color} text-xs`}>
+              {roleConfig.label}
+            </Badge>
+          </div>
         </div>
 
         {(machine.machineModel || machine.cpuModel || machine.ramSize) && (
@@ -177,6 +190,7 @@ function EditMachineDialog({
     lanIp: machine?.lanIp || "",
     wanIp: machine?.wanIp || "",
     os: machine?.os || "windows",
+    serverType: machine?.serverType || "app_database",
     role: machine?.role || "testing",
     cpuModel: machine?.cpuModel || "",
     ramSize: machine?.ramSize || "",
@@ -246,7 +260,7 @@ function EditMachineDialog({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-3 gap-4">
             <div>
               <Label className="text-sm font-medium">ระบบปฏิบัติการ *</Label>
               <Select value={form.os} onValueChange={(v: any) => setForm({ ...form, os: v })}>
@@ -257,21 +271,27 @@ function EditMachineDialog({
                   <SelectItem value="cloud">Cloud</SelectItem>
                 </SelectContent>
               </Select>
-              <p className="text-xs text-gray-400 mt-1">
-                {form.os === "windows" && "→ รับ Remote Connection ได้"}
-                {form.os === "linux" && "→ localhost เท่านั้น — ต้องใช้ Standalone Clone Tool"}
-                {form.os === "cloud" && "→ รับ Remote Connection ได้"}
-              </p>
+            </div>
+            <div>
+              <Label className="text-sm font-medium">ประเภท *</Label>
+              <Select value={form.serverType} onValueChange={(v: any) => setForm({ ...form, serverType: v })}>
+                <SelectTrigger data-testid="select-server-type"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="app">App Server</SelectItem>
+                  <SelectItem value="database">Database Server</SelectItem>
+                  <SelectItem value="app_database">App + Database</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <div>
               <Label className="text-sm font-medium">บทบาท (Role) *</Label>
               <Select value={form.role} onValueChange={(v: any) => setForm({ ...form, role: v })}>
                 <SelectTrigger data-testid="select-role"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="dev_source">Dev Source — ต้นทาง (Dev)</SelectItem>
-                  <SelectItem value="production">Production — ใช้งานจริง</SelectItem>
-                  <SelectItem value="testing">Testing — ทดสอบ</SelectItem>
-                  <SelectItem value="backup">Backup — สำรองข้อมูล</SelectItem>
+                  <SelectItem value="dev_source">Dev Source</SelectItem>
+                  <SelectItem value="production">Production</SelectItem>
+                  <SelectItem value="testing">Testing</SelectItem>
+                  <SelectItem value="backup">Backup</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -334,7 +354,7 @@ function EncryptionKeyGenerator({ machines, onRefresh }: { machines: MachineReco
   const [macAddress, setMacAddress] = useState("");
   const [configDbPort, setConfigDbPort] = useState("");
   const [configDbName, setConfigDbName] = useState("etaxcfg");
-  const appMachines = machines.filter(m => m.role === "production" || m.role === "staging");
+  const appMachines = machines.filter(m => (m.serverType === "app" || m.serverType === "app_database") && (m.role === "production" || m.role === "staging" || m.role === "testing"));
   const selectedMachine = appMachines.find(m => String(m.id) === selectedMachineId);
   const saved = selectedMachine?.encContent ? selectedMachine : null;
   const prodMachine = machines.find(m => m.role === "production");
