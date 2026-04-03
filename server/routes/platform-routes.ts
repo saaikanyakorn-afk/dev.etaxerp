@@ -1859,7 +1859,7 @@ app.delete("/api/platform/machines/:id", requireAuth, requireSuperAdmin, async (
 
 app.post("/api/platform/machines/generate-config", requireAuth, requireSuperAdmin, async (req, res) => {
   try {
-    const { hostname, macAddress, configDbPort, configDbName } = req.body;
+    const { hostname, macAddress, configDbPort, configDbName, machineId } = req.body;
     if (!hostname || !macAddress) {
       return res.status(400).json({ message: "ต้องระบุ hostname และ MAC address" });
     }
@@ -1869,6 +1869,21 @@ app.post("/api/platform/machines/generate-config", requireAuth, requireSuperAdmi
       hostname, macAddress, creds.username, creds.password,
       configDbPort || "5432", configDbName || "etax_config"
     );
+
+    if (machineId) {
+      await db.update(machines).set({
+        encHostname: hostname.trim(),
+        encMacAddress: macAddress.trim(),
+        encConfigDbPort: configDbPort || "5432",
+        encConfigDbName: configDbName || "etax_config",
+        encConfigDbUser: creds.username,
+        encConfigDbPassword: creds.password,
+        encContent: encryptedContent,
+        encGeneratedAt: new Date(),
+        updatedAt: new Date(),
+      }).where(eq(machines.id, Number(machineId)));
+    }
+
     res.json({
       configDbUser: creds.username,
       configDbPassword: creds.password,

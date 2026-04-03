@@ -33,6 +33,14 @@ interface MachineRecord {
   dbUser: string;
   dbPassword: string;
   notes: string | null;
+  encHostname: string | null;
+  encMacAddress: string | null;
+  encConfigDbPort: string | null;
+  encConfigDbName: string | null;
+  encConfigDbUser: string | null;
+  encConfigDbPassword: string | null;
+  encContent: string | null;
+  encGeneratedAt: string | null;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -319,12 +327,16 @@ function EditMachineDialog({
   );
 }
 
-function EncryptionKeyGenerator({ machines }: { machines: MachineRecord[] }) {
+function EncryptionKeyGenerator({ machines, onRefresh }: { machines: MachineRecord[]; onRefresh: () => void }) {
   const { toast } = useToast();
+  const [selectedMachineId, setSelectedMachineId] = useState<string>("");
   const [hostname, setHostname] = useState("");
   const [macAddress, setMacAddress] = useState("");
   const [configDbPort, setConfigDbPort] = useState("");
-  const [configDbName, setConfigDbName] = useState("etax_config");
+  const [configDbName, setConfigDbName] = useState("etaxcfg");
+  const appMachines = machines.filter(m => m.role === "production" || m.role === "staging");
+  const selectedMachine = appMachines.find(m => String(m.id) === selectedMachineId);
+  const saved = selectedMachine?.encContent ? selectedMachine : null;
   const prodMachine = machines.find(m => m.role === "production");
   const prodDbUrl = prodMachine
     ? `postgresql://${prodMachine.dbUser}:${encodeURIComponent(prodMachine.dbPassword)}@${prodMachine.domainName || prodMachine.lanIp || "localhost"}:${prodMachine.dbPort}/${prodMachine.dbName}`
@@ -336,19 +348,51 @@ function EncryptionKeyGenerator({ machines }: { machines: MachineRecord[] }) {
     keyPreview: string;
   } | null>(null);
 
+  const activeData = result ? {
+    configDbUser: result.configDbUser,
+    configDbPassword: result.configDbPassword,
+    encryptedContent: result.encryptedContent,
+    configDbName: configDbName,
+    hostname: hostname,
+    configDbPort: configDbPort,
+  } : saved ? {
+    configDbUser: saved.encConfigDbUser!,
+    configDbPassword: saved.encConfigDbPassword!,
+    encryptedContent: saved.encContent!,
+    configDbName: saved.encConfigDbName || "etaxcfg",
+    hostname: saved.encHostname || "",
+    configDbPort: saved.encConfigDbPort || "",
+  } : null;
+
+  const handleSelectMachine = (id: string) => {
+    setSelectedMachineId(id);
+    setResult(null);
+    const m = appMachines.find(mc => String(mc.id) === id);
+    if (m) {
+      if (m.encHostname) setHostname(m.encHostname);
+      else if (m.fqdn) setHostname(m.fqdn);
+      else if (m.windowsName) setHostname(m.windowsName);
+      else setHostname("");
+      setMacAddress(m.encMacAddress || "");
+      setConfigDbPort(m.encConfigDbPort || "");
+      setConfigDbName(m.encConfigDbName || "etaxcfg");
+    }
+  };
+
   const generateMut = useMutation({
     mutationFn: async () => {
       const res = await fetch("/api/platform/machines/generate-config", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ hostname, macAddress, configDbPort, configDbName }),
+        body: JSON.stringify({ hostname, macAddress, configDbPort, configDbName, machineId: selectedMachineId || undefined }),
       });
       if (!res.ok) throw new Error((await res.json()).message);
       return res.json();
     },
     onSuccess: (data) => {
       setResult(data);
-      toast({ title: "สร้าง Encryption Key สำเร็จ" });
+      onRefresh();
+      toast({ title: "สร้าง Encryption Key สำเร็จ", description: selectedMachine ? `บันทึกไว้ที่เครื่อง ${selectedMachine.localName}` : undefined });
     },
     onError: (err: any) => {
       toast({ title: "เกิดข้อผิดพลาด", description: err.message, variant: "destructive" });
@@ -357,10 +401,11 @@ function EncryptionKeyGenerator({ machines }: { machines: MachineRecord[] }) {
 
   const testDecryptMut = useMutation({
     mutationFn: async () => {
+      const enc = activeData?.encryptedContent;
       const res = await fetch("/api/platform/machines/test-decrypt", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ hostname, macAddress, dbPort: configDbPort, encryptedContent: result?.encryptedContent }),
+        body: JSON.stringify({ hostname: activeData?.hostname || hostname, macAddress, dbPort: activeData?.configDbPort || configDbPort, encryptedContent: enc }),
       });
       if (!res.ok) throw new Error((await res.json()).message);
       return res.json();
@@ -379,14 +424,66 @@ function EncryptionKeyGenerator({ machines }: { machines: MachineRecord[] }) {
   };
 
   const downloadConfigFile = () => {
-    if (!result) return;
-    const blob = new Blob([result.encryptedContent], { type: "text/plain" });
+    const enc = activeData?.encryptedContent;
+    if (!enc) return;
+    const blob = new Blob([enc], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `etax-config-${hostname.replace(/[^a-zA-Z0-9]/g, "_")}.enc`;
+    a.download = `etax-config-${(activeData?.hostname || "server").replace(/[^a-zA-Z0-9]/g, "_")}.enc`;
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  const buildSqlStep1 = (d: typeof activeData) => {
+    if (!d) return "";
+    return `-- เปิด Command Prompt (Run as Administrator) แล้วรัน:
+"C:\\Program Files\\PostgreSQL\\16\\bin\\psql.exe" -U postgres -p ${d.configDbPort}
+
+-- รันคำสั่งนี้ใน psql:
+CREATE USER ${d.configDbUser} WITH PASSWORD '${d.configDbPassword}';
+CREATE DATABASE ${d.configDbName} OWNER ${d.configDbUser};`;
+  };
+
+  const buildSqlStep2 = (d: typeof activeData) => {
+    if (!d) return "";
+    return `-- เชื่อมต่อไปที่ config database:
+\\c ${d.configDbName}
+
+-- สร้าง table:
+CREATE TABLE IF NOT EXISTS system_config (
+  id SERIAL PRIMARY KEY,
+  config_key VARCHAR(255) UNIQUE NOT NULL,
+  config_value TEXT NOT NULL DEFAULT '',
+  description TEXT,
+  environment VARCHAR(50) DEFAULT 'all',
+  is_secret BOOLEAN DEFAULT false,
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO ${d.configDbUser};
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO ${d.configDbUser};`;
+  };
+
+  const buildSqlStep3 = (d: typeof activeData) => {
+    if (!d) return "";
+    const dbMainUrl = prodDbUrl || 'postgresql://USER:PASSWORD@deep-main.hopto.org:PORT/DATABASE';
+    return `-- ใส่ค่า connection string ของ production database:
+INSERT INTO system_config (config_key, config_value, description, environment, is_secret) VALUES
+('DB_MAIN_URL', '${dbMainUrl}', 'Main database connection', 'production', true),
+('APP_VERSION', '1.0.0', 'Application version', 'all', false)
+ON CONFLICT (config_key) DO NOTHING;`;
+  };
+
+  const buildSqlStep4 = (d: typeof activeData) => {
+    if (!d) return "";
+    return `-- ตั้ง Environment Variables ใน PM2 หรือ .env:
+-- MACHINE_NAME=${d.hostname}
+-- MACHINE_DB_PORT=${d.configDbPort}
+
+-- วาง .enc file ไว้ที่:
+-- C:\\GitApp\\etaxcenter\\config\\etax-config.enc
+-- (ใช้ปุ่มดาวน์โหลดด้านบน)`;
   };
 
   return (
@@ -394,109 +491,131 @@ function EncryptionKeyGenerator({ machines }: { machines: MachineRecord[] }) {
       <CardHeader className="pb-3">
         <CardTitle className="text-base flex items-center gap-2">
           <Shield className="h-5 w-5 text-amber-600" />
-          สร้าง Encryption Key สำหรับเครื่องเป้าหมาย
+          Encrypted Config — สร้างและจัดการ
         </CardTitle>
         <p className="text-xs text-gray-500">
-          กรอก hostname + MAC address ของเครื่องปลายทาง → ระบบจะสร้าง encrypted config file
-          ที่ decrypt ได้เฉพาะบนเครื่องนั้นเท่านั้น
+          เลือกเครื่องเป้าหมาย → สร้าง encryption key → ข้อมูลจะบันทึกไว้ในฐานข้อมูล กลับมาดูได้ทุกเมื่อ
         </p>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <Label className="text-sm font-medium">Hostname ของเครื่องเป้าหมาย *</Label>
-            <Input
-              value={hostname}
-              onChange={e => setHostname(e.target.value)}
-              placeholder="เช่น server-e5, linux-prod-01"
-              data-testid="input-enc-hostname"
-            />
-            <p className="text-xs text-gray-400 mt-1">Windows: Computer Name / Linux: hostname command</p>
-          </div>
-          <div>
-            <Label className="text-sm font-medium">MAC Address ของเครื่องเป้าหมาย *</Label>
-            <Input
-              value={macAddress}
-              onChange={e => setMacAddress(e.target.value)}
-              placeholder="เช่น AA:BB:CC:DD:EE:FF"
-              data-testid="input-enc-mac"
-            />
-            <p className="text-xs text-gray-400 mt-1">Windows: ipconfig /all / Linux: ip link show</p>
-          </div>
+        <div>
+          <Label className="text-sm font-medium">เลือกเครื่องเป้าหมาย *</Label>
+          <Select value={selectedMachineId} onValueChange={handleSelectMachine}>
+            <SelectTrigger data-testid="select-enc-machine">
+              <SelectValue placeholder="เลือกเครื่อง..." />
+            </SelectTrigger>
+            <SelectContent>
+              {appMachines.map(m => (
+                <SelectItem key={m.id} value={String(m.id)}>
+                  {m.localName} ({m.role}) {m.encContent ? "— มี config แล้ว" : ""}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <Label className="text-sm font-medium">PostgreSQL Port ของเครื่องเป้าหมาย *</Label>
-            <Input value={configDbPort} onChange={e => setConfigDbPort(e.target.value)} placeholder="ห้ามใช้ 5432 — ใส่ port จริง" data-testid="input-enc-port" />
-            <p className="text-xs text-red-400 mt-1">port นี้เป็นส่วนหนึ่งของ Encryption Key — ต้องตรงกับ port จริงบนเครื่อง</p>
-          </div>
-          <div>
-            <Label className="text-sm font-medium">Config DB Name</Label>
-            <Input value={configDbName} onChange={e => setConfigDbName(e.target.value)} placeholder="etax_config" data-testid="input-enc-dbname" />
-          </div>
-        </div>
-
-        <Button
-          className="bg-amber-500 hover:bg-amber-600 text-white w-full"
-          onClick={() => generateMut.mutate()}
-          disabled={!hostname || !macAddress || !configDbPort || generateMut.isPending}
-          data-testid="button-generate-key"
-        >
-          <Key className="h-4 w-4 mr-2" />
-          {generateMut.isPending ? "กำลังสร้าง..." : "สร้าง Encryption Key + Config File"}
-        </Button>
-
-        {result && (
-          <div className="border-t pt-4 space-y-4">
-            <div className="bg-white rounded-lg border p-4 space-y-3">
-              <h4 className="text-sm font-bold text-green-700 flex items-center gap-2">
-                <Lock className="h-4 w-4" /> ผลลัพธ์ — ข้อมูลสำหรับนำไปใช้บนเครื่องเป้าหมาย
-              </h4>
-
-              <div className="space-y-2">
-                <div className="flex items-center justify-between p-2 bg-gray-50 rounded">
-                  <div>
-                    <span className="text-xs text-gray-500">Config DB Username</span>
-                    <p className="font-mono text-sm font-bold">{result.configDbUser}</p>
-                  </div>
-                  <Button size="sm" variant="outline" onClick={() => copyToClipboard(result.configDbUser, "Username")} data-testid="btn-copy-user">
-                    <Copy className="h-3 w-3" />
-                  </Button>
-                </div>
-
-                <div className="flex items-center justify-between p-2 bg-gray-50 rounded">
-                  <div>
-                    <span className="text-xs text-gray-500">Config DB Password</span>
-                    <p className="font-mono text-sm font-bold">{result.configDbPassword}</p>
-                  </div>
-                  <Button size="sm" variant="outline" onClick={() => copyToClipboard(result.configDbPassword, "Password")} data-testid="btn-copy-password">
-                    <Copy className="h-3 w-3" />
-                  </Button>
-                </div>
-
-                <div className="flex items-center justify-between p-2 bg-gray-50 rounded">
-                  <div>
-                    <span className="text-xs text-gray-500">Encryption Key (preview)</span>
-                    <p className="font-mono text-sm">{result.keyPreview}</p>
-                  </div>
+        {selectedMachineId && (
+          <>
+            {saved && !result && (
+              <div className="bg-green-50 border border-green-300 rounded-lg p-3 flex items-center gap-3">
+                <Lock className="h-5 w-5 text-green-600 shrink-0" />
+                <div className="flex-1">
+                  <p className="text-sm font-bold text-green-800">มี Encrypted Config อยู่แล้ว</p>
+                  <p className="text-xs text-green-600">สร้างเมื่อ: {saved.encGeneratedAt ? new Date(saved.encGeneratedAt).toLocaleString("th-TH") : "ไม่ทราบ"} | Hostname: {saved.encHostname} | MAC: {saved.encMacAddress}</p>
                 </div>
               </div>
+            )}
 
-              <div className="border-t pt-3">
-                <Label className="text-xs text-gray-500 mb-1">Encrypted Config File Content</Label>
-                <div className="bg-gray-900 text-green-400 p-3 rounded font-mono text-xs break-all max-h-24 overflow-y-auto">
-                  {result.encryptedContent}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label className="text-sm font-medium">Hostname *</Label>
+                <Input value={hostname} onChange={e => setHostname(e.target.value)} placeholder="เช่น etaxerp.com" data-testid="input-enc-hostname" />
+                <p className="text-xs text-gray-400 mt-1">Windows: Computer Name / Linux: hostname</p>
+              </div>
+              <div>
+                <Label className="text-sm font-medium">MAC Address *</Label>
+                <Input value={macAddress} onChange={e => setMacAddress(e.target.value)} placeholder="เช่น 90:B1:1C:A1:01:B5" data-testid="input-enc-mac" />
+                <p className="text-xs text-gray-400 mt-1">Windows: ipconfig /all</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label className="text-sm font-medium">Config DB Port *</Label>
+                <Input value={configDbPort} onChange={e => setConfigDbPort(e.target.value)} placeholder="ห้ามใช้ 5432" data-testid="input-enc-port" />
+                <p className="text-xs text-red-400 mt-1">port เป็นส่วนหนึ่งของ Encryption Key</p>
+              </div>
+              <div>
+                <Label className="text-sm font-medium">Config DB Name</Label>
+                <Input value={configDbName} onChange={e => setConfigDbName(e.target.value)} placeholder="etaxcfg" data-testid="input-enc-dbname" />
+              </div>
+            </div>
+
+            <Button
+              className="bg-amber-500 hover:bg-amber-600 text-white w-full"
+              onClick={() => generateMut.mutate()}
+              disabled={!hostname || !macAddress || !configDbPort || generateMut.isPending}
+              data-testid="button-generate-key"
+            >
+              <Key className="h-4 w-4 mr-2" />
+              {generateMut.isPending ? "กำลังสร้าง..." : saved ? "สร้างใหม่ (ทับของเดิม)" : "สร้าง Encryption Key + Config File"}
+            </Button>
+          </>
+        )}
+
+        {activeData && (
+          <div className="border-t pt-4 space-y-4">
+            <div className="bg-white rounded-lg border p-4 space-y-4">
+              <h4 className="text-sm font-bold text-green-700 flex items-center gap-2">
+                <Lock className="h-4 w-4" /> ข้อมูลสำหรับตั้งค่าบนเครื่องเป้าหมาย {selectedMachine ? `(${selectedMachine.localName})` : ""}
+              </h4>
+
+              <div className="bg-amber-50 border border-amber-300 rounded-lg p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h5 className="text-sm font-bold text-amber-800">Step 1: สร้าง User + Database</h5>
+                  <Button size="sm" variant="outline" className="h-7 text-xs border-amber-400 text-amber-700" onClick={() => copyToClipboard(buildSqlStep1(activeData), "Step 1 SQL")} data-testid="btn-copy-step1">
+                    <Copy className="h-3 w-3 mr-1" /> คัดลอก
+                  </Button>
                 </div>
+                <pre className="bg-gray-900 text-green-400 p-3 rounded font-mono text-xs whitespace-pre-wrap">{buildSqlStep1(activeData)}</pre>
+              </div>
+
+              <div className="bg-blue-50 border border-blue-300 rounded-lg p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h5 className="text-sm font-bold text-blue-800">Step 2: สร้าง Table + Permissions</h5>
+                  <Button size="sm" variant="outline" className="h-7 text-xs border-blue-400 text-blue-700" onClick={() => copyToClipboard(buildSqlStep2(activeData), "Step 2 SQL")} data-testid="btn-copy-step2">
+                    <Copy className="h-3 w-3 mr-1" /> คัดลอก
+                  </Button>
+                </div>
+                <pre className="bg-gray-900 text-green-400 p-3 rounded font-mono text-xs whitespace-pre-wrap">{buildSqlStep2(activeData)}</pre>
+              </div>
+
+              <div className="bg-green-50 border border-green-300 rounded-lg p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h5 className="text-sm font-bold text-green-800">Step 3: ใส่ค่า DB Connection</h5>
+                  <Button size="sm" variant="outline" className="h-7 text-xs border-green-400 text-green-700" onClick={() => copyToClipboard(buildSqlStep3(activeData), "Step 3 SQL")} data-testid="btn-copy-step3">
+                    <Copy className="h-3 w-3 mr-1" /> คัดลอก
+                  </Button>
+                </div>
+                <pre className="bg-gray-900 text-green-400 p-3 rounded font-mono text-xs whitespace-pre-wrap">{buildSqlStep3(activeData)}</pre>
+                {prodDbUrl && (
+                  <p className="text-xs text-green-700 font-bold">✓ DB_MAIN_URL ถูกใส่อัตโนมัติจาก server: {prodMachine?.localName}</p>
+                )}
+              </div>
+
+              <div className="bg-purple-50 border border-purple-300 rounded-lg p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h5 className="text-sm font-bold text-purple-800">Step 4: วาง .enc file + ตั้ง ENV</h5>
+                  <div className="flex gap-2">
+                    <Button size="sm" variant="outline" className="h-7 text-xs border-purple-400 text-purple-700" onClick={downloadConfigFile} data-testid="btn-download-config">
+                      <Download className="h-3 w-3 mr-1" /> ดาวน์โหลด .enc
+                    </Button>
+                  </div>
+                </div>
+                <pre className="bg-gray-900 text-green-400 p-3 rounded font-mono text-xs whitespace-pre-wrap">{buildSqlStep4(activeData)}</pre>
               </div>
 
               <div className="flex gap-2">
-                <Button variant="outline" className="flex-1" onClick={downloadConfigFile} data-testid="btn-download-config">
-                  <Download className="h-4 w-4 mr-1" /> ดาวน์โหลด .enc file
-                </Button>
-                <Button variant="outline" className="flex-1" onClick={() => copyToClipboard(result.encryptedContent, "Encrypted Content")} data-testid="btn-copy-encrypted">
-                  <Copy className="h-4 w-4 mr-1" /> คัดลอก
-                </Button>
                 <Button
                   variant="outline"
                   className="flex-1 border-green-300 text-green-700 hover:bg-green-50"
@@ -506,92 +625,6 @@ function EncryptionKeyGenerator({ machines }: { machines: MachineRecord[] }) {
                 >
                   <Unlock className="h-4 w-4 mr-1" /> {testDecryptMut.isPending ? "กำลังทดสอบ..." : "ทดสอบ Decrypt"}
                 </Button>
-              </div>
-
-              <div className="bg-green-50 border border-green-200 rounded p-3 text-xs text-green-800 space-y-2">
-                <div className="flex items-center justify-between">
-                  <p className="font-bold">SQL Setup Script (รันบน psql ของเครื่องเป้าหมาย):</p>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-6 text-xs border-green-400 text-green-700 hover:bg-green-100"
-                    onClick={() => {
-                      const dbMainUrl = prodDbUrl || 'postgresql://USER:PASSWORD@deep-main.hopto.org:PORT/DATABASE';
-                      const dbMainNote = prodDbUrl ? `(จาก server: ${prodMachine?.localName})` : '(แก้ให้ตรงกับ deep-main ของจริง)';
-                      const sql = `-- Step 1: สร้าง user + database (รันขณะ connect เป็น superuser/postgres)
-CREATE USER ${result.configDbUser} WITH PASSWORD '${result.configDbPassword}';
-CREATE DATABASE ${configDbName} OWNER ${result.configDbUser};
-
--- Step 2: สร้าง table (รันหลัง \\c ${configDbName})
-\\c ${configDbName}
-
-CREATE TABLE IF NOT EXISTS system_config (
-  id SERIAL PRIMARY KEY,
-  config_key VARCHAR(255) UNIQUE NOT NULL,
-  config_value TEXT NOT NULL DEFAULT '',
-  description TEXT,
-  environment VARCHAR(50) DEFAULT 'all',
-  is_secret BOOLEAN DEFAULT false,
-  updated_at TIMESTAMP DEFAULT NOW()
-);
-
-GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO ${result.configDbUser};
-GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO ${result.configDbUser};
-
--- Step 3: ใส่ค่า DB_MAIN_URL ${dbMainNote}
-INSERT INTO system_config (config_key, config_value, description, environment, is_secret) VALUES
-('DB_MAIN_URL', '${dbMainUrl}', 'Main database connection', 'production', true),
-('APP_VERSION', '1.0.0', 'Application version', 'all', false)
-ON CONFLICT (config_key) DO NOTHING;`;
-                      navigator.clipboard.writeText(sql);
-                      toast({ title: "คัดลอก SQL Script แล้ว" });
-                    }}
-                    data-testid="btn-copy-sql-setup"
-                  >
-                    <Copy className="h-3 w-3 mr-1" /> คัดลอก SQL
-                  </Button>
-                </div>
-                <pre className="bg-gray-900 text-green-400 p-3 rounded font-mono text-xs whitespace-pre-wrap max-h-48 overflow-y-auto">
-{`-- Step 1: สร้าง user + database (รันขณะ connect เป็น superuser/postgres)
-CREATE USER ${result.configDbUser} WITH PASSWORD '${result.configDbPassword}';
-CREATE DATABASE ${configDbName} OWNER ${result.configDbUser};
-
--- Step 2: สร้าง table (รันหลัง \\c ${configDbName})
-\\c ${configDbName}
-
-CREATE TABLE IF NOT EXISTS system_config (
-  id SERIAL PRIMARY KEY,
-  config_key VARCHAR(255) UNIQUE NOT NULL,
-  config_value TEXT NOT NULL DEFAULT '',
-  description TEXT,
-  environment VARCHAR(50) DEFAULT 'all',
-  is_secret BOOLEAN DEFAULT false,
-  updated_at TIMESTAMP DEFAULT NOW()
-);
-
-GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO ${result.configDbUser};
-GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO ${result.configDbUser};
-
--- Step 3: ใส่ค่า DB_MAIN_URL ${prodDbUrl ? `(จาก server: ${prodMachine?.localName})` : '(แก้ให้ตรงกับ deep-main ของจริง)'}
-INSERT INTO system_config (config_key, config_value, description, environment, is_secret) VALUES
-('DB_MAIN_URL', '${prodDbUrl || 'postgresql://USER:PASSWORD@deep-main.hopto.org:PORT/DATABASE'}', 'Main database connection', 'production', true),
-('APP_VERSION', '1.0.0', 'Application version', 'all', false)
-ON CONFLICT (config_key) DO NOTHING;`}
-                </pre>
-              </div>
-
-              <div className="bg-blue-50 border border-blue-200 rounded p-3 text-xs text-blue-800 space-y-1">
-                <p className="font-bold">ขั้นตอนหลังรัน SQL:</p>
-                <ol className="list-decimal list-inside space-y-0.5">
-                  {!prodDbUrl && <li>แก้ <code className="bg-blue-100 px-1 rounded">DB_MAIN_URL</code> ใน system_config ให้ตรงกับ production server</li>}
-                  <li>วาง .enc file ไว้ที่ <code className="bg-blue-100 px-1 rounded">./config/etax-config.enc</code></li>
-                  <li>ตั้งใน .env: <code className="bg-blue-100 px-1 rounded">MACHINE_NAME={hostname}</code></li>
-                  <li>ตั้งใน .env: <code className="bg-blue-100 px-1 rounded">MACHINE_DB_PORT={configDbPort}</code></li>
-                  <li>App จะ decrypt อัตโนมัติตอน startup</li>
-                </ol>
-                {prodDbUrl && (
-                  <p className="text-green-700 font-bold mt-1">✓ DB_MAIN_URL ถูกใส่ให้อัตโนมัติจาก server: {prodMachine?.localName}</p>
-                )}
               </div>
             </div>
           </div>
@@ -744,7 +777,7 @@ export default function DatabaseServers() {
         )}
 
         <div className="mt-8">
-          <EncryptionKeyGenerator machines={machines} />
+          <EncryptionKeyGenerator machines={machines} onRefresh={() => queryClient.invalidateQueries({ queryKey: ["/api/platform/machines"] })} />
         </div>
 
         {editingMachine !== undefined && (
