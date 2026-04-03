@@ -457,7 +457,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       )}
 
       <aside className={cn(
-        "w-64 bg-sidebar text-sidebar-foreground border-r border-sidebar-border flex flex-col fixed z-50 shadow-sm print:!hidden transition-transform duration-200",
+        "w-64 bg-sidebar text-sidebar-foreground border-r border-sidebar-border flex flex-col fixed z-[60] shadow-sm print:!hidden transition-transform duration-200",
         mobileMenuOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
       )} style={{ top: "var(--dev-bar-h, 0px)", height: "calc(100vh - var(--dev-bar-h, 0px))" }}>
         <div className="flex items-center px-4 border-b border-sidebar-border shrink-0 relative overflow-hidden" style={{ background: "var(--theme-primary)", height: "68px" }}>
