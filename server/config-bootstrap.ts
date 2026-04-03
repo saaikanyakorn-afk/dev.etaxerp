@@ -90,12 +90,14 @@ export async function bootstrapConfig(): Promise<Map<string, string>> {
   });
 
   try {
+    console.log("[Config] Connecting to config DB...");
     const tableCheck = await pool.query(`
       SELECT EXISTS (
         SELECT FROM information_schema.tables 
         WHERE table_name = 'system_config'
       )
     `);
+    console.log(`[Config] Table check: system_config exists = ${tableCheck.rows[0].exists}`);
 
     if (!tableCheck.rows[0].exists) {
       console.log("[Config] system_config table not found, using env vars only");
@@ -117,12 +119,13 @@ export async function bootstrapConfig(): Promise<Map<string, string>> {
 
     const loaded = result.rows.length;
     const secrets = result.rows.filter(r => r.is_secret).length;
-    console.log(`[Config] Loaded ${loaded} config entries (${secrets} secrets) from config DB`);
+    const keys = result.rows.map(r => r.config_key).join(", ");
+    console.log(`[Config] Loaded ${loaded} config entries (${secrets} secrets) from config DB: [${keys}]`);
 
     _bootstrapped = true;
     await pool.end();
   } catch (err: any) {
-    console.error(`[Config] Bootstrap failed: ${err.message} — falling back to env vars`);
+    console.log(`[Config] Bootstrap FAILED: ${err.message}`);
     try { await pool.end(); } catch {}
   }
 

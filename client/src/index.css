@@ -512,15 +512,20 @@
 }
 
 .tabular-nums,
-.font-mono,
 td.tabular-nums,
-span.tabular-nums,
-td.font-mono,
-span.font-mono {
+span.tabular-nums {
   font-family: 'Sarabun', 'Inter', sans-serif !important;
   font-variant-numeric: tabular-nums !important;
   -webkit-font-feature-settings: "tnum" !important;
   font-feature-settings: "tnum" !important;
+}
+
+.font-mono,
+td.font-mono,
+span.font-mono,
+input.font-mono {
+  font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace !important;
+  font-variant-numeric: tabular-nums !important;
 }
 
 fieldset > .border > table td,

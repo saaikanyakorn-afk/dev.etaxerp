@@ -10,7 +10,7 @@ pg.types.setTypeParser(DATE_OID, (val: string) => val);
 
 const DEV_DB_CHOICE_FILE = path.join(process.cwd(), ".dev-db-choice");
 
-function getActiveDbUrl(): { url: string; label: string; target: "usa" | "thailand" } {
+function getActiveDbUrl(): { url: string; label: string; target: "usa" | "thailand" } | null {
   if (process.env.NODE_ENV === "production") {
     const prodUrl = getConfig("DB_PROD_URL") || process.env.DB_PROD_URL || getConfig("DB_MAIN_URL");
     const prodLabel = getConfig("DB_PROD_LABEL") || process.env.DB_PROD_LABEL || "Production (Thailand)";
@@ -20,7 +20,7 @@ function getActiveDbUrl(): { url: string; label: string; target: "usa" | "thaila
     if (process.env.DATABASE_URL) {
       return { url: process.env.DATABASE_URL, label: "Replit (Production)", target: "usa" };
     }
-    throw new Error("No database URL available: config DB has no DB_PROD_URL/DB_MAIN_URL and DATABASE_URL is not set");
+    return null;
   }
 
   try {
@@ -42,7 +42,7 @@ function getActiveDbUrl(): { url: string; label: string; target: "usa" | "thaila
   return { url: process.env.DATABASE_URL, label: "Replit (Dev/US)", target: "usa" };
 }
 
-let activeDb = getActiveDbUrl();
+let activeDb = getActiveDbUrl() || { url: "", label: "Pending config bootstrap", target: "thailand" as const };
 const isProduction = process.env.NODE_ENV === "production";
 console.log(`[DB] Active database: ${activeDb.label} (target: ${activeDb.target}), production: ${isProduction}`);
 let _pool = new pg.Pool({
@@ -165,7 +165,19 @@ export function getDbSwitchVersion(): number {
 
 export async function reinitializeFromConfig(): Promise<void> {
   const newActiveDb = getActiveDbUrl();
-  if (newActiveDb.url === activeDb.url) return;
+  console.log(`[DB] reinitializeFromConfig: current="${activeDb.label}" (url=${activeDb.url ? "set" : "empty"}), new=${newActiveDb ? `"${newActiveDb.label}" (url=${newActiveDb.url ? "set" : "empty"})` : "null"}`);
+  if (!newActiveDb) {
+    console.error("[DB] reinitializeFromConfig: still no database URL available after config bootstrap");
+    return;
+  }
+  if (!newActiveDb.url) {
+    console.error("[DB] reinitializeFromConfig: new URL is empty");
+    return;
+  }
+  if (newActiveDb.url === activeDb.url) {
+    console.log("[DB] reinitializeFromConfig: URL unchanged, skipping");
+    return;
+  }
 
   console.log(`[DB] Reinitializing connection: ${activeDb.label} → ${newActiveDb.label}`);
   const oldPool = _pool;
