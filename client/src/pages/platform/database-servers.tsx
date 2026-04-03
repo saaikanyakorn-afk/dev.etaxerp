@@ -446,7 +446,7 @@ function EncryptionKeyGenerator({ machines, onRefresh }: { machines: MachineReco
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `etax-config-${(activeData?.hostname || "server").replace(/[^a-zA-Z0-9]/g, "_")}.enc`;
+    a.download = "etax-config.enc";
     a.click();
     URL.revokeObjectURL(url);
   };
