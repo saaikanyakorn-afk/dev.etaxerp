@@ -46,10 +46,10 @@ interface MachineRecord {
   updatedAt?: string;
 }
 
-const OS_CONFIG: Record<string, { icon: any; label: string; color: string; remoteAccess: boolean; cloneMethod: string }> = {
-  windows: { icon: Monitor, label: "Windows", color: "text-blue-600 bg-blue-50 border-blue-200", remoteAccess: true, cloneMethod: "pg_dump → Remote psql" },
-  linux: { icon: MonitorSmartphone, label: "Linux (aaPanel)", color: "text-orange-600 bg-orange-50 border-orange-200", remoteAccess: false, cloneMethod: "Standalone Clone Tool" },
-  cloud: { icon: Cloud, label: "Cloud", color: "text-purple-600 bg-purple-50 border-purple-200", remoteAccess: true, cloneMethod: "pg_dump → Remote psql" },
+const OS_CONFIG: Record<string, { icon: any; label: string; color: string }> = {
+  windows: { icon: Monitor, label: "Windows", color: "text-blue-600 bg-blue-50 border-blue-200" },
+  linux: { icon: MonitorSmartphone, label: "Linux (aaPanel)", color: "text-orange-600 bg-orange-50 border-orange-200" },
+  cloud: { icon: Cloud, label: "Cloud", color: "text-purple-600 bg-purple-50 border-purple-200" },
 };
 
 const SERVER_TYPE_CONFIG: Record<string, { label: string; badge: string; badgeBg: string }> = {
@@ -146,16 +146,6 @@ function MachineCard({ machine, onEdit }: { machine: MachineRecord; onEdit: (m: 
         </div>
 
         <div className="border-t pt-2 space-y-1.5 text-sm">
-          <div className="flex items-center justify-between">
-            <span className="text-gray-500">Remote</span>
-            <Badge variant="outline" className={osConfig.remoteAccess ? "text-green-600 border-green-300" : "text-red-500 border-red-300"}>
-              {osConfig.remoteAccess ? "รับ Remote ได้" : "localhost เท่านั้น"}
-            </Badge>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-gray-500">วิธี Clone</span>
-            <span className="text-xs font-medium text-gray-700">{osConfig.cloneMethod}</span>
-          </div>
         </div>
 
         {machine.notes && (
