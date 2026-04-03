@@ -5,6 +5,33 @@ import * as fs from "fs";
 import * as path from "path";
 import { getConfig, isBootstrapped } from "./config-bootstrap";
 
+function appendLanLog(message: string) {
+  try {
+    const logDir = path.join(process.cwd(), "logs");
+    if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true });
+    const logFile = path.join(logDir, "lan-probe.log");
+    const timestamp = new Date().toISOString().replace("T", " ").slice(0, 19);
+    fs.appendFileSync(logFile, `[${timestamp}] ${message}\n`);
+  } catch {}
+}
+
+async function probeLanConnection(lanUrl: string, timeoutMs: number = 5000): Promise<boolean> {
+  const testPool = new pg.Pool({
+    connectionString: lanUrl,
+    max: 1,
+    connectionTimeoutMillis: timeoutMs,
+    statement_timeout: timeoutMs,
+  });
+  try {
+    const res = await testPool.query("SELECT 1 AS ok");
+    await testPool.end();
+    return res.rows[0]?.ok === 1;
+  } catch (err: any) {
+    try { await testPool.end(); } catch {}
+    return false;
+  }
+}
+
 const DATE_OID = 1082;
 pg.types.setTypeParser(DATE_OID, (val: string) => val);
 
@@ -164,7 +191,7 @@ export function getDbSwitchVersion(): number {
 }
 
 export async function reinitializeFromConfig(): Promise<void> {
-  const newActiveDb = getActiveDbUrl();
+  let newActiveDb = getActiveDbUrl();
   console.log(`[DB] reinitializeFromConfig: current="${activeDb.label}" (url=${activeDb.url ? "set" : "empty"}), new=${newActiveDb ? `"${newActiveDb.label}" (url=${newActiveDb.url ? "set" : "empty"})` : "null"}`);
   if (!newActiveDb) {
     console.error("[DB] reinitializeFromConfig: still no database URL available after config bootstrap");
@@ -174,6 +201,32 @@ export async function reinitializeFromConfig(): Promise<void> {
     console.error("[DB] reinitializeFromConfig: new URL is empty");
     return;
   }
+
+  if (process.env.NODE_ENV === "production" && process.env.DB_MAIN_LAN === "true") {
+    const lanUrl = getConfig("DB_MAIN_LAN_URL");
+    if (lanUrl) {
+      console.log("[DB] DB_MAIN_LAN=true — probing LAN connection (5s timeout)...");
+      appendLanLog("--- LAN Probe Start ---");
+      appendLanLog(`FQDN URL: ${newActiveDb.url.replace(/\/\/[^@]+@/, "//***@")}`);
+      appendLanLog(`LAN  URL: ${lanUrl.replace(/\/\/[^@]+@/, "//***@")}`);
+
+      const lanOk = await probeLanConnection(lanUrl, 5000);
+
+      if (lanOk) {
+        console.log("[DB] ✓ LAN connection OK — using LAN URL (faster)");
+        appendLanLog("Result: LAN connected ✓ — using LAN URL");
+        newActiveDb = { url: lanUrl, label: "Production (LAN)", target: "thailand" };
+      } else {
+        console.log("[DB] ✗ LAN connection failed — fallback to FQDN URL");
+        appendLanLog("Result: LAN connection FAILED ✗ — fallback to FQDN URL");
+      }
+      appendLanLog("--- LAN Probe End ---\n");
+    } else {
+      console.log("[DB] DB_MAIN_LAN=true but DB_MAIN_LAN_URL not set in config DB — using FQDN");
+      appendLanLog("WARN: DB_MAIN_LAN=true but DB_MAIN_LAN_URL not configured in config DB");
+    }
+  }
+
   if (newActiveDb.url === activeDb.url) {
     console.log("[DB] reinitializeFromConfig: URL unchanged, skipping");
     return;

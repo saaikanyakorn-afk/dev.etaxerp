@@ -484,26 +484,39 @@ GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO ${d.configDbUser};`;
   const buildSqlStep3 = (d: typeof activeData) => {
     if (!d) return "";
     const dbMainUrl = prodDbUrl || 'postgresql://USER:PASSWORD@deep-main.hopto.org:PORT/DATABASE';
-    return `-- ใส่ค่า config ทั้งหมด (DB + reCAPTCHA + version):
+    const prodLanIp = prodMachine?.lanIp;
+    const dbMainLanUrl = prodLanIp && prodDbUrl
+      ? prodDbUrl.replace(/(@)[^:]+(:)/, `$1${prodLanIp}$2`)
+      : 'postgresql://USER:PASSWORD@LAN_IP:PORT/DATABASE';
+    return `-- ใส่ค่า config ทั้งหมด (DB + LAN + reCAPTCHA + version):
 INSERT INTO system_config (config_key, config_value, description, environment, is_secret) VALUES
-('DB_MAIN_URL', '${dbMainUrl}', 'Main database connection', 'production', true),
+('DB_MAIN_URL', '${dbMainUrl}', 'Main database connection (FQDN)', 'production', true),
+('DB_MAIN_LAN_URL', '${dbMainLanUrl}', 'Main database connection (LAN IP) — ใช้เมื่อ .env DB_MAIN_LAN=true', 'production', true),
 ('RECAPTCHA_SITE_KEY', 'YOUR_RECAPTCHA_SITE_KEY', 'reCAPTCHA v2 site key', 'all', false),
 ('RECAPTCHA_SECRET_KEY', 'YOUR_RECAPTCHA_SECRET_KEY', 'reCAPTCHA v2 secret key', 'all', true),
 ('APP_VERSION', '1.0.0', 'Application version', 'all', false)
 ON CONFLICT (config_key) DO NOTHING;
 
--- อย่าลืมแก้ค่า YOUR_RECAPTCHA_SITE_KEY และ YOUR_RECAPTCHA_SECRET_KEY ให้ถูกต้อง`;
+-- อย่าลืมแก้ค่า YOUR_RECAPTCHA_SITE_KEY และ YOUR_RECAPTCHA_SECRET_KEY ให้ถูกต้อง
+-- DB_MAIN_LAN_URL ใช้คู่กับ .env DB_MAIN_LAN=true (ดาบสองคม — ดูคู่มือ)`;
   };
 
   const buildSqlStep4 = (d: typeof activeData) => {
     if (!d) return "";
     return `-- ตั้ง Environment Variables ใน PM2 หรือ .env:
--- MACHINE_NAME=${d.hostname}
--- MACHINE_DB_PORT=${d.configDbPort}
+MACHINE_NAME=${d.hostname}
+MACHINE_DB_PORT=${d.configDbPort}
+-- (ถ้า app server อยู่ LAN เดียวกับ DB server — ดาบสองคม ดูคู่มือ):
+-- DB_MAIN_LAN=true
 
 -- วาง .enc file ไว้ที่:
 -- C:\\GitApp\\etaxcenter\\config\\etax-config.enc
--- (ใช้ปุ่มดาวน์โหลดด้านบน)`;
+-- (ใช้ปุ่มดาวน์โหลดด้านบน)
+
+-- ⚠️ DB_MAIN_LAN=true (ถ้าเปิดใช้):
+-- ถ้า LAN ต่อได้ → ใช้ LAN IP (เร็วกว่า)
+-- ถ้า LAN ต่อไม่ได้ → fallback ไป FQDN อัตโนมัติ (ช้าขึ้น ~5 วินาที)
+-- ดู log: logs/lan-probe.log บนเครื่อง app server`;
   };
 
   return (
