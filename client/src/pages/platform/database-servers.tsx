@@ -260,12 +260,16 @@ function EditMachineDialog({
   );
 }
 
-function EncryptionKeyGenerator() {
+function EncryptionKeyGenerator({ machines }: { machines: MachineRecord[] }) {
   const { toast } = useToast();
   const [hostname, setHostname] = useState("");
   const [macAddress, setMacAddress] = useState("");
   const [configDbPort, setConfigDbPort] = useState("");
   const [configDbName, setConfigDbName] = useState("etax_config");
+  const prodMachine = machines.find(m => m.role === "production");
+  const prodDbUrl = prodMachine
+    ? `postgresql://${prodMachine.dbUser}:${encodeURIComponent(prodMachine.dbPassword)}@${prodMachine.domainName || prodMachine.lanIp || "localhost"}:${prodMachine.dbPort}/${prodMachine.dbName}`
+    : null;
   const [result, setResult] = useState<{
     configDbUser: string;
     configDbPassword: string;
@@ -453,6 +457,8 @@ function EncryptionKeyGenerator() {
                     size="sm"
                     className="h-6 text-xs border-green-400 text-green-700 hover:bg-green-100"
                     onClick={() => {
+                      const dbMainUrl = prodDbUrl || 'postgresql://USER:PASSWORD@deep-main.hopto.org:PORT/DATABASE';
+                      const dbMainNote = prodDbUrl ? `(จาก server: ${prodMachine?.localName})` : '(แก้ให้ตรงกับ deep-main ของจริง)';
                       const sql = `-- Step 1: สร้าง user + database (รันขณะ connect เป็น superuser/postgres)
 CREATE USER ${result.configDbUser} WITH PASSWORD '${result.configDbPassword}';
 CREATE DATABASE ${configDbName} OWNER ${result.configDbUser};
@@ -473,9 +479,9 @@ CREATE TABLE IF NOT EXISTS system_config (
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO ${result.configDbUser};
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO ${result.configDbUser};
 
--- Step 3: ใส่ค่าเริ่มต้น (แก้ DB_MAIN_URL ให้ตรงกับ deep-main ของจริง)
+-- Step 3: ใส่ค่า DB_MAIN_URL ${dbMainNote}
 INSERT INTO system_config (config_key, config_value, description, environment, is_secret) VALUES
-('DB_MAIN_URL', 'postgresql://USER:PASSWORD@deep-main.hopto.org:PORT/DATABASE', 'Main database connection', 'production', true),
+('DB_MAIN_URL', '${dbMainUrl}', 'Main database connection', 'production', true),
 ('APP_VERSION', '1.0.0', 'Application version', 'all', false)
 ON CONFLICT (config_key) DO NOTHING;`;
                       navigator.clipboard.writeText(sql);
@@ -507,9 +513,9 @@ CREATE TABLE IF NOT EXISTS system_config (
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO ${result.configDbUser};
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO ${result.configDbUser};
 
--- Step 3: ใส่ค่าเริ่มต้น (แก้ DB_MAIN_URL ให้ตรงกับ deep-main ของจริง)
+-- Step 3: ใส่ค่า DB_MAIN_URL ${prodDbUrl ? `(จาก server: ${prodMachine?.localName})` : '(แก้ให้ตรงกับ deep-main ของจริง)'}
 INSERT INTO system_config (config_key, config_value, description, environment, is_secret) VALUES
-('DB_MAIN_URL', 'postgresql://USER:PASSWORD@deep-main.hopto.org:PORT/DATABASE', 'Main database connection', 'production', true),
+('DB_MAIN_URL', '${prodDbUrl || 'postgresql://USER:PASSWORD@deep-main.hopto.org:PORT/DATABASE'}', 'Main database connection', 'production', true),
 ('APP_VERSION', '1.0.0', 'Application version', 'all', false)
 ON CONFLICT (config_key) DO NOTHING;`}
                 </pre>
@@ -518,12 +524,15 @@ ON CONFLICT (config_key) DO NOTHING;`}
               <div className="bg-blue-50 border border-blue-200 rounded p-3 text-xs text-blue-800 space-y-1">
                 <p className="font-bold">ขั้นตอนหลังรัน SQL:</p>
                 <ol className="list-decimal list-inside space-y-0.5">
-                  <li>แก้ <code className="bg-blue-100 px-1 rounded">DB_MAIN_URL</code> ใน system_config ให้ตรงกับ deep-main ของจริง</li>
+                  {!prodDbUrl && <li>แก้ <code className="bg-blue-100 px-1 rounded">DB_MAIN_URL</code> ใน system_config ให้ตรงกับ production server</li>}
                   <li>วาง .enc file ไว้ที่ <code className="bg-blue-100 px-1 rounded">./config/etax-config.enc</code></li>
                   <li>ตั้งใน .env: <code className="bg-blue-100 px-1 rounded">MACHINE_NAME={hostname}</code></li>
                   <li>ตั้งใน .env: <code className="bg-blue-100 px-1 rounded">MACHINE_DB_PORT={configDbPort}</code></li>
                   <li>App จะ decrypt อัตโนมัติตอน startup</li>
                 </ol>
+                {prodDbUrl && (
+                  <p className="text-green-700 font-bold mt-1">✓ DB_MAIN_URL ถูกใส่ให้อัตโนมัติจาก server: {prodMachine?.localName}</p>
+                )}
               </div>
             </div>
           </div>
@@ -676,7 +685,7 @@ export default function DatabaseServers() {
         )}
 
         <div className="mt-8">
-          <EncryptionKeyGenerator />
+          <EncryptionKeyGenerator machines={machines} />
         </div>
 
         {editingMachine !== undefined && (
