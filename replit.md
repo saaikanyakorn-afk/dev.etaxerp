@@ -727,7 +727,7 @@ Once Stage 3 begins, revisit the JOIN inventory below and add appropriate indexe
 - Disk path: `D:\Server\Websites\Default\fa` (29 chars) — Apache DocumentRoot = FTP root
 - `NTFS_ROOT_OVERHEAD = 45` (conservative buffer for 260-char NTFS limit)
 - ftpBaseUrl: `http://tax-gateway.hopto.org/fa/archive`
-- Online hours: 8:00–23:59 Thai time (home fiber 2000/1000 Mbps, may go offline unexpectedly)
+- Online hours: 24/7 (home fiber 2000/1000 Mbps)
 
 **Architecture Decisions (locked in):**
 - FTP Archive = core infrastructure, NOT tenant feature. Config lives in `system_config` table.
@@ -884,7 +884,7 @@ Once Stage 3 begins, revisit the JOIN inventory below and add appropriate indexe
 | # | Name | OS | Role | Hardware | Network |
 |---|------|-----|------|----------|---------|
 | 1 | **Replit (Neon)** | Cloud | Dev & Current Production | AMD EPYC 9B14 4C/8T @2.6GHz, 62GB RAM | US cloud |
-| 2 | **server-e5 (deep-main)** | Windows | DB Source of Truth | Xeon E5-2660 v2, 32GB RAM | deep-main.hopto.org, LAN 192.168.1.100, online 08:00-23:59 TH |
+| 2 | **server-e5 (deep-main)** | Windows | DB Source of Truth | Xeon E5-2660 v2, 32GB RAM | deep-main.hopto.org, LAN 192.168.1.100, online 24/7 |
 | 3 | **linux-test-01** | Linux | Testing | — | LAN 192.168.1.201, aaPanel |
 | 4 | **linux-prod-01** | Linux | Final Production (planned) | **Xeon E3-1230 v3** 4C/8T @3.3-3.7GHz, Motherboard **Asus H97M-E** (Intel H97, LGA1150), **32GB DDR3-1600** dual-channel, M.2 + 4×SATA III | LAN 192.168.1.202, aaPanel |
 | 5 | **server-backup** | Windows | Backup | — | LAN 192.168.1.150 |
