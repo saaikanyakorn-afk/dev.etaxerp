@@ -445,11 +445,80 @@ function EncryptionKeyGenerator() {
                 </Button>
               </div>
 
+              <div className="bg-green-50 border border-green-200 rounded p-3 text-xs text-green-800 space-y-2">
+                <div className="flex items-center justify-between">
+                  <p className="font-bold">SQL Setup Script (รันบน psql ของเครื่องเป้าหมาย):</p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-6 text-xs border-green-400 text-green-700 hover:bg-green-100"
+                    onClick={() => {
+                      const sql = `-- Step 1: สร้าง user + database (รันขณะ connect เป็น superuser/postgres)
+CREATE USER ${result.configDbUser} WITH PASSWORD '${result.configDbPassword}';
+CREATE DATABASE ${configDbName} OWNER ${result.configDbUser};
+
+-- Step 2: สร้าง table (รันหลัง \\c ${configDbName})
+\\c ${configDbName}
+
+CREATE TABLE IF NOT EXISTS system_config (
+  id SERIAL PRIMARY KEY,
+  config_key VARCHAR(255) UNIQUE NOT NULL,
+  config_value TEXT NOT NULL DEFAULT '',
+  description TEXT,
+  environment VARCHAR(50) DEFAULT 'all',
+  is_secret BOOLEAN DEFAULT false,
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO ${result.configDbUser};
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO ${result.configDbUser};
+
+-- Step 3: ใส่ค่าเริ่มต้น (แก้ DB_MAIN_URL ให้ตรงกับ deep-main ของจริง)
+INSERT INTO system_config (config_key, config_value, description, environment, is_secret) VALUES
+('DB_MAIN_URL', 'postgresql://USER:PASSWORD@deep-main.hopto.org:PORT/DATABASE', 'Main database connection', 'production', true),
+('APP_VERSION', '1.0.0', 'Application version', 'all', false)
+ON CONFLICT (config_key) DO NOTHING;`;
+                      navigator.clipboard.writeText(sql);
+                      toast({ title: "คัดลอก SQL Script แล้ว" });
+                    }}
+                    data-testid="btn-copy-sql-setup"
+                  >
+                    <Copy className="h-3 w-3 mr-1" /> คัดลอก SQL
+                  </Button>
+                </div>
+                <pre className="bg-gray-900 text-green-400 p-3 rounded font-mono text-xs whitespace-pre-wrap max-h-48 overflow-y-auto">
+{`-- Step 1: สร้าง user + database (รันขณะ connect เป็น superuser/postgres)
+CREATE USER ${result.configDbUser} WITH PASSWORD '${result.configDbPassword}';
+CREATE DATABASE ${configDbName} OWNER ${result.configDbUser};
+
+-- Step 2: สร้าง table (รันหลัง \\c ${configDbName})
+\\c ${configDbName}
+
+CREATE TABLE IF NOT EXISTS system_config (
+  id SERIAL PRIMARY KEY,
+  config_key VARCHAR(255) UNIQUE NOT NULL,
+  config_value TEXT NOT NULL DEFAULT '',
+  description TEXT,
+  environment VARCHAR(50) DEFAULT 'all',
+  is_secret BOOLEAN DEFAULT false,
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO ${result.configDbUser};
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO ${result.configDbUser};
+
+-- Step 3: ใส่ค่าเริ่มต้น (แก้ DB_MAIN_URL ให้ตรงกับ deep-main ของจริง)
+INSERT INTO system_config (config_key, config_value, description, environment, is_secret) VALUES
+('DB_MAIN_URL', 'postgresql://USER:PASSWORD@deep-main.hopto.org:PORT/DATABASE', 'Main database connection', 'production', true),
+('APP_VERSION', '1.0.0', 'Application version', 'all', false)
+ON CONFLICT (config_key) DO NOTHING;`}
+                </pre>
+              </div>
+
               <div className="bg-blue-50 border border-blue-200 rounded p-3 text-xs text-blue-800 space-y-1">
-                <p className="font-bold">ขั้นตอนการติดตั้งบนเครื่องเป้าหมาย:</p>
+                <p className="font-bold">ขั้นตอนหลังรัน SQL:</p>
                 <ol className="list-decimal list-inside space-y-0.5">
-                  <li>สร้าง PostgreSQL user: <code className="bg-blue-100 px-1 rounded">{result.configDbUser}</code> ด้วย password ข้างบน</li>
-                  <li>สร้าง database: <code className="bg-blue-100 px-1 rounded">{configDbName}</code></li>
+                  <li>แก้ <code className="bg-blue-100 px-1 rounded">DB_MAIN_URL</code> ใน system_config ให้ตรงกับ deep-main ของจริง</li>
                   <li>วาง .enc file ไว้ที่ <code className="bg-blue-100 px-1 rounded">./config/etax-config.enc</code></li>
                   <li>ตั้งใน .env: <code className="bg-blue-100 px-1 rounded">MACHINE_NAME={hostname}</code></li>
                   <li>ตั้งใน .env: <code className="bg-blue-100 px-1 rounded">MACHINE_DB_PORT={configDbPort}</code></li>
