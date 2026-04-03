@@ -172,6 +172,7 @@ function EditMachineDialog({
   saving?: boolean;
 }) {
   const isNew = !machine;
+  const [showDbPassword, setShowDbPassword] = useState(false);
   const [form, setForm] = useState({
     localName: machine?.localName || "",
     windowsName: machine?.windowsName || "",
@@ -296,16 +297,21 @@ function EditMachineDialog({
               </div>
               <div>
                 <Label className="text-sm font-medium">Database Name</Label>
-                <Input value={form.dbName} onChange={e => setForm({ ...form, dbName: e.target.value })} placeholder="เช่น db_rp_pdt" data-testid="input-db-name" />
+                <Input className="font-mono" value={form.dbName} onChange={e => setForm({ ...form, dbName: e.target.value })} placeholder="เช่น db_rp_pdt" data-testid="input-db-name" />
               </div>
               <div>
                 <Label className="text-sm font-medium">Username</Label>
-                <Input value={form.dbUser} onChange={e => setForm({ ...form, dbUser: e.target.value })} placeholder="เช่น replit_pdt" data-testid="input-db-user" />
+                <Input className="font-mono" value={form.dbUser} onChange={e => setForm({ ...form, dbUser: e.target.value })} placeholder="เช่น replit_pdt" data-testid="input-db-user" />
               </div>
             </div>
             <div className="mt-3">
               <Label className="text-sm font-medium">Password</Label>
-              <Input type="password" value={form.dbPassword} onChange={e => setForm({ ...form, dbPassword: e.target.value })} placeholder="รหัสผ่าน" data-testid="input-db-password" />
+              <div className="flex gap-2">
+                <Input className="font-mono flex-1" type={showDbPassword ? "text" : "password"} value={form.dbPassword} onChange={e => setForm({ ...form, dbPassword: e.target.value })} placeholder="รหัสผ่าน" data-testid="input-db-password" />
+                <Button type="button" variant="outline" size="icon" onClick={() => setShowDbPassword(!showDbPassword)} data-testid="btn-toggle-password">
+                  {showDbPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
+              </div>
             </div>
           </div>
 
