@@ -18,11 +18,16 @@ import {
 interface MachineRecord {
   id: number;
   localName: string;
+  windowsName: string | null;
+  fqdn: string | null;
   domainName: string | null;
   lanIp: string | null;
   wanIp: string | null;
   os: string;
   role: string;
+  cpuModel: string | null;
+  ramSize: string | null;
+  machineModel: string | null;
   dbPort: string;
   dbName: string;
   dbUser: string;
@@ -64,7 +69,27 @@ function MachineCard({ machine, onEdit }: { machine: MachineRecord; onEdit: (m: 
           </Badge>
         </div>
 
+        {(machine.machineModel || machine.cpuModel || machine.ramSize) && (
+          <div className="text-xs text-gray-500 space-y-0.5">
+            {machine.machineModel && <div>{machine.machineModel}</div>}
+            {machine.cpuModel && <div>CPU: {machine.cpuModel}</div>}
+            {machine.ramSize && <div>RAM: {machine.ramSize}</div>}
+          </div>
+        )}
+
         <div className="space-y-1.5 text-sm">
+          {machine.fqdn && (
+            <div className="flex items-center justify-between">
+              <span className="text-gray-500 text-xs">FQDN</span>
+              <span className="font-mono text-xs">{machine.fqdn}</span>
+            </div>
+          )}
+          {machine.windowsName && (
+            <div className="flex items-center justify-between">
+              <span className="text-gray-500 text-xs">Windows Name</span>
+              <span className="font-mono text-xs">{machine.windowsName}</span>
+            </div>
+          )}
           <div className="flex items-center justify-between">
             <span className="text-gray-500 flex items-center gap-1"><Globe className="h-3 w-3" /> Domain</span>
             <span className="font-mono text-xs">{machine.domainName || "—"}</span>
@@ -138,11 +163,16 @@ function EditMachineDialog({
   const isNew = !machine;
   const [form, setForm] = useState({
     localName: machine?.localName || "",
+    windowsName: machine?.windowsName || "",
+    fqdn: machine?.fqdn || "",
     domainName: machine?.domainName || "",
     lanIp: machine?.lanIp || "",
     wanIp: machine?.wanIp || "",
     os: machine?.os || "windows",
     role: machine?.role || "testing",
+    cpuModel: machine?.cpuModel || "",
+    ramSize: machine?.ramSize || "",
+    machineModel: machine?.machineModel || "",
     dbPort: machine?.dbPort || "5432",
     dbName: machine?.dbName || "",
     dbUser: machine?.dbUser || "",
@@ -159,12 +189,23 @@ function EditMachineDialog({
         <div className="p-6 space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <Label className="text-sm font-medium">ชื่อเครื่อง (Local Name) *</Label>
-              <Input value={form.localName} onChange={e => setForm({ ...form, localName: e.target.value })} placeholder="เช่น server-e5" data-testid="input-local-name" />
+              <Label className="text-sm font-medium">ชื่อเครื่อง (ชื่อเรียก) *</Label>
+              <Input value={form.localName} onChange={e => setForm({ ...form, localName: e.target.value })} placeholder="เช่น server-e5, etaxerp" data-testid="input-local-name" />
             </div>
             <div>
               <Label className="text-sm font-medium">Domain Name</Label>
               <Input value={form.domainName} onChange={e => setForm({ ...form, domainName: e.target.value })} placeholder="เช่น deep-main.hopto.org" data-testid="input-domain-name" />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label className="text-sm font-medium">Windows Computer Name</Label>
+              <Input value={form.windowsName} onChange={e => setForm({ ...form, windowsName: e.target.value })} placeholder="เช่น ETAXERP-PC (จาก hostname command)" data-testid="input-windows-name" />
+            </div>
+            <div>
+              <Label className="text-sm font-medium">FQDN</Label>
+              <Input value={form.fqdn} onChange={e => setForm({ ...form, fqdn: e.target.value })} placeholder="เช่น etaxerp.com" data-testid="input-fqdn" />
             </div>
           </div>
 
@@ -176,6 +217,24 @@ function EditMachineDialog({
             <div>
               <Label className="text-sm font-medium">WAN IP</Label>
               <Input value={form.wanIp} onChange={e => setForm({ ...form, wanIp: e.target.value })} placeholder="เช่น 184.82.211.214" data-testid="input-wan-ip" />
+            </div>
+          </div>
+
+          <div className="border-t pt-4">
+            <h3 className="text-sm font-semibold mb-3">ข้อมูลฮาร์ดแวร์</h3>
+            <div className="grid grid-cols-3 gap-4">
+              <div>
+                <Label className="text-sm font-medium">รุ่นเครื่อง / Make & Model</Label>
+                <Input value={form.machineModel} onChange={e => setForm({ ...form, machineModel: e.target.value })} placeholder="เช่น Dell OptiPlex 7060" data-testid="input-machine-model" />
+              </div>
+              <div>
+                <Label className="text-sm font-medium">CPU</Label>
+                <Input value={form.cpuModel} onChange={e => setForm({ ...form, cpuModel: e.target.value })} placeholder="เช่น Xeon E3-1280 V2 @3.6GHz" data-testid="input-cpu-model" />
+              </div>
+              <div>
+                <Label className="text-sm font-medium">RAM</Label>
+                <Input value={form.ramSize} onChange={e => setForm({ ...form, ramSize: e.target.value })} placeholder="เช่น 32GB DDR3" data-testid="input-ram-size" />
+              </div>
             </div>
           </div>
 
