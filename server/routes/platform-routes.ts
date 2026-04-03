@@ -1881,6 +1881,10 @@ app.post("/api/platform/machines/generate-config", requireAuth, requireSuperAdmi
         encConfigDbPassword: creds.password,
         encContent: encryptedContent,
         encGeneratedAt: new Date(),
+        dbUser: creds.username,
+        dbPassword: creds.password,
+        dbName: configDbName || "etax_config",
+        dbPort: configDbPort || "5432",
         updatedAt: new Date(),
       }).where(eq(machinesTable.id, Number(machineId)));
     }
