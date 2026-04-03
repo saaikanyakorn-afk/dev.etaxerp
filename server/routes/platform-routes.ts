@@ -1871,7 +1871,8 @@ app.post("/api/platform/machines/generate-config", requireAuth, requireSuperAdmi
     );
 
     if (machineId) {
-      await db.update(machines).set({
+      const { machines: machinesTable } = await import("@shared/schema");
+      await db.update(machinesTable).set({
         encHostname: hostname.trim(),
         encMacAddress: macAddress.trim(),
         encConfigDbPort: configDbPort || "5432",
@@ -1881,7 +1882,7 @@ app.post("/api/platform/machines/generate-config", requireAuth, requireSuperAdmi
         encContent: encryptedContent,
         encGeneratedAt: new Date(),
         updatedAt: new Date(),
-      }).where(eq(machines.id, Number(machineId)));
+      }).where(eq(machinesTable.id, Number(machineId)));
     }
 
     res.json({
