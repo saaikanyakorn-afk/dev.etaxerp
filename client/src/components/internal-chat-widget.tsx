@@ -124,7 +124,7 @@ export default function InternalChatWidget() {
       const s = localStorage.getItem("chat-widget-pos");
       if (s) return JSON.parse(s);
     } catch {}
-    return { x: 16, y: window.innerHeight - 64 };
+    return { x: window.innerWidth - 64, y: window.innerHeight - 140 };
   };
   const [initialPosLoaded] = useState(getInitialPos);
   const defaultPos = initialPosLoaded;
