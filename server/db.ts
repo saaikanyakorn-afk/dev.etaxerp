@@ -12,12 +12,15 @@ const DEV_DB_CHOICE_FILE = path.join(process.cwd(), ".dev-db-choice");
 
 function getActiveDbUrl(): { url: string; label: string; target: "usa" | "thailand" } {
   if (process.env.NODE_ENV === "production") {
-    const prodUrl = getConfig("DB_PROD_URL") || process.env.DB_PROD_URL;
+    const prodUrl = getConfig("DB_PROD_URL") || process.env.DB_PROD_URL || getConfig("DB_MAIN_URL");
     const prodLabel = getConfig("DB_PROD_LABEL") || process.env.DB_PROD_LABEL || "Production (Thailand)";
     if (prodUrl) {
       return { url: prodUrl, label: prodLabel, target: "thailand" };
     }
-    return { url: process.env.DATABASE_URL!, label: "Replit (Production)", target: "usa" };
+    if (process.env.DATABASE_URL) {
+      return { url: process.env.DATABASE_URL, label: "Replit (Production)", target: "usa" };
+    }
+    throw new Error("No database URL available: config DB has no DB_PROD_URL/DB_MAIN_URL and DATABASE_URL is not set");
   }
 
   try {
@@ -33,11 +36,10 @@ function getActiveDbUrl(): { url: string; label: string; target: "usa" | "thaila
     }
   } catch {}
 
-  return { url: process.env.DATABASE_URL!, label: "Replit (Dev/US)", target: "usa" };
-}
-
-if (!process.env.DATABASE_URL) {
-  throw new Error("DATABASE_URL must be set (used as Config DB bootstrap)");
+  if (!process.env.DATABASE_URL) {
+    throw new Error("DATABASE_URL must be set for development mode");
+  }
+  return { url: process.env.DATABASE_URL, label: "Replit (Dev/US)", target: "usa" };
 }
 
 let activeDb = getActiveDbUrl();

@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef, type ReactNode, useMemo } from "react";
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import logoWhite from "@assets/Logo_Etax_W_1771262337378.png";
-import dashboardPreview from "@assets/image_1771312538323.png";
+const logoWhite = "/logo-etax-white.png";
+const dashboardPreview = "/assets/image_1771312538323.png";
 import {
   CheckCircle2, ArrowRight, ChevronDown, ChevronUp,
   Menu, X, Zap, Globe, FileText, BarChart3,

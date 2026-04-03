@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useLocation, Link } from "wouter";
 import { Menu, X } from "lucide-react";
-import logoWhite from "@assets/Logo_Etax_W_1771262337378.png";
+const logoWhite = "/logo-etax-white.png";
 
 const NAV_LINKS = [
   { label: "หน้าหลัก", href: "/landing" },

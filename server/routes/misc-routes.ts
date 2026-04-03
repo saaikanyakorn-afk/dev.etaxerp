@@ -5,6 +5,7 @@ import { requireAuth, requireAdmin, requireSuperAdmin } from "../route-middlewar
 import { getTimingLog, getTimingSummary, clearTimingLog } from "./report-cache";
 import { getMaintenanceStatus, activateNow, liftMaintenance, isMaintenanceMode, createSchedule, rescheduleSchedule, cancelSchedule, hasCompletedMaintenanceToday, getScheduleHistory } from "../maintenance";
 import { execSync } from "child_process";
+import { getConfig } from "../config-bootstrap";
 
 function getGitVersion(): { hash: string; shortHash: string; date: string; message: string } {
   if (process.env.NODE_ENV === "production") {
@@ -49,7 +50,7 @@ app.get("/api/share-base-url", (req, res) => {
 });
 
 app.get("/api/public-config", (_req, res) => {
-  res.json({ recaptchaSiteKey: process.env.RECAPTCHA_SITE_KEY || "" });
+  res.json({ recaptchaSiteKey: getConfig("RECAPTCHA_SITE_KEY", "RECAPTCHA_SITE_KEY") });
 });
 
 app.get("/api/maintenance/status", async (_req, res) => {

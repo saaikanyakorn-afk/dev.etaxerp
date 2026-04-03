@@ -484,11 +484,15 @@ GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO ${d.configDbUser};`;
   const buildSqlStep3 = (d: typeof activeData) => {
     if (!d) return "";
     const dbMainUrl = prodDbUrl || 'postgresql://USER:PASSWORD@deep-main.hopto.org:PORT/DATABASE';
-    return `-- ใส่ค่า connection string ของ production database:
+    return `-- ใส่ค่า config ทั้งหมด (DB + reCAPTCHA + version):
 INSERT INTO system_config (config_key, config_value, description, environment, is_secret) VALUES
 ('DB_MAIN_URL', '${dbMainUrl}', 'Main database connection', 'production', true),
+('RECAPTCHA_SITE_KEY', 'YOUR_RECAPTCHA_SITE_KEY', 'reCAPTCHA v2 site key', 'all', false),
+('RECAPTCHA_SECRET_KEY', 'YOUR_RECAPTCHA_SECRET_KEY', 'reCAPTCHA v2 secret key', 'all', true),
 ('APP_VERSION', '1.0.0', 'Application version', 'all', false)
-ON CONFLICT (config_key) DO NOTHING;`;
+ON CONFLICT (config_key) DO NOTHING;
+
+-- อย่าลืมแก้ค่า YOUR_RECAPTCHA_SITE_KEY และ YOUR_RECAPTCHA_SECRET_KEY ให้ถูกต้อง`;
   };
 
   const buildSqlStep4 = (d: typeof activeData) => {

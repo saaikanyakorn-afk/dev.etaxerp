@@ -1,10 +1,10 @@
-import logoShopee from "@assets/F970CF53-2774-4A42-9D59-8930C2203BC1_1774716502545.png";
-import logoLine from "@assets/EC38BA9F-C795-4046-8BB9-B4C76EADA1BD_1774716502547.png";
-import logoLazada from "@assets/F35B9646-1693-4462-B498-E90BC1D6C463_1774716502548.png";
-import logoTiktok from "@assets/DA95597F-099B-4F78-86D8-93B38970AB71_1774716502548.jpg";
-import logoFacebook from "@assets/Face_b_1774716502550.jpg";
-import logoInstagram from "@assets/md_5b37de3263964_1774716502551.jpg";
-import logoAmazon from "@assets/Amazon_C_1774716502551.png";
+const logoShopee = "/assets/F970CF53-2774-4A42-9D59-8930C2203BC1_1774716502545.png";
+const logoLine = "/assets/EC38BA9F-C795-4046-8BB9-B4C76EADA1BD_1774716502547.png";
+const logoLazada = "/assets/F35B9646-1693-4462-B498-E90BC1D6C463_1774716502548.png";
+const logoTiktok = "/assets/DA95597F-099B-4F78-86D8-93B38970AB71_1774716502548.jpg";
+const logoFacebook = "/assets/Face_b_1774716502550.jpg";
+const logoInstagram = "/assets/md_5b37de3263964_1774716502551.jpg";
+const logoAmazon = "/assets/Amazon_C_1774716502551.png";
 
 export const PLATFORM_LOGOS: Record<string, string> = {
   shopee: logoShopee,

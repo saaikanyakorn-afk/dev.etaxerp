@@ -11,6 +11,7 @@ import { tenants, companies, users, subscriptionPlans, tenantSubscriptions, work
 import { eq, and } from "drizzle-orm";
 import { isMaintenanceMode, getMaintenanceState } from "./maintenance";
 import { logActivity } from "./route-helpers";
+import { getConfig } from "./config-bootstrap";
 import cookieSignature from "cookie-signature";
 
 const scryptAsync = promisify(scrypt);
@@ -115,7 +116,7 @@ export function setupAuth(app: Express) {
         return res.status(400).json({ message: "กรุณายืนยันตัวตนก่อนสมัคร" });
       }
 
-      const recaptchaSecret = process.env.RECAPTCHA_SECRET_KEY || "";
+      const recaptchaSecret = getConfig("RECAPTCHA_SECRET_KEY", "RECAPTCHA_SECRET_KEY");
       const verifyRes = await fetch("https://www.google.com/recaptcha/api/siteverify", {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -260,7 +261,7 @@ export function setupAuth(app: Express) {
       return res.status(400).json({ message: "กรุณายืนยันตัวตนก่อนเข้าสู่ระบบ" });
     }
     try {
-      const recaptchaSecret = process.env.RECAPTCHA_SECRET_KEY || "";
+      const recaptchaSecret = getConfig("RECAPTCHA_SECRET_KEY", "RECAPTCHA_SECRET_KEY");
       const verifyRes = await fetch("https://www.google.com/recaptcha/api/siteverify", {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },

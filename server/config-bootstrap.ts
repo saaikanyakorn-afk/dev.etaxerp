@@ -19,12 +19,11 @@ function isReplit(): boolean {
 }
 
 function resolveConfigDbUrl(): string | null {
-  if (process.env.DATABASE_URL) return process.env.DATABASE_URL;
-
   const machineName = process.env.MACHINE_NAME;
   const machineDbPort = process.env.MACHINE_DB_PORT;
   if (!machineName || !machineDbPort) {
     if (machineName && !machineDbPort) console.warn("[Config] MACHINE_NAME set but MACHINE_DB_PORT missing");
+    if (process.env.DATABASE_URL) return process.env.DATABASE_URL;
     return null;
   }
 
@@ -36,7 +35,7 @@ function resolveConfigDbUrl(): string | null {
 
   try {
     const { deriveKey, decrypt } = require("./utils/machine-crypto");
-    const hostname = os.hostname();
+    const hostname = machineName;
     const nets = os.networkInterfaces();
     let mac = "";
     for (const ifaces of Object.values(nets)) {
@@ -56,14 +55,16 @@ function resolveConfigDbUrl(): string | null {
     }
 
     const encrypted = fs.readFileSync(encFile, "utf-8").trim();
+    console.log(`[Config] Deriving key with hostname=${hostname}, mac=${mac}, port=${machineDbPort}`);
     const key = deriveKey(hostname, mac, machineDbPort);
     const decrypted = JSON.parse(decrypt(encrypted, key));
     const cfg = decrypted.configDb;
     const url = `postgresql://${cfg.user}:${encodeURIComponent(cfg.password)}@${cfg.host}:${cfg.port}/${cfg.database}`;
-    console.log(`[Config] Decrypted config for machine: ${hostname}`);
+    console.log(`[Config] Decrypted config OK → ${cfg.host}:${cfg.port}/${cfg.database}`);
     return url;
   } catch (err: any) {
     console.error(`[Config] Failed to decrypt config: ${err.message}`);
+    if (process.env.DATABASE_URL) return process.env.DATABASE_URL;
     return null;
   }
 }
