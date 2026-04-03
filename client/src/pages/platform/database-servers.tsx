@@ -503,9 +503,11 @@ ON CONFLICT (config_key) DO NOTHING;
 
   const buildSqlStep4 = (d: typeof activeData) => {
     if (!d) return "";
+    const dbServerName = machines.find(m => m.role === "production" && (m.serverType === "database" || m.serverType === "app_database"))?.localName || "deep-main";
     return `-- ตั้ง Environment Variables ใน PM2 หรือ .env:
 MACHINE_NAME=${d.hostname}
 MACHINE_DB_PORT=${d.configDbPort}
+DB_MAIN_HOST=${dbServerName}
 -- (ถ้า app server อยู่ LAN เดียวกับ DB server — ดาบสองคม ดูคู่มือ):
 -- DB_MAIN_LAN=true
 
@@ -513,10 +515,12 @@ MACHINE_DB_PORT=${d.configDbPort}
 -- C:\\GitApp\\etaxcenter\\config\\etax-config.enc
 -- (ใช้ปุ่มดาวน์โหลดด้านบน)
 
+-- ⚠️ DB_MAIN_HOST = ชื่อ DB server ที่กำลังชี้อยู่ (ไม่ใช่ secret)
+--   ถ้าเปลี่ยน DB server (เช่น clone) ต้องแก้ค่านี้ด้วย
 -- ⚠️ DB_MAIN_LAN=true (ถ้าเปิดใช้):
--- ถ้า LAN ต่อได้ → ใช้ LAN IP (เร็วกว่า)
--- ถ้า LAN ต่อไม่ได้ → fallback ไป FQDN อัตโนมัติ (ช้าขึ้น ~5 วินาที)
--- ดู log: logs/lan-probe.log บนเครื่อง app server`;
+--   ถ้า LAN ต่อได้ → ใช้ LAN IP (เร็วกว่า)
+--   ถ้า LAN ต่อไม่ได้ → fallback ไป FQDN อัตโนมัติ (ช้าขึ้น ~5 วินาที)
+--   ดู log: logs/lan-probe.log บนเครื่อง app server`;
   };
 
   return (
