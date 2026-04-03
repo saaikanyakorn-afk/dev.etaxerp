@@ -12,3 +12,4 @@ vite.config.ts.*
 attached_assets/
 cookie.txt
 /tmp/
+logs/
