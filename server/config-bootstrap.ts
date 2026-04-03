@@ -35,7 +35,7 @@ function resolveConfigDbUrl(): string | null {
 
   try {
     const { deriveKey, decrypt } = require("./utils/machine-crypto");
-    const hostname = os.hostname();
+    const hostname = machineName;
     const nets = os.networkInterfaces();
     let mac = "";
     for (const ifaces of Object.values(nets)) {
