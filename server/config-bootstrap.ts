@@ -55,14 +55,16 @@ function resolveConfigDbUrl(): string | null {
     }
 
     const encrypted = fs.readFileSync(encFile, "utf-8").trim();
+    console.log(`[Config] Deriving key with hostname=${hostname}, mac=${mac}, port=${machineDbPort}`);
     const key = deriveKey(hostname, mac, machineDbPort);
     const decrypted = JSON.parse(decrypt(encrypted, key));
     const cfg = decrypted.configDb;
     const url = `postgresql://${cfg.user}:${encodeURIComponent(cfg.password)}@${cfg.host}:${cfg.port}/${cfg.database}`;
-    console.log(`[Config] Decrypted config for machine: ${hostname}`);
+    console.log(`[Config] Decrypted config OK → ${cfg.host}:${cfg.port}/${cfg.database}`);
     return url;
   } catch (err: any) {
     console.error(`[Config] Failed to decrypt config: ${err.message}`);
+    if (process.env.DATABASE_URL) return process.env.DATABASE_URL;
     return null;
   }
 }
