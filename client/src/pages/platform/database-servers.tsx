@@ -42,6 +42,7 @@ interface MachineRecord {
   encConfigDbPassword: string | null;
   encContent: string | null;
   encGeneratedAt: string | null;
+  envContent: string | null;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -148,6 +149,18 @@ function MachineCard({ machine, onEdit }: { machine: MachineRecord; onEdit: (m: 
         <div className="border-t pt-2 space-y-1.5 text-sm">
         </div>
 
+        {machine.envContent && (
+          <div className="border-t pt-2">
+            <div className="flex items-center gap-1.5">
+              <Shield className="h-3 w-3 text-green-600" />
+              <span className="text-xs font-medium text-green-700">.env</span>
+              <Badge variant="outline" className="text-[10px] px-1 py-0 bg-green-50 text-green-700 border-green-300">
+                {machine.envContent.trim().split("\n").filter(Boolean).length} vars
+              </Badge>
+            </div>
+          </div>
+        )}
+
         {machine.notes && (
           <div className="border-t pt-2">
             <p className="text-xs text-gray-500 italic">{machine.notes}</p>
@@ -191,6 +204,7 @@ function EditMachineDialog({
     dbUser: machine?.dbUser || "",
     dbPassword: machine?.dbPassword || "",
     notes: machine?.notes || "",
+    envContent: machine?.envContent || "",
   });
 
   return (
@@ -314,6 +328,23 @@ function EditMachineDialog({
               </div>
             </div>
           </div>
+
+          {(form.serverType === "app" || form.serverType === "app_database") && (
+            <div className="border-t pt-4">
+              <Label className="text-sm font-semibold flex items-center gap-1 mb-2">
+                <Shield className="h-4 w-4" /> .env (Environment Variables)
+              </Label>
+              <textarea
+                className="w-full font-mono text-sm border rounded-lg p-3 bg-gray-900 text-green-400 min-h-[120px] resize-y focus:outline-none focus:ring-2 focus:ring-[#fb9678]"
+                value={form.envContent}
+                onChange={e => setForm({ ...form, envContent: e.target.value })}
+                placeholder={`NODE_ENV=production\nPORT=5000\nMACHINE_NAME=etaxerp.com\nMACHINE_DB_PORT=15064\nDB_MAIN_HOST=server-e5\nDB_MAIN_LAN=true`}
+                spellCheck={false}
+                data-testid="textarea-env-content"
+              />
+              <p className="text-xs text-gray-400 mt-1">ใส่เฉพาะ non-secret variables (ห้ามใส่ password / connection string)</p>
+            </div>
+          )}
 
           <div>
             <Label className="text-sm font-medium">หมายเหตุ</Label>
