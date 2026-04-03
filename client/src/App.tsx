@@ -549,8 +549,17 @@ function TrialGuard({ children }: { children: ReactNode }) {
   return <>{children}</>;
 }
 
+const RecoveryPage = lazy(() => import("@/pages/recovery"));
+
 function Router() {
   const [location] = useLocation();
+  if (location.startsWith("/recovery")) {
+    return (
+      <Suspense fallback={<PageLoader />}>
+        <RecoveryPage />
+      </Suspense>
+    );
+  }
   if (location.startsWith("/loyalty/signup")) {
     return (
       <Suspense fallback={<PageLoader />}>

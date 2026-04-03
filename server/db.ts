@@ -136,6 +136,26 @@ export function setDevDbChoice(target: "usa" | "thailand") {
 }
 
 let _switchVersion = 0;
+let _recoveryMode = false;
+
+export function isRecoveryMode(): boolean {
+  return _recoveryMode;
+}
+
+export function setRecoveryMode(val: boolean): void {
+  _recoveryMode = val;
+}
+
+export async function testMainDbConnection(): Promise<{ ok: boolean; error?: string; db?: string; port?: string }> {
+  try {
+    const client = await _pool.connect();
+    const res = await client.query("SELECT current_database() as db, inet_server_port() as port");
+    client.release();
+    return { ok: true, db: res.rows[0].db, port: res.rows[0].port };
+  } catch (err: any) {
+    return { ok: false, error: err.message };
+  }
+}
 
 export function getDbSwitchVersion(): number {
   return _switchVersion;
