@@ -19,12 +19,11 @@ function isReplit(): boolean {
 }
 
 function resolveConfigDbUrl(): string | null {
-  if (process.env.DATABASE_URL) return process.env.DATABASE_URL;
-
   const machineName = process.env.MACHINE_NAME;
   const machineDbPort = process.env.MACHINE_DB_PORT;
   if (!machineName || !machineDbPort) {
     if (machineName && !machineDbPort) console.warn("[Config] MACHINE_NAME set but MACHINE_DB_PORT missing");
+    if (process.env.DATABASE_URL) return process.env.DATABASE_URL;
     return null;
   }
 
