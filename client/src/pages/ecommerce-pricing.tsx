@@ -1,15 +1,15 @@
 import { useState, useEffect, useRef, type ReactNode, useMemo } from "react";
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import logoWhite from "@assets/Logo_Etax_W_1771262337378.png";
-import ecomDashboardImg from "@assets/image_1771262787029.png";
-import logoShopee from "@assets/Shopee_1771303135650.png";
-import logoLazada from "@assets/images_1771303135649.jpg";
-import logoTiktok from "@assets/1000_F_470566291_IcqpTwiPWjjL6wAg6qGtrPy2ZyqpwW9o_1771303135649.jpg";
-import logoGrab from "@assets/19743_1771303135648.jpg";
-import logoLineman from "@assets/8a0a698f585db880a1bf73b4002e0912_1771303135647.jpg";
-import logoAmazon from "@assets/images_1771303135646.png";
-import logoRobinhood from "@assets/robinhood-affiliate-program_Robinhood_Affiliate_Program_1771303174725.png";
+const logoWhite = "/logo-etax-white.png";
+const ecomDashboardImg = "/assets/image_1771262787029.png";
+const logoShopee = "/assets/Shopee_1771303135650.png";
+const logoLazada = "/assets/images_1771303135649.jpg";
+const logoTiktok = "/assets/1000_F_470566291_IcqpTwiPWjjL6wAg6qGtrPy2ZyqpwW9o_1771303135649.jpg";
+const logoGrab = "/assets/19743_1771303135648.jpg";
+const logoLineman = "/assets/8a0a698f585db880a1bf73b4002e0912_1771303135647.jpg";
+const logoAmazon = "/assets/images_1771303135646.png";
+const logoRobinhood = "/assets/robinhood-affiliate-program_Robinhood_Affiliate_Program_1771303174725.png";
 import {
   ShoppingCart, CheckCircle2, ArrowRight, ChevronDown, ChevronUp,
   Menu, X, Zap, Globe, Package, BarChart3, FileText,

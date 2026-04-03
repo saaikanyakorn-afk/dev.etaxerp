@@ -1,6 +1,6 @@
 import { Link } from "wouter";
 import { Phone, Mail, MapPin } from "lucide-react";
-import logoWhite from "@assets/Logo_Etax_W_1771262337378.png";
+const logoWhite = "/logo-etax-white.png";
 
 export default function PublicFooter() {
   return (

@@ -2,16 +2,16 @@ import { useState, useEffect, useRef, type ReactNode, useMemo } from "react";
 import { useForceLightMode } from "@/hooks/use-force-light";
 import { useLocation, Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import logoWhite from "@assets/Logo_Etax_W_1771262337378.png";
-import ecomDashboardImg from "@assets/image_1771818597209.png";
-import dashboardPreview from "@assets/image_1771312538323.png";
+const logoWhite = "/logo-etax-white.png";
+const ecomDashboardImg = "/assets/image_1771818597209.png";
+const dashboardPreview = "/assets/image_1771312538323.png";
 import { logoShopee, logoLazada, logoTiktok, logoAmazon, logoLine as logoLineShopping, logoFacebook, logoInstagram } from "@/lib/platform-logos";
-import logoGrabfood from "@assets/19743_0_1773104855565.jpg";
-import logoLineman from "@assets/8a0a698f585db880a1bf73b4002e0912_0_1773104855565.jpg";
-import logoRobinhood from "@assets/robinhood-affiliate-program_Robinhood_Affiliate_Program_0_1773104855567.png";
-import businessTabImg from "@assets/image_70790cb3_1773120428368.png";
-import accountantTabImg from "@assets/image_4691dd20_1773122439161.png";
-import flowStyleImg from "@assets/image_1773454390412.png";
+const logoGrabfood = "/assets/19743_0_1773104855565.jpg";
+const logoLineman = "/assets/8a0a698f585db880a1bf73b4002e0912_0_1773104855565.jpg";
+const logoRobinhood = "/assets/robinhood-affiliate-program_Robinhood_Affiliate_Program_0_1773104855567.png";
+const businessTabImg = "/assets/image_70790cb3_1773120428368.png";
+const accountantTabImg = "/assets/image_4691dd20_1773122439161.png";
+const flowStyleImg = "/assets/image_1773454390412.png";
 import {
   ShoppingCart, FileText, Users, Calculator, BarChart3, Shield,
   CheckCircle2, ArrowRight, Star, ChevronDown, ChevronUp,
