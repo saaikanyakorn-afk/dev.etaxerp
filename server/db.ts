@@ -12,7 +12,7 @@ const DEV_DB_CHOICE_FILE = path.join(process.cwd(), ".dev-db-choice");
 
 function getActiveDbUrl(): { url: string; label: string; target: "usa" | "thailand" } {
   if (process.env.NODE_ENV === "production") {
-    const prodUrl = getConfig("DB_PROD_URL") || process.env.DB_PROD_URL;
+    const prodUrl = getConfig("DB_PROD_URL") || process.env.DB_PROD_URL || getConfig("DB_MAIN_URL");
     const prodLabel = getConfig("DB_PROD_LABEL") || process.env.DB_PROD_LABEL || "Production (Thailand)";
     if (prodUrl) {
       return { url: prodUrl, label: prodLabel, target: "thailand" };
