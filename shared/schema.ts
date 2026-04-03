@@ -42,6 +42,7 @@ export const machines = pgTable("machines", {
   encConfigDbPassword: text("enc_config_db_password"),
   encContent: text("enc_content"),
   encGeneratedAt: timestamp("enc_generated_at"),
+  envContent: text("env_content"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
