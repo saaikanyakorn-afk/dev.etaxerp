@@ -805,13 +805,57 @@ export default function DatabaseServers() {
             <p className="text-lg">ยังไม่มีเครื่องในระบบ</p>
             <p className="text-sm">กด "เพิ่มเครื่องใหม่" เพื่อเริ่มต้น</p>
           </div>
-        ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
-            {machines.map(m => (
-              <MachineCard key={m.id} machine={m} onEdit={setEditingMachine} />
-            ))}
-          </div>
-        )}
+        ) : (() => {
+          const devCloud = machines.filter(m => m.role === "dev_source");
+          const nonDev = machines.filter(m => m.role !== "dev_source");
+          const dbServers = nonDev.filter(m => m.serverType === "database");
+          const appServers = nonDev.filter(m => m.serverType === "app" || m.serverType === "app_database");
+          const others = nonDev.filter(m => !dbServers.includes(m) && !appServers.includes(m));
+          return (
+            <div className="space-y-8">
+              {devCloud.length > 0 && (
+                <div>
+                  <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3 flex items-center gap-2">
+                    <Cloud className="h-4 w-4" /> Dev / Cloud ({devCloud.length})
+                  </h2>
+                  <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+                    {devCloud.map(m => <MachineCard key={m.id} machine={m} onEdit={setEditingMachine} />)}
+                  </div>
+                </div>
+              )}
+              {dbServers.length > 0 && (
+                <div>
+                  <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3 flex items-center gap-2">
+                    <Database className="h-4 w-4" /> Database Servers ({dbServers.length})
+                  </h2>
+                  <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+                    {dbServers.map(m => <MachineCard key={m.id} machine={m} onEdit={setEditingMachine} />)}
+                  </div>
+                </div>
+              )}
+              {appServers.length > 0 && (
+                <div>
+                  <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3 flex items-center gap-2">
+                    <Monitor className="h-4 w-4" /> App Servers ({appServers.length})
+                  </h2>
+                  <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+                    {appServers.map(m => <MachineCard key={m.id} machine={m} onEdit={setEditingMachine} />)}
+                  </div>
+                </div>
+              )}
+              {others.length > 0 && (
+                <div>
+                  <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3 flex items-center gap-2">
+                    <Server className="h-4 w-4" /> อื่นๆ ({others.length})
+                  </h2>
+                  <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+                    {others.map(m => <MachineCard key={m.id} machine={m} onEdit={setEditingMachine} />)}
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         <div className="mt-8">
           <EncryptionKeyGenerator machines={machines} onRefresh={() => queryClient.invalidateQueries({ queryKey: ["/api/platform/machines"] })} />
