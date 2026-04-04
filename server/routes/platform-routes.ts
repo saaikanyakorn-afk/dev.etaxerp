@@ -2209,11 +2209,18 @@ app.post("/api/platform/machines/:id/test-db", requireAuth, requireSuperAdmin, a
     const dbUser = machine.dbUser || "postgres";
     const dbPassword = machine.dbPassword || "";
 
+    const isValidHost = (v: string | null | undefined): v is string => {
+      if (!v || !v.trim()) return false;
+      const lower = v.trim().toLowerCase();
+      if (lower.includes("n/a") || lower === "dynamic" || lower === "-" || lower === "none") return false;
+      return true;
+    };
+
     const paths: { label: string; host: string }[] = [];
-    if (machine.lanIp) paths.push({ label: "LAN", host: machine.lanIp });
-    if (machine.wanIp) paths.push({ label: "WAN IP", host: machine.wanIp });
-    if (machine.fqdn) paths.push({ label: "FQDN", host: machine.fqdn });
-    if (machine.domainName && machine.domainName !== machine.fqdn) paths.push({ label: "Domain", host: machine.domainName });
+    if (isValidHost(machine.lanIp)) paths.push({ label: "LAN", host: machine.lanIp });
+    if (isValidHost(machine.wanIp)) paths.push({ label: "WAN IP", host: machine.wanIp });
+    if (isValidHost(machine.fqdn)) paths.push({ label: "FQDN", host: machine.fqdn });
+    if (isValidHost(machine.domainName) && machine.domainName !== machine.fqdn) paths.push({ label: "Domain", host: machine.domainName });
 
     if (paths.length === 0) {
       return res.json({ paths: [], anyAlive: false, error: "ไม่มี host (LAN IP / WAN IP / FQDN / Domain)" });
