@@ -2495,6 +2495,52 @@ app.delete("/api/platform/nic-ips/:id", requireAuth, requireSuperAdmin, async (r
   } catch (err: any) { res.status(500).json({ message: err.message }); }
 });
 
+app.get("/api/platform/all-port-forwards", requireAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const { routerPortForwards } = await import("@shared/schema");
+    const rows = await db.select().from(routerPortForwards).orderBy(routerPortForwards.routerId, routerPortForwards.externalPort);
+    res.json(rows);
+  } catch (err: any) { res.status(500).json({ message: err.message }); }
+});
+
+app.post("/api/platform/routers/:routerId/port-forwards", requireAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const { routerPortForwards } = await import("@shared/schema");
+    const routerId = Number(req.params.routerId);
+    const { externalPort, lanIp, internalPort, protocol, purpose, notes } = req.body;
+    if (!externalPort || !lanIp) return res.status(400).json({ message: "ต้องระบุ External Port และ LAN IP" });
+    const [row] = await db.insert(routerPortForwards).values({
+      routerId, externalPort, lanIp,
+      internalPort: internalPort || null,
+      protocol: protocol || "TCP",
+      purpose: purpose || null,
+      notes: notes || null,
+    }).returning();
+    res.json(row);
+  } catch (err: any) { res.status(400).json({ message: err.message }); }
+});
+
+app.patch("/api/platform/port-forwards/:id", requireAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const { routerPortForwards } = await import("@shared/schema");
+    const id = Number(req.params.id);
+    const { id: _id, routerId: _rid, createdAt: _ca, ...updates } = req.body;
+    const [row] = await db.update(routerPortForwards).set(updates).where(eq(routerPortForwards.id, id)).returning();
+    if (!row) return res.status(404).json({ message: "ไม่พบ Port Forward นี้" });
+    res.json(row);
+  } catch (err: any) { res.status(400).json({ message: err.message }); }
+});
+
+app.delete("/api/platform/port-forwards/:id", requireAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const { routerPortForwards } = await import("@shared/schema");
+    const id = Number(req.params.id);
+    const [row] = await db.delete(routerPortForwards).where(eq(routerPortForwards.id, id)).returning();
+    if (!row) return res.status(404).json({ message: "ไม่พบ Port Forward นี้" });
+    res.json({ success: true });
+  } catch (err: any) { res.status(500).json({ message: err.message }); }
+});
+
 app.post("/api/platform/verify-infra-password", requireAuth, requireSuperAdmin, async (req, res) => {
   try {
     const { password } = req.body;

@@ -115,6 +115,22 @@ export const insertRouterSchema = createInsertSchema(routers).omit({ id: true, c
 export type Router = typeof routers.$inferSelect;
 export type InsertRouter = z.infer<typeof insertRouterSchema>;
 
+export const routerPortForwards = pgTable("router_port_forwards", {
+  id: serial("id").primaryKey(),
+  routerId: integer("router_id").notNull(),
+  externalPort: text("external_port").notNull(),
+  lanIp: text("lan_ip").notNull(),
+  internalPort: text("internal_port"),
+  protocol: text("protocol").notNull().default("TCP"),
+  purpose: text("purpose"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertRouterPortForwardSchema = createInsertSchema(routerPortForwards).omit({ id: true, createdAt: true });
+export type RouterPortForward = typeof routerPortForwards.$inferSelect;
+export type InsertRouterPortForward = z.infer<typeof insertRouterPortForwardSchema>;
+
 export const platformDomains = pgTable("platform_domains", {
   id: serial("id").primaryKey(),
   domainName: text("domain_name").notNull(),

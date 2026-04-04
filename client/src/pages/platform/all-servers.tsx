@@ -14,7 +14,7 @@ import {
   ArrowRight, Database, Globe, MapPin, RefreshCw,
   Key, Shield, Copy, Download, Lock, Unlock, History, AlertTriangle,
   ChevronDown, ChevronRight, Star, Network, Plug, Radio,
-  Router, ExternalLink, Phone, Link2,
+  Router, ExternalLink, Phone, Link2, ArrowRightLeft, Loader2,
 } from "lucide-react";
 
 interface MachineRecord {
@@ -118,6 +118,18 @@ interface PlatformDomainRecord {
   updatedAt?: string;
 }
 
+interface PortForwardRecord {
+  id: number;
+  routerId: number;
+  externalPort: string;
+  lanIp: string;
+  internalPort: string | null;
+  protocol: string;
+  purpose: string | null;
+  notes: string | null;
+  createdAt?: string;
+}
+
 function ipToInt(ip: string): number {
   return ip.split(".").reduce((acc, oct) => (acc << 8) + parseInt(oct, 10), 0) >>> 0;
 }
@@ -148,11 +160,12 @@ const ROLE_CONFIG: Record<string, { label: string; color: string; bgColor: strin
   backup: { label: "Backup", color: "text-gray-700", bgColor: "bg-gray-100" },
 };
 
-function RouterCard({ router, domains, allNics, machines, expanded, onToggle, onEdit, onDelete, credentialsUnlocked }: {
+function RouterCard({ router, domains, allNics, machines, portForwards, expanded, onToggle, onEdit, onDelete, credentialsUnlocked }: {
   router: RouterRecord;
   domains: PlatformDomainRecord[];
   allNics: NicRecord[];
   machines: MachineRecord[];
+  portForwards: PortForwardRecord[];
   expanded: boolean;
   onToggle: () => void;
   onEdit: (r: RouterRecord) => void;
@@ -165,6 +178,7 @@ function RouterCard({ router, domains, allNics, machines, expanded, onToggle, on
   const connectedMachines = machines.filter(m => connectedMachineIds.includes(m.id));
   const myDomains = domains.filter(d => d.routerId === router.id);
   const autoManagedDomain = myDomains.find(d => d.isRouterManaged);
+  const myPortForwards = portForwards.filter(pf => pf.routerId === router.id);
 
   return (
     <div className={`border rounded-lg transition-all border-teal-300 bg-teal-50/30 ${expanded ? "shadow-md" : "hover:shadow-sm"}`} data-testid={`card-router-${router.id}`}>
@@ -295,12 +309,117 @@ function RouterCard({ router, domains, allNics, machines, expanded, onToggle, on
             </div>
           )}
 
+          <PortForwardList routerId={router.id} portForwards={myPortForwards} machines={machines} />
+
           <div className="flex items-center justify-end gap-2">
             <Button size="sm" variant="outline" className="h-7 text-xs" onClick={e => { e.stopPropagation(); onEdit(router); }} data-testid={`btn-edit-router-${router.id}`}>
               <Pencil className="h-3 w-3 mr-1" /> แก้ไข
             </Button>
             <Button size="sm" variant="outline" className="h-7 text-xs text-red-500 border-red-300 hover:bg-red-50" onClick={e => { e.stopPropagation(); if (confirm(`ลบ Router "${router.name}"?`)) onDelete(router.id); }} data-testid={`btn-delete-router-${router.id}`}>
               <Trash2 className="h-3 w-3 mr-1" /> ลบ
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PortForwardList({ routerId, portForwards, machines }: { routerId: number; portForwards: PortForwardRecord[]; machines: MachineRecord[] }) {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const [adding, setAdding] = useState(false);
+  const [form, setForm] = useState({ externalPort: "", lanIp: "", internalPort: "", protocol: "TCP", purpose: "" });
+
+  const addMut = useMutation({
+    mutationFn: async (data: any) => {
+      const res = await apiRequest("POST", `/api/platform/routers/${routerId}/port-forwards`, data);
+      return res.json();
+    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/platform/all-port-forwards"] }); setAdding(false); setForm({ externalPort: "", lanIp: "", internalPort: "", protocol: "TCP", purpose: "" }); toast({ title: "เพิ่ม Port Forward แล้ว" }); },
+  });
+  const deleteMut = useMutation({
+    mutationFn: async (id: number) => { await apiRequest("DELETE", `/api/platform/port-forwards/${id}`); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/platform/all-port-forwards"] }); toast({ title: "ลบ Port Forward แล้ว" }); },
+  });
+
+  const machineByIp = (ip: string) => {
+    return machines.find(m => m.lanIp === ip);
+  };
+
+  return (
+    <div className="p-2 bg-amber-50 border border-amber-200 rounded" data-testid={`port-forwards-router-${routerId}`}>
+      <div className="flex items-center justify-between mb-1.5">
+        <h5 className="text-[10px] font-semibold text-amber-700 flex items-center gap-1">
+          <ArrowRightLeft className="h-3 w-3" /> Port Forwarding ({portForwards.length})
+        </h5>
+        <Button size="sm" variant="ghost" className="h-5 text-[10px] text-amber-700 hover:bg-amber-100 px-1.5" onClick={e => { e.stopPropagation(); setAdding(!adding); }} data-testid={`btn-add-portfwd-${routerId}`}>
+          {adding ? <X className="h-3 w-3" /> : <Plus className="h-3 w-3" />}
+        </Button>
+      </div>
+
+      {portForwards.length > 0 && (
+        <div className="space-y-0.5 mb-1.5">
+          <div className="grid grid-cols-[80px_120px_80px_60px_1fr_28px] gap-1 text-[9px] font-semibold text-amber-600 px-1">
+            <span>Ext. Port</span><span>LAN IP</span><span>Int. Port</span><span>Proto</span><span>Purpose</span><span></span>
+          </div>
+          {portForwards.map(pf => {
+            const machine = machineByIp(pf.lanIp);
+            return (
+              <div key={pf.id} className="grid grid-cols-[80px_120px_80px_60px_1fr_28px] gap-1 items-center text-xs bg-white rounded px-1 py-0.5 border border-amber-100" data-testid={`row-portfwd-${pf.id}`}>
+                <span className="font-mono font-bold text-amber-800">{pf.externalPort}</span>
+                <span className="font-mono text-gray-700 flex items-center gap-1">
+                  {pf.lanIp}
+                  {machine && <Badge variant="outline" className="text-[8px] px-1 py-0 bg-blue-50 text-blue-700 border-blue-200">{machine.localName}</Badge>}
+                </span>
+                <span className="font-mono text-gray-500">{pf.internalPort || pf.externalPort}</span>
+                <Badge variant="outline" className="text-[9px] px-1 py-0">{pf.protocol}</Badge>
+                <span className="text-gray-600 truncate">{pf.purpose || "—"}</span>
+                <Button size="sm" variant="ghost" className="h-5 w-5 p-0 text-red-400 hover:text-red-600 hover:bg-red-50" onClick={e => { e.stopPropagation(); if (confirm("ลบ Port Forward นี้?")) deleteMut.mutate(pf.id); }} data-testid={`btn-del-portfwd-${pf.id}`}>
+                  <Trash2 className="h-3 w-3" />
+                </Button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {adding && (
+        <div className="bg-white border border-amber-200 rounded p-2 space-y-2" onClick={e => e.stopPropagation()}>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <Label className="text-[10px] text-gray-500">External Port *</Label>
+              <Input className="h-7 text-xs font-mono" placeholder="80 หรือ 440-450" value={form.externalPort} onChange={e => setForm({ ...form, externalPort: e.target.value })} data-testid={`input-pf-ext-port-${routerId}`} />
+            </div>
+            <div>
+              <Label className="text-[10px] text-gray-500">LAN IP ปลายทาง *</Label>
+              <Input className="h-7 text-xs font-mono" placeholder="192.168.1.100" value={form.lanIp} onChange={e => setForm({ ...form, lanIp: e.target.value })} data-testid={`input-pf-lanip-${routerId}`} />
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            <div>
+              <Label className="text-[10px] text-gray-500">Internal Port (ถ้าต่างจาก Ext.)</Label>
+              <Input className="h-7 text-xs font-mono" placeholder="เหมือน Ext." value={form.internalPort} onChange={e => setForm({ ...form, internalPort: e.target.value })} data-testid={`input-pf-int-port-${routerId}`} />
+            </div>
+            <div>
+              <Label className="text-[10px] text-gray-500">Protocol</Label>
+              <Select value={form.protocol} onValueChange={v => setForm({ ...form, protocol: v })}>
+                <SelectTrigger className="h-7 text-xs" data-testid={`select-pf-proto-${routerId}`}><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="TCP">TCP</SelectItem>
+                  <SelectItem value="UDP">UDP</SelectItem>
+                  <SelectItem value="TCP/UDP">TCP/UDP</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-[10px] text-gray-500">Purpose</Label>
+              <Input className="h-7 text-xs" placeholder="HTTP / HTTPS / DB" value={form.purpose} onChange={e => setForm({ ...form, purpose: e.target.value })} data-testid={`input-pf-purpose-${routerId}`} />
+            </div>
+          </div>
+          <div className="flex justify-end">
+            <Button size="sm" className="h-7 text-xs bg-amber-600 hover:bg-amber-700" disabled={!form.externalPort || !form.lanIp || addMut.isPending} onClick={() => addMut.mutate(form)} data-testid={`btn-save-portfwd-${routerId}`}>
+              {addMut.isPending ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Plus className="h-3 w-3 mr-1" />} เพิ่ม
             </Button>
           </div>
         </div>
@@ -491,7 +610,6 @@ function DomainCard({ domain, routers, machines, expanded, onToggle, onEdit, onD
             <Router className="h-2.5 w-2.5 mr-0.5" /> Auto
           </Badge>
         )}
-        {domain.port && <span className="text-xs font-mono text-gray-400">:{domain.port}</span>}
         <div className="ml-auto flex items-center gap-1.5 shrink-0">
           {purposeConfig && (
             <Badge variant="outline" className={`${purposeConfig.color} text-[10px] px-1.5 py-0`}>
@@ -523,12 +641,6 @@ function DomainCard({ domain, routers, machines, expanded, onToggle, onEdit, onD
               <span className="text-gray-400 text-xs block">Purpose</span>
               <span className="text-xs">{purposeConfig ? purposeConfig.label : "ยังไม่กำหนด"}</span>
             </div>
-            {domain.port && (
-              <div>
-                <span className="text-gray-400 text-xs block">Port</span>
-                <span className="font-mono text-xs">{domain.port}</span>
-              </div>
-            )}
             <div>
               <span className="text-gray-400 text-xs block">Router ที่ตาม WAN IP</span>
               <span className="text-xs">{linkedRouter ? linkedRouter.name : "— ไม่ได้ผูก"}</span>
@@ -603,7 +715,6 @@ function EditDomainDialog({ domain, routers, machines, onSave, onCancel, saving 
     isRouterManaged: domain?.isRouterManaged || false,
     machineId: domain?.machineId ? String(domain.machineId) : "",
     purpose: domain?.purpose || "",
-    port: domain?.port ? String(domain.port) : "",
     notes: domain?.notes || "",
   });
 
@@ -612,7 +723,6 @@ function EditDomainDialog({ domain, routers, machines, onSave, onCancel, saving 
       ...form,
       routerId: form.routerId ? Number(form.routerId) : null,
       machineId: form.machineId ? Number(form.machineId) : null,
-      port: form.port ? Number(form.port) : null,
       purpose: form.purpose || null,
       manageUrl: form.manageUrl || null,
       username: form.username || null,
@@ -696,15 +806,9 @@ function EditDomainDialog({ domain, routers, machines, onSave, onCancel, saving 
               </Select>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label className="text-sm font-medium">Port (ถ้าไม่ใช่ 80/443)</Label>
-              <Input className="font-mono" value={form.port} onChange={e => setForm({ ...form, port: e.target.value })} placeholder="เช่น 20541" data-testid="input-domain-port" />
-            </div>
-            <div>
-              <Label className="text-sm font-medium">Manage URL</Label>
-              <Input className="font-mono" value={form.manageUrl} onChange={e => setForm({ ...form, manageUrl: e.target.value })} placeholder="https://my.noip.com/..." data-testid="input-domain-manage-url" />
-            </div>
+          <div>
+            <Label className="text-sm font-medium">Manage URL</Label>
+            <Input className="font-mono" value={form.manageUrl} onChange={e => setForm({ ...form, manageUrl: e.target.value })} placeholder="https://my.noip.com/..." data-testid="input-domain-manage-url" />
           </div>
           <div className="border-t pt-4">
             <h3 className="text-sm font-semibold mb-3">Login Credentials</h3>
@@ -1904,6 +2008,10 @@ export default function AllServers() {
     queryKey: ["/api/platform/domains"],
   });
 
+  const { data: allPortForwards = [] } = useQuery<PortForwardRecord[]>({
+    queryKey: ["/api/platform/all-port-forwards"],
+  });
+
   const [editingRouter, setEditingRouter] = useState<RouterRecord | null | undefined>(undefined);
   const [expandedRouterId, setExpandedRouterId] = useState<number | null>(null);
   const [editingDomain, setEditingDomain] = useState<PlatformDomainRecord | null | undefined>(undefined);
@@ -2236,6 +2344,7 @@ export default function AllServers() {
                       domains={platformDomains}
                       allNics={allNics}
                       machines={machines}
+                      portForwards={allPortForwards}
                       expanded={expandedRouterId === r.id}
                       onToggle={() => setExpandedRouterId(expandedRouterId === r.id ? null : r.id)}
                       onEdit={setEditingRouter}
