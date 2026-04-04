@@ -261,10 +261,11 @@ app.post("/api/platform/github/push", requireAuth, requireSuperAdmin, async (req
     const parts = version.split(".").map(Number);
     parts[2] = (parts[2] || 0) + 1;
     const newVersion = parts.join(".");
-    fs.writeFileSync(versionFile, newVersion + "\n");
-
     const tag = `v${newVersion}`;
     const fullMsg = `${tag} — ${commitMsg}`;
+
+    fs.writeFileSync(versionFile, newVersion + "\n");
+    execSync(`git add VERSION && git commit -m "Bump version to ${newVersion}"`, { cwd, stdio: "pipe" });
 
     execSync("git checkout --orphan deploy-temp", { cwd, stdio: "pipe" });
     execSync("git add -A", { cwd, stdio: "pipe" });
@@ -274,11 +275,6 @@ app.post("/api/platform/github/push", requireAuth, requireSuperAdmin, async (req
     execSync(`git push ${remoteUrl} ${tag} --force`, { cwd, stdio: "pipe", timeout: 30000 });
     execSync("git checkout replit-agent", { cwd, stdio: "pipe" });
     execSync("git branch -D deploy-temp", { cwd, stdio: "pipe" });
-
-    fs.writeFileSync(versionFile, newVersion + "\n");
-    try {
-      execSync(`git add VERSION && git commit -m "Bump version to ${newVersion}"`, { cwd, stdio: "pipe" });
-    } catch {}
 
     res.json({ success: true, version: newVersion, tag, message: fullMsg });
   } catch (err: any) {
