@@ -433,7 +433,8 @@ app.get("/api/platform/clone-history", requireAuth, requireAdmin, async (_req, r
     let rows: any[] = [];
     let source = "local";
 
-    const { getTargetUrl } = await import("../services/clone-history-central");
+    const { getTargetUrl, ensureTargetLoaded } = await import("../services/clone-history-central");
+    await ensureTargetLoaded();
     const centralUrl = getTargetUrl();
 
     if (centralUrl) {
@@ -993,6 +994,10 @@ app.post("/api/platform/clone-screen-enter", requireAuth, requireSuperAdmin, asy
   if (cloneScreenUserId && cloneScreenUserId !== user.id) {
     return res.status(409).json({ message: "มีผู้ดูแลระบบอีกท่านกำลังใช้หน้า Clone อยู่", lockedBy: cloneScreenUserId });
   }
+
+  const { ensureTargetLoaded } = await import("../services/clone-history-central");
+  await ensureTargetLoaded();
+
   setCloneScreen(user.id, Date.now());
   console.log(`[Clone Screen] User #${user.id} entered clone screen (no maintenance lock yet)`);
   res.json({ success: true });

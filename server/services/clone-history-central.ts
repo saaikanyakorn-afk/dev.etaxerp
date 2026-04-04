@@ -397,8 +397,6 @@ async function dailyFlushCheck(): Promise<void> {
   const today = new Date().toISOString().slice(0, 10);
   if (lastCheckDate === today) return;
 
-  await fetchTargetFromGitHub();
-
   try {
     const pendingResult = await db.select({ count: sql<number>`count(*)::int` })
       .from(cloneHistory)
@@ -447,10 +445,13 @@ async function dailyFlushCheck(): Promise<void> {
   }
 }
 
-export async function startCentralHistorySync(): Promise<void> {
-  if (flushTimer) return;
-
+export async function ensureTargetLoaded(): Promise<void> {
+  if (activeTarget.machineId > 0) return;
   await fetchTargetFromGitHub();
+}
+
+export function startCentralHistorySync(): void {
+  if (flushTimer) return;
 
   console.log(`[CloneHistoryCentral] Sync scheduler started (checks once per day, alerts after ${MAX_CONSECUTIVE_FAILURES} consecutive failures)`);
 
