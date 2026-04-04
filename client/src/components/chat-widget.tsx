@@ -339,18 +339,6 @@ export default function ChatWidget() {
         </div>
       )}
 
-      {showChatButton && user && (
-        <a
-          href="/user-guide"
-          data-testid="btn-help-guide"
-          className="w-10 h-10 rounded-full text-white shadow-lg hover:shadow-xl hover:scale-110 transition-all flex items-center justify-center"
-          style={{ background: "#fb9678" }}
-          title="คู่มือการใช้งาน"
-        >
-          <CircleHelp className="w-5 h-5" />
-        </a>
-      )}
-
       {showChatButton && (
         <button
           data-testid="button-open-chat"
