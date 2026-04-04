@@ -140,12 +140,15 @@ function ReceiptPreview({ settings, company }: { settings: DocSettings; company:
       {settings.posReceiptShowCompanyInfo && company && (
         <div className="text-center px-4 pb-3" style={{ fontSize }}>
           <div className="font-bold text-base mb-0.5">{company.name || "ชื่อร้าน"}</div>
-          {settings.posReceiptHeaderText && (
-            <div className="text-gray-600 leading-snug whitespace-pre-line">{settings.posReceiptHeaderText}</div>
-          )}
+          <div className="text-gray-500" style={{ fontSize: "10px" }}>{(company as any).branch || "สำนักงานใหญ่"}</div>
           {company.address && <div className="text-gray-600 leading-snug">{company.address}</div>}
-          {company.phone && <div className="text-gray-500">โทร {company.phone}</div>}
           {company.taxId && <div className="text-gray-500">เลขผู้เสียภาษี {company.taxId}</div>}
+          {company.phone && <div className="text-gray-500">โทร {company.phone}</div>}
+          {settings.posReceiptHeaderText && (
+            <div className="text-gray-600 leading-snug whitespace-pre-line mt-1">{settings.posReceiptHeaderText}</div>
+          )}
+          <div className="font-bold mt-1">ใบกำกับภาษีอย่างย่อ</div>
+          <div className="text-gray-500" style={{ fontSize: "10px" }}>ABB. TAX INVOICE</div>
         </div>
       )}
 
