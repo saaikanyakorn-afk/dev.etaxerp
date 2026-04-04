@@ -537,19 +537,21 @@ export default function GithubManagement() {
 
                     {tokenInfo?.hasToken && (
                       <div className="space-y-2">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs text-gray-400 shrink-0">Current:</span>
-                          <code className="text-xs font-mono text-gray-600 bg-gray-100 px-2 py-1 rounded flex-1 break-all" data-testid="text-current-token">
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-gray-400">Current Token:</span>
+                            <button
+                              type="button"
+                              onClick={() => setShowCurrentToken(!showCurrentToken)}
+                              className="text-xs text-gray-400 hover:text-gray-600 flex items-center gap-1"
+                              data-testid="button-toggle-current-token"
+                            >
+                              {showCurrentToken ? <><EyeOff className="h-3 w-3" /> ซ่อน</> : <><Eye className="h-3 w-3" /> แสดง</>}
+                            </button>
+                          </div>
+                          <code className="text-xs font-mono text-gray-600 bg-gray-100 px-2.5 py-1.5 rounded block break-all select-all" data-testid="text-current-token">
                             {showCurrentToken ? tokenInfo.full : tokenInfo.masked}
                           </code>
-                          <button
-                            type="button"
-                            onClick={() => setShowCurrentToken(!showCurrentToken)}
-                            className="text-gray-400 hover:text-gray-600 shrink-0"
-                            data-testid="button-toggle-current-token"
-                          >
-                            {showCurrentToken ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                          </button>
                         </div>
                         {tokenInfo.expiresAt ? (
                           <div className={`flex items-center gap-1.5 text-xs px-2 py-1 rounded ${
