@@ -776,28 +776,29 @@ function EditDomainDialog({ domain, routers, machines, onSave, onCancel, saving 
               </Select>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label className="text-sm font-medium">ตาม WAN IP ของ Router</Label>
-              <Select value={form.routerId || "none"} onValueChange={v => setForm({ ...form, routerId: v === "none" ? "" : v })}>
-                <SelectTrigger data-testid="select-domain-router"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">— ไม่ได้ผูก</SelectItem>
-                  {routers.map(r => (
-                    <SelectItem key={r.id} value={String(r.id)}>
-                      {r.name} {r.wanIp ? `(${r.wanIp})` : ""}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex items-end gap-2 pb-1">
-              <label className="flex items-center gap-2 text-sm cursor-pointer">
-                <input type="checkbox" checked={form.isRouterManaged} onChange={e => setForm({ ...form, isRouterManaged: e.target.checked })} className="rounded" disabled={!form.routerId} data-testid="check-router-managed" />
-                Router อัพเดต Domain นี้เอง (Auto)
-              </label>
-            </div>
+          <div>
+            <Label className="text-sm font-medium">ผูก WAN IP ของ Router</Label>
+            <Select value={form.routerId || "none"} onValueChange={v => setForm({ ...form, routerId: v === "none" ? "" : v, isRouterManaged: v === "none" ? false : form.isRouterManaged })}>
+              <SelectTrigger data-testid="select-domain-router"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">— ไม่ได้ผูก Router</SelectItem>
+                {routers.map(r => (
+                  <SelectItem key={r.id} value={String(r.id)}>
+                    {r.name} {r.wanIp ? `(WAN: ${r.wanIp})` : ""} {r.lanIp ? `• LAN: ${r.lanIp}` : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
+          {form.routerId && (
+            <div className="p-3 bg-indigo-50 border border-indigo-200 rounded">
+              <label className="flex items-center gap-2 text-sm cursor-pointer">
+                <input type="checkbox" checked={form.isRouterManaged} onChange={e => setForm({ ...form, isRouterManaged: e.target.checked })} className="rounded border-indigo-400" data-testid="check-router-managed" />
+                <span className="font-medium text-indigo-800">Router อัพเดต Domain นี้เอง (Auto-Update WAN IP)</span>
+              </label>
+              <p className="text-[11px] text-indigo-500 mt-1 ml-6">เมื่อเปิด: Router จะอัพเดต WAN IP ของ Domain นี้อัตโนมัติ (1 Router มีได้แค่ 1 Auto Domain — ถ้าเลือกจะแทนที่ตัวเดิม)</p>
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <Label className="text-sm font-medium">ให้บริการเครื่อง</Label>
