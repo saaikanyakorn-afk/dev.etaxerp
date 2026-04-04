@@ -50,10 +50,10 @@ export interface ReceiptData {
 }
 
 const THERMAL_FONT: Record<string, { body: number; heading: number; title: number; gap: number }> = {
-  small:  { body: 13, heading: 15, title: 17, gap: 6 },
-  medium: { body: 14, heading: 16, title: 18, gap: 7 },
-  large:  { body: 16, heading: 18, title: 20, gap: 8 },
-  xlarge: { body: 18, heading: 20, title: 24, gap: 9 },
+  small:  { body: 18, heading: 20, title: 22, gap: 6 },
+  medium: { body: 20, heading: 22, title: 26, gap: 7 },
+  large:  { body: 24, heading: 26, title: 30, gap: 8 },
+  xlarge: { body: 28, heading: 30, title: 34, gap: 10 },
 };
 
 function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
@@ -190,7 +190,7 @@ async function renderReceiptToCanvas(data: ReceiptData, paper: PaperWidth): Prom
     draws.push(() => {
       ctx.drawImage(logoImg!, logoX, currentY, logoW, logoH);
     });
-    y += logoH + 6;
+    y += logoH + 14;
   }
 
   drawCenterBold(data.companyName, ft.title);
