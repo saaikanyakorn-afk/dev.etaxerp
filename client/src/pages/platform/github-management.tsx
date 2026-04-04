@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import PlatformLayout from "@/components/platform-layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -42,6 +42,8 @@ interface LocalInfo {
   tsFiles: number;
   totalLines: number;
   trackedFiles: number;
+  maxFileLines: number;
+  maxFileName: string;
 }
 
 interface RemoteInfo {
@@ -182,6 +184,16 @@ export default function GithubManagement() {
   };
 
   const refetchAll = () => { refetchLocal(); refetchRemote(); };
+
+  const autoFetchedRef = useRef(false);
+  const FILE_LINE_WARNING_THRESHOLD = 7000;
+  useEffect(() => {
+    if (localInfo && localInfo.maxFileLines >= FILE_LINE_WARNING_THRESHOLD && !autoFetchedRef.current && !largestFiles) {
+      autoFetchedRef.current = true;
+      setLargestLimit(5);
+      fetchLargestFiles(5);
+    }
+  }, [localInfo]);
 
   const handleUpdateToken = async () => {
     if (!newToken.trim()) return;
@@ -350,11 +362,17 @@ export default function GithubManagement() {
                 </div>
               </div>
 
-              <Card className="shadow-sm">
+              <Card className={`shadow-sm ${localInfo && localInfo.maxFileLines >= FILE_LINE_WARNING_THRESHOLD ? "border-red-300" : ""}`}>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm flex items-center gap-2">
                     <BarChart3 className="h-4 w-4 text-orange-500" />
                     Largest Files by Line Count
+                    {localInfo && localInfo.maxFileLines >= FILE_LINE_WARNING_THRESHOLD && (
+                      <span className="text-[10px] font-normal bg-red-100 text-red-600 px-2 py-0.5 rounded-full ml-auto flex items-center gap-1">
+                        <AlertCircle className="h-3 w-3" />
+                        {localInfo.maxFileName.split("/").pop()} มี {localInfo.maxFileLines.toLocaleString()} บรรทัด — ควรแยกไฟล์
+                      </span>
+                    )}
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
