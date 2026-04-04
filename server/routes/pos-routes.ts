@@ -592,11 +592,17 @@ export function registerPosRoutes(app: Express) {
       if (!doc) return res.status(404).json({ message: "ไม่พบเอกสาร" });
       const ac = await checkDocOwnership(doc.companyId, req.user);
       if (!ac.allowed) return res.status(403).json({ message: ac.message });
-      const [items, [comp]] = await Promise.all([
+      const [items, [comp], [docSettings]] = await Promise.all([
         posDb.select().from(taxInvoiceItems).where(eq(taxInvoiceItems.taxInvoiceId, doc.id)),
         db.select().from(companies).where(eq(companies.id, doc.companyId)),
+        db.select().from(documentSettings).where(eq(documentSettings.companyId, doc.companyId)).limit(1),
       ]);
-      res.json({ doc: { ...doc, items }, company: comp || null });
+      let sessionBranch: any = null;
+      if ((doc as any).posSessionId) {
+        const [sess] = await posDb.select().from(posSessions).where(eq(posSessions.id, (doc as any).posSessionId));
+        if (sess) sessionBranch = { branchName: sess.branchName, terminalName: sess.terminalName };
+      }
+      res.json({ doc: { ...doc, items }, company: comp || null, docSettings: docSettings || null, session: sessionBranch });
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 

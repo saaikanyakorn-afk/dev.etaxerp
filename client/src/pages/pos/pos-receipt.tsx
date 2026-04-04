@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useParams } from "wouter";
 import { Printer, ArrowLeft, Bluetooth, BluetoothConnected, Settings, Wifi, WifiOff, Smartphone } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { objectPathToUrl } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -45,6 +46,8 @@ export default function PosReceipt() {
   const { id } = useParams<{ id: string }>();
   const [data, setData] = useState<any>(null);
   const [company, setCompany] = useState<any>(null);
+  const [docSettings, setDocSettings] = useState<any>(null);
+  const [session, setSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [btPrinting, setBtPrinting] = useState(false);
   const [btConnected, setBtConnected] = useState(false);
@@ -74,6 +77,8 @@ export default function PosReceipt() {
           const result = await res.json();
           setData(result.doc);
           setCompany(result.company);
+          setDocSettings(result.docSettings);
+          setSession(result.session);
         }
       } catch {}
       setLoading(false);
@@ -119,7 +124,13 @@ export default function PosReceipt() {
         companyAddress: company?.address || undefined,
         companyTaxId: company?.taxId || undefined,
         companyPhone: company?.phone || undefined,
-        companyLogoUrl: (company?.showLogo !== false && company?.logoUrl) ? company.logoUrl : undefined,
+        companyLogoUrl: (() => {
+          const logoUrl = docSettings?.logoUrl || company?.logoUrl;
+          const showLogo = docSettings ? docSettings.posReceiptShowLogo !== false : company?.showLogo !== false;
+          return showLogo && logoUrl ? (objectPathToUrl(logoUrl) || logoUrl) : undefined;
+        })(),
+        companyBranch: company?.branch || session?.branchName || "สำนักงานใหญ่",
+        companyBranchId: company?.sellerBranchId || "00000",
         docNo: data.taxInvoiceNo || "",
         docDate: toBuddhistDate(data.taxInvoiceDate),
         docTime: formatTime(data.createdAt),
@@ -333,24 +344,36 @@ export default function PosReceipt() {
         data-testid="thermal-receipt"
       >
         <div style={{ textAlign: "center", borderBottom: "1px dashed #000", paddingBottom: "6px", marginBottom: "6px" }}>
-          {company?.showLogo !== false && company?.logoUrl && (
-            <div style={{ marginBottom: "6px" }}>
-              <img
-                src={company.logoUrl}
-                alt="logo"
-                style={{
-                  maxWidth: paperWidth === "58" ? "48px" : "64px",
-                  maxHeight: paperWidth === "58" ? "48px" : "64px",
-                  objectFit: "contain",
-                  margin: "0 auto",
-                  display: "block",
-                }}
-                data-testid="receipt-logo"
-              />
-            </div>
-          )}
+          {(() => {
+            const logoUrl = docSettings?.logoUrl || company?.logoUrl;
+            const showLogo = docSettings ? docSettings.posReceiptShowLogo !== false : company?.showLogo !== false;
+            return showLogo && logoUrl ? (
+              <div style={{ marginBottom: "6px" }}>
+                <img
+                  src={objectPathToUrl(logoUrl) || logoUrl}
+                  alt="logo"
+                  style={{
+                    maxWidth: paperWidth === "58" ? "48px" : "64px",
+                    maxHeight: paperWidth === "58" ? "48px" : "64px",
+                    objectFit: "contain",
+                    margin: "0 auto",
+                    display: "block",
+                  }}
+                  data-testid="receipt-logo"
+                />
+              </div>
+            ) : null;
+          })()}
           <div style={{ fontSize: paperWidth === "58" ? "13px" : "14px", fontWeight: "bold" }}>{company?.name || ""}</div>
           {company?.nameEn && <div style={{ fontSize: "10px" }}>{company.nameEn}</div>}
+          {(company?.branch && company.branch !== "สำนักงานใหญ่") || (company?.sellerBranchId && company.sellerBranchId !== "00000") ? (
+            <div style={{ fontSize: "10px", fontWeight: "bold" }}>
+              สาขา: {company.branch || session?.branchName || "สำนักงานใหญ่"}
+              {company.sellerBranchId && company.sellerBranchId !== "00000" && ` (${company.sellerBranchId})`}
+            </div>
+          ) : (
+            <div style={{ fontSize: "10px" }}>สำนักงานใหญ่</div>
+          )}
           <div style={{ fontSize: "10px", marginTop: "2px" }}>{company?.address || ""}</div>
           {company?.taxId && <div style={{ fontSize: "10px" }}>เลขประจำตัวผู้เสียภาษี: {company.taxId}</div>}
           {company?.phone && <div style={{ fontSize: "10px" }}>โทร: {company.phone}</div>}
@@ -371,6 +394,18 @@ export default function PosReceipt() {
             <span>เวลา:</span>
             <span>{formatTime(data.createdAt)}</span>
           </div>
+          {session?.branchName && (
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <span>สาขา:</span>
+              <span>{session.branchName}</span>
+            </div>
+          )}
+          {session?.terminalName && (
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <span>เครื่อง:</span>
+              <span>{session.terminalName}</span>
+            </div>
+          )}
           {data.paymentMethod && (
             <div style={{ display: "flex", justifyContent: "space-between" }}>
               <span>ชำระ:</span>
