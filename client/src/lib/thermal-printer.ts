@@ -32,6 +32,7 @@ export interface ReceiptData {
   companyBranchId?: string;
   headerText?: string;
   footerText?: string;
+  fontSize?: "small" | "medium" | "large" | "xlarge";
   docNo: string;
   docDate: string;
   docTime: string;
@@ -47,6 +48,13 @@ export interface ReceiptData {
   vatAmount: number;
   totalAmount: number;
 }
+
+const THERMAL_FONT: Record<string, { sm: number; base: number; lg: number; xl: number }> = {
+  small:  { sm: 12, base: 14, lg: 16, xl: 18 },
+  medium: { sm: 14, base: 16, lg: 18, xl: 20 },
+  large:  { sm: 16, base: 18, lg: 22, xl: 24 },
+  xlarge: { sm: 18, base: 20, lg: 24, xl: 28 },
+};
 
 function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
   const lines: string[] = [];
@@ -66,10 +74,12 @@ function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number)
 function loadImage(url: string): Promise<HTMLImageElement | null> {
   return new Promise((resolve) => {
     const img = new Image();
-    img.crossOrigin = "anonymous";
     img.onload = () => resolve(img);
-    img.onerror = () => resolve(null);
-    setTimeout(() => resolve(null), 3000);
+    img.onerror = () => {
+      console.warn("[thermal-printer] logo load error:", url);
+      resolve(null);
+    };
+    setTimeout(() => { console.warn("[thermal-printer] logo load timeout:", url); resolve(null); }, 5000);
     img.src = url;
   });
 }
@@ -78,6 +88,7 @@ async function renderReceiptToCanvas(data: ReceiptData, paper: PaperWidth): Prom
   const pw = getPixelWidth(paper);
   const margin = 8;
   const contentW = pw - margin * 2;
+  const f = THERMAL_FONT[data.fontSize || "large"] || THERMAL_FONT.large;
   const lineH = 22;
   const smallLineH = 18;
 
@@ -178,68 +189,68 @@ async function renderReceiptToCanvas(data: ReceiptData, paper: PaperWidth): Prom
     y += logoH + 8;
   }
 
-  drawCenterBold(data.companyName, 24);
-  if (data.companyNameEn) drawCenter(data.companyNameEn, 16);
+  drawCenterBold(data.companyName, f.xl);
+  if (data.companyNameEn) drawCenter(data.companyNameEn, f.base);
   if (data.companyBranch && data.companyBranch !== "สำนักงานใหญ่" && data.companyBranchId && data.companyBranchId !== "00000") {
-    drawCenter(`สาขา: ${data.companyBranch} (${data.companyBranchId})`, 16);
+    drawCenter(`สาขา: ${data.companyBranch} (${data.companyBranchId})`, f.base);
   } else {
-    drawCenter("สำนักงานใหญ่", 16);
+    drawCenter("สำนักงานใหญ่", f.base);
   }
   if (data.companyAddress) {
-    drawCenter(data.companyAddress, 16);
+    drawCenter(data.companyAddress, f.base);
   }
-  if (data.companyTaxId) drawCenter(`เลขประจำตัวผู้เสียภาษี: ${data.companyTaxId}`, 16);
-  if (data.companyPhone) drawCenter(`โทร: ${data.companyPhone}`, 16);
+  if (data.companyTaxId) drawCenter(`เลขประจำตัวผู้เสียภาษี: ${data.companyTaxId}`, f.base);
+  if (data.companyPhone) drawCenter(`โทร: ${data.companyPhone}`, f.base);
   if (data.headerText) {
     for (const line of data.headerText.split("\n")) {
-      drawCenter(line.trim(), 16);
+      drawCenter(line.trim(), f.base);
     }
   }
 
   y += 6;
-  drawCenterBold("ใบกำกับภาษีอย่างย่อ", 20);
-  drawCenter("ABB. TAX INVOICE", 16);
+  drawCenterBold("ใบกำกับภาษีอย่างย่อ", f.lg);
+  drawCenter("ABB. TAX INVOICE", f.base);
 
   drawDash();
-  drawRow("เลขที่:", data.docNo, false, 18);
-  drawRow("วันที่:", data.docDate, false, 18);
-  drawRow("เวลา:", data.docTime, false, 18);
-  if (data.paymentMethod) drawRow("ชำระ:", data.paymentMethod, false, 18);
+  drawRow("เลขที่:", data.docNo, false, f.base);
+  drawRow("วันที่:", data.docDate, false, f.base);
+  drawRow("เวลา:", data.docTime, false, f.base);
+  if (data.paymentMethod) drawRow("ชำระ:", data.paymentMethod, false, f.base);
 
   drawDash();
-  drawRow("รายการ", "จำนวนเงิน", true, 18);
+  drawRow("รายการ", "จำนวนเงิน", true, f.base);
   drawDash();
 
   for (const item of data.items) {
-    drawLeft(item.name, 18);
+    drawLeft(item.name, f.base);
     const detail = `  ${item.qty} x ${formatMoney(item.unitPrice)}`;
-    drawRow(detail, formatMoney(item.total), false, 18);
+    drawRow(detail, formatMoney(item.total), false, f.base);
   }
 
   drawDash();
 
   if (data.items.length > 1) {
-    drawRow(`รวม (${data.items.length} รายการ)`, formatMoney(data.subtotal + data.discount), false, 18);
+    drawRow(`รวม (${data.items.length} รายการ)`, formatMoney(data.subtotal + data.discount), false, f.base);
   }
   if (data.discount > 0) {
-    drawRow("ส่วนลด", `-${formatMoney(data.discount)}`, false, 18);
+    drawRow("ส่วนลด", `-${formatMoney(data.discount)}`, false, f.base);
   }
-  drawRow("ราคาก่อน VAT", formatMoney(data.subtotal), false, 18);
-  drawRow("ภาษีมูลค่าเพิ่ม 7%", formatMoney(data.vatAmount), false, 18);
+  drawRow("ราคาก่อน VAT", formatMoney(data.subtotal), false, f.base);
+  drawRow("ภาษีมูลค่าเพิ่ม 7%", formatMoney(data.vatAmount), false, f.base);
 
   drawDash();
-  drawRow("รวมทั้งสิ้น", formatMoney(data.totalAmount), true, 22);
+  drawRow("รวมทั้งสิ้น", formatMoney(data.totalAmount), true, f.lg);
   drawDash();
 
   y += 6;
-  drawCenter("ราคารวมภาษีมูลค่าเพิ่มแล้ว", 16);
+  drawCenter("ราคารวมภาษีมูลค่าเพิ่มแล้ว", f.sm);
   if (data.footerText) {
     for (const line of data.footerText.split("\n")) {
-      drawCenter(line.trim(), 16);
+      drawCenter(line.trim(), f.base);
     }
   } else {
-    drawCenter("ขอบคุณที่ใช้บริการ", 18);
-    drawCenter("Thank you", 16);
+    drawCenter("ขอบคุณที่ใช้บริการ", f.base);
+    drawCenter("Thank you", f.sm);
   }
   y += 12;
 

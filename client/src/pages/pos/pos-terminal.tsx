@@ -312,6 +312,7 @@ export default function PosTerminal() {
         companyBranch: (selectedCompany as any)?.branch || activeSession?.branchName || "สำนักงานใหญ่",
         companyBranchId: (selectedCompany as any)?.sellerBranchId || "00000",
         headerText: docSettings?.posReceiptHeaderText || undefined,
+        fontSize: docSettings?.posReceiptFontSize || "large",
         docNo: tiv?.taxInvoiceNo || txData.transaction?.transactionNo || "",
         docDate: new Date().toLocaleDateString("th-TH"),
         docTime: new Date().toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" }),

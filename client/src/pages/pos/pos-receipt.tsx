@@ -148,6 +148,7 @@ export default function PosReceipt() {
         companyBranch: company?.branch || session?.branchName || "สำนักงานใหญ่",
         companyBranchId: company?.sellerBranchId || "00000",
         headerText: docSettings?.posReceiptHeaderText || undefined,
+        fontSize: docSettings?.posReceiptFontSize || "large",
         docNo: data.taxInvoiceNo || "",
         docDate: toBuddhistDate(data.taxInvoiceDate),
         docTime: formatTime(data.createdAt),
@@ -192,6 +193,16 @@ export default function PosReceipt() {
 
   const receiptWidth = paperWidth === "58" ? "58mm" : "80mm";
   const receiptInnerWidth = paperWidth === "58" ? "54mm" : "76mm";
+
+  const FONT_MAP: Record<string, { base: string; total: string }> = {
+    small: { base: "11px", total: "14px" },
+    medium: { base: "12px", total: "16px" },
+    large: { base: "14px", total: "18px" },
+    xlarge: { base: "16px", total: "20px" },
+  };
+  const fontConf = FONT_MAP[docSettings?.posReceiptFontSize || "large"] || FONT_MAP.large;
+  const baseFontSize = fontConf.base;
+  const totalFontSize = fontConf.total;
 
   if (loading) return <div style={{ width: receiptWidth, margin: "0 auto", padding: "8mm", fontFamily: "monospace", fontSize: "12px", textAlign: "center" }}>กำลังโหลด...</div>;
   if (!data) return <div style={{ width: receiptWidth, margin: "0 auto", padding: "8mm", fontFamily: "monospace", fontSize: "12px", textAlign: "center", color: "red" }}>ไม่พบเอกสาร</div>;
@@ -351,7 +362,7 @@ export default function PosReceipt() {
           margin: "16px auto",
           padding: "4mm",
           fontFamily: "'Courier New', monospace",
-          fontSize: paperWidth === "58" ? "11px" : "12px",
+          fontSize: baseFontSize,
           lineHeight: "1.4",
           background: "#fff",
           boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
@@ -380,27 +391,27 @@ export default function PosReceipt() {
               </div>
             ) : null;
           })()}
-          <div style={{ fontSize: paperWidth === "58" ? "13px" : "14px", fontWeight: "bold" }}>{company?.name || ""}</div>
-          {company?.nameEn && <div style={{ fontSize: "10px" }}>{company.nameEn}</div>}
+          <div style={{ fontSize: totalFontSize, fontWeight: "bold" }}>{company?.name || ""}</div>
+          {company?.nameEn && <div style={{ fontSize: baseFontSize }}>{company.nameEn}</div>}
           {(company?.branch && company.branch !== "สำนักงานใหญ่") || (company?.sellerBranchId && company.sellerBranchId !== "00000") ? (
-            <div style={{ fontSize: "10px", fontWeight: "bold" }}>
+            <div style={{ fontSize: baseFontSize, fontWeight: "bold" }}>
               สาขา: {company.branch || session?.branchName || "สำนักงานใหญ่"}
               {company.sellerBranchId && company.sellerBranchId !== "00000" && ` (${company.sellerBranchId})`}
             </div>
           ) : (
-            <div style={{ fontSize: "10px" }}>สำนักงานใหญ่</div>
+            <div style={{ fontSize: baseFontSize }}>สำนักงานใหญ่</div>
           )}
-          <div style={{ fontSize: "10px", marginTop: "2px" }}>{company?.address || ""}</div>
-          {company?.taxId && <div style={{ fontSize: "10px" }}>เลขประจำตัวผู้เสียภาษี: {company.taxId}</div>}
-          {company?.phone && <div style={{ fontSize: "10px" }}>โทร: {company.phone}</div>}
+          <div style={{ fontSize: baseFontSize, marginTop: "2px" }}>{company?.address || ""}</div>
+          {company?.taxId && <div style={{ fontSize: baseFontSize }}>เลขประจำตัวผู้เสียภาษี: {company.taxId}</div>}
+          {company?.phone && <div style={{ fontSize: baseFontSize }}>โทร: {company.phone}</div>}
           {docSettings?.posReceiptHeaderText && (
-            <div style={{ fontSize: "10px", marginTop: "3px", whiteSpace: "pre-line", lineHeight: "1.4" }}>{docSettings.posReceiptHeaderText}</div>
+            <div style={{ fontSize: baseFontSize, marginTop: "3px", whiteSpace: "pre-line", lineHeight: "1.4" }}>{docSettings.posReceiptHeaderText}</div>
           )}
-          <div style={{ fontSize: "13px", fontWeight: "bold", marginTop: "4px" }}>ใบกำกับภาษีอย่างย่อ</div>
-          <div style={{ fontSize: "10px" }}>ABB. TAX INVOICE</div>
+          <div style={{ fontSize: totalFontSize, fontWeight: "bold", marginTop: "4px" }}>ใบกำกับภาษีอย่างย่อ</div>
+          <div style={{ fontSize: baseFontSize }}>ABB. TAX INVOICE</div>
         </div>
 
-        <div style={{ fontSize: "11px", marginBottom: "6px" }}>
+        <div style={{ fontSize: baseFontSize, marginBottom: "6px" }}>
           <div style={{ display: "flex", justifyContent: "space-between" }}>
             <span>เลขที่:</span>
             <span style={{ fontWeight: "bold" }}>{data.taxInvoiceNo}</span>
@@ -434,7 +445,7 @@ export default function PosReceipt() {
         </div>
 
         <div style={{ borderTop: "1px dashed #000", borderBottom: "1px dashed #000", padding: "6px 0", marginBottom: "6px" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", fontSize: "10px", fontWeight: "bold", marginBottom: "4px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: baseFontSize, fontWeight: "bold", marginBottom: "4px" }}>
             <span>รายการ</span>
             <span>จำนวนเงิน</span>
           </div>
@@ -444,8 +455,8 @@ export default function PosReceipt() {
             const lineTotal = parseFloat(String(item.totalPrice || String(qty * price)));
             return (
               <div key={idx} style={{ marginBottom: "3px" }}>
-                <div style={{ fontSize: "11px" }}>{item.productName}</div>
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", paddingLeft: "8px" }}>
+                <div style={{ fontSize: baseFontSize }}>{item.productName}</div>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: baseFontSize, paddingLeft: "8px" }}>
                   <span>{qty} x {formatMoney(price)}</span>
                   <span>{formatMoney(lineTotal)}</span>
                 </div>
@@ -454,7 +465,7 @@ export default function PosReceipt() {
           })}
         </div>
 
-        <div style={{ fontSize: "11px", marginBottom: "6px" }}>
+        <div style={{ fontSize: baseFontSize, marginBottom: "6px" }}>
           {items.length > 1 && (
             <div style={{ display: "flex", justifyContent: "space-between" }}>
               <span>รวม ({items.length} รายการ)</span>
@@ -475,13 +486,13 @@ export default function PosReceipt() {
             <span>ภาษีมูลค่าเพิ่ม 7%</span>
             <span>{formatMoney(vatAmount)}</span>
           </div>
-          <div style={{ display: "flex", justifyContent: "space-between", fontWeight: "bold", fontSize: "14px", borderTop: "1px dashed #000", paddingTop: "4px", marginTop: "4px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", fontWeight: "bold", fontSize: totalFontSize, borderTop: "1px dashed #000", paddingTop: "4px", marginTop: "4px" }}>
             <span>รวมทั้งสิ้น</span>
             <span>{formatMoney(totalAmount)}</span>
           </div>
         </div>
 
-        <div style={{ textAlign: "center", borderTop: "1px dashed #000", paddingTop: "6px", fontSize: "10px" }}>
+        <div style={{ textAlign: "center", borderTop: "1px dashed #000", paddingTop: "6px", fontSize: baseFontSize }}>
           <div>ราคารวมภาษีมูลค่าเพิ่มแล้ว</div>
           {docSettings?.posReceiptFooterText ? (
             <div style={{ marginTop: "4px", whiteSpace: "pre-line", lineHeight: "1.4" }}>{docSettings.posReceiptFooterText}</div>
