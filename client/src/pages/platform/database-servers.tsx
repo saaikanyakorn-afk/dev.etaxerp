@@ -451,7 +451,7 @@ function CloneHistoryTargetCard({ machines }: { machines: MachineRecord[] }) {
               onValueChange={(val) => {
                 const newId = parseInt(val, 10);
                 if (newId && newId !== currentId) {
-                  if (confirm(`ย้าย Clone Log ไปเก็บที่ "${dbMachines.find(m => m.id === newId)?.localName}" ?\n\nค่านี้จะถูกบันทึกใน Config DB กลาง — ทุก App Server จะใช้เซิร์ฟเวอร์ใหม่ทันที\nLog ที่ค้างอยู่จะถูกส่งไปเซิร์ฟเวอร์ใหม่โดยอัตโนมัติ`)) {
+                  if (confirm(`ย้าย Clone Log ไปเก็บที่ "${dbMachines.find(m => m.id === newId)?.localName}" ?\n\nค่านี้จะถูก push ไป GitHub ทันที — ทุก App Server จะอ่านค่าใหม่จาก GitHub เมื่อเปิดเครื่อง\nLog ที่ค้างอยู่จะถูกส่งไปเซิร์ฟเวอร์ใหม่โดยอัตโนมัติ`)) {
                     changeMut.mutate(newId);
                   }
                 }
@@ -481,7 +481,7 @@ function CloneHistoryTargetCard({ machines }: { machines: MachineRecord[] }) {
         </div>
 
         <p className="text-xs text-gray-400">
-          ค่านี้เก็บใน Config DB กลาง — ทุก App Server ทุก version จะใช้เซิร์ฟเวอร์เดียวกันทันทีเมื่อเปิดเครื่อง
+          ค่านี้เก็บใน GitHub (clone-target.json) — ทุก App Server จะถาม GitHub ตอนเปิดเครื่อง ไม่ว่าจะใช้ code version ไหน
           <br />
           ระบบจะตรวจสอบวันละ 1 ครั้ง — หากส่งไม่ได้ 7 วันติดต่อกัน จะส่ง Email แจ้ง Platform Admin ทุกคน
         </p>
