@@ -163,15 +163,32 @@ async function renderReceiptToCanvas(data: ReceiptData, paper: PaperWidth): Prom
     const currentY = y;
     draws.push(() => {
       ctx.strokeStyle = "#000";
-      ctx.lineWidth = 0.5;
-      ctx.setLineDash([3, 2]);
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([4, 3]);
       ctx.beginPath();
-      ctx.moveTo(margin, currentY - 2);
-      ctx.lineTo(pw - margin, currentY - 2);
+      ctx.moveTo(margin, currentY);
+      ctx.lineTo(pw - margin, currentY);
       ctx.stroke();
       ctx.setLineDash([]);
     });
-    y += 4;
+    y += 6;
+  };
+
+  const drawDoubleDash = () => {
+    const currentY = y;
+    draws.push(() => {
+      ctx.strokeStyle = "#000";
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([4, 3]);
+      ctx.beginPath();
+      ctx.moveTo(margin, currentY);
+      ctx.lineTo(pw - margin, currentY);
+      ctx.moveTo(margin, currentY + 5);
+      ctx.lineTo(pw - margin, currentY + 5);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    });
+    y += 10;
   };
 
   if (logoImg) {
@@ -213,13 +230,13 @@ async function renderReceiptToCanvas(data: ReceiptData, paper: PaperWidth): Prom
   drawCenter("ใบกำกับภาษีอย่างย่อ", ft.heading);
   drawCenter("ABB. TAX INVOICE", ft.body);
 
-  drawDash();
+  drawDoubleDash();
   drawRow("เลขที่:", data.docNo, false, ft.body);
   drawRow("วันที่:", data.docDate, false, ft.body);
   drawRow("เวลา:", data.docTime, false, ft.body);
   if (data.paymentMethod) drawRow("ชำระ:", data.paymentMethod, false, ft.body);
 
-  drawDash();
+  drawDoubleDash();
   drawRow("รายการ", "จำนวนเงิน", false, ft.body);
   drawDash();
 
@@ -241,9 +258,9 @@ async function renderReceiptToCanvas(data: ReceiptData, paper: PaperWidth): Prom
   drawRow("ราคาก่อน VAT", formatMoney(priceBeforeVat), false, ft.body);
   drawRow("ภาษีมูลค่าเพิ่ม 7%", formatMoney(data.vatAmount), false, ft.body);
 
-  drawDash();
+  drawDoubleDash();
   drawRow("รวมทั้งสิ้น", formatMoney(data.totalAmount), true, ft.heading);
-  drawDash();
+  drawDoubleDash();
 
   y += 4;
   drawCenter("ราคารวมภาษีมูลค่าเพิ่มแล้ว", ft.body);
