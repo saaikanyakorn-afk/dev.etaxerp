@@ -1,5 +1,5 @@
 import pg from "pg";
-import { getConfig } from "../config-bootstrap";
+import { getConfig, setConfig } from "../config-bootstrap";
 import { db } from "../db";
 import { cloneHistory, machines, users } from "@shared/schema";
 import { eq, and, sql } from "drizzle-orm";
@@ -13,6 +13,9 @@ let machineName: string = "unknown";
 let consecutiveFailDays = 0;
 let lastCheckDate: string | null = null;
 let alertSentForCurrentStreak = false;
+let cachedTargetUrl: string | null = null;
+let cachedTargetMachineId: number = 0;
+let cachedTargetMachineName: string = "";
 
 function getMachineName(): string {
   if (machineName !== "unknown") return machineName;
@@ -30,73 +33,63 @@ function getMachineName(): string {
   return machineName;
 }
 
-async function getTargetMachineUrl(): Promise<string | null> {
-  try {
-    const rows = await db.select().from(machines).where(eq(machines.id, await getTargetMachineId()));
-    if (rows.length === 0) return null;
-    const m = rows[0];
-    const host = m.fqdn || m.lanIp || m.localName;
-    const port = m.dbPort || "5432";
-    return `postgresql://${m.dbUser}:${m.dbPassword}@${host}:${port}/${m.dbName}`;
-  } catch {
-    return null;
+function readTargetFromConfig(): { machineId: number; url: string; name: string } {
+  const id = parseInt(getConfig("CLONE_HISTORY_TARGET_MACHINE_ID") || "0", 10);
+  const url = getConfig("CLONE_HISTORY_TARGET_URL") || "";
+  const name = getConfig("CLONE_HISTORY_TARGET_NAME") || "";
+  return { machineId: id, url, name };
+}
+
+export async function setTargetMachine(machineId: number, connectionUrl: string, machineName: string): Promise<void> {
+  const r1 = await setConfig("CLONE_HISTORY_TARGET_MACHINE_ID", String(machineId), "Machine ID for central clone history storage");
+  const r2 = await setConfig("CLONE_HISTORY_TARGET_URL", connectionUrl, "Connection URL for central clone history DB", true);
+  const r3 = await setConfig("CLONE_HISTORY_TARGET_NAME", machineName, "Machine name for central clone history DB");
+
+  if (!r1 || !r2 || !r3) {
+    throw new Error("ไม่สามารถบันทึกค่าลง Config DB กลางได้ — กรุณาตรวจสอบการเชื่อมต่อ Config DB");
   }
-}
 
-async function getTargetMachineId(): Promise<number> {
-  try {
-    const result = await db.execute(sql`SELECT config_value FROM system_config WHERE config_key = 'CLONE_HISTORY_TARGET_MACHINE_ID' LIMIT 1`);
-    const rows = result.rows as any[];
-    if (rows.length > 0 && rows[0].config_value) {
-      return parseInt(rows[0].config_value, 10);
-    }
-  } catch {}
-  return 0;
-}
+  cachedTargetMachineId = machineId;
+  cachedTargetUrl = connectionUrl;
+  cachedTargetMachineName = machineName;
 
-export async function setTargetMachineId(machineId: number): Promise<void> {
-  try {
-    await db.execute(sql`
-      INSERT INTO system_config (config_key, config_value, description, environment)
-      VALUES ('CLONE_HISTORY_TARGET_MACHINE_ID', ${String(machineId)}, 'Machine ID for central clone history storage', 'all')
-      ON CONFLICT (config_key) DO UPDATE SET config_value = ${String(machineId)}, updated_at = NOW()
-    `);
-    centralPool?.end().catch(() => {});
+  if (centralPool) {
+    centralPool.end().catch(() => {});
     centralPool = null;
-    consecutiveFailDays = 0;
-    alertSentForCurrentStreak = false;
-    lastCheckDate = null;
-    console.log(`[CloneHistoryCentral] Target machine changed to ID ${machineId}`);
-  } catch (err: any) {
-    console.log(`[CloneHistoryCentral] Failed to set target machine: ${err.message?.slice(0, 120)}`);
   }
+  consecutiveFailDays = 0;
+  alertSentForCurrentStreak = false;
+  lastCheckDate = null;
+
+  console.log(`[CloneHistoryCentral] Target changed → ${machineName} (ID ${machineId}), all app servers will use this on next config read`);
 }
 
-export async function getTargetMachineInfo(): Promise<{ machineId: number; machineName: string; consecutiveFailDays: number; lastCheckDate: string | null } | null> {
-  const id = await getTargetMachineId();
-  if (!id) return null;
-  try {
-    const rows = await db.select().from(machines).where(eq(machines.id, id));
-    if (rows.length === 0) return null;
-    return {
-      machineId: id,
-      machineName: rows[0].localName,
-      consecutiveFailDays,
-      lastCheckDate,
-    };
-  } catch {
-    return null;
+export function getTargetMachineInfo(): { machineId: number; machineName: string; consecutiveFailDays: number; lastCheckDate: string | null } | null {
+  const { machineId, name } = readTargetFromConfig();
+  if (!machineId) return null;
+  return {
+    machineId,
+    machineName: name,
+    consecutiveFailDays,
+    lastCheckDate,
+  };
+}
+
+function getTargetUrl(): string | null {
+  if (cachedTargetUrl) return cachedTargetUrl;
+  const { url } = readTargetFromConfig();
+  if (url) {
+    cachedTargetUrl = url;
+    return url;
   }
+  return null;
 }
 
 async function getCentralPool(): Promise<pg.Pool | null> {
   if (centralPool) return centralPool;
 
-  const url = await getTargetMachineUrl();
-  if (!url) {
-    console.log("[CloneHistoryCentral] No target machine configured — skipping");
-    return null;
-  }
+  const url = getTargetUrl();
+  if (!url) return null;
 
   centralPool = new pg.Pool({
     connectionString: url,
@@ -238,8 +231,7 @@ async function sendAlertEmail(): Promise<void> {
       return;
     }
 
-    const targetInfo = await getTargetMachineInfo();
-    const targetName = targetInfo?.machineName || "Unknown";
+    const { name: targetName } = readTargetFromConfig();
 
     const { Resend } = await import("resend");
     const resend = new Resend(apiKey);
@@ -252,7 +244,7 @@ async function sendAlertEmail(): Promise<void> {
           subject: `⚠ Clone History Sync Failed — ${consecutiveFailDays} วันติดต่อกัน`,
           html: `
             <h2>⚠ Clone History Sync Alert</h2>
-            <p>ระบบไม่สามารถส่ง Clone History ไปยังเซิร์ฟเวอร์กลาง <strong>${targetName}</strong> ได้ติดต่อกัน <strong>${consecutiveFailDays} วัน</strong></p>
+            <p>ระบบไม่สามารถส่ง Clone History ไปยังเซิร์ฟเวอร์กลาง <strong>${targetName || "Unknown"}</strong> ได้ติดต่อกัน <strong>${consecutiveFailDays} วัน</strong></p>
             <p>มี clone records ที่ค้างอยู่บนเครื่อง <strong>${getMachineName()}</strong> และยังไม่ได้ sync</p>
             <h3>สิ่งที่ต้องตรวจสอบ:</h3>
             <ul>
