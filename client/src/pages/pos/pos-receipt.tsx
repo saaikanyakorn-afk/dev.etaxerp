@@ -131,6 +131,7 @@ export default function PosReceipt() {
         })(),
         companyBranch: company?.branch || session?.branchName || "สำนักงานใหญ่",
         companyBranchId: company?.sellerBranchId || "00000",
+        headerText: docSettings?.posReceiptHeaderText || undefined,
         docNo: data.taxInvoiceNo || "",
         docDate: toBuddhistDate(data.taxInvoiceDate),
         docTime: formatTime(data.createdAt),
@@ -377,6 +378,9 @@ export default function PosReceipt() {
           <div style={{ fontSize: "10px", marginTop: "2px" }}>{company?.address || ""}</div>
           {company?.taxId && <div style={{ fontSize: "10px" }}>เลขประจำตัวผู้เสียภาษี: {company.taxId}</div>}
           {company?.phone && <div style={{ fontSize: "10px" }}>โทร: {company.phone}</div>}
+          {docSettings?.posReceiptHeaderText && (
+            <div style={{ fontSize: "10px", marginTop: "3px", whiteSpace: "pre-line", lineHeight: "1.4" }}>{docSettings.posReceiptHeaderText}</div>
+          )}
           <div style={{ fontSize: "13px", fontWeight: "bold", marginTop: "4px" }}>ใบกำกับภาษีอย่างย่อ</div>
           <div style={{ fontSize: "10px" }}>ABB. TAX INVOICE</div>
         </div>
