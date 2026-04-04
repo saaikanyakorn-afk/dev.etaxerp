@@ -61,10 +61,10 @@ function formatDate(dateStr: string) {
 
 function InfoRow({ icon: Icon, label, value, mono }: { icon: any; label: string; value: string | number; mono?: boolean }) {
   return (
-    <div className="flex items-center gap-3 py-2 border-b border-gray-100 last:border-0">
-      <Icon className="h-4 w-4 text-gray-400 shrink-0" />
-      <span className="text-sm text-gray-500 w-36 shrink-0">{label}</span>
-      <span className={`text-sm text-gray-900 ${mono ? "font-mono text-xs" : ""}`} data-testid={`text-${label.toLowerCase().replace(/\s/g, "-")}`}>{value || "—"}</span>
+    <div className="flex items-center gap-3 py-1.5 border-b border-gray-100 last:border-0">
+      <Icon className="h-3.5 w-3.5 text-gray-400 shrink-0" />
+      <span className="text-sm text-gray-500 w-32 shrink-0">{label}</span>
+      <span className={`text-sm text-gray-900 truncate ${mono ? "font-mono text-xs" : ""}`} data-testid={`text-${label.toLowerCase().replace(/\s/g, "-")}`}>{value || "—"}</span>
     </div>
   );
 }
@@ -180,66 +180,113 @@ export default function GithubManagement() {
           </div>
         ) : info ? (
           <>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <Server className="h-5 w-5 text-blue-500" />
-                    Local (Replit)
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <InfoRow icon={GitBranch} label="Branch" value={info.local.branch} mono />
-                  <InfoRow icon={GitCommit} label="Commit" value={info.local.commit} mono />
-                  <InfoRow icon={Clock} label="Last Changed" value={formatDate(info.local.lastCommitDate)} />
-                  <InfoRow icon={User} label="Author" value={info.local.lastCommitAuthor} />
-                  <InfoRow icon={Hash} label="Message" value={info.local.lastCommitMsg} />
-                  <InfoRow icon={Tag} label="Version" value={info.local.version} mono />
-                  <InfoRow icon={GitCommit} label="Total Commits" value={info.local.totalCommits.toLocaleString()} />
+            <div className="rounded-xl border border-blue-200 bg-blue-50/30 p-5 space-y-4">
+              <div className="flex items-center gap-2 mb-1">
+                <Server className="h-5 w-5 text-blue-600" />
+                <h2 className="text-lg font-semibold text-gray-900">Replit Source Code</h2>
+                <span className="text-xs text-blue-600 bg-blue-100 px-2 py-0.5 rounded-full ml-auto">Local</span>
+              </div>
 
-                  <div className="mt-3 pt-3 border-t border-gray-200">
-                    <p className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-2">Codebase Stats</p>
-                    <div className="grid grid-cols-3 gap-3">
-                      <div className="text-center p-2 bg-gray-50 rounded-lg">
-                        <Code className="h-4 w-4 mx-auto text-blue-400 mb-1" />
-                        <p className="text-lg font-semibold text-gray-900">{info.local.totalLines.toLocaleString()}</p>
-                        <p className="text-[10px] text-gray-500">Lines of Code</p>
-                      </div>
-                      <div className="text-center p-2 bg-gray-50 rounded-lg">
-                        <FileCode className="h-4 w-4 mx-auto text-green-400 mb-1" />
-                        <p className="text-lg font-semibold text-gray-900">{info.local.tsFiles.toLocaleString()}</p>
-                        <p className="text-[10px] text-gray-500">TS/TSX Files</p>
-                      </div>
-                      <div className="text-center p-2 bg-gray-50 rounded-lg">
-                        <Files className="h-4 w-4 mx-auto text-purple-400 mb-1" />
-                        <p className="text-lg font-semibold text-gray-900">{info.local.trackedFiles.toLocaleString()}</p>
-                        <p className="text-[10px] text-gray-500">Tracked Files</p>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                <Card className="lg:col-span-2 shadow-sm">
+                  <CardContent className="p-4">
+                    <InfoRow icon={GitBranch} label="Branch" value={info.local.branch} mono />
+                    <InfoRow icon={GitCommit} label="Commit" value={info.local.commit} mono />
+                    <InfoRow icon={Clock} label="Last Changed" value={formatDate(info.local.lastCommitDate)} />
+                    <InfoRow icon={User} label="Author" value={info.local.lastCommitAuthor} />
+                    <InfoRow icon={Hash} label="Message" value={info.local.lastCommitMsg} />
+                    <InfoRow icon={Tag} label="Version" value={info.local.version} mono />
+                    <InfoRow icon={GitCommit} label="Total Commits" value={info.local.totalCommits.toLocaleString()} />
+                  </CardContent>
+                </Card>
 
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <Globe className="h-5 w-5 text-gray-700" />
-                    GitHub Remote
-                    {info.github.hasRemote && (
-                      <span className={`ml-auto text-xs px-2 py-0.5 rounded-full ${info.github.reachable ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
-                        {info.github.reachable ? "Connected" : "Unreachable"}
-                      </span>
-                    )}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {!info.github.hasRemote ? (
-                    <div className="text-center py-8 text-gray-400">
-                      <Globe className="h-10 w-10 mx-auto mb-2 opacity-30" />
-                      <p className="text-sm">No GitHub remote configured</p>
-                    </div>
-                  ) : (
-                    <>
+                <div className="space-y-4">
+                  <Card className="shadow-sm">
+                    <CardContent className="p-4">
+                      <p className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-3">Codebase Stats</p>
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-3">
+                          <div className="h-9 w-9 rounded-lg bg-blue-50 flex items-center justify-center shrink-0">
+                            <Code className="h-4 w-4 text-blue-500" />
+                          </div>
+                          <div>
+                            <p className="text-base font-semibold text-gray-900">{info.local.totalLines.toLocaleString()}</p>
+                            <p className="text-[10px] text-gray-500">Lines of Code</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <div className="h-9 w-9 rounded-lg bg-green-50 flex items-center justify-center shrink-0">
+                            <FileCode className="h-4 w-4 text-green-500" />
+                          </div>
+                          <div>
+                            <p className="text-base font-semibold text-gray-900">{info.local.tsFiles.toLocaleString()}</p>
+                            <p className="text-[10px] text-gray-500">TS/TSX Files</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <div className="h-9 w-9 rounded-lg bg-purple-50 flex items-center justify-center shrink-0">
+                            <Files className="h-4 w-4 text-purple-500" />
+                          </div>
+                          <div>
+                            <p className="text-base font-semibold text-gray-900">{info.local.trackedFiles.toLocaleString()}</p>
+                            <p className="text-[10px] text-gray-500">Tracked Files</p>
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card className="shadow-sm border-blue-300 bg-white">
+                    <CardContent className="p-4 space-y-3">
+                      <div>
+                        <label className="text-xs text-gray-500 mb-1 block">Commit Message (optional)</label>
+                        <Input
+                          value={commitMessage}
+                          onChange={(e) => setCommitMessage(e.target.value)}
+                          placeholder={`Manual push ${new Date().toISOString().slice(0, 10)}`}
+                          className="text-sm"
+                          data-testid="input-commit-message"
+                        />
+                      </div>
+                      <Button
+                        onClick={handlePush}
+                        disabled={pushLoading || !info.github.hasRemote}
+                        className="w-full bg-blue-500 hover:bg-blue-600 text-white"
+                        data-testid="button-push"
+                      >
+                        {pushLoading ? (
+                          <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Pushing...</>
+                        ) : (
+                          <><Upload className="h-4 w-4 mr-2" />Push to GitHub</>
+                        )}
+                      </Button>
+                    </CardContent>
+                  </Card>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-gray-200 bg-gray-50/30 p-5 space-y-4">
+              <div className="flex items-center gap-2 mb-1">
+                <Globe className="h-5 w-5 text-gray-700" />
+                <h2 className="text-lg font-semibold text-gray-900">GitHub Source Code</h2>
+                {info.github.hasRemote && (
+                  <span className={`text-xs px-2 py-0.5 rounded-full ml-auto ${info.github.reachable ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
+                    {info.github.reachable ? "Connected" : "Unreachable"}
+                  </span>
+                )}
+              </div>
+
+              {!info.github.hasRemote ? (
+                <div className="text-center py-10 text-gray-400">
+                  <Globe className="h-12 w-12 mx-auto mb-3 opacity-30" />
+                  <p className="text-sm">No GitHub remote configured</p>
+                  <p className="text-xs mt-1">Add a remote named "github" to enable push/pull</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                  <Card className="lg:col-span-2 shadow-sm">
+                    <CardContent className="p-4">
                       <InfoRow icon={Globe} label="Remote URL" value={info.github.remoteUrl} mono />
                       <InfoRow icon={GitBranch} label="Branch" value={info.github.branch || "—"} mono />
                       <InfoRow icon={GitCommit} label="Commit" value={info.github.commit || "—"} mono />
@@ -250,14 +297,14 @@ export default function GithubManagement() {
                         <div className="mt-3 pt-3 border-t border-gray-200">
                           <p className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-2">Sync Status</p>
                           <div className="grid grid-cols-2 gap-3">
-                            <div className={`flex items-center gap-2 p-2.5 rounded-lg ${info.github.aheadCount > 0 ? "bg-blue-50" : "bg-gray-50"}`}>
+                            <div className={`flex items-center gap-2 p-2 rounded-lg ${info.github.aheadCount > 0 ? "bg-blue-50" : "bg-gray-50"}`}>
                               <ArrowUpCircle className={`h-5 w-5 ${info.github.aheadCount > 0 ? "text-blue-500" : "text-gray-300"}`} />
                               <div>
                                 <p className="text-lg font-semibold text-gray-900">{info.github.aheadCount}</p>
                                 <p className="text-[10px] text-gray-500">Ahead (local new)</p>
                               </div>
                             </div>
-                            <div className={`flex items-center gap-2 p-2.5 rounded-lg ${info.github.behindCount > 0 ? "bg-amber-50" : "bg-gray-50"}`}>
+                            <div className={`flex items-center gap-2 p-2 rounded-lg ${info.github.behindCount > 0 ? "bg-amber-50" : "bg-gray-50"}`}>
                               <ArrowDownCircle className={`h-5 w-5 ${info.github.behindCount > 0 ? "text-amber-500" : "text-gray-300"}`} />
                               <div>
                                 <p className="text-lg font-semibold text-gray-900">{info.github.behindCount}</p>
@@ -267,76 +314,35 @@ export default function GithubManagement() {
                           </div>
                         </div>
                       )}
-                    </>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
+                    </CardContent>
+                  </Card>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <Card className="border-t-4 border-t-blue-500">
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <Upload className="h-5 w-5 text-blue-500" />
-                    Push to GitHub
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <p className="text-sm text-gray-500">
-                    สร้าง orphan commit แล้ว force push ไปที่ <code className="bg-gray-100 px-1 rounded text-xs">main</code> branch บน GitHub พร้อม version tag
-                  </p>
-                  <div>
-                    <label className="text-sm text-gray-600 mb-1 block">Commit Message (optional)</label>
-                    <Input
-                      value={commitMessage}
-                      onChange={(e) => setCommitMessage(e.target.value)}
-                      placeholder={`Manual push ${new Date().toISOString().slice(0, 10)}`}
-                      data-testid="input-commit-message"
-                    />
+                  <div className="space-y-4">
+                    <Card className="shadow-sm border-green-300 bg-white">
+                      <CardContent className="p-4 space-y-3">
+                        <p className="text-sm text-gray-500">
+                          ดาวน์โหลด source code ล่าสุดจาก GitHub เป็นไฟล์ ZIP
+                        </p>
+                        <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-lg">
+                          <p className="text-[11px] text-amber-700">ไฟล์จะถูกดาวน์โหลดเป็น ZIP — ไม่ได้ merge เข้า local โดยตรง เหมาะสำหรับนำไปใช้กับ etaxerp</p>
+                        </div>
+                        <Button
+                          onClick={handlePull}
+                          disabled={pullLoading || !info.github.hasRemote}
+                          className="w-full bg-green-600 hover:bg-green-700 text-white"
+                          data-testid="button-pull"
+                        >
+                          {pullLoading ? (
+                            <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Downloading...</>
+                          ) : (
+                            <><Download className="h-4 w-4 mr-2" />Pull from GitHub (.zip)</>
+                          )}
+                        </Button>
+                      </CardContent>
+                    </Card>
                   </div>
-                  <Button
-                    onClick={handlePush}
-                    disabled={pushLoading || !info.github.hasRemote}
-                    className="w-full bg-blue-500 hover:bg-blue-600 text-white"
-                    data-testid="button-push"
-                  >
-                    {pushLoading ? (
-                      <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Pushing...</>
-                    ) : (
-                      <><Upload className="h-4 w-4 mr-2" />Push to GitHub</>
-                    )}
-                  </Button>
-                </CardContent>
-              </Card>
-
-              <Card className="border-t-4 border-t-green-500">
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <Download className="h-5 w-5 text-green-500" />
-                    Pull from GitHub
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <p className="text-sm text-gray-500">
-                    ดาวน์โหลด source code ล่าสุดจาก GitHub <code className="bg-gray-100 px-1 rounded text-xs">main</code> branch เป็นไฟล์ ZIP (ไม่ได้เขียนทับ local)
-                  </p>
-                  <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
-                    <p className="text-xs text-amber-700">ไฟล์จะถูกดาวน์โหลดเป็น ZIP — ไม่ได้ merge เข้า local โดยตรง เหมาะสำหรับนำไปใช้กับ etaxerp หรือ deploy server อื่น</p>
-                  </div>
-                  <Button
-                    onClick={handlePull}
-                    disabled={pullLoading || !info.github.hasRemote}
-                    className="w-full bg-green-600 hover:bg-green-700 text-white"
-                    data-testid="button-pull"
-                  >
-                    {pullLoading ? (
-                      <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Downloading...</>
-                    ) : (
-                      <><Download className="h-4 w-4 mr-2" />Pull from GitHub (.zip)</>
-                    )}
-                  </Button>
-                </CardContent>
-              </Card>
+                </div>
+              )}
             </div>
           </>
         ) : null}
