@@ -548,7 +548,7 @@ export default function PosReceipt() {
           )}
           <div style={{ display: "flex", justifyContent: "space-between" }}>
             <span>ราคาสินค้า (ก่อน VAT)</span>
-            <span>{formatMoney(subtotal)}</span>
+            <span>{formatMoney(totalAmount - vatAmount)}</span>
           </div>
           <div style={{ display: "flex", justifyContent: "space-between" }}>
             <span>ภาษีมูลค่าเพิ่ม 7%</span>
