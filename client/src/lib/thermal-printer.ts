@@ -220,6 +220,7 @@ async function renderReceiptToCanvas(data: ReceiptData, paper: PaperWidth): Prom
   if (data.companyAddress) drawCenter(data.companyAddress, ft.body);
   if (data.companyTaxId) drawCenter(`เลขประจำตัวผู้เสียภาษี: ${data.companyTaxId}`, ft.body);
   if (data.companyPhone) drawCenter(`โทร: ${data.companyPhone}`, ft.body);
+  y += ft.gap;
   if (data.headerText) {
     for (const line of data.headerText.split("\n")) {
       if (line.trim()) drawCenter(line.trim(), ft.body);
@@ -264,6 +265,7 @@ async function renderReceiptToCanvas(data: ReceiptData, paper: PaperWidth): Prom
 
   y += 4;
   drawCenter("ราคารวมภาษีมูลค่าเพิ่มแล้ว", ft.body);
+  y += ft.gap;
   if (data.footerText) {
     for (const line of data.footerText.split("\n")) {
       if (line.trim()) drawCenter(line.trim(), ft.body);
