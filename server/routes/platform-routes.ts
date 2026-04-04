@@ -2495,6 +2495,58 @@ app.delete("/api/platform/nic-ips/:id", requireAuth, requireSuperAdmin, async (r
   } catch (err: any) { res.status(500).json({ message: err.message }); }
 });
 
+app.get("/api/platform/locations", requireAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const { platformLocations } = await import("@shared/schema");
+    const rows = await db.select().from(platformLocations).orderBy(platformLocations.locationType, platformLocations.name);
+    res.json(rows);
+  } catch (err: any) { res.status(500).json({ message: err.message }); }
+});
+
+app.post("/api/platform/locations", requireAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const { platformLocations } = await import("@shared/schema");
+    const { name, locationType, parentId, address, notes } = req.body;
+    if (!name) return res.status(400).json({ message: "ต้องระบุชื่อ Location" });
+    const [row] = await db.insert(platformLocations).values({
+      name, locationType: locationType || "company",
+      parentId: parentId || null,
+      address: address || null, notes: notes || null,
+    }).returning();
+    res.json(row);
+  } catch (err: any) { res.status(400).json({ message: err.message }); }
+});
+
+app.patch("/api/platform/locations/:id", requireAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const { platformLocations } = await import("@shared/schema");
+    const id = Number(req.params.id);
+    const { id: _id, createdAt: _ca, updatedAt: _ua, ...updates } = req.body;
+    updates.updatedAt = new Date();
+    const [row] = await db.update(platformLocations).set(updates).where(eq(platformLocations.id, id)).returning();
+    if (!row) return res.status(404).json({ message: "ไม่พบ Location นี้" });
+    res.json(row);
+  } catch (err: any) { res.status(400).json({ message: err.message }); }
+});
+
+app.delete("/api/platform/locations/:id", requireAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const { platformLocations } = await import("@shared/schema");
+    const { routers } = await import("@shared/schema");
+    const { machines } = await import("@shared/schema");
+    const id = Number(req.params.id);
+    await db.update(routers).set({ locationId: null }).where(eq(routers.locationId, id));
+    await db.update(machines).set({ locationId: null }).where(eq(machines.locationId, id));
+    const children = await db.select().from(platformLocations).where(eq(platformLocations.parentId, id));
+    for (const child of children) {
+      await db.update(platformLocations).set({ parentId: null }).where(eq(platformLocations.id, child.id));
+    }
+    const [row] = await db.delete(platformLocations).where(eq(platformLocations.id, id)).returning();
+    if (!row) return res.status(404).json({ message: "ไม่พบ Location นี้" });
+    res.json({ success: true });
+  } catch (err: any) { res.status(500).json({ message: err.message }); }
+});
+
 app.get("/api/platform/all-port-forwards", requireAuth, requireSuperAdmin, async (req, res) => {
   try {
     const { routerPortForwards } = await import("@shared/schema");
