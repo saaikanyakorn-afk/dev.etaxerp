@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useCompany } from "@/lib/company-context";
+import { objectPathToUrl } from "@/lib/utils";
 import PosLayout from "@/components/pos-layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -132,7 +133,7 @@ function ReceiptPreview({ settings, company }: { settings: DocSettings; company:
     >
       {settings.posReceiptShowLogo && settings.logoUrl && (
         <div className="pt-4 pb-2 text-center">
-          <img src={settings.logoUrl} alt="Logo" className="max-h-16 mx-auto object-contain" />
+          <img src={objectPathToUrl(settings.logoUrl) || settings.logoUrl} alt="Logo" className="max-h-16 mx-auto object-contain" />
         </div>
       )}
 
