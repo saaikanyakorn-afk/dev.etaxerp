@@ -15,6 +15,7 @@ import {
   Key, Shield, Copy, Download, Lock, Unlock, History, AlertTriangle,
   ChevronDown, ChevronRight, Star, Network, Plug, Radio,
   Router, ExternalLink, Phone, Link2, ArrowRightLeft, Loader2,
+  CheckCircle2, XCircle,
 } from "lucide-react";
 
 interface MachineRecord {
@@ -1261,6 +1262,164 @@ function NicSection({ machineId, allNics, allMachines, allRouters }: { machineId
   );
 }
 
+function TargetDbSelector({ machine, allMachines, onChangeTarget }: {
+  machine: MachineRecord;
+  allMachines: MachineRecord[];
+  onChangeTarget: (id: number, targetId: number | null) => void;
+}) {
+  const currentVal = machine.targetDbMachineId ? String(machine.targetDbMachineId) : "none";
+  const [selectedVal, setSelectedVal] = useState(currentVal);
+  const [testStatus, setTestStatus] = useState<"idle" | "testing" | "alive" | "dead">("idle");
+  const [testInfo, setTestInfo] = useState<string>("");
+  const hasChanged = selectedVal !== currentVal;
+  const isSelf = selectedVal === String(machine.id);
+  const isNone = selectedVal === "none";
+
+  useEffect(() => {
+    setSelectedVal(currentVal);
+    setTestStatus("idle");
+    setTestInfo("");
+  }, [currentVal]);
+
+  const handleSelect = (val: string) => {
+    setSelectedVal(val);
+    setTestStatus("idle");
+    setTestInfo("");
+  };
+
+  const handleTest = async () => {
+    if (isNone) return;
+    const targetId = parseInt(selectedVal, 10);
+    setTestStatus("testing");
+    setTestInfo("");
+    try {
+      const res = await fetch(`/api/platform/machines/${targetId}/test-db`, { method: "POST" });
+      const data = await res.json();
+      if (data.alive) {
+        setTestStatus("alive");
+        const shortVer = data.version?.match(/PostgreSQL [\d.]+/)?.[0] || "connected";
+        setTestInfo(`${data.host}:${data.port} — ${shortVer}`);
+      } else {
+        setTestStatus("dead");
+        setTestInfo(data.error || "ไม่สามารถเชื่อมต่อได้");
+      }
+    } catch (err: any) {
+      setTestStatus("dead");
+      setTestInfo(err.message);
+    }
+  };
+
+  const handleConfirm = () => {
+    const newTarget = isNone ? null : parseInt(selectedVal, 10);
+    onChangeTarget(machine.id, newTarget);
+    setTestStatus("idle");
+    setTestInfo("");
+  };
+
+  const handleCancel = () => {
+    setSelectedVal(currentVal);
+    setTestStatus("idle");
+    setTestInfo("");
+  };
+
+  const targetMachine = selectedVal !== "none" && selectedVal !== String(machine.id)
+    ? allMachines.find(m => m.id === parseInt(selectedVal, 10))
+    : null;
+
+  return (
+    <div className="p-2 bg-gray-50 rounded-lg border border-gray-200 space-y-2">
+      <div className="flex items-center gap-2">
+        <Database className="h-4 w-4 text-purple-500 shrink-0" />
+        <span className="text-xs font-medium text-gray-600 shrink-0">Target DB:</span>
+        <Select value={selectedVal} onValueChange={handleSelect}>
+          <SelectTrigger className="h-7 text-xs flex-1 max-w-[220px]" data-testid={`select-target-db-${machine.id}`}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="none">
+              <span className="text-gray-400">— ยังไม่ได้กำหนด</span>
+            </SelectItem>
+            <SelectItem value={String(machine.id)}>
+              <span className="flex items-center gap-1">
+                <span className="text-blue-600 font-medium">ตัวเอง (local DB)</span>
+                <span className="text-gray-400 font-mono text-[10px]">{machine.dbName}:{machine.dbPort}</span>
+              </span>
+            </SelectItem>
+            {allMachines.filter(m => m.id !== machine.id).map(m => (
+              <SelectItem key={m.id} value={String(m.id)}>
+                <span className="flex items-center gap-1">
+                  <span className="font-medium">{m.localName}</span>
+                  <span className="text-gray-400 font-mono text-[10px]">{m.dbName}:{m.dbPort}</span>
+                  {m.isOfficial && <Star className="h-3 w-3 text-amber-400 fill-amber-300" />}
+                </span>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {targetMachine && (
+          <span className="text-[10px] text-gray-400 font-mono hidden lg:inline">{targetMachine.domainName || targetMachine.lanIp || ""}</span>
+        )}
+      </div>
+
+      {hasChanged && (
+        <div className="flex items-center gap-2 flex-wrap">
+          {!isNone && !isSelf && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-6 text-[11px] px-2 border-purple-300 text-purple-600 hover:bg-purple-50"
+              onClick={handleTest}
+              disabled={testStatus === "testing"}
+              data-testid={`btn-test-db-${machine.id}`}
+            >
+              {testStatus === "testing" ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Database className="h-3 w-3 mr-1" />}
+              {testStatus === "testing" ? "กำลังทดสอบ..." : "ทดสอบการเชื่อมต่อ"}
+            </Button>
+          )}
+
+          {testStatus === "alive" && (
+            <span className="text-[11px] text-green-600 flex items-center gap-1">
+              <CheckCircle2 className="h-3 w-3" /> Online
+            </span>
+          )}
+          {testStatus === "dead" && (
+            <span className="text-[11px] text-red-500 flex items-center gap-1">
+              <XCircle className="h-3 w-3" /> Offline
+            </span>
+          )}
+
+          <div className="ml-auto flex items-center gap-1">
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-6 text-[11px] px-2 text-gray-500"
+              onClick={handleCancel}
+              data-testid={`btn-cancel-target-${machine.id}`}
+            >
+              ยกเลิก
+            </Button>
+            <Button
+              size="sm"
+              className="h-6 text-[11px] px-2 bg-purple-600 hover:bg-purple-700 text-white"
+              onClick={handleConfirm}
+              disabled={!isNone && !isSelf && testStatus !== "alive"}
+              data-testid={`btn-confirm-target-${machine.id}`}
+            >
+              <CheckCircle2 className="h-3 w-3 mr-1" /> ยืนยัน
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {testInfo && (
+        <p className={`text-[10px] font-mono px-1 ${testStatus === "alive" ? "text-green-600" : "text-red-400"}`}>
+          {testInfo}
+        </p>
+      )}
+    </div>
+  );
+}
+
 function MachineCard({ machine, onEdit, expanded, onToggle, onToggleOfficial, allMachines, onChangeTarget, allNics, allRouters, locations, credentialsUnlocked }: {
   machine: MachineRecord;
   onEdit: (m: MachineRecord) => void;
@@ -1401,44 +1560,7 @@ function MachineCard({ machine, onEdit, expanded, onToggle, onToggleOfficial, al
 
           <NicSection machineId={machine.id} allNics={allNics} allMachines={allMachines} allRouters={allRouters} />
 
-          <div className="flex items-center gap-2 p-2 bg-gray-50 rounded-lg border border-gray-200">
-            <Database className="h-4 w-4 text-purple-500 shrink-0" />
-            <span className="text-xs font-medium text-gray-600 shrink-0">Target DB:</span>
-            <Select
-              value={machine.targetDbMachineId ? String(machine.targetDbMachineId) : "none"}
-              onValueChange={(val) => {
-                const newTarget = val === "none" ? null : parseInt(val, 10);
-                onChangeTarget(machine.id, newTarget);
-              }}
-            >
-              <SelectTrigger className="h-7 text-xs flex-1 max-w-[220px]" data-testid={`select-target-db-${machine.id}`}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">
-                  <span className="text-gray-400">— ยังไม่ได้กำหนด</span>
-                </SelectItem>
-                <SelectItem value={String(machine.id)}>
-                  <span className="flex items-center gap-1">
-                    <span className="text-blue-600 font-medium">ตัวเอง (local DB)</span>
-                    <span className="text-gray-400 font-mono text-[10px]">{machine.dbName}:{machine.dbPort}</span>
-                  </span>
-                </SelectItem>
-                {allMachines.filter(m => m.id !== machine.id).map(m => (
-                  <SelectItem key={m.id} value={String(m.id)}>
-                    <span className="flex items-center gap-1">
-                      <span className="font-medium">{m.localName}</span>
-                      <span className="text-gray-400 font-mono text-[10px]">{m.dbName}:{m.dbPort}</span>
-                      {m.isOfficial && <Star className="h-3 w-3 text-amber-400 fill-amber-300" />}
-                    </span>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {targetDb && !isSelfTarget && (
-              <span className="text-[10px] text-gray-400 font-mono hidden lg:inline">{targetDb.domainName || targetDb.lanIp || ""}</span>
-            )}
-          </div>
+          <TargetDbSelector machine={machine} allMachines={allMachines} onChangeTarget={onChangeTarget} />
 
           <div className="flex items-center gap-3">
             {machine.envContent && (
