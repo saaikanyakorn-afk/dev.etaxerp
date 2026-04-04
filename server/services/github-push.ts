@@ -55,6 +55,7 @@ function pushToGitHub(): boolean {
     const tag = `v${newVersion}`;
     const commitMsg = `${tag} — Auto-push ${today}`;
 
+    try { execSync('git config user.email "etax-center@replit.dev" && git config user.name "E-Tax Center"', { cwd, stdio: "pipe" }); } catch {}
     execSync(`git add VERSION && git commit -m "Bump version to ${newVersion}"`, { cwd, stdio: "pipe" });
 
     execSync("git checkout --orphan deploy-temp", { cwd, stdio: "pipe" });
