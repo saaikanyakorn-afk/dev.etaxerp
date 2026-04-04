@@ -2076,6 +2076,228 @@ function CloneHistoryTargetCard({ machines }: { machines: MachineRecord[] }) {
   );
 }
 
+function WhatIfBenchmark({ machines }: { machines: MachineRecord[] }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [results, setResults] = useState<any[]>([]);
+  const [benchTarget, setBenchTarget] = useState<number | null>(null);
+  const [benchRunning, setBenchRunning] = useState(false);
+  const [benchResult, setBenchResult] = useState<any>(null);
+  const [rowCount, setRowCount] = useState("10000");
+
+  const handleRunAll = async () => {
+    setTesting(true);
+    setResults([]);
+    setBenchResult(null);
+    try {
+      const res = await fetch("/api/platform/machines/benchmark-all", { method: "POST" });
+      const data = await res.json();
+      setResults(data.results || []);
+    } catch (err: any) {
+      console.error(err);
+    }
+    setTesting(false);
+  };
+
+  const handleBenchmark = async (machineId: number) => {
+    setBenchTarget(machineId);
+    setBenchRunning(true);
+    setBenchResult(null);
+    try {
+      const res = await fetch(`/api/platform/machines/${machineId}/benchmark-query`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rowCount: parseInt(rowCount) || 10000 }),
+      });
+      const data = await res.json();
+      setBenchResult(data);
+    } catch (err: any) {
+      setBenchResult({ success: false, error: err.message });
+    }
+    setBenchRunning(false);
+  };
+
+  if (!isOpen) {
+    return (
+      <Button
+        variant="outline"
+        className="border-indigo-300 text-indigo-600 hover:bg-indigo-50"
+        onClick={() => setIsOpen(true)}
+        data-testid="btn-whatif"
+      >
+        <Database className="h-4 w-4 mr-2" /> What If — เปรียบเทียบ DB ทุกเครื่อง
+      </Button>
+    );
+  }
+
+  const aliveResults = results.filter(r => r.bestLatency !== null);
+  const deadResults = results.filter(r => !r.incomplete && r.bestLatency === null && r.paths?.length > 0);
+  const incompleteResults = results.filter(r => r.incomplete);
+  const noPathResults = results.filter(r => !r.incomplete && r.bestLatency === null && (!r.paths || r.paths.length === 0));
+
+  return (
+    <Card className="border-indigo-200 bg-indigo-50/30">
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <Database className="h-4 w-4 text-indigo-500" />
+            What If — เปรียบเทียบ DB ทุกเครื่อง
+          </CardTitle>
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              className="bg-indigo-600 hover:bg-indigo-700 text-white"
+              onClick={handleRunAll}
+              disabled={testing}
+              data-testid="btn-run-whatif"
+            >
+              {testing ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <RefreshCw className="h-3 w-3 mr-1" />}
+              {testing ? "กำลังทดสอบทุกเครื่อง..." : "ทดสอบทั้งหมด"}
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => { setIsOpen(false); setResults([]); setBenchResult(null); }} data-testid="btn-close-whatif">
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {results.length === 0 && !testing && (
+          <p className="text-sm text-gray-500 text-center py-4">กดปุ่ม "ทดสอบทั้งหมด" เพื่อเปรียบเทียบ connection speed ของทุกเครื่อง</p>
+        )}
+
+        {results.length > 0 && (
+          <div className="space-y-2">
+            <div className="text-xs font-medium text-gray-500">
+              Ranking — เรียงตาม latency ต่ำสุด (จากเซิร์ฟเวอร์ที่ app รันอยู่)
+            </div>
+
+            {aliveResults.map((r, idx) => (
+              <div key={r.machineId} className={`flex items-center gap-3 px-3 py-2 rounded-lg border ${idx === 0 ? "bg-green-50 border-green-300" : "bg-white border-gray-200"}`}>
+                <span className={`text-lg font-bold w-8 text-center ${idx === 0 ? "text-green-600" : idx === 1 ? "text-blue-500" : idx === 2 ? "text-amber-500" : "text-gray-400"}`}>
+                  #{idx + 1}
+                </span>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-sm">{r.machineName}</span>
+                    <Badge variant="outline" className="text-[10px]">{r.role}</Badge>
+                    {idx === 0 && <Badge className="bg-green-500 text-white text-[10px]">Fastest</Badge>}
+                  </div>
+                  <div className="text-[10px] text-gray-400 font-mono">
+                    via {r.bestPath?.label}: {r.bestPath?.host} — {r.bestPath?.version?.match(/PostgreSQL [\d.]+/)?.[0] || ""}
+                  </div>
+                </div>
+                <div className="text-right shrink-0">
+                  <span className={`text-lg font-bold ${idx === 0 ? "text-green-600" : "text-gray-700"}`}>{r.bestLatency}ms</span>
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-[10px] px-2 border-purple-300 text-purple-600 hover:bg-purple-50 shrink-0"
+                  onClick={() => handleBenchmark(r.machineId)}
+                  disabled={benchRunning}
+                  data-testid={`btn-bench-${r.machineId}`}
+                >
+                  {benchRunning && benchTarget === r.machineId ? <Loader2 className="h-3 w-3 animate-spin" /> : <ArrowRight className="h-3 w-3 mr-0.5" />}
+                  Benchmark
+                </Button>
+              </div>
+            ))}
+
+            {deadResults.length > 0 && (
+              <div className="border-t pt-2 mt-2">
+                <div className="text-[10px] text-red-500 font-medium mb-1">ไม่สามารถเชื่อมต่อได้</div>
+                {deadResults.map(r => (
+                  <div key={r.machineId} className="flex items-center gap-2 px-3 py-1.5 rounded bg-red-50 border border-red-200 text-sm">
+                    <XCircle className="h-3 w-3 text-red-400 shrink-0" />
+                    <span className="font-medium text-red-700">{r.machineName}</span>
+                    <span className="text-[10px] text-red-400 ml-auto">
+                      {r.paths?.map((p: any) => `${p.label}: ${p.error?.split(" ").slice(0, 3).join(" ")}`).join(" | ")}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {(incompleteResults.length > 0 || noPathResults.length > 0) && (
+              <div className="border-t pt-2 mt-2">
+                <div className="text-[10px] text-gray-400 font-medium mb-1">ข้อมูลไม่ครบ / ไม่มีเส้นทาง</div>
+                {[...incompleteResults, ...noPathResults].map(r => (
+                  <div key={r.machineId} className="flex items-center gap-2 px-3 py-1 text-xs text-gray-400">
+                    <span>{r.machineName}</span>
+                    <span className="text-[10px] italic">{r.incomplete ? "ไม่มี credentials" : "ไม่มีเส้นทางที่ทดสอบได้"}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {benchResult && (
+          <div className="border-t pt-3 mt-3">
+            <div className="flex items-center gap-2 mb-2">
+              <Database className="h-4 w-4 text-purple-500" />
+              <span className="text-sm font-semibold">Query Benchmark — {machines.find(m => m.id === benchTarget)?.localName}</span>
+              {benchResult.success && (
+                <Badge className="bg-purple-100 text-purple-700 text-[10px]">{benchResult.rowCount?.toLocaleString()} rows</Badge>
+              )}
+            </div>
+
+            {!benchResult.success ? (
+              <div className="text-sm text-red-500 bg-red-50 rounded p-2">{benchResult.error}</div>
+            ) : (
+              <div className="space-y-1">
+                <div className="text-[10px] text-gray-400 font-mono mb-1">
+                  {benchResult.host}:{benchResult.port} — Connect: {benchResult.connectTime}ms — Total: {benchResult.totalTime}ms — {benchResult.version}
+                </div>
+                {benchResult.benchmarks?.map((b: any, i: number) => {
+                  const maxDur = Math.max(...benchResult.benchmarks.map((x: any) => x.duration));
+                  const pct = maxDur > 0 ? (b.duration / maxDur) * 100 : 0;
+                  return (
+                    <div key={i} className="relative">
+                      <div className="absolute inset-0 rounded bg-purple-100" style={{ width: `${pct}%` }} />
+                      <div className="relative flex items-center gap-2 px-2 py-1 text-[11px] font-mono">
+                        <span className="w-48 font-semibold text-gray-700">{b.name}</span>
+                        <div className="flex-1" />
+                        <span className="font-bold text-purple-700">{b.duration}ms</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            <div className="flex items-center gap-2 mt-3">
+              <span className="text-[10px] text-gray-500">Row count:</span>
+              {["1000", "10000", "100000"].map(rc => (
+                <Button
+                  key={rc}
+                  size="sm"
+                  variant={rowCount === rc ? "default" : "outline"}
+                  className={`h-6 text-[10px] px-2 ${rowCount === rc ? "bg-purple-600 text-white" : ""}`}
+                  onClick={() => setRowCount(rc)}
+                  data-testid={`btn-rows-${rc}`}
+                >
+                  {parseInt(rc).toLocaleString()}
+                </Button>
+              ))}
+              <Button
+                size="sm"
+                className="h-6 text-[10px] px-2 bg-purple-600 hover:bg-purple-700 text-white ml-2"
+                onClick={() => benchTarget && handleBenchmark(benchTarget)}
+                disabled={benchRunning}
+                data-testid="btn-rerun-bench"
+              >
+                {benchRunning ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <RefreshCw className="h-3 w-3 mr-1" />}
+                Run Again
+              </Button>
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 function EncryptionKeyGenerator({ machines, onRefresh }: { machines: MachineRecord[]; onRefresh: () => void }) {
   const { toast } = useToast();
   const [selectedMachineId, setSelectedMachineId] = useState<string>("");
@@ -2961,6 +3183,8 @@ export default function AllServers() {
             </div>
 
             <CloneHistoryTargetCard machines={machines} />
+
+            <WhatIfBenchmark machines={machines} />
 
             <EncryptionKeyGenerator machines={machines} onRefresh={() => queryClient.invalidateQueries({ queryKey: ["/api/platform/machines"] })} />
           </div>

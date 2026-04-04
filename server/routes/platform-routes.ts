@@ -2280,6 +2280,180 @@ app.post("/api/platform/machines/:id/test-db", requireAuth, requireSuperAdmin, a
   } catch (err: any) { res.status(500).json({ message: err.message }); }
 });
 
+app.post("/api/platform/machines/benchmark-all", requireAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const { machines: machinesTable } = await import("@shared/schema");
+    const allMachines = await db.select().from(machinesTable);
+    const { default: pg } = await import("pg");
+
+    const isValidHost = (v: string | null | undefined): v is string => {
+      if (!v || !v.trim()) return false;
+      const lower = v.trim().toLowerCase();
+      return !(lower.includes("n/a") || lower === "dynamic" || lower === "-" || lower === "none");
+    };
+    const isPrivateIp = (ip: string) => /^(10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|127\.)/.test(ip.trim());
+
+    const testOne = async (host: string, port: number, dbName: string, dbUser: string, dbPassword: string) => {
+      const start = Date.now();
+      const client = new pg.Client({ host, port, database: dbName, user: dbUser, password: dbPassword, connectionTimeoutMillis: 5000, query_timeout: 3000 });
+      try {
+        await client.connect();
+        const result = await client.query("SELECT version()");
+        const latency = Date.now() - start;
+        const version = result.rows[0]?.version || "connected";
+        await client.end();
+        return { alive: true, latency, version };
+      } catch (err: any) {
+        try { await client.end(); } catch {}
+        return { alive: false, latency: Date.now() - start, error: err.message };
+      }
+    };
+
+    const results: any[] = [];
+
+    await Promise.all(allMachines.map(async (m) => {
+      const port = parseInt(m.dbPort || "5432", 10);
+      const dbName = m.dbName || "postgres";
+      const dbUser = m.dbUser || "postgres";
+      const dbPassword = m.dbPassword || "";
+      if (!dbUser || !dbPassword) {
+        results.push({ machineId: m.id, machineName: m.localName, role: m.role, incomplete: true });
+        return;
+      }
+
+      const paths: { label: string; host: string; skipped?: boolean; reason?: string }[] = [];
+      if (isValidHost(m.lanIp)) {
+        if (isPrivateIp(m.lanIp)) paths.push({ label: "LAN", host: m.lanIp, skipped: true, reason: "Private IP" });
+        else paths.push({ label: "LAN", host: m.lanIp });
+      }
+      if (isValidHost(m.wanIp)) paths.push({ label: "WAN", host: m.wanIp });
+      if (isValidHost(m.fqdn)) paths.push({ label: "FQDN", host: m.fqdn });
+      if (isValidHost(m.domainName) && m.domainName !== m.fqdn) paths.push({ label: "Domain", host: m.domainName });
+
+      const testablePaths = paths.filter(p => !p.skipped);
+      const skippedPaths = paths.filter(p => p.skipped);
+
+      if (testablePaths.length === 0) {
+        results.push({ machineId: m.id, machineName: m.localName, role: m.role, incomplete: false, paths: [], skipped: skippedPaths, bestLatency: null });
+        return;
+      }
+
+      const pathResults = await Promise.all(testablePaths.map(async (p) => {
+        const r = await testOne(p.host, port, dbName, dbUser, dbPassword);
+        return { label: p.label, host: p.host, port, ...r };
+      }));
+
+      const alivePaths = pathResults.filter(p => p.alive);
+      const bestLatency = alivePaths.length > 0 ? Math.min(...alivePaths.map(p => p.latency)) : null;
+      const bestPath = alivePaths.find(p => p.latency === bestLatency) || null;
+
+      results.push({
+        machineId: m.id,
+        machineName: m.localName,
+        role: m.role,
+        incomplete: false,
+        paths: pathResults,
+        skipped: skippedPaths,
+        bestLatency,
+        bestPath: bestPath ? { label: bestPath.label, host: bestPath.host, latency: bestPath.latency, version: bestPath.version } : null,
+      });
+    }));
+
+    results.sort((a, b) => {
+      if (a.bestLatency === null && b.bestLatency === null) return 0;
+      if (a.bestLatency === null) return 1;
+      if (b.bestLatency === null) return -1;
+      return a.bestLatency - b.bestLatency;
+    });
+
+    res.json({ results });
+  } catch (err: any) { res.status(500).json({ message: err.message }); }
+});
+
+app.post("/api/platform/machines/:id/benchmark-query", requireAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const { machines: machinesTable } = await import("@shared/schema");
+    const id = Number(req.params.id);
+    const { rowCount = 10000 } = req.body;
+    const safeRowCount = Math.min(Math.max(rowCount, 1000), 1000000);
+
+    const [machine] = await db.select().from(machinesTable).where(eq(machinesTable.id, id));
+    if (!machine) return res.status(404).json({ message: "ไม่พบเครื่องนี้" });
+
+    const host = machine.domainName || machine.fqdn || machine.wanIp || machine.lanIp;
+    const port = parseInt(machine.dbPort || "5432", 10);
+    const dbName = machine.dbName || "postgres";
+    const dbUser = machine.dbUser || "postgres";
+    const dbPassword = machine.dbPassword || "";
+
+    if (!host || !dbUser || !dbPassword) {
+      return res.json({ success: false, error: "ข้อมูล DB ไม่ครบ" });
+    }
+
+    const { default: pg } = await import("pg");
+    const client = new pg.Client({ host, port, database: dbName, user: dbUser, password: dbPassword, connectionTimeoutMillis: 8000 });
+
+    try {
+      const t0 = Date.now();
+      await client.connect();
+      const connectTime = Date.now() - t0;
+
+      const benchmarks: { name: string; duration: number; rows?: number }[] = [];
+      const tableName = `_benchmark_${Date.now()}`;
+
+      const t1 = Date.now();
+      await client.query(`CREATE TABLE ${tableName} (id SERIAL PRIMARY KEY, val1 TEXT, val2 INTEGER, val3 NUMERIC(12,2), created_at TIMESTAMP DEFAULT NOW())`);
+      benchmarks.push({ name: "CREATE TABLE", duration: Date.now() - t1 });
+
+      const t2 = Date.now();
+      const batchSize = 1000;
+      for (let i = 0; i < safeRowCount; i += batchSize) {
+        const count = Math.min(batchSize, safeRowCount - i);
+        await client.query(`INSERT INTO ${tableName} (val1, val2, val3) SELECT md5(random()::text), (random()*1000000)::int, (random()*99999)::numeric(12,2) FROM generate_series(1, $1)`, [count]);
+      }
+      benchmarks.push({ name: `INSERT ${safeRowCount.toLocaleString()} rows`, duration: Date.now() - t2, rows: safeRowCount });
+
+      const t3 = Date.now();
+      const countResult = await client.query(`SELECT COUNT(*) as cnt FROM ${tableName}`);
+      benchmarks.push({ name: "SELECT COUNT(*)", duration: Date.now() - t3, rows: parseInt(countResult.rows[0].cnt) });
+
+      const t4 = Date.now();
+      await client.query(`SELECT val2, COUNT(*), AVG(val3), MAX(val3), MIN(val3) FROM ${tableName} GROUP BY val2 ORDER BY COUNT(*) DESC LIMIT 100`);
+      benchmarks.push({ name: "GROUP BY + AGG + ORDER", duration: Date.now() - t4 });
+
+      const t5 = Date.now();
+      await client.query(`SELECT a.id, a.val1, b.val3 FROM ${tableName} a JOIN ${tableName} b ON a.val2 = b.val2 LIMIT 1000`);
+      benchmarks.push({ name: "SELF JOIN (LIMIT 1000)", duration: Date.now() - t5 });
+
+      const t6 = Date.now();
+      await client.query(`SELECT val1, val3 FROM ${tableName} WHERE val2 BETWEEN 100000 AND 200000 ORDER BY val3 DESC LIMIT 500`);
+      benchmarks.push({ name: "RANGE FILTER + SORT", duration: Date.now() - t6 });
+
+      const t7 = Date.now();
+      await client.query(`DROP TABLE IF EXISTS ${tableName}`);
+      benchmarks.push({ name: "DROP TABLE", duration: Date.now() - t7 });
+
+      const totalTime = Date.now() - t0;
+      await client.end();
+
+      res.json({
+        success: true,
+        host,
+        port,
+        connectTime,
+        totalTime,
+        rowCount: safeRowCount,
+        benchmarks,
+        version: (await (async () => { const c2 = new pg.Client({ host, port, database: dbName, user: dbUser, password: dbPassword, connectionTimeoutMillis: 3000 }); try { await c2.connect(); const r = await c2.query("SELECT version()"); await c2.end(); return r.rows[0]?.version?.match(/PostgreSQL [\d.]+/)?.[0] || ""; } catch { return ""; } })()),
+      });
+    } catch (benchErr: any) {
+      try { await client.query(`DROP TABLE IF EXISTS _benchmark_${Date.now()}`); } catch {}
+      try { await client.end(); } catch {}
+      res.json({ success: false, error: benchErr.message });
+    }
+  } catch (err: any) { res.status(500).json({ message: err.message }); }
+});
+
 app.post("/api/platform/machines/generate-config", requireAuth, requireSuperAdmin, async (req, res) => {
   try {
     const { hostname, macAddress, configDbPort, configDbName, machineId } = req.body;
