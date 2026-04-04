@@ -55,6 +55,8 @@ function pushToGitHub(): boolean {
     const tag = `v${newVersion}`;
     const commitMsg = `${tag} — Auto-push ${today}`;
 
+    execSync(`git add VERSION && git commit -m "Bump version to ${newVersion}"`, { cwd, stdio: "pipe" });
+
     execSync("git checkout --orphan deploy-temp", { cwd, stdio: "pipe" });
     execSync("git add -A", { cwd, stdio: "pipe" });
     execSync(`git commit -m "${commitMsg}"`, { cwd, stdio: "pipe" });
@@ -63,11 +65,6 @@ function pushToGitHub(): boolean {
     execSync(`git push ${authUrl} ${tag} --force`, { cwd, stdio: "pipe", timeout: 30000 });
     execSync("git checkout replit-agent", { cwd, stdio: "pipe" });
     execSync("git branch -D deploy-temp", { cwd, stdio: "pipe" });
-
-    fs.writeFileSync(VERSION_FILE, newVersion + "\n");
-    try {
-      execSync(`git add VERSION && git commit -m "Bump version to ${newVersion}"`, { cwd, stdio: "pipe" });
-    } catch {}
 
     lastPushDate = today;
     console.log(`[GitHub Auto-Push] ✓ ${tag} pushed (${today})`);
