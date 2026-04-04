@@ -459,10 +459,10 @@ export default function PosReceipt() {
               </div>
             ) : null;
           })()}
-          <div style={{ fontSize: fc.title, fontWeight: "bold" }}>{company?.name || ""}</div>
+          <div style={{ fontSize: fc.title }}>{company?.name || ""}</div>
           {company?.nameEn && <div style={{ fontSize: fc.body }}>{company.nameEn}</div>}
           {(company?.branch && company.branch !== "สำนักงานใหญ่") || (company?.sellerBranchId && company.sellerBranchId !== "00000") ? (
-            <div style={{ fontSize: fc.body, fontWeight: "bold" }}>
+            <div style={{ fontSize: fc.body }}>
               สาขา: {company.branch || session?.branchName || "สำนักงานใหญ่"}
               {company.sellerBranchId && company.sellerBranchId !== "00000" && ` (${company.sellerBranchId})`}
             </div>
@@ -475,7 +475,7 @@ export default function PosReceipt() {
           {docSettings?.posReceiptHeaderText && (
             <div style={{ fontSize: fc.body, marginTop: "3px", whiteSpace: "pre-line", lineHeight: "1.4" }}>{docSettings.posReceiptHeaderText}</div>
           )}
-          <div style={{ fontSize: fc.heading, fontWeight: "bold", marginTop: "4px" }}>ใบกำกับภาษีอย่างย่อ</div>
+          <div style={{ fontSize: fc.heading, marginTop: "4px" }}>ใบกำกับภาษีอย่างย่อ</div>
           <div style={{ fontSize: fc.body }}>ABB. TAX INVOICE</div>
         </div>
 
