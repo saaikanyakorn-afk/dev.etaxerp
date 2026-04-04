@@ -43,6 +43,7 @@ export const machines = pgTable("machines", {
   encContent: text("enc_content"),
   encGeneratedAt: timestamp("enc_generated_at"),
   envContent: text("env_content"),
+  isOfficial: boolean("is_official").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
