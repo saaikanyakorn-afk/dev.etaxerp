@@ -2216,14 +2216,35 @@ app.post("/api/platform/machines/:id/test-db", requireAuth, requireSuperAdmin, a
       return true;
     };
 
+    const isPrivateIp = (ip: string): boolean => {
+      return /^(10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|127\.)/.test(ip.trim());
+    };
+
+    const hasCredentials = !!(dbUser && dbPassword);
     const paths: { label: string; host: string }[] = [];
-    if (isValidHost(machine.lanIp)) paths.push({ label: "LAN", host: machine.lanIp });
+    const skippedPaths: { label: string; host: string; reason: string }[] = [];
+
+    if (isValidHost(machine.lanIp)) {
+      if (isPrivateIp(machine.lanIp)) {
+        skippedPaths.push({ label: "LAN", host: machine.lanIp, reason: "Private IP — ทดสอบได้เฉพาะจากเครือข่ายเดียวกัน" });
+      } else {
+        paths.push({ label: "LAN", host: machine.lanIp });
+      }
+    }
     if (isValidHost(machine.wanIp)) paths.push({ label: "WAN IP", host: machine.wanIp });
     if (isValidHost(machine.fqdn)) paths.push({ label: "FQDN", host: machine.fqdn });
     if (isValidHost(machine.domainName) && machine.domainName !== machine.fqdn) paths.push({ label: "Domain", host: machine.domainName });
 
+    if (paths.length === 0 && skippedPaths.length === 0) {
+      return res.json({ paths: [], skipped: [], anyAlive: false, incomplete: true, error: "ไม่มี host (LAN IP / WAN IP / FQDN / Domain) — ข้อมูลเซิร์ฟเวอร์ไม่ครบ" });
+    }
+
+    if (!hasCredentials) {
+      return res.json({ paths: [], skipped: skippedPaths, anyAlive: false, incomplete: true, error: "ไม่มี DB credentials (user/password) — ข้อมูลเซิร์ฟเวอร์ไม่ครบ" });
+    }
+
     if (paths.length === 0) {
-      return res.json({ paths: [], anyAlive: false, error: "ไม่มี host (LAN IP / WAN IP / FQDN / Domain)" });
+      return res.json({ paths: [], skipped: skippedPaths, anyAlive: false, incomplete: false, error: "มีเฉพาะ LAN IP — ทดสอบจากภายนอกไม่ได้" });
     }
 
     const { default: pg } = await import("pg");
@@ -2255,7 +2276,7 @@ app.post("/api/platform/machines/:id/test-db", requireAuth, requireSuperAdmin, a
 
     const results = await Promise.all(paths.map(testOne));
     const anyAlive = results.some(r => r.alive);
-    res.json({ paths: results, anyAlive, machineName: machine.localName });
+    res.json({ paths: results, skipped: skippedPaths, anyAlive, incomplete: false, machineName: machine.localName });
   } catch (err: any) { res.status(500).json({ message: err.message }); }
 });
 
