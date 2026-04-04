@@ -536,7 +536,7 @@ export default function InternalChatWidget() {
   return (
     <div
       ref={containerRef}
-      className="fixed z-[60] print:!hidden"
+      className="fixed z-40 print:!hidden"
       style={{ left: position.x, top: position.y, touchAction: "none" }}
       data-testid="internal-chat-widget"
     >
