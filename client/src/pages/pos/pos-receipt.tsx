@@ -448,8 +448,8 @@ export default function PosReceipt() {
                   src={logoBase64}
                   alt="logo"
                   style={{
-                    maxWidth: paperWidth === "58" ? "48px" : "64px",
-                    maxHeight: paperWidth === "58" ? "48px" : "64px",
+                    width: "85%",
+                    maxHeight: paperWidth === "58" ? "120px" : "150px",
                     objectFit: "contain",
                     margin: "0 auto",
                     display: "block",
