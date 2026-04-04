@@ -211,7 +211,7 @@ export default function PosStaff() {
             <p className="text-sm text-gray-500 mt-1">สร้าง แก้ไข และกำหนดสาขาให้พนักงาน</p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
-            <a href="/api/pos/staff/template" download data-testid="button-download-template">
+            <a href={`/api/pos/staff/template?companyId=${selectedCompanyId || ""}`} download data-testid="button-download-template">
               <Button variant="outline" size="sm">
                 <Download className="h-4 w-4 mr-1.5" />
                 ดาวน์โหลดแม่แบบ Excel
