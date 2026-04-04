@@ -333,14 +333,20 @@ function PortForwardList({ routerId, portForwards, machines }: { routerId: numbe
 
   const addMut = useMutation({
     mutationFn: async (data: any) => {
-      const res = await apiRequest("POST", `/api/platform/routers/${routerId}/port-forwards`, data);
+      const res = await fetch(`/api/platform/routers/${routerId}/port-forwards`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
+      if (!res.ok) throw new Error((await res.json()).message);
       return res.json();
     },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/platform/all-port-forwards"] }); setAdding(false); setForm({ externalPort: "", lanIp: "", internalPort: "", protocol: "TCP", purpose: "" }); toast({ title: "เพิ่ม Port Forward แล้ว" }); },
+    onError: (err: any) => toast({ title: "เกิดข้อผิดพลาด", description: err.message, variant: "destructive" }),
   });
   const deleteMut = useMutation({
-    mutationFn: async (id: number) => { await apiRequest("DELETE", `/api/platform/port-forwards/${id}`); },
+    mutationFn: async (id: number) => {
+      const res = await fetch(`/api/platform/port-forwards/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error((await res.json()).message);
+    },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/platform/all-port-forwards"] }); toast({ title: "ลบ Port Forward แล้ว" }); },
+    onError: (err: any) => toast({ title: "เกิดข้อผิดพลาด", description: err.message, variant: "destructive" }),
   });
 
   const machineByIp = (ip: string) => {
