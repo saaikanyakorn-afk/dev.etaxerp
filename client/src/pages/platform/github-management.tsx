@@ -186,7 +186,7 @@ export default function GithubManagement() {
   const refetchAll = () => { refetchLocal(); refetchRemote(); };
 
   const autoFetchedRef = useRef(false);
-  const FILE_LINE_WARNING_THRESHOLD = 7000;
+  const FILE_LINE_WARNING_THRESHOLD = 6000;
   useEffect(() => {
     if (localInfo && localInfo.maxFileLines >= FILE_LINE_WARNING_THRESHOLD && !autoFetchedRef.current && !largestFiles) {
       autoFetchedRef.current = true;
