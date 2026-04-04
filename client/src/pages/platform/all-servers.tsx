@@ -77,17 +77,6 @@ interface RouterRecord {
   updatedAt?: string;
 }
 
-interface RouterDomainRecord {
-  id: number;
-  routerId: number;
-  domainName: string;
-  noipManageUrl: string | null;
-  noipUsername: string | null;
-  noipPassword: string | null;
-  notes: string | null;
-  createdAt?: string;
-}
-
 interface NicRecord {
   id: number;
   machineId: number;
@@ -751,13 +740,106 @@ function EditDomainDialog({ domain, routers, machines, onSave, onCancel, saving 
   );
 }
 
+function NicIpList({ nicId }: { nicId: number }) {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const { data: allNicIps = [] } = useQuery<NicIpRecord[]>({ queryKey: ["/api/platform/all-nic-ips"] });
+  const myIps = allNicIps.filter(ip => ip.nicId === nicId);
+  const [adding, setAdding] = useState(false);
+  const [ipForm, setIpForm] = useState({ ipAddress: "", subnetMask: "255.255.255.0", label: "", isPrimary: false });
+
+  const addIpMut = useMutation({
+    mutationFn: async (data: typeof ipForm) => {
+      const res = await fetch(`/api/platform/nics/${nicId}/ips`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
+      if (!res.ok) throw new Error((await res.json()).message);
+      return res.json();
+    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/platform/all-nic-ips"] }); setAdding(false); setIpForm({ ipAddress: "", subnetMask: "255.255.255.0", label: "", isPrimary: false }); toast({ title: "เพิ่ม IP แล้ว" }); },
+    onError: (err: any) => toast({ title: "เกิดข้อผิดพลาด", description: err.message, variant: "destructive" }),
+  });
+
+  const deleteIpMut = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await fetch(`/api/platform/nic-ips/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error((await res.json()).message);
+    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/platform/all-nic-ips"] }); toast({ title: "ลบ IP แล้ว" }); },
+    onError: (err: any) => toast({ title: "เกิดข้อผิดพลาด", description: err.message, variant: "destructive" }),
+  });
+
+  const togglePrimaryMut = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await fetch(`/api/platform/nic-ips/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ isPrimary: true }) });
+      if (!res.ok) throw new Error((await res.json()).message);
+      return res.json();
+    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/platform/all-nic-ips"] }); toast({ title: "ตั้งเป็น Primary IP แล้ว" }); },
+    onError: (err: any) => toast({ title: "เกิดข้อผิดพลาด", description: err.message, variant: "destructive" }),
+  });
+
+  return (
+    <div className="ml-6 pl-3 border-l-2 border-blue-200 space-y-1 py-1" onClick={e => e.stopPropagation()}>
+      <div className="flex items-center justify-between">
+        <span className="text-[10px] font-semibold text-blue-600">Additional IPs ({myIps.length})</span>
+        <button className="text-[10px] text-blue-500 hover:text-blue-700 flex items-center gap-0.5" onClick={() => setAdding(!adding)} data-testid={`btn-add-ip-${nicId}`}>
+          <Plus className="h-2.5 w-2.5" /> เพิ่ม IP
+        </button>
+      </div>
+      {myIps.map(ip => (
+        <div key={ip.id} className="flex items-center gap-2 text-[11px] group/ip py-0.5" data-testid={`nic-ip-row-${ip.id}`}>
+          <span className={`font-mono ${ip.isPrimary ? "text-blue-700 font-bold" : "text-gray-600"}`}>{ip.ipAddress}</span>
+          <span className="font-mono text-gray-400 text-[10px]">/{ip.subnetMask}</span>
+          {ip.isPrimary && (
+            <Badge className="bg-blue-600 text-white text-[9px] px-1 py-0">Primary</Badge>
+          )}
+          {ip.label && <span className="text-gray-400 text-[10px] italic">{ip.label}</span>}
+          {!ip.isPrimary && (
+            <button onClick={() => togglePrimaryMut.mutate(ip.id)} className="opacity-0 group-hover/ip:opacity-100 text-[10px] text-blue-400 hover:text-blue-600 transition-opacity" data-testid={`btn-set-primary-${ip.id}`}>
+              set primary
+            </button>
+          )}
+          <button onClick={() => { if (confirm("ลบ IP นี้?")) deleteIpMut.mutate(ip.id); }} className="opacity-0 group-hover/ip:opacity-100 p-0.5 hover:bg-red-100 rounded text-red-400 transition-opacity ml-auto" data-testid={`btn-delete-ip-${ip.id}`}>
+            <Trash2 className="h-2.5 w-2.5" />
+          </button>
+        </div>
+      ))}
+      {adding && (
+        <div className="flex items-end gap-1.5 flex-wrap py-1" onClick={e => e.stopPropagation()}>
+          <div>
+            <Label className="text-[9px] text-gray-400">IP *</Label>
+            <Input className="h-6 text-[11px] font-mono w-32" placeholder="192.168.1.101" value={ipForm.ipAddress} onChange={e => setIpForm({ ...ipForm, ipAddress: e.target.value })} data-testid={`input-extra-ip-${nicId}`} />
+          </div>
+          <div>
+            <Label className="text-[9px] text-gray-400">Subnet</Label>
+            <Input className="h-6 text-[11px] font-mono w-32" placeholder="255.255.255.0" value={ipForm.subnetMask} onChange={e => setIpForm({ ...ipForm, subnetMask: e.target.value })} data-testid={`input-extra-subnet-${nicId}`} />
+          </div>
+          <div>
+            <Label className="text-[9px] text-gray-400">Label</Label>
+            <Input className="h-6 text-[11px] w-24" placeholder="VIP, VLAN" value={ipForm.label} onChange={e => setIpForm({ ...ipForm, label: e.target.value })} data-testid={`input-extra-label-${nicId}`} />
+          </div>
+          <label className="flex items-center gap-1 text-[10px] text-gray-500 pb-0.5">
+            <input type="checkbox" checked={ipForm.isPrimary} onChange={e => setIpForm({ ...ipForm, isPrimary: e.target.checked })} className="rounded h-3 w-3" />
+            Primary
+          </label>
+          <Button size="sm" className="h-6 text-[10px] px-2 bg-blue-600 hover:bg-blue-700" onClick={() => addIpMut.mutate(ipForm)} disabled={!ipForm.ipAddress} data-testid={`btn-save-ip-${nicId}`}>
+            <Check className="h-2.5 w-2.5 mr-0.5" /> เพิ่ม
+          </Button>
+          <Button size="sm" variant="ghost" className="h-6 text-[10px] px-2" onClick={() => setAdding(false)}>ยกเลิก</Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function NicSection({ machineId, allNics, allMachines, allRouters }: { machineId: number; allNics: NicRecord[]; allMachines: MachineRecord[]; allRouters: RouterRecord[] }) {
   const [adding, setAdding] = useState(false);
+  const [expandedNicId, setExpandedNicId] = useState<number | null>(null);
   const [form, setForm] = useState({ nicName: "", macAddress: "", ipAddress: "", subnetMask: "255.255.255.0", forwardedFor: "", forwardedPort: "", routerId: "", notes: "" });
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const myNics = allNics.filter(n => n.machineId === machineId);
   const otherNics = allNics.filter(n => n.machineId !== machineId);
+  const { data: allNicIps = [] } = useQuery<NicIpRecord[]>({ queryKey: ["/api/platform/all-nic-ips"] });
 
   const lanPeers = new Map<number, { machineName: string; viaIp: string; peerIp: string }>();
   for (const myNic of myNics) {
@@ -812,30 +894,47 @@ function NicSection({ machineId, allNics, allMachines, allRouters }: { machineId
       {myNics.map(nic => {
         const fwd = nic.forwardedFor ? FORWARD_LABELS[nic.forwardedFor] : null;
         const linkedRouter = nic.routerId ? allRouters.find(r => r.id === nic.routerId) : null;
+        const nicIpCount = allNicIps.filter(ip => ip.nicId === nic.id).length;
+        const isExpanded = expandedNicId === nic.id;
         return (
-          <div key={nic.id} className="flex items-center gap-2 p-2 bg-white border rounded text-xs group" data-testid={`nic-row-${nic.id}`}>
-            <Plug className="h-3.5 w-3.5 text-gray-400 shrink-0" />
-            <span className="font-medium text-gray-700 w-24 truncate">{nic.nicName}</span>
-            <span className="font-mono text-blue-600 font-bold">{nic.ipAddress}</span>
-            <span className="font-mono text-gray-400 text-[10px]">/{nic.subnetMask}</span>
-            {nic.macAddress && <span className="font-mono text-gray-400 text-[10px] hidden lg:inline">{nic.macAddress}</span>}
-            {linkedRouter && (
-              <Badge variant="outline" className="bg-teal-50 text-teal-700 border-teal-300 text-[10px] px-1.5 py-0">
-                <Router className="h-2.5 w-2.5 mr-0.5" />{linkedRouter.name}
-              </Badge>
+          <div key={nic.id} data-testid={`nic-row-${nic.id}`}>
+            <div className={`flex items-center gap-2 p-2 bg-white border rounded text-xs group ${isExpanded ? "border-blue-300 rounded-b-none" : ""}`}>
+              <button onClick={e => { e.stopPropagation(); setExpandedNicId(isExpanded ? null : nic.id); }} className="shrink-0 p-0.5 hover:bg-gray-100 rounded">
+                {isExpanded ? <ChevronDown className="h-3 w-3 text-gray-400" /> : <ChevronRight className="h-3 w-3 text-gray-400" />}
+              </button>
+              <Plug className="h-3.5 w-3.5 text-gray-400 shrink-0" />
+              <span className="font-medium text-gray-700 w-24 truncate">{nic.nicName}</span>
+              <span className="font-mono text-blue-600 font-bold">{nic.ipAddress}</span>
+              <span className="font-mono text-gray-400 text-[10px]">/{nic.subnetMask}</span>
+              {nic.macAddress && <span className="font-mono text-gray-400 text-[10px] hidden lg:inline">{nic.macAddress}</span>}
+              {linkedRouter && (
+                <Badge variant="outline" className="bg-teal-50 text-teal-700 border-teal-300 text-[10px] px-1.5 py-0">
+                  <Router className="h-2.5 w-2.5 mr-0.5" />{linkedRouter.name}
+                </Badge>
+              )}
+              {fwd && (
+                <Badge variant="outline" className={`${fwd.color} text-[10px] px-1.5 py-0 flex items-center gap-0.5`}>
+                  <Radio className="h-2.5 w-2.5" />
+                  Forwarded → {fwd.label}
+                  {nic.forwardedFor === "db" && nic.forwardedPort && <span className="font-mono">:{nic.forwardedPort}</span>}
+                </Badge>
+              )}
+              {!fwd && <Badge variant="outline" className="bg-gray-50 text-gray-500 border-gray-300 text-[10px] px-1.5 py-0">LAN only</Badge>}
+              {nicIpCount > 0 && (
+                <Badge variant="outline" className="bg-blue-50 text-blue-600 border-blue-300 text-[10px] px-1.5 py-0">
+                  +{nicIpCount} IP
+                </Badge>
+              )}
+              {nic.notes && <span className="text-gray-400 italic truncate hidden md:inline">{nic.notes}</span>}
+              <button onClick={(e) => { e.stopPropagation(); if (confirm("ลบ NIC นี้?")) deleteMut.mutate(nic.id); }} className="ml-auto opacity-0 group-hover:opacity-100 p-0.5 hover:bg-red-100 rounded text-red-400 transition-opacity" data-testid={`btn-delete-nic-${nic.id}`}>
+                <Trash2 className="h-3 w-3" />
+              </button>
+            </div>
+            {isExpanded && (
+              <div className="bg-blue-50/30 border border-t-0 border-blue-300 rounded-b p-2">
+                <NicIpList nicId={nic.id} />
+              </div>
             )}
-            {fwd && (
-              <Badge variant="outline" className={`${fwd.color} text-[10px] px-1.5 py-0 flex items-center gap-0.5`}>
-                <Radio className="h-2.5 w-2.5" />
-                Forwarded → {fwd.label}
-                {nic.forwardedFor === "db" && nic.forwardedPort && <span className="font-mono">:{nic.forwardedPort}</span>}
-              </Badge>
-            )}
-            {!fwd && <Badge variant="outline" className="bg-gray-50 text-gray-500 border-gray-300 text-[10px] px-1.5 py-0">LAN only</Badge>}
-            {nic.notes && <span className="text-gray-400 italic truncate hidden md:inline">{nic.notes}</span>}
-            <button onClick={(e) => { e.stopPropagation(); if (confirm("ลบ NIC นี้?")) deleteMut.mutate(nic.id); }} className="ml-auto opacity-0 group-hover:opacity-100 p-0.5 hover:bg-red-100 rounded text-red-400 transition-opacity" data-testid={`btn-delete-nic-${nic.id}`}>
-              <Trash2 className="h-3 w-3" />
-            </button>
           </div>
         );
       })}
