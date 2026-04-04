@@ -1,8 +1,12 @@
 import pg from "pg";
-import { getConfig, setConfig } from "../config-bootstrap";
 import { db } from "../db";
-import { cloneHistory, machines, users } from "@shared/schema";
+import { cloneHistory, users } from "@shared/schema";
 import { eq, and, sql } from "drizzle-orm";
+
+const GITHUB_OWNER = "saaikanyakorn-afk";
+const GITHUB_REPO = "etaxcenter";
+const GITHUB_TARGET_FILE = "clone-target.json";
+const GITHUB_BRANCH = "main";
 
 const CHECK_INTERVAL_MS = 60 * 60 * 1000;
 const MAX_CONSECUTIVE_FAILURES = 7;
@@ -13,9 +17,10 @@ let machineName: string = "unknown";
 let consecutiveFailDays = 0;
 let lastCheckDate: string | null = null;
 let alertSentForCurrentStreak = false;
-let cachedTargetUrl: string | null = null;
-let cachedTargetMachineId: number = 0;
-let cachedTargetMachineName: string = "";
+
+let activeTarget: { machineId: number; url: string; name: string; updatedAt: string } = {
+  machineId: 0, url: "", name: "", updatedAt: "",
+};
 
 function getMachineName(): string {
   if (machineName !== "unknown") return machineName;
@@ -33,25 +38,153 @@ function getMachineName(): string {
   return machineName;
 }
 
-function readTargetFromConfig(): { machineId: number; url: string; name: string } {
-  const id = parseInt(getConfig("CLONE_HISTORY_TARGET_MACHINE_ID") || "0", 10);
-  const url = getConfig("CLONE_HISTORY_TARGET_URL") || "";
-  const name = getConfig("CLONE_HISTORY_TARGET_NAME") || "";
-  return { machineId: id, url, name };
+function getGitHubPat(): string {
+  return process.env.GITHUB_PAT || "";
 }
 
-export async function setTargetMachine(machineId: number, connectionUrl: string, machineName: string): Promise<void> {
-  const r1 = await setConfig("CLONE_HISTORY_TARGET_MACHINE_ID", String(machineId), "Machine ID for central clone history storage");
-  const r2 = await setConfig("CLONE_HISTORY_TARGET_URL", connectionUrl, "Connection URL for central clone history DB", true);
-  const r3 = await setConfig("CLONE_HISTORY_TARGET_NAME", machineName, "Machine name for central clone history DB");
-
-  if (!r1 || !r2 || !r3) {
-    throw new Error("ไม่สามารถบันทึกค่าลง Config DB กลางได้ — กรุณาตรวจสอบการเชื่อมต่อ Config DB");
+async function fetchTargetFromGitHub(): Promise<boolean> {
+  const pat = getGitHubPat();
+  if (!pat) {
+    console.log("[CloneHistoryCentral] GITHUB_PAT not set — cannot fetch target from GitHub");
+    return false;
   }
 
-  cachedTargetMachineId = machineId;
-  cachedTargetUrl = connectionUrl;
-  cachedTargetMachineName = machineName;
+  try {
+    const url = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${GITHUB_TARGET_FILE}?ref=${GITHUB_BRANCH}`;
+    const resp = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${pat}`,
+        Accept: "application/vnd.github.v3+json",
+        "User-Agent": "etax-center",
+      },
+    });
+
+    if (resp.status === 404) {
+      console.log("[CloneHistoryCentral] clone-target.json not found on GitHub — no target configured yet");
+      return false;
+    }
+
+    if (!resp.ok) {
+      console.log(`[CloneHistoryCentral] GitHub API error: ${resp.status} ${resp.statusText}`);
+      return false;
+    }
+
+    const data = await resp.json() as any;
+    const content = Buffer.from(data.content, "base64").toString("utf-8");
+    const target = JSON.parse(content);
+
+    if (!target.machineId || !target.url || !target.name) {
+      console.log("[CloneHistoryCentral] clone-target.json missing required fields");
+      return false;
+    }
+
+    const oldId = activeTarget.machineId;
+    activeTarget = {
+      machineId: target.machineId,
+      url: target.url,
+      name: target.name,
+      updatedAt: target.updatedAt || "",
+    };
+
+    if (centralPool && oldId !== target.machineId) {
+      centralPool.end().catch(() => {});
+      centralPool = null;
+    }
+
+    console.log(`[CloneHistoryCentral] ✓ Target from GitHub: ${target.name} (ID ${target.machineId}, updated ${target.updatedAt || "unknown"})`);
+    return true;
+  } catch (err: any) {
+    console.log(`[CloneHistoryCentral] Failed to fetch from GitHub: ${err.message?.slice(0, 150)}`);
+    return false;
+  }
+}
+
+async function getFileSha(): Promise<string | null> {
+  const pat = getGitHubPat();
+  if (!pat) return null;
+
+  try {
+    const url = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${GITHUB_TARGET_FILE}?ref=${GITHUB_BRANCH}`;
+    const resp = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${pat}`,
+        Accept: "application/vnd.github.v3+json",
+        "User-Agent": "etax-center",
+      },
+    });
+    if (!resp.ok) return null;
+    const data = await resp.json() as any;
+    return data.sha || null;
+  } catch {
+    return null;
+  }
+}
+
+async function pushTargetToGitHub(machineId: number, connectionUrl: string, machineName: string): Promise<boolean> {
+  const pat = getGitHubPat();
+  if (!pat) {
+    console.log("[CloneHistoryCentral] GITHUB_PAT not set — cannot push target to GitHub");
+    return false;
+  }
+
+  const now = new Date().toISOString();
+  const payload = {
+    machineId,
+    url: connectionUrl,
+    name: machineName,
+    updatedAt: now,
+    updatedBy: getMachineName(),
+  };
+
+  const content = Buffer.from(JSON.stringify(payload, null, 2) + "\n").toString("base64");
+  const sha = await getFileSha();
+
+  try {
+    const url = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${GITHUB_TARGET_FILE}`;
+    const body: any = {
+      message: `Clone target → ${machineName} (ID ${machineId})`,
+      content,
+      branch: GITHUB_BRANCH,
+    };
+    if (sha) body.sha = sha;
+
+    const resp = await fetch(url, {
+      method: "PUT",
+      headers: {
+        Authorization: `Bearer ${pat}`,
+        Accept: "application/vnd.github.v3+json",
+        "Content-Type": "application/json",
+        "User-Agent": "etax-center",
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (!resp.ok) {
+      const errText = await resp.text().catch(() => "");
+      console.log(`[CloneHistoryCentral] GitHub push failed: ${resp.status} ${errText.slice(0, 200)}`);
+      return false;
+    }
+
+    console.log(`[CloneHistoryCentral] ✓ Pushed clone-target.json to GitHub: ${machineName} (ID ${machineId})`);
+    return true;
+  } catch (err: any) {
+    console.log(`[CloneHistoryCentral] GitHub push error: ${err.message?.slice(0, 150)}`);
+    return false;
+  }
+}
+
+export async function setTargetMachine(machineId: number, connectionUrl: string, targetName: string): Promise<void> {
+  const pushed = await pushTargetToGitHub(machineId, connectionUrl, targetName);
+  if (!pushed) {
+    throw new Error("ไม่สามารถบันทึก clone-target.json ไป GitHub ได้ — กรุณาตรวจสอบ GITHUB_PAT และการเชื่อมต่อ");
+  }
+
+  activeTarget = {
+    machineId,
+    url: connectionUrl,
+    name: targetName,
+    updatedAt: new Date().toISOString(),
+  };
 
   if (centralPool) {
     centralPool.end().catch(() => {});
@@ -61,28 +194,22 @@ export async function setTargetMachine(machineId: number, connectionUrl: string,
   alertSentForCurrentStreak = false;
   lastCheckDate = null;
 
-  console.log(`[CloneHistoryCentral] Target changed → ${machineName} (ID ${machineId}), all app servers will use this on next config read`);
+  console.log(`[CloneHistoryCentral] Target changed → ${targetName} (ID ${machineId}), pushed to GitHub for all servers`);
 }
 
-export function getTargetMachineInfo(): { machineId: number; machineName: string; consecutiveFailDays: number; lastCheckDate: string | null } | null {
-  const { machineId, name } = readTargetFromConfig();
-  if (!machineId) return null;
+export function getTargetMachineInfo(): { machineId: number; machineName: string; consecutiveFailDays: number; lastCheckDate: string | null; updatedAt: string } | null {
+  if (!activeTarget.machineId) return null;
   return {
-    machineId,
-    machineName: name,
+    machineId: activeTarget.machineId,
+    machineName: activeTarget.name,
     consecutiveFailDays,
     lastCheckDate,
+    updatedAt: activeTarget.updatedAt,
   };
 }
 
-function getTargetUrl(): string | null {
-  if (cachedTargetUrl) return cachedTargetUrl;
-  const { url } = readTargetFromConfig();
-  if (url) {
-    cachedTargetUrl = url;
-    return url;
-  }
-  return null;
+export function getTargetUrl(): string | null {
+  return activeTarget.url || null;
 }
 
 async function getCentralPool(): Promise<pg.Pool | null> {
@@ -231,7 +358,7 @@ async function sendAlertEmail(): Promise<void> {
       return;
     }
 
-    const { name: targetName } = readTargetFromConfig();
+    const targetName = activeTarget.name || "Unknown";
 
     const { Resend } = await import("resend");
     const resend = new Resend(apiKey);
@@ -244,7 +371,7 @@ async function sendAlertEmail(): Promise<void> {
           subject: `⚠ Clone History Sync Failed — ${consecutiveFailDays} วันติดต่อกัน`,
           html: `
             <h2>⚠ Clone History Sync Alert</h2>
-            <p>ระบบไม่สามารถส่ง Clone History ไปยังเซิร์ฟเวอร์กลาง <strong>${targetName || "Unknown"}</strong> ได้ติดต่อกัน <strong>${consecutiveFailDays} วัน</strong></p>
+            <p>ระบบไม่สามารถส่ง Clone History ไปยังเซิร์ฟเวอร์กลาง <strong>${targetName}</strong> ได้ติดต่อกัน <strong>${consecutiveFailDays} วัน</strong></p>
             <p>มี clone records ที่ค้างอยู่บนเครื่อง <strong>${getMachineName()}</strong> และยังไม่ได้ sync</p>
             <h3>สิ่งที่ต้องตรวจสอบ:</h3>
             <ul>
@@ -269,6 +396,8 @@ async function sendAlertEmail(): Promise<void> {
 async function dailyFlushCheck(): Promise<void> {
   const today = new Date().toISOString().slice(0, 10);
   if (lastCheckDate === today) return;
+
+  await fetchTargetFromGitHub();
 
   try {
     const pendingResult = await db.select({ count: sql<number>`count(*)::int` })
@@ -318,8 +447,10 @@ async function dailyFlushCheck(): Promise<void> {
   }
 }
 
-export function startCentralHistorySync(): void {
+export async function startCentralHistorySync(): Promise<void> {
   if (flushTimer) return;
+
+  await fetchTargetFromGitHub();
 
   console.log(`[CloneHistoryCentral] Sync scheduler started (checks once per day, alerts after ${MAX_CONSECUTIVE_FAILURES} consecutive failures)`);
 

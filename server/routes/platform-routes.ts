@@ -433,8 +433,8 @@ app.get("/api/platform/clone-history", requireAuth, requireAdmin, async (_req, r
     let rows: any[] = [];
     let source = "local";
 
-    const { getConfig: getCfg } = await import("../config-bootstrap");
-    const centralUrl = getCfg("CLONE_HISTORY_TARGET_URL");
+    const { getTargetUrl } = await import("../services/clone-history-central");
+    const centralUrl = getTargetUrl();
 
     if (centralUrl) {
       const pgLib = await import("pg");
