@@ -188,7 +188,12 @@ function RouterCard({ router, domains, allNics, machines, portForwards, expanded
         <span className="font-bold text-sm text-teal-900 truncate">{router.name}</span>
         {router.lanIp && <span className="text-xs font-mono text-teal-600 hidden sm:inline">{router.lanIp}</span>}
         {router.ispName && <span className="text-xs text-gray-400 hidden sm:inline">({router.ispName})</span>}
-        {autoManagedDomain && <span className="text-xs font-mono text-indigo-500 hidden md:inline">{autoManagedDomain.domainName}</span>}
+        {autoManagedDomain && (
+          <Badge variant="outline" className="bg-indigo-50 text-indigo-600 border-indigo-300 text-[10px] px-1.5 py-0 font-mono hidden sm:flex items-center gap-0.5">
+            <Globe className="h-2.5 w-2.5" /> {autoManagedDomain.domainName}
+            <span className="text-[8px] text-indigo-400 ml-0.5">Auto</span>
+          </Badge>
+        )}
         <div className="ml-auto flex items-center gap-1.5 shrink-0">
           {myDomains.length > 0 && (
             <Badge variant="outline" className="bg-indigo-50 text-indigo-700 border-indigo-300 text-[10px] px-1.5 py-0">
@@ -284,10 +289,17 @@ function RouterCard({ router, domains, allNics, machines, portForwards, expanded
           {myDomains.length > 0 && (
             <div className="p-2 bg-indigo-50/50 border border-indigo-200 rounded">
               <h5 className="text-[10px] font-semibold text-indigo-600 mb-1 flex items-center gap-1"><Globe className="h-3 w-3" /> Domains ที่ใช้ WAN IP ของ Router นี้ ({myDomains.length})</h5>
+              {autoManagedDomain && (
+                <div className="flex items-center gap-2 mb-1.5 p-1.5 bg-indigo-100 border border-indigo-300 rounded text-xs">
+                  <Router className="h-3.5 w-3.5 text-indigo-600 shrink-0" />
+                  <span className="font-mono font-bold text-indigo-800">{autoManagedDomain.domainName}</span>
+                  <Badge className="bg-indigo-600 text-white text-[9px] px-1.5 py-0">Auto-Update</Badge>
+                  <span className="text-[10px] text-indigo-500">Router อัพเดต WAN IP ให้อัตโนมัติ</span>
+                </div>
+              )}
               <div className="flex flex-wrap gap-1.5">
-                {myDomains.map(d => (
-                  <Badge key={d.id} variant="outline" className={`text-[10px] px-1.5 py-0.5 ${d.isRouterManaged ? "bg-indigo-100 text-indigo-800 border-indigo-400 font-bold" : "bg-white text-indigo-700 border-indigo-300"}`}>
-                    {d.isRouterManaged && <Router className="h-2.5 w-2.5 mr-0.5" />}
+                {myDomains.filter(d => !d.isRouterManaged).map(d => (
+                  <Badge key={d.id} variant="outline" className="text-[10px] px-1.5 py-0.5 bg-white text-indigo-700 border-indigo-300">
                     {d.domainName}
                   </Badge>
                 ))}
