@@ -481,8 +481,14 @@ export default function PosReceipt() {
 
         <div style={{ textAlign: "center", borderTop: "1px dashed #000", paddingTop: "6px", fontSize: "10px" }}>
           <div>ราคารวมภาษีมูลค่าเพิ่มแล้ว</div>
-          <div style={{ marginTop: "4px" }}>ขอบคุณที่ใช้บริการ</div>
-          <div>Thank you</div>
+          {docSettings?.posReceiptFooterText ? (
+            <div style={{ marginTop: "4px", whiteSpace: "pre-line", lineHeight: "1.4" }}>{docSettings.posReceiptFooterText}</div>
+          ) : (
+            <>
+              <div style={{ marginTop: "4px" }}>ขอบคุณที่ใช้บริการ</div>
+              <div>Thank you</div>
+            </>
+          )}
         </div>
       </div>
     </>
