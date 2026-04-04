@@ -84,6 +84,9 @@ export default function GithubManagement() {
   const [newToken, setNewToken] = useState("");
   const [tokenLoading, setTokenLoading] = useState(false);
   const [showToken, setShowToken] = useState(false);
+  const [showCurrentToken, setShowCurrentToken] = useState(false);
+
+  interface TokenInfo { hasToken: boolean; masked?: string; full?: string; expiresAt?: string | null; }
 
   const { data: localInfo, isLoading: localLoading, refetch: refetchLocal, isFetching: localFetching, error: localError } = useQuery<LocalInfo>({
     queryKey: ["/api/platform/github/local-info"],
@@ -93,6 +96,12 @@ export default function GithubManagement() {
 
   const { data: remoteInfo, isLoading: remoteLoading, refetch: refetchRemote, isFetching: remoteFetching, error: remoteError } = useQuery<RemoteInfo>({
     queryKey: ["/api/platform/github/remote-info"],
+    refetchOnWindowFocus: false,
+    retry: 1,
+  });
+
+  const { data: tokenInfo, refetch: refetchTokenInfo } = useQuery<TokenInfo>({
+    queryKey: ["/api/platform/github/token-info"],
     refetchOnWindowFocus: false,
     retry: 1,
   });
@@ -196,6 +205,7 @@ export default function GithubManagement() {
         setSuccess("อัปเดต Token แล้ว แต่ยังเชื่อมต่อ GitHub ไม่ได้ — กรุณาตรวจสอบ Token");
       }
       refetchRemote();
+      refetchTokenInfo();
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -521,24 +531,63 @@ export default function GithubManagement() {
                       <Key className="h-4 w-4 text-gray-500" />
                       <p className="text-sm font-medium text-gray-700">Personal Access Token</p>
                     </div>
-                    <p className="text-xs text-gray-400">Token หมดอายุ? ใส่ Token ใหม่เพื่ออัปเดต</p>
-                    <div className="relative">
-                      <Input
-                        type={showToken ? "text" : "password"}
-                        placeholder="ghp_xxxxxxxxxxxx..."
-                        value={newToken}
-                        onChange={(e) => setNewToken(e.target.value)}
-                        className="pr-10 font-mono text-xs"
-                        data-testid="input-github-token"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowToken(!showToken)}
-                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                        data-testid="button-toggle-token-visibility"
-                      >
-                        {showToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                      </button>
+
+                    {tokenInfo?.hasToken && (
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-gray-400 shrink-0">Current:</span>
+                          <code className="text-xs font-mono text-gray-600 bg-gray-100 px-2 py-1 rounded flex-1 truncate" data-testid="text-current-token">
+                            {showCurrentToken ? tokenInfo.full : tokenInfo.masked}
+                          </code>
+                          <button
+                            type="button"
+                            onClick={() => setShowCurrentToken(!showCurrentToken)}
+                            className="text-gray-400 hover:text-gray-600 shrink-0"
+                            data-testid="button-toggle-current-token"
+                          >
+                            {showCurrentToken ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                          </button>
+                        </div>
+                        {tokenInfo.expiresAt ? (
+                          <div className={`flex items-center gap-1.5 text-xs px-2 py-1 rounded ${
+                            new Date(tokenInfo.expiresAt) < new Date() ? "bg-red-50 text-red-600" :
+                            new Date(tokenInfo.expiresAt) < new Date(Date.now() + 7 * 86400000) ? "bg-amber-50 text-amber-600" :
+                            "bg-green-50 text-green-600"
+                          }`} data-testid="text-token-expiry">
+                            <Clock className="h-3 w-3" />
+                            {new Date(tokenInfo.expiresAt) < new Date()
+                              ? `หมดอายุแล้ว (${tokenInfo.expiresAt})`
+                              : `หมดอายุ ${tokenInfo.expiresAt}`}
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1.5 text-xs text-gray-400 px-2 py-1 bg-gray-50 rounded" data-testid="text-token-no-expiry">
+                            <Clock className="h-3 w-3" />
+                            ไม่มีวันหมดอายุ (หรือไม่สามารถตรวจสอบได้)
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    <div className="pt-1 border-t border-gray-100">
+                      <p className="text-xs text-gray-400 mb-2">ใส่ Token ใหม่เพื่ออัปเดต</p>
+                      <div className="relative">
+                        <Input
+                          type={showToken ? "text" : "password"}
+                          placeholder="ghp_xxxxxxxxxxxx..."
+                          value={newToken}
+                          onChange={(e) => setNewToken(e.target.value)}
+                          className="pr-10 font-mono text-xs"
+                          data-testid="input-github-token"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowToken(!showToken)}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                          data-testid="button-toggle-token-visibility"
+                        >
+                          {showToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </button>
+                      </div>
                     </div>
                     <Button
                       onClick={handleUpdateToken}

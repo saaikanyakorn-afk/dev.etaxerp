@@ -360,6 +360,36 @@ app.patch("/api/platform/github/token", requireAuth, requireSuperAdmin, async (r
   }
 });
 
+app.get("/api/platform/github/token-info", requireAuth, requireSuperAdmin, async (_req, res) => {
+  try {
+    const cwd = process.cwd();
+    const remoteUrl = (() => { try { return execSync("git remote get-url github", { cwd, stdio: "pipe" }).toString().trim(); } catch { return ""; } })();
+    if (!remoteUrl) return res.json({ hasToken: false });
+
+    const match = remoteUrl.match(/\/\/([^@]+)@/);
+    if (!match) return res.json({ hasToken: false });
+
+    const credPart = match[1];
+    const token = credPart.includes(":") ? credPart.split(":").pop()! : credPart;
+    const masked = token.length > 8 ? token.slice(0, 4) + "•".repeat(token.length - 8) + token.slice(-4) : "•".repeat(token.length);
+
+    let expiresAt: string | null = null;
+    try {
+      const resp = await fetch("https://api.github.com/", {
+        headers: { Authorization: `Bearer ${token}`, "User-Agent": "etax-center" },
+      });
+      const expHeader = resp.headers.get("github-authentication-token-expiration");
+      if (expHeader) {
+        expiresAt = expHeader;
+      }
+    } catch {}
+
+    res.json({ hasToken: true, masked, full: token, expiresAt });
+  } catch (err: any) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 // ========== Database Backup & Clone ==========
 
 app.get("/api/platform/clone-progress", requireAuth, requireAdmin, (_req, res) => {
