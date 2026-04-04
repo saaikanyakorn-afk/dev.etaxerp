@@ -13,7 +13,7 @@ import {
   MonitorSmartphone, Cloud, Monitor, Wifi, WifiOff,
   ArrowRight, Database, Globe, MapPin, RefreshCw,
   Key, Shield, Copy, Download, Lock, Unlock, History, AlertTriangle,
-  ChevronDown, ChevronRight, Star,
+  ChevronDown, ChevronRight, Star, Network, Plug, Radio,
 } from "lucide-react";
 
 interface MachineRecord {
@@ -46,8 +46,34 @@ interface MachineRecord {
   envContent: string | null;
   isOfficial: boolean;
   targetDbMachineId: number | null;
+  internetType: string;
+  physicalLocation: string | null;
   createdAt?: string;
   updatedAt?: string;
+}
+
+interface NicRecord {
+  id: number;
+  machineId: number;
+  nicName: string;
+  macAddress: string | null;
+  ipAddress: string;
+  subnetMask: string;
+  forwardedFor: string | null;
+  forwardedPort: string | null;
+  notes: string | null;
+  createdAt?: string;
+}
+
+function ipToInt(ip: string): number {
+  return ip.split(".").reduce((acc, oct) => (acc << 8) + parseInt(oct, 10), 0) >>> 0;
+}
+
+function sameSubnet(ip1: string, ip2: string, mask1: string, mask2: string): boolean {
+  const m1 = ipToInt(mask1);
+  const m2 = ipToInt(mask2);
+  if (m1 !== m2) return false;
+  return (ipToInt(ip1) & m1) === (ipToInt(ip2) & m1);
 }
 
 const OS_CONFIG: Record<string, { icon: any; label: string; color: string }> = {
@@ -69,7 +95,160 @@ const ROLE_CONFIG: Record<string, { label: string; color: string; bgColor: strin
   backup: { label: "Backup", color: "text-gray-700", bgColor: "bg-gray-100" },
 };
 
-function MachineCard({ machine, onEdit, expanded, onToggle, onToggleOfficial, allMachines, onChangeTarget }: {
+function NicSection({ machineId, allNics, allMachines }: { machineId: number; allNics: NicRecord[]; allMachines: MachineRecord[] }) {
+  const [adding, setAdding] = useState(false);
+  const [form, setForm] = useState({ nicName: "", macAddress: "", ipAddress: "", subnetMask: "255.255.255.0", forwardedFor: "", forwardedPort: "", notes: "" });
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const myNics = allNics.filter(n => n.machineId === machineId);
+  const otherNics = allNics.filter(n => n.machineId !== machineId);
+
+  const lanPeers = new Map<number, { machineName: string; viaIp: string; peerIp: string }>();
+  for (const myNic of myNics) {
+    for (const otherNic of otherNics) {
+      if (!lanPeers.has(otherNic.machineId) && sameSubnet(myNic.ipAddress, otherNic.ipAddress, myNic.subnetMask, otherNic.subnetMask)) {
+        const peer = allMachines.find(m => m.id === otherNic.machineId);
+        if (peer) lanPeers.set(otherNic.machineId, { machineName: peer.localName, viaIp: myNic.ipAddress, peerIp: otherNic.ipAddress });
+      }
+    }
+  }
+
+  const addMut = useMutation({
+    mutationFn: async (data: typeof form) => {
+      const res = await fetch(`/api/platform/machines/${machineId}/nics`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
+      if (!res.ok) throw new Error((await res.json()).message);
+      return res.json();
+    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/platform/all-nics"] }); setAdding(false); setForm({ nicName: "", macAddress: "", ipAddress: "", subnetMask: "255.255.255.0", forwardedFor: "", forwardedPort: "", notes: "" }); toast({ title: "เพิ่ม NIC แล้ว" }); },
+    onError: (err: any) => toast({ title: "เกิดข้อผิดพลาด", description: err.message, variant: "destructive" }),
+  });
+
+  const deleteMut = useMutation({
+    mutationFn: async (nicId: number) => {
+      const res = await fetch(`/api/platform/machine-nics/${nicId}`, { method: "DELETE" });
+      if (!res.ok) throw new Error((await res.json()).message);
+    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/platform/all-nics"] }); toast({ title: "ลบ NIC แล้ว" }); },
+    onError: (err: any) => toast({ title: "เกิดข้อผิดพลาด", description: err.message, variant: "destructive" }),
+  });
+
+  const FORWARD_LABELS: Record<string, { label: string; color: string; icon: any }> = {
+    db: { label: "DB", color: "bg-purple-100 text-purple-700 border-purple-300", icon: Database },
+    app: { label: "App (80/443)", color: "bg-blue-100 text-blue-700 border-blue-300", icon: Globe },
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <h4 className="text-xs font-semibold text-gray-500 flex items-center gap-1.5">
+          <Network className="h-3.5 w-3.5" />
+          Network Interfaces ({myNics.length})
+        </h4>
+        <Button size="sm" variant="ghost" className="h-6 text-xs px-2" onClick={(e) => { e.stopPropagation(); setAdding(!adding); }} data-testid={`btn-add-nic-${machineId}`}>
+          <Plus className="h-3 w-3 mr-1" /> เพิ่ม NIC
+        </Button>
+      </div>
+
+      {myNics.length === 0 && !adding && (
+        <div className="text-xs text-gray-400 italic p-2 border border-dashed rounded text-center">ยังไม่มีข้อมูล NIC</div>
+      )}
+
+      {myNics.map(nic => {
+        const fwd = nic.forwardedFor ? FORWARD_LABELS[nic.forwardedFor] : null;
+        const FwdIcon = fwd?.icon || Plug;
+        return (
+          <div key={nic.id} className="flex items-center gap-2 p-2 bg-white border rounded text-xs group" data-testid={`nic-row-${nic.id}`}>
+            <Plug className="h-3.5 w-3.5 text-gray-400 shrink-0" />
+            <span className="font-medium text-gray-700 w-24 truncate">{nic.nicName}</span>
+            <span className="font-mono text-blue-600 font-bold">{nic.ipAddress}</span>
+            <span className="font-mono text-gray-400 text-[10px]">/{nic.subnetMask}</span>
+            {nic.macAddress && <span className="font-mono text-gray-400 text-[10px] hidden lg:inline">{nic.macAddress}</span>}
+            {fwd && (
+              <Badge variant="outline" className={`${fwd.color} text-[10px] px-1.5 py-0 flex items-center gap-0.5`}>
+                <Radio className="h-2.5 w-2.5" />
+                Forwarded → {fwd.label}
+                {nic.forwardedFor === "db" && nic.forwardedPort && <span className="font-mono">:{nic.forwardedPort}</span>}
+              </Badge>
+            )}
+            {!fwd && <Badge variant="outline" className="bg-gray-50 text-gray-500 border-gray-300 text-[10px] px-1.5 py-0">LAN only</Badge>}
+            {nic.notes && <span className="text-gray-400 italic truncate hidden md:inline">{nic.notes}</span>}
+            <button onClick={(e) => { e.stopPropagation(); if (confirm("ลบ NIC นี้?")) deleteMut.mutate(nic.id); }} className="ml-auto opacity-0 group-hover:opacity-100 p-0.5 hover:bg-red-100 rounded text-red-400 transition-opacity" data-testid={`btn-delete-nic-${nic.id}`}>
+              <Trash2 className="h-3 w-3" />
+            </button>
+          </div>
+        );
+      })}
+
+      {adding && (
+        <div className="p-3 bg-blue-50/50 border border-blue-200 rounded-lg space-y-2" onClick={e => e.stopPropagation()}>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+            <div>
+              <Label className="text-[10px] text-gray-500">ชื่อ NIC *</Label>
+              <Input className="h-7 text-xs" placeholder="Ethernet 1" value={form.nicName} onChange={e => setForm({ ...form, nicName: e.target.value })} data-testid={`input-nic-name-${machineId}`} />
+            </div>
+            <div>
+              <Label className="text-[10px] text-gray-500">IP Address *</Label>
+              <Input className="h-7 text-xs font-mono" placeholder="192.168.1.100" value={form.ipAddress} onChange={e => setForm({ ...form, ipAddress: e.target.value })} data-testid={`input-nic-ip-${machineId}`} />
+            </div>
+            <div>
+              <Label className="text-[10px] text-gray-500">Subnet Mask</Label>
+              <Input className="h-7 text-xs font-mono" placeholder="255.255.255.0" value={form.subnetMask} onChange={e => setForm({ ...form, subnetMask: e.target.value })} data-testid={`input-nic-subnet-${machineId}`} />
+            </div>
+            <div>
+              <Label className="text-[10px] text-gray-500">MAC Address</Label>
+              <Input className="h-7 text-xs font-mono" placeholder="AA:BB:CC:DD:EE:FF" value={form.macAddress} onChange={e => setForm({ ...form, macAddress: e.target.value })} data-testid={`input-nic-mac-${machineId}`} />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+            <div>
+              <Label className="text-[10px] text-gray-500">Port Forwarding</Label>
+              <Select value={form.forwardedFor || "none"} onValueChange={val => setForm({ ...form, forwardedFor: val === "none" ? "" : val, forwardedPort: val !== "db" ? "" : form.forwardedPort })}>
+                <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">ไม่มี (LAN only)</SelectItem>
+                  <SelectItem value="db">Forward → Database</SelectItem>
+                  <SelectItem value="app">Forward → App (80/443)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {form.forwardedFor === "db" && (
+              <div>
+                <Label className="text-[10px] text-gray-500">External Port</Label>
+                <Input className="h-7 text-xs font-mono" placeholder="20541" value={form.forwardedPort} onChange={e => setForm({ ...form, forwardedPort: e.target.value })} data-testid={`input-nic-fwd-port-${machineId}`} />
+              </div>
+            )}
+            <div>
+              <Label className="text-[10px] text-gray-500">หมายเหตุ</Label>
+              <Input className="h-7 text-xs" placeholder="" value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} data-testid={`input-nic-notes-${machineId}`} />
+            </div>
+          </div>
+          <div className="flex gap-2 justify-end">
+            <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setAdding(false)}>ยกเลิก</Button>
+            <Button size="sm" className="h-7 text-xs bg-blue-600 hover:bg-blue-700" onClick={() => addMut.mutate(form)} disabled={!form.nicName || !form.ipAddress} data-testid={`btn-save-nic-${machineId}`}>
+              <Check className="h-3 w-3 mr-1" /> บันทึก
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {lanPeers.size > 0 && (
+        <div className="p-2 bg-green-50/50 border border-green-200 rounded-lg">
+          <h5 className="text-[10px] font-semibold text-green-700 mb-1 flex items-center gap-1"><Wifi className="h-3 w-3" /> LAN Connectivity (คำนวณจาก subnet)</h5>
+          <div className="flex flex-wrap gap-1.5">
+            {Array.from(lanPeers.entries()).map(([peerId, info]) => (
+              <Badge key={peerId} variant="outline" className="bg-green-100 text-green-800 border-green-300 text-[10px] px-1.5 py-0.5">
+                {info.machineName}
+                <span className="font-mono ml-1 text-green-600">{info.peerIp}</span>
+              </Badge>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MachineCard({ machine, onEdit, expanded, onToggle, onToggleOfficial, allMachines, onChangeTarget, allNics }: {
   machine: MachineRecord;
   onEdit: (m: MachineRecord) => void;
   expanded: boolean;
@@ -77,6 +256,7 @@ function MachineCard({ machine, onEdit, expanded, onToggle, onToggleOfficial, al
   onToggleOfficial: (id: number, val: boolean) => void;
   allMachines: MachineRecord[];
   onChangeTarget: (id: number, targetId: number | null) => void;
+  allNics: NicRecord[];
 }) {
   const [showPw, setShowPw] = useState(false);
   const osConfig = OS_CONFIG[machine.os] || OS_CONFIG.linux;
@@ -87,6 +267,8 @@ function MachineCard({ machine, onEdit, expanded, onToggle, onToggleOfficial, al
   const targetDb = machine.targetDbMachineId ? allMachines.find(m => m.id === machine.targetDbMachineId) : null;
   const isSelfTarget = machine.targetDbMachineId === machine.id;
   const targetLabel = isSelfTarget ? "local DB" : targetDb ? targetDb.localName : null;
+  const nicCount = allNics.filter(n => n.machineId === machine.id).length;
+  const hasForwarding = allNics.some(n => n.machineId === machine.id && n.forwardedFor);
 
   return (
     <div className={`border rounded-lg transition-all ${isOfficial ? "border-amber-400 bg-amber-50/50 ring-1 ring-amber-300" : osConfig.color} ${expanded ? "shadow-md" : "hover:shadow-sm"}`} data-testid={`card-machine-${machine.id}`}>
@@ -111,6 +293,13 @@ function MachineCard({ machine, onEdit, expanded, onToggle, onToggleOfficial, al
           <Badge className={`${roleConfig.bgColor} ${roleConfig.color} text-[10px] px-1.5 py-0`}>
             {roleConfig.label}
           </Badge>
+          {nicCount > 0 && (
+            <span className="hidden sm:inline-flex items-center gap-0.5 text-[10px] text-gray-400">
+              <Network className="h-3 w-3" />
+              {nicCount}
+              {hasForwarding && <Radio className="h-2.5 w-2.5 text-purple-400" />}
+            </span>
+          )}
           {isOfficial && <Badge className="bg-amber-500 text-white text-[10px] px-1.5 py-0">Official</Badge>}
           {machine.encContent && <Lock className="h-3 w-3 text-green-600" />}
         </div>
@@ -136,12 +325,14 @@ function MachineCard({ machine, onEdit, expanded, onToggle, onToggleOfficial, al
               <span className="font-mono text-xs">{machine.domainName || "—"}</span>
             </div>
             <div>
-              <span className="text-gray-400 text-xs block">LAN IP</span>
-              <span className="font-mono text-xs">{machine.lanIp || "—"}</span>
-            </div>
-            <div>
               <span className="text-gray-400 text-xs block">WAN IP</span>
               <span className="font-mono text-xs">{machine.wanIp || "—"}</span>
+            </div>
+            <div>
+              <span className="text-gray-400 text-xs block">Internet</span>
+              <span className={`text-xs font-medium ${machine.internetType === "fixed" ? "text-green-600" : "text-orange-500"}`}>
+                {machine.internetType === "fixed" ? "Fixed IP" : "Dynamic (DDNS)"}
+              </span>
             </div>
             <div>
               <span className="text-gray-400 text-xs block">DB</span>
@@ -160,6 +351,12 @@ function MachineCard({ machine, onEdit, expanded, onToggle, onToggleOfficial, al
                 </button>
               </div>
             </div>
+            {machine.physicalLocation && (
+              <div>
+                <span className="text-gray-400 text-xs block">สถานที่ตั้ง</span>
+                <span className="text-xs flex items-center gap-1"><MapPin className="h-3 w-3 text-red-400" />{machine.physicalLocation}</span>
+              </div>
+            )}
           </div>
 
           {(machine.machineModel || machine.cpuModel || machine.ramSize) && (
@@ -169,6 +366,8 @@ function MachineCard({ machine, onEdit, expanded, onToggle, onToggleOfficial, al
               {machine.ramSize && <span>RAM: {machine.ramSize}</span>}
             </div>
           )}
+
+          <NicSection machineId={machine.id} allNics={allNics} allMachines={allMachines} />
 
           <div className="flex items-center gap-2 p-2 bg-gray-50 rounded-lg border border-gray-200">
             <Database className="h-4 w-4 text-purple-500 shrink-0" />
@@ -278,6 +477,8 @@ function EditMachineDialog({
     dbPassword: machine?.dbPassword || "",
     notes: machine?.notes || "",
     envContent: machine?.envContent || "",
+    internetType: machine?.internetType || "dynamic",
+    physicalLocation: machine?.physicalLocation || "",
   });
 
   return (
@@ -317,6 +518,23 @@ function EditMachineDialog({
             <div>
               <Label className="text-sm font-medium">WAN IP</Label>
               <Input value={form.wanIp} onChange={e => setForm({ ...form, wanIp: e.target.value })} placeholder="เช่น 184.82.211.214" data-testid="input-wan-ip" />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label className="text-sm font-medium">Internet Type</Label>
+              <Select value={form.internetType} onValueChange={(v: any) => setForm({ ...form, internetType: v })}>
+                <SelectTrigger data-testid="select-internet-type"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="dynamic">Dynamic IP (ใช้ DDNS)</SelectItem>
+                  <SelectItem value="fixed">Fixed IP (คงที่)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-sm font-medium">สถานที่ตั้ง</Label>
+              <Input value={form.physicalLocation} onChange={e => setForm({ ...form, physicalLocation: e.target.value })} placeholder="เช่น บ้านพี่ช้าง ห้องเซิร์ฟเวอร์" data-testid="input-physical-location" />
             </div>
           </div>
 
@@ -901,6 +1119,10 @@ export default function AllServers() {
     queryKey: ["/api/platform/machines"],
   });
 
+  const { data: allNics = [] } = useQuery<NicRecord[]>({
+    queryKey: ["/api/platform/all-nics"],
+  });
+
   const createMut = useMutation({
     mutationFn: async (data: any) => {
       const res = await fetch("/api/platform/machines", {
@@ -1052,6 +1274,7 @@ export default function AllServers() {
                       onToggleOfficial={(id, val) => officialMut.mutate({ id, isOfficial: val })}
                       allMachines={machines}
                       onChangeTarget={(id, targetId) => targetDbMut.mutate({ id, targetDbMachineId: targetId })}
+                      allNics={allNics}
                     />
                   ))}
                 </div>
