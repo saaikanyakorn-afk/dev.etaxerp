@@ -39,7 +39,7 @@ const TECH_NAV = [
   { icon: ArrowLeftRight, label: "สลับฐานข้อมูล", href: "/platform/db-switch" },
   { icon: Database, label: "Clone ฐานข้อมูล", href: "/platform/backup" },
   { icon: Wrench, label: "Maintenance Schedule", href: "/platform/maintenance" },
-  { icon: Download, label: "Github Push & Pull", href: "/platform/download-source" },
+  { icon: Download, label: "Github Push & Pull", href: "/platform/github" },
   { icon: FolderArchive, label: "FTP Archive Settings", href: "/settings/ftp-archive" },
   { icon: FolderArchive, label: "TRCloud Legacy Import", href: "/legacy-import" },
 ];

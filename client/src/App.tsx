@@ -65,7 +65,7 @@ import PlatformPaymentSettings from "@/pages/platform/payment-settings";
 import DatabaseBackup from "@/pages/platform/database-backup";
 import DatabaseServers from "@/pages/platform/database-servers";
 import DatabaseSwitch from "@/pages/platform/database-switch";
-import DownloadSource from "@/pages/platform/download-source";
+import GithubManagement from "@/pages/platform/github-management";
 import PlatformMaintenance from "@/pages/platform/maintenance";
 import PasswordManagement from "@/pages/platform/password-management";
 import Dashboard from "@/pages/dashboard";
@@ -601,7 +601,7 @@ function Router() {
       <Route path="/platform/maintenance" component={PlatformMaintenance} />
       <Route path="/dev/pdf-stress-test" component={PdfStressTest} />
       <Route path="/platform/passwords" component={PasswordManagement} />
-      <Route path="/platform/download-source" component={DownloadSource} />
+      <Route path="/platform/github" component={GithubManagement} />
       <Route path="/journal" component={Journal} />
       <Route path="/journal/new" component={JournalForm} />
       <Route path="/journal/edit/:id" component={JournalForm} />
