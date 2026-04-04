@@ -25,19 +25,19 @@ import {
 import DevMenu from "@/components/dev-menu";
 
 function LandingVersionBadge() {
-  const { data: ver } = useQuery<{ shortHash: string; date: string }>({
+  const { data: ver } = useQuery<{ shortHash: string; date: string; version: string }>({
     queryKey: ["/api/version"],
     queryFn: async () => {
       const res = await fetch("/api/version");
-      if (!res.ok) return { shortHash: "?", date: "" };
+      if (!res.ok) return { shortHash: "?", date: "", version: "" };
       return res.json();
     },
     staleTime: Infinity,
   });
   if (!ver || ver.shortHash === "?") return null;
   return (
-    <span className="text-[10px] font-mono text-gray-400 hidden sm:inline select-none" title={`Build: ${ver.shortHash} (${ver.date?.slice(0, 10)})`} data-testid="text-landing-version">
-      v.{ver.shortHash}
+    <span className="text-xs font-mono text-gray-400 select-none" title={`Build: ${ver.shortHash} (${ver.date?.slice(0, 10)})`} data-testid="text-landing-version">
+      v{ver.version || ver.shortHash}
     </span>
   );
 }

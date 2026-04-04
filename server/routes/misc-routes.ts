@@ -7,13 +7,17 @@ import { getMaintenanceStatus, activateNow, liftMaintenance, isMaintenanceMode, 
 import { execSync } from "child_process";
 import { getConfig } from "../config-bootstrap";
 
-function getGitVersion(): { hash: string; shortHash: string; date: string; message: string } {
+function getGitVersion(): { hash: string; shortHash: string; date: string; message: string; version: string } {
+  let version = "1.0.0";
+  try { version = require("fs").readFileSync(require("path").join(process.cwd(), "VERSION"), "utf-8").trim(); } catch {}
+
   if (process.env.NODE_ENV === "production") {
     try {
       const fs = require("fs");
       const versionPath = require("path").join(__dirname, "..", "version.json");
       if (fs.existsSync(versionPath)) {
-        return JSON.parse(fs.readFileSync(versionPath, "utf-8"));
+        const data = JSON.parse(fs.readFileSync(versionPath, "utf-8"));
+        return { ...data, version: data.version || version };
       }
     } catch {}
   }
@@ -22,9 +26,9 @@ function getGitVersion(): { hash: string; shortHash: string; date: string; messa
     const hash = execSync("git rev-parse HEAD", { encoding: "utf-8" }).trim();
     const date = execSync('git log -1 --format="%ci"', { encoding: "utf-8" }).trim();
     const message = execSync('git log -1 --format="%s"', { encoding: "utf-8" }).trim();
-    return { hash, shortHash, date, message };
+    return { hash, shortHash, date, message, version };
   } catch {
-    return { hash: "unknown", shortHash: "unknown", date: new Date().toISOString(), message: "" };
+    return { hash: "unknown", shortHash: "unknown", date: new Date().toISOString(), message: "", version };
   }
 }
 const BUILD_VERSION = getGitVersion();
