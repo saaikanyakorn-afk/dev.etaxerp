@@ -275,6 +275,11 @@ app.post("/api/platform/github/push", requireAuth, requireSuperAdmin, async (req
     execSync("git checkout replit-agent", { cwd, stdio: "pipe" });
     execSync("git branch -D deploy-temp", { cwd, stdio: "pipe" });
 
+    fs.writeFileSync(versionFile, newVersion + "\n");
+    try {
+      execSync(`git add VERSION && git commit -m "Bump version to ${newVersion}"`, { cwd, stdio: "pipe" });
+    } catch {}
+
     res.json({ success: true, version: newVersion, tag, message: fullMsg });
   } catch (err: any) {
     try { execSync("git checkout replit-agent", { cwd: process.cwd(), stdio: "pipe" }); } catch {}

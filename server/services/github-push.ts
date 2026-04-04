@@ -63,6 +63,12 @@ function pushToGitHub(): boolean {
     execSync(`git push ${authUrl} ${tag} --force`, { cwd, stdio: "pipe", timeout: 30000 });
     execSync("git checkout replit-agent", { cwd, stdio: "pipe" });
     execSync("git branch -D deploy-temp", { cwd, stdio: "pipe" });
+
+    fs.writeFileSync(VERSION_FILE, newVersion + "\n");
+    try {
+      execSync(`git add VERSION && git commit -m "Bump version to ${newVersion}"`, { cwd, stdio: "pipe" });
+    } catch {}
+
     lastPushDate = today;
     console.log(`[GitHub Auto-Push] ✓ ${tag} pushed (${today})`);
     return true;
