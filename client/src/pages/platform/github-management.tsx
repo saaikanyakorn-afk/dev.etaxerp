@@ -171,21 +171,9 @@ export default function GithubManagement() {
   return (
     <PlatformLayout>
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900" data-testid="text-github-title">Github Push & Pull</h1>
-            <p className="text-gray-500 mt-1">จัดการ source code ระหว่าง Replit กับ GitHub</p>
-          </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={refetchAll}
-            disabled={localFetching || remoteFetching}
-            data-testid="button-refresh-info"
-          >
-            <RefreshCw className={`h-4 w-4 mr-1.5 ${(localFetching || remoteFetching) ? "animate-spin" : ""}`} />
-            Refresh
-          </Button>
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900" data-testid="text-github-title">Github Push & Pull</h1>
+          <p className="text-gray-500 mt-1">จัดการ source code ระหว่าง Replit กับ GitHub</p>
         </div>
 
         {error && (
@@ -205,7 +193,19 @@ export default function GithubManagement() {
           <div className="flex items-center gap-2 mb-1">
             <Server className="h-5 w-5 text-blue-600" />
             <h2 className="text-lg font-semibold text-gray-900">Replit Source Code</h2>
-            <span className="text-xs text-blue-600 bg-blue-100 px-2 py-0.5 rounded-full ml-auto">Local</span>
+            <div className="flex items-center gap-2 ml-auto">
+              <span className="text-xs text-blue-600 bg-blue-100 px-2 py-0.5 rounded-full">Local</span>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => refetchLocal()}
+                disabled={localFetching}
+                className="h-7 px-2 text-blue-600 hover:text-blue-700 hover:bg-blue-100"
+                data-testid="button-refresh-local"
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${localFetching ? "animate-spin" : ""}`} />
+              </Button>
+            </div>
           </div>
 
           {localLoading ? (
@@ -383,11 +383,23 @@ export default function GithubManagement() {
           <div className="flex items-center gap-2 mb-1">
             <Globe className="h-5 w-5 text-gray-700" />
             <h2 className="text-lg font-semibold text-gray-900">GitHub Source Code</h2>
-            {remoteInfo?.hasRemote && (
-              <span className={`text-xs px-2 py-0.5 rounded-full ml-auto ${remoteInfo.reachable ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
-                {remoteInfo.reachable ? "Connected" : "Unreachable"}
-              </span>
-            )}
+            <div className="flex items-center gap-2 ml-auto">
+              {remoteInfo?.hasRemote && (
+                <span className={`text-xs px-2 py-0.5 rounded-full ${remoteInfo.reachable ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
+                  {remoteInfo.reachable ? "Connected" : "Unreachable"}
+                </span>
+              )}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => refetchRemote()}
+                disabled={remoteFetching}
+                className="h-7 px-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100"
+                data-testid="button-refresh-remote"
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${remoteFetching ? "animate-spin" : ""}`} />
+              </Button>
+            </div>
           </div>
 
           {remoteLoading ? (
