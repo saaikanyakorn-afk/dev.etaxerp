@@ -1391,7 +1391,65 @@ function TargetDbSelector({ machine, allMachines, onChangeTarget }: {
         {targetMachine && (
           <span className="text-[10px] text-gray-400 font-mono hidden lg:inline">{targetMachine.domainName || targetMachine.lanIp || ""}</span>
         )}
+        {!hasChanged && !isNone && (
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-7 w-7 p-0 text-purple-400 hover:text-purple-600 hover:bg-purple-50 shrink-0"
+            onClick={handleTest}
+            disabled={testStatus === "testing"}
+            title="ทดสอบการเชื่อมต่อ"
+            data-testid={`btn-retest-db-${machine.id}`}
+          >
+            {testStatus === "testing" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+          </Button>
+        )}
       </div>
+
+      {!hasChanged && testStatus === "done" && (
+        <div className="space-y-1 bg-white rounded border border-gray-200 p-2">
+          {isIncomplete && testError && (
+            <div className="flex items-center gap-1.5 text-[11px] text-amber-600 bg-amber-50 border border-amber-200 rounded px-2 py-1.5">
+              <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+              <span>{testError}</span>
+            </div>
+          )}
+          {pathResults.length > 0 && (
+            <>
+              <div className="text-[10px] font-medium text-gray-500 mb-1">
+                ผลทดสอบ ({pathResults.filter(p => p.alive).length}/{pathResults.length} เส้นทางเชื่อมต่อได้)
+              </div>
+              {pathResults.map((p, i) => (
+                <div key={i} className={`flex items-center gap-2 px-2 py-1 rounded text-[11px] font-mono ${p.alive ? "bg-green-50 border border-green-200" : "bg-red-50 border border-red-200"}`}>
+                  {p.alive ? <CheckCircle2 className="h-3 w-3 text-green-500 shrink-0" /> : <XCircle className="h-3 w-3 text-red-400 shrink-0" />}
+                  <span className={`font-semibold w-14 shrink-0 ${p.alive ? "text-green-700" : "text-red-600"}`}>{p.label}</span>
+                  <span className="text-gray-600 truncate">{p.host}:{p.port}</span>
+                  {p.alive ? (
+                    <>
+                      <span className="text-green-600 ml-auto shrink-0">{p.latency}ms</span>
+                      <span className="text-green-500 text-[9px] hidden sm:inline">{p.version?.match(/PostgreSQL [\d.]+/)?.[0] || ""}</span>
+                    </>
+                  ) : (
+                    <span className="text-red-400 text-[9px] ml-auto truncate max-w-[200px]" title={p.error}>{p.error}</span>
+                  )}
+                </div>
+              ))}
+            </>
+          )}
+          {skippedPaths.length > 0 && skippedPaths.map((s, i) => (
+            <div key={`skip-${i}`} className="flex items-center gap-2 px-2 py-1 rounded text-[11px] font-mono bg-gray-100 border border-gray-200 text-gray-400">
+              <span className="font-semibold w-14 shrink-0">{s.label}</span>
+              <span className="truncate">{s.host}</span>
+              <span className="text-[9px] ml-auto italic">{s.reason}</span>
+            </div>
+          ))}
+          {!isIncomplete && testError && pathResults.length === 0 && (
+            <div className="text-[10px] text-gray-500 flex items-center gap-1">
+              <AlertTriangle className="h-3 w-3 text-gray-400" /> {testError}
+            </div>
+          )}
+        </div>
+      )}
 
       {hasChanged && (
         <div className="space-y-2">
