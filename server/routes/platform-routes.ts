@@ -306,6 +306,31 @@ app.post("/api/platform/github/pull", requireAuth, requireSuperAdmin, async (_re
   }
 });
 
+app.get("/api/platform/github/largest-files", requireAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const { execSync } = require("child_process");
+    const cwd = process.cwd();
+    const limit = Math.min(Math.max(Number(req.query.limit) || 10, 1), 50);
+
+    const raw = execSync(
+      `find client/src server shared -name '*.ts' -o -name '*.tsx' 2>/dev/null | xargs wc -l 2>/dev/null | sort -rn | head -${limit + 1}`,
+      { cwd, stdio: "pipe", timeout: 30000 }
+    ).toString().trim();
+
+    const files: { lines: number; file: string }[] = [];
+    for (const line of raw.split("\n")) {
+      const match = line.trim().match(/^(\d+)\s+(.+)$/);
+      if (match && !match[2].includes("total")) {
+        files.push({ lines: Number(match[1]), file: match[2] });
+      }
+    }
+
+    res.json({ files: files.slice(0, limit) });
+  } catch (err: any) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 // ========== Database Backup & Clone ==========
 
 app.get("/api/platform/clone-progress", requireAuth, requireAdmin, (_req, res) => {
