@@ -1576,16 +1576,34 @@ export function registerPosRoutes(app: Express) {
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
-  app.get("/api/pos/staff/template", requireAuth, requireModule("pos"), async (_req, res) => {
+  app.get("/api/pos/staff/template", requireAuth, requireModule("pos"), async (req, res) => {
     try {
+      const currentUser = req.user as any;
+      const companyId = Number(req.query.companyId) || currentUser.primaryCompanyId;
+
+      const branchList = companyId
+        ? await db.select().from(branches).where(eq(branches.companyId, companyId)).orderBy(branches.name)
+        : [];
+
       const wb = XLSX.utils.book_new();
       const ws = XLSX.utils.aoa_to_sheet([
-        ["ชื่อ-นามสกุล", "ชื่อผู้ใช้ (username)", "รหัสผ่าน", "ตำแหน่ง (staff/branch_manager)", "รหัสสาขา (คั่นด้วย ,)"],
-        ["สมชาย ใจดี", "somchai", "1234", "staff", "1,2"],
-        ["สมหญิง แก้วใส", "somying", "1234", "branch_manager", "3"],
+        ["ชื่อ-นามสกุล", "ชื่อผู้ใช้ (username)", "รหัสผ่าน", "ตำแหน่ง (staff/branch_manager/cashier)", "ชื่อสาขา (คั่นด้วย ,)"],
+        ["สมชาย ใจดี", "somchai", "1234", "cashier", branchList[0]?.name || "สาขา 1"],
+        ["สมหญิง แก้วใส", "somying", "1234", "branch_manager", branchList[0]?.name || "สาขา 1"],
+        ["สมศักดิ์ มีสุข", "somsak", "1234", "staff", branchList.length > 1 ? `${branchList[0].name},${branchList[1].name}` : "สาขา 1,สาขา 2"],
       ]);
-      ws["!cols"] = [{ wch: 25 }, { wch: 20 }, { wch: 15 }, { wch: 25 }, { wch: 20 }];
+      ws["!cols"] = [{ wch: 25 }, { wch: 20 }, { wch: 15 }, { wch: 35 }, { wch: 30 }];
       XLSX.utils.book_append_sheet(wb, ws, "พนักงาน POS");
+
+      if (branchList.length > 0) {
+        const bws = XLSX.utils.aoa_to_sheet([
+          ["รหัสสาขา (ID)", "ชื่อสาขา", "รหัสสาขา (Code)"],
+          ...branchList.map(b => [b.id, b.name, (b as any).code || ""]),
+        ]);
+        bws["!cols"] = [{ wch: 15 }, { wch: 30 }, { wch: 20 }];
+        XLSX.utils.book_append_sheet(wb, bws, "รายชื่อสาขา");
+      }
+
       const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
       res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
       res.setHeader("Content-Disposition", "attachment; filename=pos_staff_template.xlsx");
@@ -1601,6 +1619,16 @@ export function registerPosRoutes(app: Express) {
       if (!req.file) return res.status(400).json({ message: "กรุณาอัปโหลดไฟล์" });
 
       const companyIds = req.body.companyIds ? JSON.parse(req.body.companyIds) : [];
+      const companyId = companyIds[0] || currentUser.primaryCompanyId;
+
+      const branchList = companyId
+        ? await db.select().from(branches).where(eq(branches.companyId, companyId))
+        : [];
+      const branchNameMap = new Map<string, number>();
+      for (const b of branchList) {
+        branchNameMap.set(b.name.trim().toLowerCase(), b.id);
+        if ((b as any).code) branchNameMap.set(String((b as any).code).trim().toLowerCase(), b.id);
+      }
 
       const wb = XLSX.read(req.file.buffer, { type: "buffer" });
       const ws = wb.Sheets[wb.SheetNames[0]];
@@ -1609,6 +1637,7 @@ export function registerPosRoutes(app: Express) {
       if (rows.length < 2) return res.status(400).json({ message: "ไฟล์ว่างหรือไม่มีข้อมูล" });
 
       const results = { created: 0, skipped: 0, errors: [] as string[] };
+      const validRoles = ["staff", "branch_manager", "cashier"];
 
       for (let i = 1; i < rows.length; i++) {
         const row = rows[i];
@@ -1617,11 +1646,11 @@ export function registerPosRoutes(app: Express) {
         const fullName = String(row[0]).trim();
         const username = String(row[1] || "").trim();
         const password = String(row[2] || "").trim();
-        const role = String(row[3] || "staff").trim();
-        const branchIdsStr = String(row[4] || "").trim();
+        const role = String(row[3] || "staff").trim().toLowerCase();
+        const branchNamesStr = String(row[4] || "").trim();
 
         if (!username || !password || !fullName) {
-          results.errors.push(`แถว ${i + 1}: ข้อมูลไม่ครบ`);
+          results.errors.push(`แถว ${i + 1}: ข้อมูลไม่ครบ (ต้องมีชื่อ, username, รหัสผ่าน)`);
           results.skipped++;
           continue;
         }
@@ -1633,14 +1662,31 @@ export function registerPosRoutes(app: Express) {
           continue;
         }
 
-        const branchIds = branchIdsStr ? branchIdsStr.split(",").map(s => Number(s.trim())).filter(n => !isNaN(n)) : [];
+        const branchIds: number[] = [];
+        if (branchNamesStr) {
+          const parts = branchNamesStr.split(",").map(s => s.trim());
+          for (const part of parts) {
+            const asNum = Number(part);
+            if (!isNaN(asNum) && branchList.some(b => b.id === asNum)) {
+              branchIds.push(asNum);
+            } else {
+              const matchId = branchNameMap.get(part.toLowerCase());
+              if (matchId) {
+                branchIds.push(matchId);
+              } else {
+                results.errors.push(`แถว ${i + 1}: ไม่พบสาขา "${part}"`);
+              }
+            }
+          }
+        }
+
         const hashed = await hashPassword(password);
 
         await db.insert(users).values({
           username,
           password: hashed,
           fullName,
-          role: role === "branch_manager" ? "branch_manager" : "staff",
+          role: validRoles.includes(role) ? role : "staff",
           active: true,
           tenantId,
           allowedCompanyIds: companyIds,
