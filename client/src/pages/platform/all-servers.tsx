@@ -45,6 +45,7 @@ interface MachineRecord {
   encGeneratedAt: string | null;
   envContent: string | null;
   isOfficial: boolean;
+  targetDbMachineId: number | null;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -68,13 +69,24 @@ const ROLE_CONFIG: Record<string, { label: string; color: string; bgColor: strin
   backup: { label: "Backup", color: "text-gray-700", bgColor: "bg-gray-100" },
 };
 
-function MachineCard({ machine, onEdit, expanded, onToggle, onToggleOfficial }: { machine: MachineRecord; onEdit: (m: MachineRecord) => void; expanded: boolean; onToggle: () => void; onToggleOfficial: (id: number, val: boolean) => void }) {
+function MachineCard({ machine, onEdit, expanded, onToggle, onToggleOfficial, allMachines, onChangeTarget }: {
+  machine: MachineRecord;
+  onEdit: (m: MachineRecord) => void;
+  expanded: boolean;
+  onToggle: () => void;
+  onToggleOfficial: (id: number, val: boolean) => void;
+  allMachines: MachineRecord[];
+  onChangeTarget: (id: number, targetId: number | null) => void;
+}) {
   const [showPw, setShowPw] = useState(false);
   const osConfig = OS_CONFIG[machine.os] || OS_CONFIG.linux;
   const roleConfig = ROLE_CONFIG[machine.role] || ROLE_CONFIG.testing;
   const serverTypeConfig = SERVER_TYPE_CONFIG[machine.serverType] || SERVER_TYPE_CONFIG.app_database;
   const OsIcon = osConfig.icon;
   const isOfficial = machine.isOfficial;
+  const targetDb = machine.targetDbMachineId ? allMachines.find(m => m.id === machine.targetDbMachineId) : null;
+  const isSelfTarget = machine.targetDbMachineId === machine.id;
+  const targetLabel = isSelfTarget ? "local DB" : targetDb ? targetDb.localName : null;
 
   return (
     <div className={`border rounded-lg transition-all ${isOfficial ? "border-amber-400 bg-amber-50/50 ring-1 ring-amber-300" : osConfig.color} ${expanded ? "shadow-md" : "hover:shadow-sm"}`} data-testid={`card-machine-${machine.id}`}>
@@ -87,12 +99,15 @@ function MachineCard({ machine, onEdit, expanded, onToggle, onToggleOfficial }: 
         {isOfficial && <Star className="h-4 w-4 text-amber-500 fill-amber-400 shrink-0" />}
         <OsIcon className="h-4 w-4 shrink-0" />
         <span className={`font-bold text-sm truncate ${isOfficial ? "text-amber-900" : ""}`}>{machine.localName}</span>
-        <span className="text-xs text-gray-400 font-mono truncate hidden sm:inline">{machine.domainName || machine.lanIp || ""}</span>
+        {targetLabel && (
+          <span className="hidden sm:inline-flex items-center gap-1 text-xs text-gray-400">
+            <ArrowRight className="h-3 w-3" />
+            <Database className="h-3 w-3" />
+            <span className={`font-mono ${isSelfTarget ? "text-blue-500" : "text-purple-500"}`}>{targetLabel}</span>
+          </span>
+        )}
+        <span className="text-xs text-gray-400 font-mono truncate hidden md:inline">{machine.domainName || machine.lanIp || ""}</span>
         <div className="ml-auto flex items-center gap-1.5 shrink-0">
-          <span className="text-xs text-gray-400 font-mono">{machine.dbName}:{machine.dbPort}</span>
-          <Badge className={`${serverTypeConfig.badgeBg} ${serverTypeConfig.badge} text-[10px] px-1.5 py-0`}>
-            {serverTypeConfig.label}
-          </Badge>
           <Badge className={`${roleConfig.bgColor} ${roleConfig.color} text-[10px] px-1.5 py-0`}>
             {roleConfig.label}
           </Badge>
@@ -154,6 +169,45 @@ function MachineCard({ machine, onEdit, expanded, onToggle, onToggleOfficial }: 
               {machine.ramSize && <span>RAM: {machine.ramSize}</span>}
             </div>
           )}
+
+          <div className="flex items-center gap-2 p-2 bg-gray-50 rounded-lg border border-gray-200">
+            <Database className="h-4 w-4 text-purple-500 shrink-0" />
+            <span className="text-xs font-medium text-gray-600 shrink-0">Target DB:</span>
+            <Select
+              value={machine.targetDbMachineId ? String(machine.targetDbMachineId) : "none"}
+              onValueChange={(val) => {
+                const newTarget = val === "none" ? null : parseInt(val, 10);
+                onChangeTarget(machine.id, newTarget);
+              }}
+            >
+              <SelectTrigger className="h-7 text-xs flex-1 max-w-[220px]" data-testid={`select-target-db-${machine.id}`}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">
+                  <span className="text-gray-400">— ยังไม่ได้กำหนด</span>
+                </SelectItem>
+                <SelectItem value={String(machine.id)}>
+                  <span className="flex items-center gap-1">
+                    <span className="text-blue-600 font-medium">ตัวเอง (local DB)</span>
+                    <span className="text-gray-400 font-mono text-[10px]">{machine.dbName}:{machine.dbPort}</span>
+                  </span>
+                </SelectItem>
+                {allMachines.filter(m => m.id !== machine.id).map(m => (
+                  <SelectItem key={m.id} value={String(m.id)}>
+                    <span className="flex items-center gap-1">
+                      <span className="font-medium">{m.localName}</span>
+                      <span className="text-gray-400 font-mono text-[10px]">{m.dbName}:{m.dbPort}</span>
+                      {m.isOfficial && <Star className="h-3 w-3 text-amber-400 fill-amber-300" />}
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {targetDb && !isSelfTarget && (
+              <span className="text-[10px] text-gray-400 font-mono hidden lg:inline">{targetDb.domainName || targetDb.lanIp || ""}</span>
+            )}
+          </div>
 
           <div className="flex items-center gap-3">
             {machine.envContent && (
@@ -883,6 +937,25 @@ export default function AllServers() {
     onError: (err: any) => toast({ title: "เกิดข้อผิดพลาด", description: err.message, variant: "destructive" }),
   });
 
+  const targetDbMut = useMutation({
+    mutationFn: async ({ id, targetDbMachineId }: { id: number; targetDbMachineId: number | null }) => {
+      const res = await fetch(`/api/platform/machines/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ targetDbMachineId }),
+      });
+      if (!res.ok) throw new Error((await res.json()).message);
+      return res.json();
+    },
+    onSuccess: (_, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/platform/machines"] });
+      const target = vars.targetDbMachineId ? machines.find(m => m.id === vars.targetDbMachineId) : null;
+      const label = vars.targetDbMachineId === vars.id ? "local DB" : target ? target.localName : "ยกเลิก";
+      toast({ title: `เปลี่ยน Target DB เป็น ${label}` });
+    },
+    onError: (err: any) => toast({ title: "เกิดข้อผิดพลาด", description: err.message, variant: "destructive" }),
+  });
+
   const officialMut = useMutation({
     mutationFn: async ({ id, isOfficial }: { id: number; isOfficial: boolean }) => {
       const res = await fetch(`/api/platform/machines/${id}`, {
@@ -977,6 +1050,8 @@ export default function AllServers() {
                       expanded={expandedId === m.id}
                       onToggle={() => setExpandedId(expandedId === m.id ? null : m.id)}
                       onToggleOfficial={(id, val) => officialMut.mutate({ id, isOfficial: val })}
+                      allMachines={machines}
+                      onChangeTarget={(id, targetId) => targetDbMut.mutate({ id, targetDbMachineId: targetId })}
                     />
                   ))}
                 </div>

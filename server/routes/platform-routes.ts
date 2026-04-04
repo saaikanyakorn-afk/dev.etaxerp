@@ -2125,7 +2125,7 @@ app.patch("/api/platform/machines/:id", requireAuth, requireSuperAdmin, async (r
   try {
     const { machines: machinesTable } = await import("@shared/schema");
     const id = Number(req.params.id);
-    const { id: _id, createdAt: _ca, ...updates } = req.body;
+    const { id: _id, code: _code, createdAt: _ca, ...updates } = req.body;
     const [row] = await db.update(machinesTable).set({ ...updates, updatedAt: new Date() }).where(eq(machinesTable.id, id)).returning();
     if (!row) return res.status(404).json({ message: "ไม่พบเครื่องนี้" });
     res.json(row);
