@@ -193,7 +193,7 @@ async function renderReceiptToCanvas(data: ReceiptData, paper: PaperWidth): Prom
     y += logoH + 14;
   }
 
-  drawCenterBold(data.companyName, ft.title);
+  drawCenter(data.companyName, ft.title);
   if (data.companyNameEn) drawCenter(data.companyNameEn, ft.body);
   if (data.companyBranch && data.companyBranch !== "สำนักงานใหญ่" && data.companyBranchId && data.companyBranchId !== "00000") {
     drawCenter(`สาขา: ${data.companyBranch} (${data.companyBranchId})`, ft.body);
@@ -210,7 +210,7 @@ async function renderReceiptToCanvas(data: ReceiptData, paper: PaperWidth): Prom
   }
 
   y += 4;
-  drawCenterBold("ใบกำกับภาษีอย่างย่อ", ft.heading);
+  drawCenter("ใบกำกับภาษีอย่างย่อ", ft.heading);
   drawCenter("ABB. TAX INVOICE", ft.body);
 
   drawDash();
@@ -220,7 +220,7 @@ async function renderReceiptToCanvas(data: ReceiptData, paper: PaperWidth): Prom
   if (data.paymentMethod) drawRow("ชำระ:", data.paymentMethod, false, ft.body);
 
   drawDash();
-  drawRow("รายการ", "จำนวนเงิน", true, ft.body);
+  drawRow("รายการ", "จำนวนเงิน", false, ft.body);
   drawDash();
 
   for (const item of data.items) {
