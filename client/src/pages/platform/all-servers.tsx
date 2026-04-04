@@ -13,6 +13,7 @@ import {
   MonitorSmartphone, Cloud, Monitor, Wifi, WifiOff,
   ArrowRight, Database, Globe, MapPin, RefreshCw,
   Key, Shield, Copy, Download, Lock, Unlock, History, AlertTriangle,
+  ChevronDown, ChevronRight,
 } from "lucide-react";
 
 interface MachineRecord {
@@ -66,7 +67,7 @@ const ROLE_CONFIG: Record<string, { label: string; color: string; bgColor: strin
   backup: { label: "Backup", color: "text-gray-700", bgColor: "bg-gray-100" },
 };
 
-function MachineCard({ machine, onEdit }: { machine: MachineRecord; onEdit: (m: MachineRecord) => void }) {
+function MachineCard({ machine, onEdit, expanded, onToggle }: { machine: MachineRecord; onEdit: (m: MachineRecord) => void; expanded: boolean; onToggle: () => void }) {
   const [showPw, setShowPw] = useState(false);
   const osConfig = OS_CONFIG[machine.os] || OS_CONFIG.linux;
   const roleConfig = ROLE_CONFIG[machine.role] || ROLE_CONFIG.testing;
@@ -74,100 +75,104 @@ function MachineCard({ machine, onEdit }: { machine: MachineRecord; onEdit: (m: 
   const OsIcon = osConfig.icon;
 
   return (
-    <Card className={`border hover:shadow-md transition-shadow cursor-pointer ${osConfig.color}`} onClick={() => onEdit(machine)} data-testid={`card-machine-${machine.id}`}>
-      <CardContent className="p-5 space-y-3">
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-2">
-            <OsIcon className="h-5 w-5" />
-            <span className="font-bold text-base">{machine.localName}</span>
-          </div>
-          <div className="flex gap-1">
-            <Badge className={`${serverTypeConfig.badgeBg} ${serverTypeConfig.badge} text-xs`}>
-              {serverTypeConfig.label}
-            </Badge>
-            <Badge className={`${roleConfig.bgColor} ${roleConfig.color} text-xs`}>
-              {roleConfig.label}
-            </Badge>
-          </div>
+    <div className={`border rounded-lg transition-all ${osConfig.color} ${expanded ? "shadow-md" : "hover:shadow-sm"}`} data-testid={`card-machine-${machine.id}`}>
+      <button
+        onClick={onToggle}
+        className="w-full flex items-center gap-3 px-4 py-3 text-left"
+        data-testid={`btn-toggle-machine-${machine.id}`}
+      >
+        {expanded ? <ChevronDown className="h-4 w-4 text-gray-400 shrink-0" /> : <ChevronRight className="h-4 w-4 text-gray-400 shrink-0" />}
+        <OsIcon className="h-4 w-4 shrink-0" />
+        <span className="font-bold text-sm truncate">{machine.localName}</span>
+        <span className="text-xs text-gray-400 font-mono truncate hidden sm:inline">{machine.domainName || machine.lanIp || ""}</span>
+        <div className="ml-auto flex items-center gap-1.5 shrink-0">
+          <span className="text-xs text-gray-400 font-mono">{machine.dbName}:{machine.dbPort}</span>
+          <Badge className={`${serverTypeConfig.badgeBg} ${serverTypeConfig.badge} text-[10px] px-1.5 py-0`}>
+            {serverTypeConfig.label}
+          </Badge>
+          <Badge className={`${roleConfig.bgColor} ${roleConfig.color} text-[10px] px-1.5 py-0`}>
+            {roleConfig.label}
+          </Badge>
+          {machine.encContent && <Lock className="h-3 w-3 text-green-600" />}
         </div>
+      </button>
 
-        {(machine.machineModel || machine.cpuModel || machine.ramSize) && (
-          <div className="text-xs text-gray-500 space-y-0.5">
-            {machine.machineModel && <div>{machine.machineModel}</div>}
-            {machine.cpuModel && <div>CPU: {machine.cpuModel}</div>}
-            {machine.ramSize && <div>RAM: {machine.ramSize}</div>}
+      {expanded && (
+        <div className="px-4 pb-4 pt-1 border-t space-y-3">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-2 text-sm">
+            {machine.fqdn && (
+              <div>
+                <span className="text-gray-400 text-xs block">FQDN</span>
+                <span className="font-mono text-xs">{machine.fqdn}</span>
+              </div>
+            )}
+            {machine.windowsName && (
+              <div>
+                <span className="text-gray-400 text-xs block">Windows Name</span>
+                <span className="font-mono text-xs">{machine.windowsName}</span>
+              </div>
+            )}
+            <div>
+              <span className="text-gray-400 text-xs block">Domain</span>
+              <span className="font-mono text-xs">{machine.domainName || "—"}</span>
+            </div>
+            <div>
+              <span className="text-gray-400 text-xs block">LAN IP</span>
+              <span className="font-mono text-xs">{machine.lanIp || "—"}</span>
+            </div>
+            <div>
+              <span className="text-gray-400 text-xs block">WAN IP</span>
+              <span className="font-mono text-xs">{machine.wanIp || "—"}</span>
+            </div>
+            <div>
+              <span className="text-gray-400 text-xs block">DB</span>
+              <span className="font-mono text-xs">{machine.dbName}:{machine.dbPort}</span>
+            </div>
+            <div>
+              <span className="text-gray-400 text-xs block">DB User</span>
+              <span className="font-mono text-xs">{machine.dbUser}</span>
+            </div>
+            <div>
+              <span className="text-gray-400 text-xs block">DB Password</span>
+              <div className="flex items-center gap-1">
+                <span className="font-mono text-xs">{showPw ? machine.dbPassword : "••••••••"}</span>
+                <button onClick={e => { e.stopPropagation(); setShowPw(!showPw); }} className="p-0.5 hover:bg-gray-200 rounded" data-testid={`btn-toggle-pw-${machine.id}`}>
+                  {showPw ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+                </button>
+              </div>
+            </div>
           </div>
-        )}
 
-        <div className="space-y-1.5 text-sm">
-          {machine.fqdn && (
-            <div className="flex items-center justify-between">
-              <span className="text-gray-500 text-xs">FQDN</span>
-              <span className="font-mono text-xs">{machine.fqdn}</span>
+          {(machine.machineModel || machine.cpuModel || machine.ramSize) && (
+            <div className="flex gap-4 text-xs text-gray-500">
+              {machine.machineModel && <span>{machine.machineModel}</span>}
+              {machine.cpuModel && <span>CPU: {machine.cpuModel}</span>}
+              {machine.ramSize && <span>RAM: {machine.ramSize}</span>}
             </div>
           )}
-          {machine.windowsName && (
-            <div className="flex items-center justify-between">
-              <span className="text-gray-500 text-xs">Windows Name</span>
-              <span className="font-mono text-xs">{machine.windowsName}</span>
-            </div>
-          )}
-          <div className="flex items-center justify-between">
-            <span className="text-gray-500 flex items-center gap-1"><Globe className="h-3 w-3" /> Domain</span>
-            <span className="font-mono text-xs">{machine.domainName || "—"}</span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-gray-500 flex items-center gap-1"><MapPin className="h-3 w-3" /> LAN</span>
-            <span className="font-mono text-xs">{machine.lanIp || "—"}</span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-gray-500 flex items-center gap-1"><Wifi className="h-3 w-3" /> WAN</span>
-            <span className="font-mono text-xs">{machine.wanIp || "—"}</span>
-          </div>
-        </div>
 
-        <div className="border-t pt-2 space-y-1.5 text-sm">
-          <div className="flex items-center justify-between">
-            <span className="text-gray-500 flex items-center gap-1"><Database className="h-3 w-3" /> DB</span>
-            <span className="font-mono text-xs">{machine.dbName}:{machine.dbPort}</span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-gray-500">User</span>
-            <span className="font-mono text-xs">{machine.dbUser}</span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-gray-500">Password</span>
-            <div className="flex items-center gap-1">
-              <span className="font-mono text-xs">{showPw ? machine.dbPassword : "••••••••"}</span>
-              <button onClick={e => { e.stopPropagation(); setShowPw(!showPw); }} className="p-0.5 hover:bg-gray-200 rounded" data-testid={`btn-toggle-pw-${machine.id}`}>
-                {showPw ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
-              </button>
+          <div className="flex items-center gap-3">
+            {machine.envContent && (
+              <div className="flex items-center gap-1.5">
+                <Shield className="h-3 w-3 text-green-600" />
+                <span className="text-xs font-medium text-green-700">.env</span>
+                <Badge variant="outline" className="text-[10px] px-1 py-0 bg-green-50 text-green-700 border-green-300">
+                  {machine.envContent.trim().split("\n").filter(Boolean).length} vars
+                </Badge>
+              </div>
+            )}
+            {machine.notes && (
+              <span className="text-xs text-gray-400 italic truncate">{machine.notes}</span>
+            )}
+            <div className="ml-auto">
+              <Button size="sm" variant="outline" className="h-7 text-xs" onClick={(e) => { e.stopPropagation(); onEdit(machine); }} data-testid={`btn-edit-machine-${machine.id}`}>
+                <Pencil className="h-3 w-3 mr-1" /> แก้ไข
+              </Button>
             </div>
           </div>
         </div>
-
-        <div className="border-t pt-2 space-y-1.5 text-sm">
-        </div>
-
-        {machine.envContent && (
-          <div className="border-t pt-2">
-            <div className="flex items-center gap-1.5">
-              <Shield className="h-3 w-3 text-green-600" />
-              <span className="text-xs font-medium text-green-700">.env</span>
-              <Badge variant="outline" className="text-[10px] px-1 py-0 bg-green-50 text-green-700 border-green-300">
-                {machine.envContent.trim().split("\n").filter(Boolean).length} vars
-              </Badge>
-            </div>
-          </div>
-        )}
-
-        {machine.notes && (
-          <div className="border-t pt-2">
-            <p className="text-xs text-gray-500 italic">{machine.notes}</p>
-          </div>
-        )}
-      </CardContent>
-    </Card>
+      )}
+    </div>
   );
 }
 
@@ -818,10 +823,11 @@ DB_MAIN_HOST=${dbServerName}
   );
 }
 
-export default function DatabaseServers() {
+export default function AllServers() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [editingMachine, setEditingMachine] = useState<MachineRecord | null | undefined>(undefined);
+  const [expandedId, setExpandedId] = useState<number | null>(null);
 
   const { data: machines = [], isLoading } = useQuery<MachineRecord[]>({
     queryKey: ["/api/platform/machines"],
@@ -885,9 +891,6 @@ export default function DatabaseServers() {
     }
   };
 
-  const devSource = machines.find(m => m.role === "dev_source");
-  const prodMachines = machines.filter(m => m.role === "production");
-
   return (
     <PlatformLayout>
       <div className="max-w-7xl mx-auto" data-testid="page-all-servers">
@@ -896,49 +899,13 @@ export default function DatabaseServers() {
             <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
               <Server className="h-7 w-7 text-[#fb9678]" />
               เซิร์ฟเวอร์ทั้งหมด
+              {machines.length > 0 && <Badge variant="outline" className="text-xs ml-1">{machines.length} เครื่อง</Badge>}
             </h1>
             <p className="text-sm text-gray-500 mt-1">จัดการเครื่อง App Server และ Database Server ทั้งหมดที่ใช้ในระบบ</p>
           </div>
           <Button className="bg-[#fb9678] hover:bg-[#e8855a] text-white" onClick={() => setEditingMachine(null)} data-testid="button-add-machine">
             <Plus className="h-4 w-4 mr-1" /> เพิ่มเครื่องใหม่
           </Button>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-          <Card className="border-2 border-cyan-200 bg-cyan-50/50">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-cyan-100 flex items-center justify-center">
-                  <Database className="h-5 w-5 text-cyan-700" />
-                </div>
-                <div>
-                  <p className="text-xs text-cyan-600 font-medium">Dev Source (ต้นทาง Dev)</p>
-                  <p className="text-lg font-bold text-cyan-900">{devSource?.localName || "— ยังไม่ได้กำหนด"}</p>
-                </div>
-                {devSource && prodMachines.length > 0 && (
-                  <div className="ml-auto flex items-center gap-2 text-gray-400">
-                    <ArrowRight className="h-5 w-5" />
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-2 border-green-200 bg-green-50/50">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center">
-                  <Database className="h-5 w-5 text-green-700" />
-                </div>
-                <div>
-                  <p className="text-xs text-green-600 font-medium">Production (ใช้งานจริง)</p>
-                  <p className="text-lg font-bold text-green-900">
-                    {prodMachines.length > 0 ? prodMachines.map(m => m.localName).join(", ") : "— ยังไม่ได้กำหนด"}
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
         </div>
 
         {isLoading ? (
@@ -958,48 +925,30 @@ export default function DatabaseServers() {
           const dbServers = nonDev.filter(m => m.serverType === "database");
           const appServers = nonDev.filter(m => m.serverType === "app" || m.serverType === "app_database");
           const others = nonDev.filter(m => !dbServers.includes(m) && !appServers.includes(m));
+          const renderGroup = (icon: React.ReactNode, label: string, items: MachineRecord[]) => (
+            <div>
+              <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-2 flex items-center gap-2">
+                {icon} {label} ({items.length})
+              </h2>
+              <div className="space-y-1">
+                {items.map(m => (
+                  <MachineCard
+                    key={m.id}
+                    machine={m}
+                    onEdit={setEditingMachine}
+                    expanded={expandedId === m.id}
+                    onToggle={() => setExpandedId(expandedId === m.id ? null : m.id)}
+                  />
+                ))}
+              </div>
+            </div>
+          );
           return (
-            <div className="space-y-8">
-              {devCloud.length > 0 && (
-                <div>
-                  <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3 flex items-center gap-2">
-                    <Cloud className="h-4 w-4" /> Dev / Cloud ({devCloud.length})
-                  </h2>
-                  <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
-                    {devCloud.map(m => <MachineCard key={m.id} machine={m} onEdit={setEditingMachine} />)}
-                  </div>
-                </div>
-              )}
-              {dbServers.length > 0 && (
-                <div>
-                  <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3 flex items-center gap-2">
-                    <Database className="h-4 w-4" /> Database Servers ({dbServers.length})
-                  </h2>
-                  <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
-                    {dbServers.map(m => <MachineCard key={m.id} machine={m} onEdit={setEditingMachine} />)}
-                  </div>
-                </div>
-              )}
-              {appServers.length > 0 && (
-                <div>
-                  <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3 flex items-center gap-2">
-                    <Monitor className="h-4 w-4" /> App Servers ({appServers.length})
-                  </h2>
-                  <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
-                    {appServers.map(m => <MachineCard key={m.id} machine={m} onEdit={setEditingMachine} />)}
-                  </div>
-                </div>
-              )}
-              {others.length > 0 && (
-                <div>
-                  <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3 flex items-center gap-2">
-                    <Server className="h-4 w-4" /> อื่นๆ ({others.length})
-                  </h2>
-                  <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
-                    {others.map(m => <MachineCard key={m.id} machine={m} onEdit={setEditingMachine} />)}
-                  </div>
-                </div>
-              )}
+            <div className="space-y-6">
+              {devCloud.length > 0 && renderGroup(<Cloud className="h-4 w-4" />, "Dev / Cloud", devCloud)}
+              {dbServers.length > 0 && renderGroup(<Database className="h-4 w-4" />, "Database Servers", dbServers)}
+              {appServers.length > 0 && renderGroup(<Monitor className="h-4 w-4" />, "App Servers", appServers)}
+              {others.length > 0 && renderGroup(<Server className="h-4 w-4" />, "อื่นๆ", others)}
             </div>
           );
         })()}
