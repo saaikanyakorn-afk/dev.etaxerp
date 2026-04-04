@@ -336,7 +336,7 @@ export default function DatabaseBackup() {
     const handleClick = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
       const link = target.closest("a[href]") as HTMLAnchorElement | null;
-      if (link && !link.href.includes("database-backup") && !link.href.includes("clone")) {
+      if (link && !link.href.includes("clone-data") && !link.href.includes("clone")) {
         e.preventDefault();
         e.stopPropagation();
         if (navWarningTimer.current) clearTimeout(navWarningTimer.current);
@@ -608,7 +608,7 @@ export default function DatabaseBackup() {
     return (
       <PlatformLayout>
         <div className="space-y-6">
-          <h1 className="text-2xl font-bold text-gray-900">Clone ฐานข้อมูล</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Clone ข้อมูล</h1>
           <Card className="border-red-300 bg-red-50">
             <CardContent className="p-8 text-center">
               <Lock className="h-12 w-12 text-red-400 mx-auto mb-4" />
@@ -634,7 +634,7 @@ export default function DatabaseBackup() {
               </button>
             </div>
             <div className="p-4 space-y-3">
-              <p className="text-sm text-gray-700">ระบบกำลัง Clone ฐานข้อมูลอยู่ กรุณารอให้เสร็จก่อน</p>
+              <p className="text-sm text-gray-700">ระบบกำลัง Clone ข้อมูลอยู่ กรุณารอให้เสร็จก่อน</p>
               {cloneProgress.currentTable && (
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 space-y-2">
                   <div className="flex items-center justify-between text-sm">
@@ -659,7 +659,7 @@ export default function DatabaseBackup() {
 
       <div className="space-y-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900" data-testid="text-backup-title">Clone ฐานข้อมูล</h1>
+          <h1 className="text-2xl font-bold text-gray-900" data-testid="text-clone-title">Clone ข้อมูล</h1>
           <p className="text-gray-500 mt-1">
             {cloneDirection === "th_to_us"
               ? <>ส่งข้อมูลจาก <span className="font-bold text-orange-600">Thailand Server</span> กลับมายัง <span className="font-bold text-blue-600">Replit (US)</span></>
@@ -1322,7 +1322,7 @@ export default function DatabaseBackup() {
                 {cloning && (
                   <div className="bg-red-600 text-white px-4 py-2 flex items-center gap-2 text-sm font-medium rounded-t-lg">
                     <ShieldAlert className="h-4 w-4" />
-                    <span>ห้ามออกจากหน้านี้ — {autoResumeRunning ? "ระบบกำลัง Auto-Resume Clone" : "กำลัง Clone ฐานข้อมูล"}</span>
+                    <span>ห้ามออกจากหน้านี้ — {autoResumeRunning ? "ระบบกำลัง Auto-Resume Clone" : "กำลัง Clone ข้อมูล"}</span>
                     <Lock className="h-3 w-3 ml-auto" />
                   </div>
                 )}

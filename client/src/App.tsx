@@ -62,8 +62,8 @@ import TenantOverview from "@/pages/platform/tenant-overview";
 import ChatManagement from "@/pages/platform/chat-management";
 import PlatformSubscriptions from "@/pages/platform/subscriptions";
 import PlatformPaymentSettings from "@/pages/platform/payment-settings";
-import DatabaseBackup from "@/pages/platform/database-backup";
-import DatabaseServers from "@/pages/platform/database-servers";
+import CloneData from "@/pages/platform/clone-data";
+import AllServers from "@/pages/platform/all-servers";
 import DatabaseSwitch from "@/pages/platform/database-switch";
 import GithubManagement from "@/pages/platform/github-management";
 import PlatformMaintenance from "@/pages/platform/maintenance";
@@ -595,9 +595,9 @@ function Router() {
       <Route path="/platform/subscriptions" component={PlatformSubscriptions} />
       <Route path="/platform/payment-settings" component={PlatformPaymentSettings} />
       <Route path="/platform/chat" component={ChatManagement} />
-      <Route path="/platform/db-servers" component={DatabaseServers} />
+      <Route path="/platform/all-servers" component={AllServers} />
       <Route path="/platform/db-switch" component={DatabaseSwitch} />
-      <Route path="/platform/backup" component={DatabaseBackup} />
+      <Route path="/platform/clone-data" component={CloneData} />
       <Route path="/platform/maintenance" component={PlatformMaintenance} />
       <Route path="/dev/pdf-stress-test" component={PdfStressTest} />
       <Route path="/platform/passwords" component={PasswordManagement} />

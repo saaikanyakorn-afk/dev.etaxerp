@@ -35,9 +35,9 @@ const ADMIN_NAV = [
 ];
 
 const TECH_NAV = [
-  { icon: Server, label: "เซิร์ฟเวอร์ฐานข้อมูล", href: "/platform/db-servers" },
+  { icon: Server, label: "เซิร์ฟเวอร์ทั้งหมด", href: "/platform/all-servers" },
   { icon: ArrowLeftRight, label: "สลับฐานข้อมูล", href: "/platform/db-switch" },
-  { icon: Database, label: "Clone ฐานข้อมูล", href: "/platform/backup" },
+  { icon: Database, label: "Clone ข้อมูล", href: "/platform/clone-data" },
   { icon: Wrench, label: "Maintenance Schedule", href: "/platform/maintenance" },
   { icon: Download, label: "Github Push & Pull", href: "/platform/github" },
   { icon: FolderArchive, label: "FTP Archive Settings", href: "/settings/ftp-archive" },

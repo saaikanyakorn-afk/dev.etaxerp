@@ -890,14 +890,14 @@ export default function DatabaseServers() {
 
   return (
     <PlatformLayout>
-      <div className="max-w-7xl mx-auto" data-testid="page-database-servers">
+      <div className="max-w-7xl mx-auto" data-testid="page-all-servers">
         <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
               <Server className="h-7 w-7 text-[#fb9678]" />
-              เซิร์ฟเวอร์ฐานข้อมูล
+              เซิร์ฟเวอร์ทั้งหมด
             </h1>
-            <p className="text-sm text-gray-500 mt-1">จัดการเครื่องเซิร์ฟเวอร์ทั้งหมดที่ใช้ในระบบ</p>
+            <p className="text-sm text-gray-500 mt-1">จัดการเครื่อง App Server และ Database Server ทั้งหมดที่ใช้ในระบบ</p>
           </div>
           <Button className="bg-[#fb9678] hover:bg-[#e8855a] text-white" onClick={() => setEditingMachine(null)} data-testid="button-add-machine">
             <Plus className="h-4 w-4 mr-1" /> เพิ่มเครื่องใหม่

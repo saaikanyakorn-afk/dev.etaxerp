@@ -1232,7 +1232,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               <h2 className="text-xl font-bold text-gray-800 mb-2">ระบบอยู่ระหว่างการปรับปรุง</h2>
               <p className="text-sm text-gray-500 mb-3">{maintenanceData?.message || "กรุณารอสักครู่ ระบบจะกลับมาให้บริการเร็วๆ นี้"}</p>
               {maintenanceData?.cloneInProgress && (
-                <p className="text-xs text-amber-600 font-medium mb-3">กำลัง Clone ฐานข้อมูล กรุณารอจนกว่าจะเสร็จ</p>
+                <p className="text-xs text-amber-600 font-medium mb-3">กำลัง Clone ข้อมูล กรุณารอจนกว่าจะเสร็จ</p>
               )}
               <div className="flex items-center gap-2 text-xs text-gray-400">
                 <div className="w-4 h-4 rounded-full border-2 border-amber-400 border-t-transparent animate-spin" />
@@ -1351,7 +1351,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 </button>
               )}
               <button
-                onClick={() => { setCloneIncompleteAlert(null); window.location.href = "/platform/database-backup"; }}
+                onClick={() => { setCloneIncompleteAlert(null); window.location.href = "/platform/clone-data"; }}
                 className="w-full py-2 px-4 rounded-lg text-white font-medium"
                 style={{ background: "var(--theme-primary)" }}
                 data-testid="btn-goto-clone-screen"
