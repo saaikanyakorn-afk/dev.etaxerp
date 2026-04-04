@@ -170,6 +170,11 @@ app.get("/api/platform/github/local-info", requireAuth, requireSuperAdmin, async
     const totalLines = exec("find client/src server shared \\( -name '*.ts' -o -name '*.tsx' \\) -print0 2>/dev/null | xargs -0 wc -l 2>/dev/null | tail -1 | awk '{print $1}'");
     const fileCount = exec("git ls-files | wc -l");
 
+    const topFileRaw = exec("find client/src server shared -name '*.ts' -o -name '*.tsx' 2>/dev/null | xargs wc -l 2>/dev/null | sort -rn | head -1");
+    const topMatch = topFileRaw.match(/^(\d+)\s+(.+)$/);
+    const maxFileLines = topMatch && !topMatch[2].includes("total") ? Number(topMatch[1]) : 0;
+    const maxFileName = topMatch && !topMatch[2].includes("total") ? topMatch[2] : "";
+
     res.json({
       branch: localBranch,
       commit: localCommit,
@@ -182,6 +187,8 @@ app.get("/api/platform/github/local-info", requireAuth, requireSuperAdmin, async
       tsFiles: Number(tsFiles) || 0,
       totalLines: Number(totalLines) || 0,
       trackedFiles: Number(fileCount) || 0,
+      maxFileLines,
+      maxFileName,
     });
   } catch (err: any) {
     console.error("[github-local-info] Error:", err);
