@@ -471,7 +471,7 @@ export default function GithubManagement() {
               <p className="text-xs mt-1">Add a remote named "github" to enable push/pull</p>
             </div>
           ) : remoteInfo ? (
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
               <Card className="lg:col-span-2 shadow-sm">
                 <CardContent className="p-4">
                   <InfoRow icon={Globe} label="Remote URL" value={remoteInfo.remoteUrl} mono />
@@ -504,7 +504,7 @@ export default function GithubManagement() {
                 </CardContent>
               </Card>
 
-              <div className="space-y-4">
+              <div className="lg:col-span-3 space-y-4">
                 <Card className="shadow-sm border-green-300 bg-white">
                   <CardContent className="p-4 space-y-3">
                     <p className="text-sm text-gray-500">
@@ -539,7 +539,7 @@ export default function GithubManagement() {
                       <div className="space-y-2">
                         <div className="flex items-center gap-2">
                           <span className="text-xs text-gray-400 shrink-0">Current:</span>
-                          <code className="text-xs font-mono text-gray-600 bg-gray-100 px-2 py-1 rounded flex-1 truncate" data-testid="text-current-token">
+                          <code className="text-xs font-mono text-gray-600 bg-gray-100 px-2 py-1 rounded flex-1 break-all" data-testid="text-current-token">
                             {showCurrentToken ? tokenInfo.full : tokenInfo.masked}
                           </code>
                           <button
@@ -579,7 +579,7 @@ export default function GithubManagement() {
                           placeholder="ghp_xxxxxxxxxxxx..."
                           value={newToken}
                           onChange={(e) => setNewToken(e.target.value)}
-                          className="pr-10 font-mono text-xs"
+                          className={`pr-10 font-mono text-xs ${newToken.trim() && !(/^(ghp_[A-Za-z0-9_]{36,}|github_pat_[A-Za-z0-9_]{22,})$/.test(newToken.trim())) ? "border-amber-400 focus-visible:ring-amber-400" : ""}`}
                           data-testid="input-github-token"
                         />
                         <button
@@ -591,10 +591,25 @@ export default function GithubManagement() {
                           {showToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                         </button>
                       </div>
+                      {newToken.trim() && (
+                        /^ghp_[A-Za-z0-9_]{36,}$/.test(newToken.trim()) ? (
+                          <p className="text-[11px] text-green-600 mt-1 flex items-center gap-1">
+                            <CheckCircle2 className="h-3 w-3" /> Classic token (ghp_) — รูปแบบถูกต้อง
+                          </p>
+                        ) : /^github_pat_[A-Za-z0-9_]{22,}$/.test(newToken.trim()) ? (
+                          <p className="text-[11px] text-green-600 mt-1 flex items-center gap-1">
+                            <CheckCircle2 className="h-3 w-3" /> Fine-grained token (github_pat_) — รูปแบบถูกต้อง
+                          </p>
+                        ) : (
+                          <p className="text-[11px] text-amber-500 mt-1 flex items-center gap-1">
+                            <AlertCircle className="h-3 w-3" /> รูปแบบไม่ตรง — ควรขึ้นต้นด้วย ghp_ หรือ github_pat_
+                          </p>
+                        )
+                      )}
                     </div>
                     <Button
                       onClick={handleUpdateToken}
-                      disabled={tokenLoading || !newToken.trim()}
+                      disabled={tokenLoading || !newToken.trim() || newToken.trim().length < 10}
                       variant="outline"
                       className="w-full border-gray-300"
                       data-testid="button-update-token"
