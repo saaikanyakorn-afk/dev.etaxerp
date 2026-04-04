@@ -25,6 +25,9 @@ import {
   Files,
   Tag,
   BarChart3,
+  Key,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 
 interface LocalInfo {
@@ -78,6 +81,9 @@ export default function GithubManagement() {
   const [largestLimit, setLargestLimit] = useState<5 | 10 | 20>(10);
   const [largestFiles, setLargestFiles] = useState<{ lines: number; file: string }[] | null>(null);
   const [largestLoading, setLargestLoading] = useState(false);
+  const [newToken, setNewToken] = useState("");
+  const [tokenLoading, setTokenLoading] = useState(false);
+  const [showToken, setShowToken] = useState(false);
 
   const { data: localInfo, isLoading: localLoading, refetch: refetchLocal, isFetching: localFetching, error: localError } = useQuery<LocalInfo>({
     queryKey: ["/api/platform/github/local-info"],
@@ -167,6 +173,35 @@ export default function GithubManagement() {
   };
 
   const refetchAll = () => { refetchLocal(); refetchRemote(); };
+
+  const handleUpdateToken = async () => {
+    if (!newToken.trim()) return;
+    setTokenLoading(true);
+    setError("");
+    setSuccess("");
+    try {
+      const r = await fetch("/api/platform/github/token", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ token: newToken.trim() }),
+      });
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.message);
+      setNewToken("");
+      setShowToken(false);
+      if (data.reachable) {
+        setSuccess("อัปเดต Token สำเร็จ — เชื่อมต่อ GitHub ได้ปกติ");
+      } else {
+        setSuccess("อัปเดต Token แล้ว แต่ยังเชื่อมต่อ GitHub ไม่ได้ — กรุณาตรวจสอบ Token");
+      }
+      refetchRemote();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setTokenLoading(false);
+    }
+  };
 
   return (
     <PlatformLayout>
@@ -475,6 +510,47 @@ export default function GithubManagement() {
                         <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Downloading...</>
                       ) : (
                         <><Download className="h-4 w-4 mr-2" />Pull from GitHub (.zip)</>
+                      )}
+                    </Button>
+                  </CardContent>
+                </Card>
+
+                <Card className="shadow-sm border-gray-200 bg-white">
+                  <CardContent className="p-4 space-y-3">
+                    <div className="flex items-center gap-2">
+                      <Key className="h-4 w-4 text-gray-500" />
+                      <p className="text-sm font-medium text-gray-700">Personal Access Token</p>
+                    </div>
+                    <p className="text-xs text-gray-400">Token หมดอายุ? ใส่ Token ใหม่เพื่ออัปเดต</p>
+                    <div className="relative">
+                      <Input
+                        type={showToken ? "text" : "password"}
+                        placeholder="ghp_xxxxxxxxxxxx..."
+                        value={newToken}
+                        onChange={(e) => setNewToken(e.target.value)}
+                        className="pr-10 font-mono text-xs"
+                        data-testid="input-github-token"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowToken(!showToken)}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                        data-testid="button-toggle-token-visibility"
+                      >
+                        {showToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
+                    <Button
+                      onClick={handleUpdateToken}
+                      disabled={tokenLoading || !newToken.trim()}
+                      variant="outline"
+                      className="w-full border-gray-300"
+                      data-testid="button-update-token"
+                    >
+                      {tokenLoading ? (
+                        <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Verifying...</>
+                      ) : (
+                        <><Key className="h-4 w-4 mr-2" />Update Token</>
                       )}
                     </Button>
                   </CardContent>
