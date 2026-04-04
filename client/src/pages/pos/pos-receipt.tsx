@@ -80,20 +80,22 @@ export default function PosReceipt() {
           setCompany(result.company);
           setDocSettings(result.docSettings);
           setSession(result.session);
+          setLoading(false);
 
           const logoUrl = result.docSettings?.logoUrl || result.company?.logoUrl;
           if (logoUrl) {
-            try {
-              const resolvedUrl = objectPathToUrl(logoUrl) || logoUrl;
-              const imgRes = await fetch(resolvedUrl, { credentials: "include" });
-              if (imgRes.ok) {
-                const blob = await imgRes.blob();
+            const resolvedUrl = objectPathToUrl(logoUrl) || logoUrl;
+            fetch(resolvedUrl, { credentials: "include" })
+              .then(imgRes => imgRes.ok ? imgRes.blob() : null)
+              .then(blob => {
+                if (!blob) return;
                 const reader = new FileReader();
                 reader.onloadend = () => setLogoBase64(reader.result as string);
                 reader.readAsDataURL(blob);
-              }
-            } catch {}
+              })
+              .catch(() => {});
           }
+          return;
         }
       } catch {}
       setLoading(false);
