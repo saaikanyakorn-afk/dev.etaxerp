@@ -155,7 +155,7 @@ app.get("/api/platform/github/info", requireAuth, requireSuperAdmin, async (_req
     const { execSync } = require("child_process");
     const cwd = process.cwd();
     const exec = (cmd: string) => {
-      try { return execSync(cmd, { cwd, stdio: "pipe", timeout: 15000 }).toString().trim(); } catch { return ""; }
+      try { return execSync(cmd, { cwd, stdio: "pipe", timeout: 15000, maxBuffer: 10 * 1024 * 1024 }).toString().trim(); } catch { return ""; }
     };
 
     const localBranch = exec("git branch --show-current");
@@ -167,8 +167,8 @@ app.get("/api/platform/github/info", requireAuth, requireSuperAdmin, async (_req
     const totalCommits = exec("git rev-list --count HEAD");
     const version = (() => { try { return fs.readFileSync(path.join(cwd, "VERSION"), "utf-8").trim(); } catch { return "1.0.0"; } })();
 
-    const tsFiles = exec("find client/src server shared -name '*.ts' -o -name '*.tsx' 2>/dev/null | wc -l");
-    const totalLines = exec("find client/src server shared -name '*.ts' -o -name '*.tsx' -exec cat {} + 2>/dev/null | wc -l");
+    const tsFiles = exec("find client/src server shared \\( -name '*.ts' -o -name '*.tsx' \\) 2>/dev/null | wc -l");
+    const totalLines = exec("find client/src server shared \\( -name '*.ts' -o -name '*.tsx' \\) -print0 2>/dev/null | xargs -0 wc -l 2>/dev/null | tail -1 | awk '{print $1}'");
     const fileCount = exec("git ls-files | wc -l");
 
     const remoteUrl = exec("git remote get-url github 2>/dev/null") || "";
