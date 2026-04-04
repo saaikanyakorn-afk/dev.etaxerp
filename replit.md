@@ -915,7 +915,8 @@ Once Stage 3 begins, revisit the JOIN inventory below and add appropriate indexe
 - **Domains (`platform_domains`):** Independent entities. Fields: domainName, provider (noip/freedns/other), purpose (ddns/website/app/db/ftp), port, credentials, linked router (FK), linked machine (FK), `isRouterManaged` flag
 - **Master password gate:** `INFRA_MASTER_PASSWORD` env var (default: "deep-sysadmin-2024"). Lock/unlock button in page header. Credentials (router admin, domain login, machine DB) hidden until unlocked via `/api/platform/verify-infra-password` POST endpoint
 - **Multi-IP per NIC:** `nic_ip_addresses` table — per-NIC: multiple IPs with label, isPrimary flag
-- **Clone skip:** `machines`, `machine_nics`, `nic_ip_addresses`, `routers`, `router_domains`, `platform_domains` are in SKIP_CLONE_TABLES
+- **Clone skip:** `machines`, `machine_nics`, `nic_ip_addresses`, `routers`, `router_domains`, `router_port_forwards`, `platform_domains` are in SKIP_CLONE_TABLES
+- **Router Port Forwards:** `router_port_forwards` table — multiple rules per router. Fields: `externalPort` (text, supports ranges like "440-450"), `lanIp`, `internalPort` (if different from ext), `protocol` (TCP/UDP/TCP+UDP), `purpose`. Displayed inline in RouterCard with add/delete. Port field removed from Domain entity — port forwarding is a Router responsibility.
 
 **Encrypted Config File System (พี่ช้าง's config DB architecture):**
 - **Purpose:** Each app server has a local PostgreSQL "config DB" storing credentials for ALL known machines. No passwords in `.env` — only `MACHINE_NAME`.
