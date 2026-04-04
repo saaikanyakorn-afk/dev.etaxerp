@@ -31,16 +31,16 @@ const ADMIN_NAV = [
   { icon: CreditCard, label: "ตั้งค่าการชำระเงิน", href: "/platform/payment-settings" },
   { icon: MessageCircle, label: "แชทสนับสนุน", href: "/platform/chat" },
   { icon: Globe, label: "จัดการ Landing Page", href: "/settings/landing-cms" },
+  { icon: KeyRound, label: "จัดการรหัสผ่าน", href: "/platform/passwords" },
 ];
 
 const TECH_NAV = [
   { icon: Server, label: "เซิร์ฟเวอร์ฐานข้อมูล", href: "/platform/db-servers" },
   { icon: ArrowLeftRight, label: "สลับฐานข้อมูล", href: "/platform/db-switch" },
   { icon: Database, label: "Clone ฐานข้อมูล", href: "/platform/backup" },
-  { icon: Wrench, label: "ปรับปรุงระบบ", href: "/platform/maintenance" },
-  { icon: Download, label: "ดาวน์โหลด Source Code", href: "/platform/download-source" },
-  { icon: FolderArchive, label: "ตั้งค่า FTP Archive", href: "/settings/ftp-archive" },
-  { icon: KeyRound, label: "จัดการรหัสผ่าน", href: "/platform/passwords" },
+  { icon: Wrench, label: "Maintenance Schedule", href: "/platform/maintenance" },
+  { icon: Download, label: "Github Push & Pull", href: "/platform/download-source" },
+  { icon: FolderArchive, label: "FTP Archive Settings", href: "/settings/ftp-archive" },
   { icon: FolderArchive, label: "TRCloud Legacy Import", href: "/legacy-import" },
 ];
 
