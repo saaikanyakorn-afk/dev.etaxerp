@@ -208,7 +208,7 @@ export const TRANSACTION_TABLES: TableInfo[] = [
   { pgName: "ftp_archive_items", displayName: "FTP Archive Items" },
 ];
 
-const SKIP_CLONE_TABLES = new Set(["session", "system_config", "schema_version", "clone_history", "machines", "machine_nics", "nic_ip_addresses", "routers", "router_domains", "router_port_forwards", "platform_domains"]);
+const SKIP_CLONE_TABLES = new Set(["session", "system_config", "schema_version", "clone_history", "platform_locations", "machines", "machine_nics", "nic_ip_addresses", "routers", "router_domains", "router_port_forwards", "platform_domains"]);
 
 let _cachedSchemaTables: string[] | null = null;
 

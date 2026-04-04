@@ -50,6 +50,18 @@ interface MachineRecord {
   routerId: number | null;
   internetType: string;
   physicalLocation: string | null;
+  locationId: number | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+interface LocationRecord {
+  id: number;
+  name: string;
+  locationType: string;
+  parentId: number | null;
+  address: string | null;
+  notes: string | null;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -72,6 +84,7 @@ interface RouterRecord {
   ispCallCenter: string | null;
   ispSupportUrl: string | null;
   physicalLocation: string | null;
+  locationId: number | null;
   notes: string | null;
   createdAt?: string;
   updatedAt?: string;
@@ -160,12 +173,13 @@ const ROLE_CONFIG: Record<string, { label: string; color: string; bgColor: strin
   backup: { label: "Backup", color: "text-gray-700", bgColor: "bg-gray-100" },
 };
 
-function RouterCard({ router, domains, allNics, machines, portForwards, expanded, onToggle, onEdit, onDelete, credentialsUnlocked }: {
+function RouterCard({ router, domains, allNics, machines, portForwards, locations, expanded, onToggle, onEdit, onDelete, credentialsUnlocked }: {
   router: RouterRecord;
   domains: PlatformDomainRecord[];
   allNics: NicRecord[];
   machines: MachineRecord[];
   portForwards: PortForwardRecord[];
+  locations: LocationRecord[];
   expanded: boolean;
   onToggle: () => void;
   onEdit: (r: RouterRecord) => void;
@@ -179,6 +193,10 @@ function RouterCard({ router, domains, allNics, machines, portForwards, expanded
   const myDomains = domains.filter(d => d.routerId === router.id);
   const autoManagedDomain = myDomains.find(d => d.isRouterManaged);
   const myPortForwards = portForwards.filter(pf => pf.routerId === router.id);
+  const routerLocation = router.locationId ? locations.find(l => l.id === router.locationId) : null;
+  const routerLocationLabel = routerLocation
+    ? (routerLocation.parentId ? (() => { const p = locations.find(l => l.id === routerLocation.parentId); return p ? `${p.name} > ${routerLocation.name}` : routerLocation.name; })() : routerLocation.name)
+    : router.physicalLocation;
 
   return (
     <div className={`border rounded-lg transition-all border-teal-300 bg-teal-50/30 ${expanded ? "shadow-md" : "hover:shadow-sm"}`} data-testid={`card-router-${router.id}`}>
@@ -235,10 +253,10 @@ function RouterCard({ router, domains, allNics, machines, portForwards, expanded
                 <span className="text-xs">{router.model}</span>
               </div>
             )}
-            {router.physicalLocation && (
+            {routerLocationLabel && (
               <div>
                 <span className="text-gray-400 text-xs block">สถานที่ตั้ง</span>
-                <span className="text-xs flex items-center gap-1"><MapPin className="h-3 w-3 text-red-400" />{router.physicalLocation}</span>
+                <span className="text-xs flex items-center gap-1"><MapPin className="h-3 w-3 text-red-400" />{routerLocationLabel}</span>
               </div>
             )}
           </div>
@@ -446,7 +464,7 @@ function PortForwardList({ routerId, portForwards, machines }: { routerId: numbe
   );
 }
 
-function EditRouterDialog({ router, onSave, onCancel, saving }: { router: RouterRecord | null; onSave: (data: any) => void; onCancel: () => void; saving?: boolean }) {
+function EditRouterDialog({ router, locations, onSave, onCancel, saving }: { router: RouterRecord | null; locations: LocationRecord[]; onSave: (data: any) => void; onCancel: () => void; saving?: boolean }) {
   const isNew = !router;
   const [showPw, setShowPw] = useState(false);
   const [form, setForm] = useState({
@@ -466,6 +484,7 @@ function EditRouterDialog({ router, onSave, onCancel, saving }: { router: Router
     ispCallCenter: router?.ispCallCenter || "",
     ispSupportUrl: router?.ispSupportUrl || "",
     physicalLocation: router?.physicalLocation || "",
+    locationId: router?.locationId ? String(router.locationId) : "",
     notes: router?.notes || "",
   });
 
@@ -532,8 +551,26 @@ function EditRouterDialog({ router, onSave, onCancel, saving }: { router: Router
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <Label className="text-sm font-medium">สถานที่ตั้ง</Label>
-              <Input value={form.physicalLocation} onChange={e => setForm({ ...form, physicalLocation: e.target.value })} placeholder="เช่น บ้านพี่ช้าง" data-testid="input-router-location" />
+              <Label className="text-sm font-medium">สถานที่ตั้ง (Location)</Label>
+              <Select value={form.locationId || "none"} onValueChange={v => setForm({ ...form, locationId: v === "none" ? "" : v })}>
+                <SelectTrigger data-testid="select-router-location"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">— ยังไม่กำหนด</SelectItem>
+                  {locations.filter(l => !l.parentId).map(parent => {
+                    const children = locations.filter(c => c.parentId === parent.id);
+                    return [
+                      <SelectItem key={parent.id} value={String(parent.id)}>
+                        {parent.name}
+                      </SelectItem>,
+                      ...children.map(c => (
+                        <SelectItem key={c.id} value={String(c.id)}>
+                          &nbsp;&nbsp;└ {c.name}
+                        </SelectItem>
+                      )),
+                    ];
+                  })}
+                </SelectContent>
+              </Select>
             </div>
             <div>
               <Label className="text-sm font-medium">หมายเหตุ</Label>
@@ -581,6 +618,87 @@ function EditRouterDialog({ router, onSave, onCancel, saving }: { router: Router
         <div className="p-6 border-t flex justify-end gap-3">
           <Button variant="outline" onClick={onCancel} data-testid="button-cancel-router">ยกเลิก</Button>
           <Button className="bg-teal-600 hover:bg-teal-700 text-white" onClick={() => onSave(form)} disabled={saving || !form.name} data-testid="button-save-router">
+            {saving ? "กำลังบันทึก..." : "บันทึก"}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EditLocationDialog({ location, allLocations, onSave, onCancel, saving }: {
+  location: LocationRecord | null;
+  allLocations: LocationRecord[];
+  onSave: (data: any) => void;
+  onCancel: () => void;
+  saving?: boolean;
+}) {
+  const isNew = !location;
+  const [form, setForm] = useState({
+    name: location?.name || "",
+    locationType: location?.locationType || "company",
+    parentId: location?.parentId ? String(location.parentId) : "",
+    address: location?.address || "",
+    notes: location?.notes || "",
+  });
+
+  const parentOptions = allLocations.filter(l => !l.parentId && l.id !== location?.id);
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" data-testid="dialog-edit-location">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+        <div className="p-6 border-b">
+          <h2 className="text-lg font-bold flex items-center gap-2">
+            <MapPin className="h-5 w-5 text-purple-600" />
+            {isNew ? "เพิ่ม Location ใหม่" : `แก้ไข: ${location.name}`}
+          </h2>
+        </div>
+        <div className="p-6 space-y-4">
+          <div>
+            <Label className="text-sm font-medium">ชื่อ Location *</Label>
+            <Input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="เช่น Deep Digital Co., Ltd." data-testid="input-loc-name" />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label className="text-sm font-medium">ประเภท</Label>
+              <Select value={form.locationType} onValueChange={v => setForm({ ...form, locationType: v, parentId: v === "company" ? "" : form.parentId })}>
+                <SelectTrigger data-testid="select-loc-type"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="company">บริษัท (Company)</SelectItem>
+                  <SelectItem value="branch">สาขา (Branch)</SelectItem>
+                  <SelectItem value="datacenter">Data Center</SelectItem>
+                  <SelectItem value="home">บ้าน (Home)</SelectItem>
+                  <SelectItem value="other">อื่นๆ</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {form.locationType !== "company" && (
+              <div>
+                <Label className="text-sm font-medium">สังกัด (Parent)</Label>
+                <Select value={form.parentId || "none"} onValueChange={v => setForm({ ...form, parentId: v === "none" ? "" : v })}>
+                  <SelectTrigger data-testid="select-loc-parent"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">— ไม่มี Parent</SelectItem>
+                    {parentOptions.map(p => (
+                      <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          </div>
+          <div>
+            <Label className="text-sm font-medium">ที่อยู่</Label>
+            <Input value={form.address} onChange={e => setForm({ ...form, address: e.target.value })} placeholder="เช่น 123 ถ.สุขุมวิท แขวง..." data-testid="input-loc-address" />
+          </div>
+          <div>
+            <Label className="text-sm font-medium">หมายเหตุ</Label>
+            <Input value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} data-testid="input-loc-notes" />
+          </div>
+        </div>
+        <div className="p-6 border-t flex justify-end gap-3">
+          <Button variant="outline" onClick={onCancel} data-testid="button-cancel-location">ยกเลิก</Button>
+          <Button className="bg-purple-600 hover:bg-purple-700 text-white" onClick={() => onSave(form)} disabled={saving || !form.name} data-testid="button-save-location">
             {saving ? "กำลังบันทึก..." : "บันทึก"}
           </Button>
         </div>
@@ -1143,7 +1261,7 @@ function NicSection({ machineId, allNics, allMachines, allRouters }: { machineId
   );
 }
 
-function MachineCard({ machine, onEdit, expanded, onToggle, onToggleOfficial, allMachines, onChangeTarget, allNics, allRouters, credentialsUnlocked }: {
+function MachineCard({ machine, onEdit, expanded, onToggle, onToggleOfficial, allMachines, onChangeTarget, allNics, allRouters, locations, credentialsUnlocked }: {
   machine: MachineRecord;
   onEdit: (m: MachineRecord) => void;
   expanded: boolean;
@@ -1153,6 +1271,7 @@ function MachineCard({ machine, onEdit, expanded, onToggle, onToggleOfficial, al
   onChangeTarget: (id: number, targetId: number | null) => void;
   allNics: NicRecord[];
   allRouters: RouterRecord[];
+  locations: LocationRecord[];
   credentialsUnlocked: boolean;
 }) {
   const [showPw, setShowPw] = useState(false);
@@ -1258,12 +1377,18 @@ function MachineCard({ machine, onEdit, expanded, onToggle, onToggleOfficial, al
                 <span className="text-xs text-amber-500 flex items-center gap-1"><Lock className="h-3 w-3" /> Locked</span>
               </div>
             )}
-            {machine.physicalLocation && (
-              <div>
-                <span className="text-gray-400 text-xs block">สถานที่ตั้ง</span>
-                <span className="text-xs flex items-center gap-1"><MapPin className="h-3 w-3 text-red-400" />{machine.physicalLocation}</span>
-              </div>
-            )}
+            {(() => {
+              const loc = machine.locationId ? locations.find(l => l.id === machine.locationId) : null;
+              const locLabel = loc
+                ? (loc.parentId ? (() => { const p = locations.find(l => l.id === loc.parentId); return p ? `${p.name} > ${loc.name}` : loc.name; })() : loc.name)
+                : machine.physicalLocation;
+              return locLabel ? (
+                <div>
+                  <span className="text-gray-400 text-xs block">สถานที่ตั้ง</span>
+                  <span className="text-xs flex items-center gap-1"><MapPin className="h-3 w-3 text-red-400" />{locLabel}</span>
+                </div>
+              ) : null;
+            })()}
           </div>
 
           {(machine.machineModel || machine.cpuModel || machine.ramSize) && (
@@ -1352,12 +1477,14 @@ function MachineCard({ machine, onEdit, expanded, onToggle, onToggleOfficial, al
 
 function EditMachineDialog({
   machine,
+  locations,
   onSave,
   onCancel,
   onDelete,
   saving,
 }: {
   machine: MachineRecord | null;
+  locations: LocationRecord[];
   onSave: (m: Partial<MachineRecord> & { localName: string; dbName: string; dbUser: string; dbPassword: string }) => void;
   onCancel: () => void;
   onDelete?: (id: number) => void;
@@ -1385,6 +1512,7 @@ function EditMachineDialog({
     notes: machine?.notes || "",
     envContent: machine?.envContent || "",
     physicalLocation: machine?.physicalLocation || "",
+    locationId: machine?.locationId ? String(machine.locationId) : "",
   });
 
   return (
@@ -1427,11 +1555,27 @@ function EditMachineDialog({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label className="text-sm font-medium">สถานที่ตั้ง</Label>
-              <Input value={form.physicalLocation} onChange={e => setForm({ ...form, physicalLocation: e.target.value })} placeholder="เช่น บ้านพี่ช้าง ห้องเซิร์ฟเวอร์" data-testid="input-physical-location" />
-            </div>
+          <div>
+            <Label className="text-sm font-medium">สถานที่ตั้ง (Location)</Label>
+            <Select value={form.locationId || "none"} onValueChange={v => setForm({ ...form, locationId: v === "none" ? "" : v })}>
+              <SelectTrigger data-testid="select-machine-location"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">— ยังไม่กำหนด</SelectItem>
+                {locations.filter(l => !l.parentId).map(parent => {
+                  const children = locations.filter(c => c.parentId === parent.id);
+                  return [
+                    <SelectItem key={parent.id} value={String(parent.id)}>
+                      {parent.name}
+                    </SelectItem>,
+                    ...children.map(c => (
+                      <SelectItem key={c.id} value={String(c.id)}>
+                        &nbsp;&nbsp;└ {c.name}
+                      </SelectItem>
+                    )),
+                  ];
+                })}
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="border-t pt-4">
@@ -2031,6 +2175,10 @@ export default function AllServers() {
     queryKey: ["/api/platform/all-port-forwards"],
   });
 
+  const { data: locations = [] } = useQuery<LocationRecord[]>({
+    queryKey: ["/api/platform/locations"],
+  });
+
   const [editingRouter, setEditingRouter] = useState<RouterRecord | null | undefined>(undefined);
   const [expandedRouterId, setExpandedRouterId] = useState<number | null>(null);
   const [editingDomain, setEditingDomain] = useState<PlatformDomainRecord | null | undefined>(undefined);
@@ -2048,6 +2196,46 @@ export default function AllServers() {
     onSuccess: () => { setCredentialsUnlocked(true); setShowPasswordPrompt(false); setMasterPwInput(""); toast({ title: "ปลดล็อค Credentials สำเร็จ" }); },
     onError: (err: any) => toast({ title: "รหัสผ่านไม่ถูกต้อง", variant: "destructive" }),
   });
+
+  const [editingLocation, setEditingLocation] = useState<LocationRecord | null | undefined>(undefined);
+
+  const createLocationMut = useMutation({
+    mutationFn: async (data: any) => {
+      const res = await fetch("/api/platform/locations", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
+      if (!res.ok) throw new Error((await res.json()).message);
+      return res.json();
+    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/platform/locations"] }); setEditingLocation(undefined); toast({ title: "เพิ่ม Location สำเร็จ" }); },
+    onError: (err: any) => toast({ title: "เกิดข้อผิดพลาด", description: err.message, variant: "destructive" }),
+  });
+
+  const updateLocationMut = useMutation({
+    mutationFn: async ({ id, ...data }: any) => {
+      const res = await fetch(`/api/platform/locations/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
+      if (!res.ok) throw new Error((await res.json()).message);
+      return res.json();
+    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/platform/locations"] }); setEditingLocation(undefined); toast({ title: "บันทึก Location สำเร็จ" }); },
+    onError: (err: any) => toast({ title: "เกิดข้อผิดพลาด", description: err.message, variant: "destructive" }),
+  });
+
+  const deleteLocationMut = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await fetch(`/api/platform/locations/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error((await res.json()).message);
+    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/platform/locations"] }); queryClient.invalidateQueries({ queryKey: ["/api/platform/machines"] }); queryClient.invalidateQueries({ queryKey: ["/api/platform/routers"] }); toast({ title: "ลบ Location สำเร็จ" }); },
+    onError: (err: any) => toast({ title: "เกิดข้อผิดพลาด", description: err.message, variant: "destructive" }),
+  });
+
+  const handleSaveLocation = (data: any) => {
+    const cleaned = { ...data, parentId: data.parentId ? Number(data.parentId) : null };
+    if (editingLocation === null) {
+      createLocationMut.mutate(cleaned);
+    } else if (editingLocation) {
+      updateLocationMut.mutate({ id: editingLocation.id, ...cleaned });
+    }
+  };
 
   const createRouterMut = useMutation({
     mutationFn: async (data: any) => {
@@ -2108,10 +2296,11 @@ export default function AllServers() {
   });
 
   const handleSaveRouter = (data: any) => {
+    const cleaned = { ...data, locationId: data.locationId ? Number(data.locationId) : null };
     if (editingRouter === null) {
-      createRouterMut.mutate(data);
+      createRouterMut.mutate(cleaned);
     } else if (editingRouter) {
-      updateRouterMut.mutate({ id: editingRouter.id, ...data });
+      updateRouterMut.mutate({ id: editingRouter.id, ...cleaned });
     }
   };
 
@@ -2210,11 +2399,26 @@ export default function AllServers() {
   });
 
   const handleSave = (data: any) => {
+    const cleaned = { ...data, locationId: data.locationId ? Number(data.locationId) : null };
     if (editingMachine === null) {
-      createMut.mutate(data);
+      createMut.mutate(cleaned);
     } else if (editingMachine) {
-      updateMut.mutate({ id: editingMachine.id, ...data });
+      updateMut.mutate({ id: editingMachine.id, ...cleaned });
     }
+  };
+
+  const getLocationLabel = (m: MachineRecord) => {
+    if (m.locationId) {
+      const loc = locations.find(l => l.id === m.locationId);
+      if (loc) {
+        if (loc.parentId) {
+          const parent = locations.find(p => p.id === loc.parentId);
+          return parent ? `${parent.name} > ${loc.name}` : loc.name;
+        }
+        return loc.name;
+      }
+    }
+    return m.physicalLocation || "ไม่ระบุสถานที่";
   };
 
   const locationGroups = (() => {
@@ -2222,7 +2426,7 @@ export default function AllServers() {
     const nonDev = machines.filter(m => m.role !== "dev_source");
     const groups: Record<string, MachineRecord[]> = {};
     nonDev.forEach(m => {
-      const loc = m.physicalLocation || "ไม่ระบุสถานที่";
+      const loc = getLocationLabel(m);
       if (!groups[loc]) groups[loc] = [];
       groups[loc].push(m);
     });
@@ -2254,6 +2458,7 @@ export default function AllServers() {
               onChangeTarget={(id, targetId) => targetDbMut.mutate({ id, targetDbMachineId: targetId })}
               allNics={allNics}
               allRouters={routersList}
+              locations={locations}
               credentialsUnlocked={credentialsUnlocked}
             />
           ))}
@@ -2343,6 +2548,97 @@ export default function AllServers() {
             <div>
               <div className="flex items-center justify-between mb-2">
                 <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide flex items-center gap-2">
+                  <MapPin className="h-4 w-4" /> Locations ({locations.length})
+                </h2>
+                <Button size="sm" variant="outline" className="h-7 text-xs border-purple-400 text-purple-700 hover:bg-purple-50" onClick={() => setEditingLocation(null)} data-testid="button-add-location">
+                  <Plus className="h-3 w-3 mr-1" /> เพิ่ม Location
+                </Button>
+              </div>
+              {locations.length === 0 ? (
+                <div className="text-center py-4 text-gray-400 border rounded-lg border-dashed">
+                  <MapPin className="h-6 w-6 mx-auto mb-1 opacity-30" />
+                  <p className="text-sm">ยังไม่มี Location — เพิ่มบริษัท/สาขาก่อน</p>
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  {locations.filter(l => !l.parentId).map(parent => {
+                    const children = locations.filter(c => c.parentId === parent.id);
+                    const linkedRouters = routersList.filter(r => r.locationId === parent.id);
+                    const linkedMachineCount = machines.filter(m => m.locationId === parent.id).length;
+                    return (
+                      <div key={parent.id} className="border border-purple-200 rounded-lg bg-purple-50/30">
+                        <div className="flex items-center gap-2 px-3 py-2">
+                          <MapPin className="h-4 w-4 text-purple-600 shrink-0" />
+                          <span className="font-bold text-sm text-purple-900">{parent.name}</span>
+                          <Badge className="bg-purple-100 text-purple-700 border-purple-300 text-[10px] px-1.5 py-0">
+                            {parent.locationType === "company" ? "บริษัท" : parent.locationType === "branch" ? "สาขา" : parent.locationType}
+                          </Badge>
+                          {linkedRouters.length > 0 && (
+                            <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-teal-50 text-teal-700 border-teal-300">
+                              <Router className="h-2.5 w-2.5 mr-0.5" />{linkedRouters.length}
+                            </Badge>
+                          )}
+                          {linkedMachineCount > 0 && (
+                            <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-blue-50 text-blue-700 border-blue-300">
+                              <Server className="h-2.5 w-2.5 mr-0.5" />{linkedMachineCount}
+                            </Badge>
+                          )}
+                          {parent.address && <span className="text-[10px] text-gray-400 truncate ml-auto hidden md:inline">{parent.address}</span>}
+                          <div className="flex items-center gap-1 shrink-0 ml-auto">
+                            <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-purple-500 hover:bg-purple-100" onClick={() => setEditingLocation(parent)} data-testid={`btn-edit-loc-${parent.id}`}>
+                              <Pencil className="h-3 w-3" />
+                            </Button>
+                            <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-red-400 hover:bg-red-50" onClick={() => { if (confirm(`ลบ Location "${parent.name}"?`)) deleteLocationMut.mutate(parent.id); }} data-testid={`btn-del-loc-${parent.id}`}>
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        </div>
+                        {children.length > 0 && (
+                          <div className="px-3 pb-2 space-y-0.5">
+                            {children.map(child => {
+                              const childRouters = routersList.filter(r => r.locationId === child.id);
+                              const childMachines = machines.filter(m => m.locationId === child.id).length;
+                              return (
+                                <div key={child.id} className="flex items-center gap-2 px-2 py-1 bg-white rounded border border-purple-100 ml-4">
+                                  <span className="text-gray-300 text-xs">└</span>
+                                  <span className="text-sm font-medium text-purple-800">{child.name}</span>
+                                  <Badge className="bg-orange-50 text-orange-600 border-orange-200 text-[9px] px-1 py-0">
+                                    {child.locationType === "branch" ? "สาขา" : child.locationType}
+                                  </Badge>
+                                  {childRouters.length > 0 && (
+                                    <Badge variant="outline" className="text-[9px] px-1 py-0 bg-teal-50 text-teal-600 border-teal-200">
+                                      <Router className="h-2 w-2 mr-0.5" />{childRouters.length}
+                                    </Badge>
+                                  )}
+                                  {childMachines > 0 && (
+                                    <Badge variant="outline" className="text-[9px] px-1 py-0 bg-blue-50 text-blue-600 border-blue-200">
+                                      <Server className="h-2 w-2 mr-0.5" />{childMachines}
+                                    </Badge>
+                                  )}
+                                  {child.address && <span className="text-[9px] text-gray-400 truncate hidden md:inline">{child.address}</span>}
+                                  <div className="flex items-center gap-1 shrink-0 ml-auto">
+                                    <Button size="sm" variant="ghost" className="h-5 w-5 p-0 text-purple-500 hover:bg-purple-100" onClick={() => setEditingLocation(child)} data-testid={`btn-edit-loc-${child.id}`}>
+                                      <Pencil className="h-2.5 w-2.5" />
+                                    </Button>
+                                    <Button size="sm" variant="ghost" className="h-5 w-5 p-0 text-red-400 hover:bg-red-50" onClick={() => { if (confirm(`ลบ Location "${child.name}"?`)) deleteLocationMut.mutate(child.id); }} data-testid={`btn-del-loc-${child.id}`}>
+                                      <Trash2 className="h-2.5 w-2.5" />
+                                    </Button>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide flex items-center gap-2">
                   <Router className="h-4 w-4" /> Routers ({routersList.length})
                 </h2>
                 <Button size="sm" variant="outline" className="h-7 text-xs border-teal-400 text-teal-700 hover:bg-teal-50" onClick={() => setEditingRouter(null)} data-testid="button-add-router">
@@ -2364,6 +2660,7 @@ export default function AllServers() {
                       allNics={allNics}
                       machines={machines}
                       portForwards={allPortForwards}
+                      locations={locations}
                       expanded={expandedRouterId === r.id}
                       onToggle={() => setExpandedRouterId(expandedRouterId === r.id ? null : r.id)}
                       onEdit={setEditingRouter}
@@ -2417,6 +2714,7 @@ export default function AllServers() {
         {editingMachine !== undefined && (
           <EditMachineDialog
             machine={editingMachine}
+            locations={locations}
             onSave={handleSave}
             onCancel={() => setEditingMachine(undefined)}
             onDelete={(id) => deleteMut.mutate(id)}
@@ -2424,9 +2722,20 @@ export default function AllServers() {
           />
         )}
 
+        {editingLocation !== undefined && (
+          <EditLocationDialog
+            location={editingLocation}
+            allLocations={locations}
+            onSave={handleSaveLocation}
+            onCancel={() => setEditingLocation(undefined)}
+            saving={createLocationMut.isPending || updateLocationMut.isPending}
+          />
+        )}
+
         {editingRouter !== undefined && (
           <EditRouterDialog
             router={editingRouter}
+            locations={locations}
             onSave={handleSaveRouter}
             onCancel={() => setEditingRouter(undefined)}
             saving={createRouterMut.isPending || updateRouterMut.isPending}

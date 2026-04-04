@@ -15,6 +15,21 @@ export const systemConfig = pgTable("system_config", {
 
 export type SystemConfig = typeof systemConfig.$inferSelect;
 
+export const platformLocations = pgTable("platform_locations", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  locationType: text("location_type").notNull().default("company"),
+  parentId: integer("parent_id"),
+  address: text("address"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertPlatformLocationSchema = createInsertSchema(platformLocations).omit({ id: true, createdAt: true, updatedAt: true });
+export type PlatformLocation = typeof platformLocations.$inferSelect;
+export type InsertPlatformLocation = z.infer<typeof insertPlatformLocationSchema>;
+
 export const machines = pgTable("machines", {
   id: serial("id").primaryKey(),
   localName: text("local_name").notNull(),
@@ -48,6 +63,7 @@ export const machines = pgTable("machines", {
   routerId: integer("router_id"),
   internetType: text("internet_type").notNull().default("dynamic"),
   physicalLocation: text("physical_location"),
+  locationId: integer("location_id"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -106,6 +122,7 @@ export const routers = pgTable("routers", {
   ispCallCenter: text("isp_call_center"),
   ispSupportUrl: text("isp_support_url"),
   physicalLocation: text("physical_location"),
+  locationId: integer("location_id"),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
