@@ -2204,35 +2204,51 @@ app.post("/api/platform/machines/:id/test-db", requireAuth, requireSuperAdmin, a
     const [machine] = await db.select().from(machinesTable).where(eq(machinesTable.id, id));
     if (!machine) return res.status(404).json({ message: "ไม่พบเครื่องนี้" });
 
-    const host = machine.fqdn || machine.domainName || machine.lanIp;
     const port = parseInt(machine.dbPort || "5432", 10);
     const dbName = machine.dbName || "postgres";
     const dbUser = machine.dbUser || "postgres";
     const dbPassword = machine.dbPassword || "";
 
-    if (!host) return res.json({ alive: false, error: "ไม่มี host (FQDN / domain / LAN IP)" });
+    const paths: { label: string; host: string }[] = [];
+    if (machine.lanIp) paths.push({ label: "LAN", host: machine.lanIp });
+    if (machine.wanIp) paths.push({ label: "WAN IP", host: machine.wanIp });
+    if (machine.fqdn) paths.push({ label: "FQDN", host: machine.fqdn });
+    if (machine.domainName && machine.domainName !== machine.fqdn) paths.push({ label: "Domain", host: machine.domainName });
+
+    if (paths.length === 0) {
+      return res.json({ paths: [], anyAlive: false, error: "ไม่มี host (LAN IP / WAN IP / FQDN / Domain)" });
+    }
 
     const { default: pg } = await import("pg");
-    const client = new pg.Client({
-      host,
-      port,
-      database: dbName,
-      user: dbUser,
-      password: dbPassword,
-      connectionTimeoutMillis: 5000,
-      query_timeout: 3000,
-    });
 
-    try {
-      await client.connect();
-      const result = await client.query("SELECT version()");
-      const version = result.rows[0]?.version || "connected";
-      await client.end();
-      res.json({ alive: true, host, port, version });
-    } catch (connErr: any) {
-      try { await client.end(); } catch {}
-      res.json({ alive: false, host, port, error: connErr.message });
-    }
+    const testOne = async (p: { label: string; host: string }) => {
+      const start = Date.now();
+      const client = new pg.Client({
+        host: p.host,
+        port,
+        database: dbName,
+        user: dbUser,
+        password: dbPassword,
+        connectionTimeoutMillis: 5000,
+        query_timeout: 3000,
+      });
+      try {
+        await client.connect();
+        const result = await client.query("SELECT version()");
+        const latency = Date.now() - start;
+        const version = result.rows[0]?.version || "connected";
+        await client.end();
+        return { label: p.label, host: p.host, port, alive: true, latency, version };
+      } catch (err: any) {
+        const latency = Date.now() - start;
+        try { await client.end(); } catch {}
+        return { label: p.label, host: p.host, port, alive: false, latency, error: err.message };
+      }
+    };
+
+    const results = await Promise.all(paths.map(testOne));
+    const anyAlive = results.some(r => r.alive);
+    res.json({ paths: results, anyAlive, machineName: machine.localName });
   } catch (err: any) { res.status(500).json({ message: err.message }); }
 });
 

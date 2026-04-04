@@ -1262,6 +1262,16 @@ function NicSection({ machineId, allNics, allMachines, allRouters }: { machineId
   );
 }
 
+interface PathResult {
+  label: string;
+  host: string;
+  port: number;
+  alive: boolean;
+  latency: number;
+  version?: string;
+  error?: string;
+}
+
 function TargetDbSelector({ machine, allMachines, onChangeTarget }: {
   machine: MachineRecord;
   allMachines: MachineRecord[];
@@ -1269,43 +1279,47 @@ function TargetDbSelector({ machine, allMachines, onChangeTarget }: {
 }) {
   const currentVal = machine.targetDbMachineId ? String(machine.targetDbMachineId) : "none";
   const [selectedVal, setSelectedVal] = useState(currentVal);
-  const [testStatus, setTestStatus] = useState<"idle" | "testing" | "alive" | "dead">("idle");
-  const [testInfo, setTestInfo] = useState<string>("");
+  const [testStatus, setTestStatus] = useState<"idle" | "testing" | "done">("idle");
+  const [pathResults, setPathResults] = useState<PathResult[]>([]);
+  const [testError, setTestError] = useState("");
   const hasChanged = selectedVal !== currentVal;
   const isSelf = selectedVal === String(machine.id);
   const isNone = selectedVal === "none";
+  const anyAlive = pathResults.some(p => p.alive);
 
   useEffect(() => {
     setSelectedVal(currentVal);
     setTestStatus("idle");
-    setTestInfo("");
+    setPathResults([]);
+    setTestError("");
   }, [currentVal]);
 
   const handleSelect = (val: string) => {
     setSelectedVal(val);
     setTestStatus("idle");
-    setTestInfo("");
+    setPathResults([]);
+    setTestError("");
   };
 
   const handleTest = async () => {
     if (isNone) return;
     const targetId = parseInt(selectedVal, 10);
     setTestStatus("testing");
-    setTestInfo("");
+    setPathResults([]);
+    setTestError("");
     try {
       const res = await fetch(`/api/platform/machines/${targetId}/test-db`, { method: "POST" });
       const data = await res.json();
-      if (data.alive) {
-        setTestStatus("alive");
-        const shortVer = data.version?.match(/PostgreSQL [\d.]+/)?.[0] || "connected";
-        setTestInfo(`${data.host}:${data.port} — ${shortVer}`);
-      } else {
-        setTestStatus("dead");
-        setTestInfo(data.error || "ไม่สามารถเชื่อมต่อได้");
+      if (data.paths) {
+        setPathResults(data.paths);
       }
+      if (data.error) {
+        setTestError(data.error);
+      }
+      setTestStatus("done");
     } catch (err: any) {
-      setTestStatus("dead");
-      setTestInfo(err.message);
+      setTestError(err.message);
+      setTestStatus("done");
     }
   };
 
@@ -1313,13 +1327,15 @@ function TargetDbSelector({ machine, allMachines, onChangeTarget }: {
     const newTarget = isNone ? null : parseInt(selectedVal, 10);
     onChangeTarget(machine.id, newTarget);
     setTestStatus("idle");
-    setTestInfo("");
+    setPathResults([]);
+    setTestError("");
   };
 
   const handleCancel = () => {
     setSelectedVal(currentVal);
     setTestStatus("idle");
-    setTestInfo("");
+    setPathResults([]);
+    setTestError("");
   };
 
   const targetMachine = selectedVal !== "none" && selectedVal !== String(machine.id)
@@ -1362,59 +1378,74 @@ function TargetDbSelector({ machine, allMachines, onChangeTarget }: {
       </div>
 
       {hasChanged && (
-        <div className="flex items-center gap-2 flex-wrap">
-          {!isNone && !isSelf && (
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-6 text-[11px] px-2 border-purple-300 text-purple-600 hover:bg-purple-50"
-              onClick={handleTest}
-              disabled={testStatus === "testing"}
-              data-testid={`btn-test-db-${machine.id}`}
-            >
-              {testStatus === "testing" ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Database className="h-3 w-3 mr-1" />}
-              {testStatus === "testing" ? "กำลังทดสอบ..." : "ทดสอบการเชื่อมต่อ"}
-            </Button>
-          )}
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            {!isNone && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-6 text-[11px] px-2 border-purple-300 text-purple-600 hover:bg-purple-50"
+                onClick={handleTest}
+                disabled={testStatus === "testing"}
+                data-testid={`btn-test-db-${machine.id}`}
+              >
+                {testStatus === "testing" ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Database className="h-3 w-3 mr-1" />}
+                {testStatus === "testing" ? "กำลังทดสอบทุกเส้นทาง..." : "ทดสอบการเชื่อมต่อ"}
+              </Button>
+            )}
 
-          {testStatus === "alive" && (
-            <span className="text-[11px] text-green-600 flex items-center gap-1">
-              <CheckCircle2 className="h-3 w-3" /> Online
-            </span>
-          )}
-          {testStatus === "dead" && (
-            <span className="text-[11px] text-red-500 flex items-center gap-1">
-              <XCircle className="h-3 w-3" /> Offline
-            </span>
-          )}
-
-          <div className="ml-auto flex items-center gap-1">
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-6 text-[11px] px-2 text-gray-500"
-              onClick={handleCancel}
-              data-testid={`btn-cancel-target-${machine.id}`}
-            >
-              ยกเลิก
-            </Button>
-            <Button
-              size="sm"
-              className="h-6 text-[11px] px-2 bg-purple-600 hover:bg-purple-700 text-white"
-              onClick={handleConfirm}
-              disabled={!isNone && !isSelf && testStatus !== "alive"}
-              data-testid={`btn-confirm-target-${machine.id}`}
-            >
-              <CheckCircle2 className="h-3 w-3 mr-1" /> ยืนยัน
-            </Button>
+            <div className="ml-auto flex items-center gap-1">
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-6 text-[11px] px-2 text-gray-500"
+                onClick={handleCancel}
+                data-testid={`btn-cancel-target-${machine.id}`}
+              >
+                ยกเลิก
+              </Button>
+              <Button
+                size="sm"
+                className="h-6 text-[11px] px-2 bg-purple-600 hover:bg-purple-700 text-white"
+                onClick={handleConfirm}
+                disabled={!isNone && testStatus !== "done"}
+                data-testid={`btn-confirm-target-${machine.id}`}
+              >
+                <CheckCircle2 className="h-3 w-3 mr-1" /> ยืนยัน
+              </Button>
+            </div>
           </div>
-        </div>
-      )}
 
-      {testInfo && (
-        <p className={`text-[10px] font-mono px-1 ${testStatus === "alive" ? "text-green-600" : "text-red-400"}`}>
-          {testInfo}
-        </p>
+          {testError && !pathResults.length && (
+            <p className="text-[10px] font-mono px-1 text-red-400">{testError}</p>
+          )}
+
+          {pathResults.length > 0 && (
+            <div className="space-y-1 bg-white rounded border border-gray-200 p-2">
+              <div className="text-[10px] font-medium text-gray-500 mb-1">ผลทดสอบ ({pathResults.filter(p => p.alive).length}/{pathResults.length} เส้นทางเชื่อมต่อได้)</div>
+              {pathResults.map((p, i) => (
+                <div key={i} className={`flex items-center gap-2 px-2 py-1 rounded text-[11px] font-mono ${p.alive ? "bg-green-50 border border-green-200" : "bg-red-50 border border-red-200"}`}>
+                  {p.alive ? <CheckCircle2 className="h-3 w-3 text-green-500 shrink-0" /> : <XCircle className="h-3 w-3 text-red-400 shrink-0" />}
+                  <span className={`font-semibold w-14 shrink-0 ${p.alive ? "text-green-700" : "text-red-600"}`}>{p.label}</span>
+                  <span className="text-gray-600 truncate">{p.host}:{p.port}</span>
+                  {p.alive ? (
+                    <>
+                      <span className="text-green-600 ml-auto shrink-0">{p.latency}ms</span>
+                      <span className="text-green-500 text-[9px] hidden sm:inline">{p.version?.match(/PostgreSQL [\d.]+/)?.[0] || ""}</span>
+                    </>
+                  ) : (
+                    <span className="text-red-400 text-[9px] ml-auto truncate max-w-[200px]" title={p.error}>{p.error}</span>
+                  )}
+                </div>
+              ))}
+              {!anyAlive && (
+                <div className="text-[10px] text-red-500 flex items-center gap-1 mt-1">
+                  <AlertTriangle className="h-3 w-3" /> ไม่มีเส้นทางใดเชื่อมต่อได้ — ยืนยันได้แต่อาจใช้งานไม่ได้จริง
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       )}
     </div>
   );
