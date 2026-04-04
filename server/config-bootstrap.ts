@@ -143,6 +143,32 @@ export function getConfig(key: string, fallbackEnvVar?: string): string {
   return "";
 }
 
+export async function refreshConfigKeys(keys: string[]): Promise<void> {
+  const configDbUrl = getConfigDbUrl();
+  if (!configDbUrl || keys.length === 0) return;
+
+  const pool = new pg.Pool({
+    connectionString: configDbUrl,
+    max: 1,
+    connectionTimeoutMillis: 8000,
+  });
+
+  try {
+    const placeholders = keys.map((_, i) => `$${i + 1}`).join(",");
+    const result = await pool.query<ConfigEntry>(
+      `SELECT config_key, config_value FROM system_config WHERE config_key IN (${placeholders}) AND config_value != ''`,
+      keys
+    );
+    for (const row of result.rows) {
+      _configCache.set(row.config_key, row.config_value);
+    }
+    await pool.end();
+  } catch (err: any) {
+    console.log(`[Config] refreshConfigKeys failed: ${err.message?.slice(0, 100)}`);
+    try { await pool.end(); } catch {}
+  }
+}
+
 export function isBootstrapped(): boolean {
   return _bootstrapped;
 }
