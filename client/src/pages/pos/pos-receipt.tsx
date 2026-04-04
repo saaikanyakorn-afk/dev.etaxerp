@@ -49,6 +49,7 @@ export default function PosReceipt() {
   const [docSettings, setDocSettings] = useState<any>(null);
   const [session, setSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [logoBase64, setLogoBase64] = useState<string | null>(null);
   const [btPrinting, setBtPrinting] = useState(false);
   const [btConnected, setBtConnected] = useState(false);
   const [btName, setBtName] = useState<string | null>(null);
@@ -79,6 +80,20 @@ export default function PosReceipt() {
           setCompany(result.company);
           setDocSettings(result.docSettings);
           setSession(result.session);
+
+          const logoUrl = result.docSettings?.logoUrl || result.company?.logoUrl;
+          if (logoUrl) {
+            try {
+              const resolvedUrl = objectPathToUrl(logoUrl) || logoUrl;
+              const imgRes = await fetch(resolvedUrl, { credentials: "include" });
+              if (imgRes.ok) {
+                const blob = await imgRes.blob();
+                const reader = new FileReader();
+                reader.onloadend = () => setLogoBase64(reader.result as string);
+                reader.readAsDataURL(blob);
+              }
+            } catch {}
+          }
         }
       } catch {}
       setLoading(false);
@@ -125,9 +140,8 @@ export default function PosReceipt() {
         companyTaxId: company?.taxId || undefined,
         companyPhone: company?.phone || undefined,
         companyLogoUrl: (() => {
-          const logoUrl = docSettings?.logoUrl || company?.logoUrl;
           const showLogo = docSettings ? docSettings.posReceiptShowLogo !== false : company?.showLogo !== false;
-          return showLogo && logoUrl ? (objectPathToUrl(logoUrl) || logoUrl) : undefined;
+          return showLogo && logoBase64 ? logoBase64 : undefined;
         })(),
         companyBranch: company?.branch || session?.branchName || "สำนักงานใหญ่",
         companyBranchId: company?.sellerBranchId || "00000",
@@ -346,12 +360,11 @@ export default function PosReceipt() {
       >
         <div style={{ textAlign: "center", borderBottom: "1px dashed #000", paddingBottom: "6px", marginBottom: "6px" }}>
           {(() => {
-            const logoUrl = docSettings?.logoUrl || company?.logoUrl;
             const showLogo = docSettings ? docSettings.posReceiptShowLogo !== false : company?.showLogo !== false;
-            return showLogo && logoUrl ? (
+            return showLogo && logoBase64 ? (
               <div style={{ marginBottom: "6px" }}>
                 <img
-                  src={objectPathToUrl(logoUrl) || logoUrl}
+                  src={logoBase64}
                   alt="logo"
                   style={{
                     maxWidth: paperWidth === "58" ? "48px" : "64px",
