@@ -1176,6 +1176,7 @@ async function runMigrationsInBackground() {
         import("./sync-queue").then(m => m.startSyncQueueWorker());
         import("./services/tax-reminder").then(m => m.startTaxReminderScheduler());
         import("./services/github-push").then(m => m.startGitHubPushScheduler());
+        import("./services/clone-history-central").then(m => m.startCentralHistorySync());
       }
     },
   );

@@ -3,6 +3,7 @@ import { eq, and, isNull, desc } from "drizzle-orm";
 import { cloneHistory, systemConfig } from "@shared/schema";
 import { getConfig } from "./config-bootstrap";
 import { platformCloneProgress, setPlatformCloneProgress, cloneScreenUserId, cloneScreenLastHeartbeat, setCloneScreen, acquireCloneLock, releaseCloneLock } from "./clone-state";
+import { recordCloneHistory } from "./services/clone-history-central";
 import path from "path";
 import os from "os";
 import fs from "fs";
@@ -260,7 +261,7 @@ export async function autoResumeClone(): Promise<void> {
           try { fs.unlinkSync(dumpFile); } catch {}
 
           try {
-            await db.insert(cloneHistory).values({
+            await recordCloneHistory({
               sessionId: resumeSessionId, cloneType: "auto-resume", direction: "us_to_th", tableName, rowCount,
               hostDurationMs, remoteDurationMs, status: "success",
               batchIndex: 0, totalBatches: 1,
@@ -276,7 +277,7 @@ export async function autoResumeClone(): Promise<void> {
           failCount++;
           console.log(`[Clone Auto-Resume] ✗ ${tableName} — ${tableErr.message?.slice(0, 200)}`);
           try {
-            await db.insert(cloneHistory).values({
+            await recordCloneHistory({
               sessionId: resumeSessionId, cloneType: "auto-resume", direction: "us_to_th", tableName, rowCount: 0,
               hostDurationMs: 0, remoteDurationMs: 0, status: "error",
               errorMessage: `Auto-resume failed: ${(tableErr.message || "").slice(0, 400)}`,
