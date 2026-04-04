@@ -60,6 +60,8 @@ interface RouterRecord {
   model: string | null;
   lanIp: string | null;
   adminUrl: string | null;
+  adminUsername: string | null;
+  adminPassword: string | null;
   wanIp: string | null;
   internetType: string;
   ispName: string | null;
@@ -95,8 +97,36 @@ interface NicRecord {
   subnetMask: string;
   forwardedFor: string | null;
   forwardedPort: string | null;
+  routerId: number | null;
   notes: string | null;
   createdAt?: string;
+}
+
+interface NicIpRecord {
+  id: number;
+  nicId: number;
+  ipAddress: string;
+  subnetMask: string;
+  label: string | null;
+  isPrimary: boolean;
+  createdAt?: string;
+}
+
+interface PlatformDomainRecord {
+  id: number;
+  domainName: string;
+  provider: string;
+  manageUrl: string | null;
+  username: string | null;
+  password: string | null;
+  routerId: number | null;
+  isRouterManaged: boolean;
+  machineId: number | null;
+  purpose: string | null;
+  port: number | null;
+  notes: string | null;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 function ipToInt(ip: string): number {
@@ -129,22 +159,23 @@ const ROLE_CONFIG: Record<string, { label: string; color: string; bgColor: strin
   backup: { label: "Backup", color: "text-gray-700", bgColor: "bg-gray-100" },
 };
 
-function RouterCard({ router, domains, machines, expanded, onToggle, onEdit, onDelete, onAddDomain, onDeleteDomain }: {
+function RouterCard({ router, domains, allNics, machines, expanded, onToggle, onEdit, onDelete, credentialsUnlocked }: {
   router: RouterRecord;
-  domains: RouterDomainRecord[];
+  domains: PlatformDomainRecord[];
+  allNics: NicRecord[];
   machines: MachineRecord[];
   expanded: boolean;
   onToggle: () => void;
   onEdit: (r: RouterRecord) => void;
   onDelete: (id: number) => void;
-  onAddDomain: (routerId: number, data: { domainName: string; noipManageUrl?: string; noipUsername?: string; noipPassword?: string }) => void;
-  onDeleteDomain: (domainId: number) => void;
+  credentialsUnlocked: boolean;
 }) {
-  const [addingDomain, setAddingDomain] = useState(false);
-  const [domainForm, setDomainForm] = useState({ domainName: "", noipManageUrl: "", noipUsername: "", noipPassword: "" });
-  const [showPw, setShowPw] = useState<Record<number, boolean>>({});
-  const connectedMachines = machines.filter(m => m.routerId === router.id);
+  const [showAdminPw, setShowAdminPw] = useState(false);
+  const connectedNics = allNics.filter(n => n.routerId === router.id);
+  const connectedMachineIds = [...new Set(connectedNics.map(n => n.machineId))];
+  const connectedMachines = machines.filter(m => connectedMachineIds.includes(m.id));
   const myDomains = domains.filter(d => d.routerId === router.id);
+  const autoManagedDomain = myDomains.find(d => d.isRouterManaged);
 
   return (
     <div className={`border rounded-lg transition-all border-teal-300 bg-teal-50/30 ${expanded ? "shadow-md" : "hover:shadow-sm"}`} data-testid={`card-router-${router.id}`}>
@@ -154,10 +185,11 @@ function RouterCard({ router, domains, machines, expanded, onToggle, onEdit, onD
         <span className="font-bold text-sm text-teal-900 truncate">{router.name}</span>
         {router.lanIp && <span className="text-xs font-mono text-teal-600 hidden sm:inline">{router.lanIp}</span>}
         {router.ispName && <span className="text-xs text-gray-400 hidden sm:inline">({router.ispName})</span>}
+        {autoManagedDomain && <span className="text-xs font-mono text-indigo-500 hidden md:inline">{autoManagedDomain.domainName}</span>}
         <div className="ml-auto flex items-center gap-1.5 shrink-0">
           {myDomains.length > 0 && (
             <Badge variant="outline" className="bg-indigo-50 text-indigo-700 border-indigo-300 text-[10px] px-1.5 py-0">
-              <Globe className="h-2.5 w-2.5 mr-0.5" />{myDomains.length} domain{myDomains.length > 1 ? "s" : ""}
+              <Globe className="h-2.5 w-2.5 mr-0.5" />{myDomains.length}
             </Badge>
           )}
           {connectedMachines.length > 0 && (
@@ -203,6 +235,23 @@ function RouterCard({ router, domains, machines, expanded, onToggle, onEdit, onD
             )}
           </div>
 
+          {credentialsUnlocked && (router.adminUsername || router.adminPassword) && (
+            <div className="p-2 bg-amber-50 border border-amber-200 rounded">
+              <h5 className="text-[10px] font-semibold text-amber-700 mb-1 flex items-center gap-1"><Key className="h-3 w-3" /> Router Login</h5>
+              <div className="flex items-center gap-4 text-xs">
+                {router.adminUsername && <span>user: <span className="font-mono font-medium">{router.adminUsername}</span></span>}
+                {router.adminPassword && (
+                  <span className="flex items-center gap-1">
+                    pw: <span className="font-mono">{showAdminPw ? router.adminPassword : "••••••"}</span>
+                    <button onClick={e => { e.stopPropagation(); setShowAdminPw(!showAdminPw); }} className="p-0.5 hover:bg-amber-200 rounded">
+                      {showAdminPw ? <EyeOff className="h-2.5 w-2.5" /> : <Eye className="h-2.5 w-2.5" />}
+                    </button>
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
+
           {(router.ispName || router.ispPackage) && (
             <div className="p-2 bg-white rounded border border-gray-200">
               <h5 className="text-[10px] font-semibold text-gray-500 mb-1">ISP Information</h5>
@@ -229,73 +278,23 @@ function RouterCard({ router, domains, machines, expanded, onToggle, onEdit, onD
             </div>
           )}
 
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between">
-              <h5 className="text-[10px] font-semibold text-gray-500 flex items-center gap-1"><Globe className="h-3 w-3" /> DDNS Domains ({myDomains.length})</h5>
-              <Button size="sm" variant="ghost" className="h-5 text-[10px] px-1.5" onClick={e => { e.stopPropagation(); setAddingDomain(!addingDomain); }} data-testid={`btn-add-domain-${router.id}`}>
-                <Plus className="h-2.5 w-2.5 mr-0.5" /> เพิ่ม Domain
-              </Button>
+          {myDomains.length > 0 && (
+            <div className="p-2 bg-indigo-50/50 border border-indigo-200 rounded">
+              <h5 className="text-[10px] font-semibold text-indigo-600 mb-1 flex items-center gap-1"><Globe className="h-3 w-3" /> Domains ที่ใช้ WAN IP ของ Router นี้ ({myDomains.length})</h5>
+              <div className="flex flex-wrap gap-1.5">
+                {myDomains.map(d => (
+                  <Badge key={d.id} variant="outline" className={`text-[10px] px-1.5 py-0.5 ${d.isRouterManaged ? "bg-indigo-100 text-indigo-800 border-indigo-400 font-bold" : "bg-white text-indigo-700 border-indigo-300"}`}>
+                    {d.isRouterManaged && <Router className="h-2.5 w-2.5 mr-0.5" />}
+                    {d.domainName}
+                  </Badge>
+                ))}
+              </div>
             </div>
-            {myDomains.map(d => (
-              <div key={d.id} className="flex items-center gap-2 p-1.5 bg-white border rounded text-xs group" data-testid={`domain-row-${d.id}`}>
-                <Globe className="h-3 w-3 text-indigo-500 shrink-0" />
-                <span className="font-mono font-medium text-indigo-700">{d.domainName}</span>
-                {d.noipUsername && (
-                  <span className="text-gray-400 hidden sm:inline">
-                    user: <span className="font-mono">{d.noipUsername}</span>
-                  </span>
-                )}
-                {d.noipPassword && (
-                  <span className="text-gray-400 hidden sm:inline">
-                    pw: <span className="font-mono">{showPw[d.id] ? d.noipPassword : "••••"}</span>
-                    <button onClick={e => { e.stopPropagation(); setShowPw(p => ({ ...p, [d.id]: !p[d.id] })); }} className="ml-0.5 p-0.5 hover:bg-gray-200 rounded">
-                      {showPw[d.id] ? <EyeOff className="h-2.5 w-2.5" /> : <Eye className="h-2.5 w-2.5" />}
-                    </button>
-                  </span>
-                )}
-                {d.noipManageUrl && (
-                  <a href={d.noipManageUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="text-blue-500 hover:text-blue-700" data-testid={`link-noip-${d.id}`}>
-                    <ExternalLink className="h-3 w-3" />
-                  </a>
-                )}
-                <button onClick={e => { e.stopPropagation(); if (confirm(`ลบ domain ${d.domainName}?`)) onDeleteDomain(d.id); }} className="ml-auto opacity-0 group-hover:opacity-100 p-0.5 hover:bg-red-100 rounded text-red-400 transition-opacity" data-testid={`btn-delete-domain-${d.id}`}>
-                  <Trash2 className="h-3 w-3" />
-                </button>
-              </div>
-            ))}
-            {addingDomain && (
-              <div className="p-2 bg-indigo-50/50 border border-indigo-200 rounded space-y-2" onClick={e => e.stopPropagation()}>
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
-                  <div>
-                    <Label className="text-[10px] text-gray-500">Domain *</Label>
-                    <Input className="h-7 text-xs font-mono" placeholder="deep-main.hopto.org" value={domainForm.domainName} onChange={e => setDomainForm({ ...domainForm, domainName: e.target.value })} data-testid={`input-domain-name-${router.id}`} />
-                  </div>
-                  <div>
-                    <Label className="text-[10px] text-gray-500">noIP Username</Label>
-                    <Input className="h-7 text-xs font-mono" value={domainForm.noipUsername} onChange={e => setDomainForm({ ...domainForm, noipUsername: e.target.value })} data-testid={`input-noip-user-${router.id}`} />
-                  </div>
-                  <div>
-                    <Label className="text-[10px] text-gray-500">noIP Password</Label>
-                    <Input className="h-7 text-xs font-mono" type="password" value={domainForm.noipPassword} onChange={e => setDomainForm({ ...domainForm, noipPassword: e.target.value })} data-testid={`input-noip-pw-${router.id}`} />
-                  </div>
-                  <div>
-                    <Label className="text-[10px] text-gray-500">noIP Manage URL</Label>
-                    <Input className="h-7 text-xs font-mono" placeholder="https://my.noip.com/..." value={domainForm.noipManageUrl} onChange={e => setDomainForm({ ...domainForm, noipManageUrl: e.target.value })} data-testid={`input-noip-url-${router.id}`} />
-                  </div>
-                </div>
-                <div className="flex gap-2 justify-end">
-                  <Button size="sm" variant="ghost" className="h-6 text-[10px]" onClick={() => setAddingDomain(false)}>ยกเลิก</Button>
-                  <Button size="sm" className="h-6 text-[10px] bg-indigo-600 hover:bg-indigo-700" onClick={() => { onAddDomain(router.id, domainForm); setAddingDomain(false); setDomainForm({ domainName: "", noipManageUrl: "", noipUsername: "", noipPassword: "" }); }} disabled={!domainForm.domainName} data-testid={`btn-save-domain-${router.id}`}>
-                    <Check className="h-2.5 w-2.5 mr-0.5" /> บันทึก
-                  </Button>
-                </div>
-              </div>
-            )}
-          </div>
+          )}
 
           {connectedMachines.length > 0 && (
             <div className="p-2 bg-teal-50 border border-teal-200 rounded">
-              <h5 className="text-[10px] font-semibold text-teal-700 mb-1 flex items-center gap-1"><Server className="h-3 w-3" /> เครื่องที่อยู่หลัง Router นี้</h5>
+              <h5 className="text-[10px] font-semibold text-teal-700 mb-1 flex items-center gap-1"><Server className="h-3 w-3" /> เครื่องที่เชื่อมต่อผ่าน NIC ({connectedMachines.length})</h5>
               <div className="flex flex-wrap gap-1.5">
                 {connectedMachines.map(m => (
                   <Badge key={m.id} variant="outline" className="bg-white text-teal-800 border-teal-300 text-[10px] px-1.5 py-0.5">
@@ -323,11 +322,14 @@ function RouterCard({ router, domains, machines, expanded, onToggle, onEdit, onD
 
 function EditRouterDialog({ router, onSave, onCancel, saving }: { router: RouterRecord | null; onSave: (data: any) => void; onCancel: () => void; saving?: boolean }) {
   const isNew = !router;
+  const [showPw, setShowPw] = useState(false);
   const [form, setForm] = useState({
     name: router?.name || "",
     model: router?.model || "",
     lanIp: router?.lanIp || "",
     adminUrl: router?.adminUrl || "",
+    adminUsername: router?.adminUsername || "",
+    adminPassword: router?.adminPassword || "",
     wanIp: router?.wanIp || "",
     internetType: router?.internetType || "dynamic",
     ispName: router?.ispName || "",
@@ -369,6 +371,21 @@ function EditRouterDialog({ router, onSave, onCancel, saving }: { router: Router
             <div>
               <Label className="text-sm font-medium">Admin URL</Label>
               <Input className="font-mono" value={form.adminUrl} onChange={e => setForm({ ...form, adminUrl: e.target.value })} placeholder="http://192.168.1.1:8080" data-testid="input-router-admin-url" />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label className="text-sm font-medium">Admin Username</Label>
+              <Input className="font-mono" value={form.adminUsername} onChange={e => setForm({ ...form, adminUsername: e.target.value })} placeholder="admin" data-testid="input-router-admin-user" />
+            </div>
+            <div>
+              <Label className="text-sm font-medium">Admin Password</Label>
+              <div className="flex gap-2">
+                <Input className="font-mono flex-1" type={showPw ? "text" : "password"} value={form.adminPassword} onChange={e => setForm({ ...form, adminPassword: e.target.value })} data-testid="input-router-admin-password" />
+                <Button type="button" variant="outline" size="icon" onClick={() => setShowPw(!showPw)}>
+                  {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
+              </div>
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
@@ -446,9 +463,297 @@ function EditRouterDialog({ router, onSave, onCancel, saving }: { router: Router
   );
 }
 
-function NicSection({ machineId, allNics, allMachines }: { machineId: number; allNics: NicRecord[]; allMachines: MachineRecord[] }) {
+const PURPOSE_CONFIG: Record<string, { label: string; color: string }> = {
+  app: { label: "App", color: "bg-blue-100 text-blue-700 border-blue-300" },
+  db: { label: "Database", color: "bg-purple-100 text-purple-700 border-purple-300" },
+  both: { label: "App + DB", color: "bg-orange-100 text-orange-700 border-orange-300" },
+};
+
+const PROVIDER_CONFIG: Record<string, { label: string; color: string }> = {
+  noip: { label: "noIP", color: "text-green-700" },
+  freedns: { label: "FreeDNS", color: "text-blue-700" },
+  other: { label: "Other", color: "text-gray-700" },
+};
+
+function DomainCard({ domain, routers, machines, expanded, onToggle, onEdit, onDelete, credentialsUnlocked }: {
+  domain: PlatformDomainRecord;
+  routers: RouterRecord[];
+  machines: MachineRecord[];
+  expanded: boolean;
+  onToggle: () => void;
+  onEdit: (d: PlatformDomainRecord) => void;
+  onDelete: (id: number) => void;
+  credentialsUnlocked: boolean;
+}) {
+  const [showPw, setShowPw] = useState(false);
+  const linkedRouter = domain.routerId ? routers.find(r => r.id === domain.routerId) : null;
+  const linkedMachine = domain.machineId ? machines.find(m => m.id === domain.machineId) : null;
+  const purposeConfig = domain.purpose ? PURPOSE_CONFIG[domain.purpose] : null;
+  const providerConfig = PROVIDER_CONFIG[domain.provider] || PROVIDER_CONFIG.other;
+
+  return (
+    <div className={`border rounded-lg transition-all border-indigo-300 bg-indigo-50/30 ${expanded ? "shadow-md" : "hover:shadow-sm"}`} data-testid={`card-domain-${domain.id}`}>
+      <button onClick={onToggle} className="w-full flex items-center gap-3 px-4 py-3 text-left" data-testid={`btn-toggle-domain-${domain.id}`}>
+        {expanded ? <ChevronDown className="h-4 w-4 text-gray-400 shrink-0" /> : <ChevronRight className="h-4 w-4 text-gray-400 shrink-0" />}
+        <Globe className="h-4 w-4 text-indigo-600 shrink-0" />
+        <span className="font-bold text-sm text-indigo-900 font-mono truncate">{domain.domainName}</span>
+        {domain.isRouterManaged && (
+          <Badge className="bg-indigo-600 text-white text-[10px] px-1.5 py-0">
+            <Router className="h-2.5 w-2.5 mr-0.5" /> Auto
+          </Badge>
+        )}
+        {domain.port && <span className="text-xs font-mono text-gray-400">:{domain.port}</span>}
+        <div className="ml-auto flex items-center gap-1.5 shrink-0">
+          {purposeConfig && (
+            <Badge variant="outline" className={`${purposeConfig.color} text-[10px] px-1.5 py-0`}>
+              {purposeConfig.label}
+            </Badge>
+          )}
+          {linkedRouter && (
+            <Badge variant="outline" className="bg-teal-50 text-teal-700 border-teal-300 text-[10px] px-1.5 py-0">
+              <Router className="h-2.5 w-2.5 mr-0.5" />{linkedRouter.name}
+            </Badge>
+          )}
+          {linkedMachine && (
+            <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-300 text-[10px] px-1.5 py-0">
+              <Server className="h-2.5 w-2.5 mr-0.5" />{linkedMachine.localName}
+            </Badge>
+          )}
+          <span className={`text-[10px] ${providerConfig.color}`}>{providerConfig.label}</span>
+        </div>
+      </button>
+
+      {expanded && (
+        <div className="px-4 pb-4 pt-1 border-t border-indigo-200 space-y-3">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-2 text-sm">
+            <div>
+              <span className="text-gray-400 text-xs block">Provider</span>
+              <span className={`text-xs font-medium ${providerConfig.color}`}>{providerConfig.label}</span>
+            </div>
+            <div>
+              <span className="text-gray-400 text-xs block">Purpose</span>
+              <span className="text-xs">{purposeConfig ? purposeConfig.label : "ยังไม่กำหนด"}</span>
+            </div>
+            {domain.port && (
+              <div>
+                <span className="text-gray-400 text-xs block">Port</span>
+                <span className="font-mono text-xs">{domain.port}</span>
+              </div>
+            )}
+            <div>
+              <span className="text-gray-400 text-xs block">Router ที่ตาม WAN IP</span>
+              <span className="text-xs">{linkedRouter ? linkedRouter.name : "— ไม่ได้ผูก"}</span>
+            </div>
+            <div>
+              <span className="text-gray-400 text-xs block">เครื่องที่ให้บริการ</span>
+              <span className="text-xs">{linkedMachine ? linkedMachine.localName : "— ไม่ได้ผูก"}</span>
+            </div>
+            <div>
+              <span className="text-gray-400 text-xs block">Router Auto-Managed</span>
+              <span className={`text-xs font-medium ${domain.isRouterManaged ? "text-indigo-600" : "text-gray-400"}`}>
+                {domain.isRouterManaged ? "ใช่ — Router อัพเดตเอง" : "ไม่ — ต้องอัพเดตจากภายนอก"}
+              </span>
+            </div>
+          </div>
+
+          {credentialsUnlocked && (domain.username || domain.password || domain.manageUrl) && (
+            <div className="p-2 bg-amber-50 border border-amber-200 rounded">
+              <h5 className="text-[10px] font-semibold text-amber-700 mb-1 flex items-center gap-1"><Key className="h-3 w-3" /> Credentials</h5>
+              <div className="flex items-center gap-4 text-xs flex-wrap">
+                {domain.manageUrl && (
+                  <a href={domain.manageUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="text-blue-500 hover:text-blue-700 flex items-center gap-0.5">
+                    <ExternalLink className="h-3 w-3" /> Manage
+                  </a>
+                )}
+                {domain.username && <span>user: <span className="font-mono font-medium">{domain.username}</span></span>}
+                {domain.password && (
+                  <span className="flex items-center gap-1">
+                    pw: <span className="font-mono">{showPw ? domain.password : "••••••"}</span>
+                    <button onClick={e => { e.stopPropagation(); setShowPw(!showPw); }} className="p-0.5 hover:bg-amber-200 rounded">
+                      {showPw ? <EyeOff className="h-2.5 w-2.5" /> : <Eye className="h-2.5 w-2.5" />}
+                    </button>
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
+
+          {domain.notes && <p className="text-xs text-gray-400 italic">{domain.notes}</p>}
+
+          <div className="flex items-center justify-end gap-2">
+            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={e => { e.stopPropagation(); onEdit(domain); }} data-testid={`btn-edit-domain-${domain.id}`}>
+              <Pencil className="h-3 w-3 mr-1" /> แก้ไข
+            </Button>
+            <Button size="sm" variant="outline" className="h-7 text-xs text-red-500 border-red-300 hover:bg-red-50" onClick={e => { e.stopPropagation(); if (confirm(`ลบ Domain "${domain.domainName}"?`)) onDelete(domain.id); }} data-testid={`btn-delete-domain-${domain.id}`}>
+              <Trash2 className="h-3 w-3 mr-1" /> ลบ
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function EditDomainDialog({ domain, routers, machines, onSave, onCancel, saving }: {
+  domain: PlatformDomainRecord | null;
+  routers: RouterRecord[];
+  machines: MachineRecord[];
+  onSave: (data: any) => void;
+  onCancel: () => void;
+  saving?: boolean;
+}) {
+  const isNew = !domain;
+  const [showPw, setShowPw] = useState(false);
+  const [form, setForm] = useState({
+    domainName: domain?.domainName || "",
+    provider: domain?.provider || "noip",
+    manageUrl: domain?.manageUrl || "",
+    username: domain?.username || "",
+    password: domain?.password || "",
+    routerId: domain?.routerId ? String(domain.routerId) : "",
+    isRouterManaged: domain?.isRouterManaged || false,
+    machineId: domain?.machineId ? String(domain.machineId) : "",
+    purpose: domain?.purpose || "",
+    port: domain?.port ? String(domain.port) : "",
+    notes: domain?.notes || "",
+  });
+
+  const handleSave = () => {
+    onSave({
+      ...form,
+      routerId: form.routerId ? Number(form.routerId) : null,
+      machineId: form.machineId ? Number(form.machineId) : null,
+      port: form.port ? Number(form.port) : null,
+      purpose: form.purpose || null,
+      manageUrl: form.manageUrl || null,
+      username: form.username || null,
+      password: form.password || null,
+      notes: form.notes || null,
+    });
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" data-testid="dialog-edit-domain">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <div className="p-6 border-b">
+          <h2 className="text-lg font-bold flex items-center gap-2">
+            <Globe className="h-5 w-5 text-indigo-600" />
+            {isNew ? "เพิ่ม Domain ใหม่" : `แก้ไข: ${domain.domainName}`}
+          </h2>
+        </div>
+        <div className="p-6 space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label className="text-sm font-medium">Domain Name *</Label>
+              <Input className="font-mono" value={form.domainName} onChange={e => setForm({ ...form, domainName: e.target.value })} placeholder="deep-main.hopto.org" data-testid="input-domain-name" />
+            </div>
+            <div>
+              <Label className="text-sm font-medium">Provider</Label>
+              <Select value={form.provider} onValueChange={v => setForm({ ...form, provider: v })}>
+                <SelectTrigger data-testid="select-domain-provider"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="noip">noIP</SelectItem>
+                  <SelectItem value="freedns">FreeDNS</SelectItem>
+                  <SelectItem value="other">Other</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label className="text-sm font-medium">ตาม WAN IP ของ Router</Label>
+              <Select value={form.routerId || "none"} onValueChange={v => setForm({ ...form, routerId: v === "none" ? "" : v })}>
+                <SelectTrigger data-testid="select-domain-router"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">— ไม่ได้ผูก</SelectItem>
+                  {routers.map(r => (
+                    <SelectItem key={r.id} value={String(r.id)}>
+                      {r.name} {r.wanIp ? `(${r.wanIp})` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-end gap-2 pb-1">
+              <label className="flex items-center gap-2 text-sm cursor-pointer">
+                <input type="checkbox" checked={form.isRouterManaged} onChange={e => setForm({ ...form, isRouterManaged: e.target.checked })} className="rounded" disabled={!form.routerId} data-testid="check-router-managed" />
+                Router อัพเดต Domain นี้เอง (Auto)
+              </label>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label className="text-sm font-medium">ให้บริการเครื่อง</Label>
+              <Select value={form.machineId || "none"} onValueChange={v => setForm({ ...form, machineId: v === "none" ? "" : v })}>
+                <SelectTrigger data-testid="select-domain-machine"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">— ไม่ได้ผูก</SelectItem>
+                  {machines.map(m => (
+                    <SelectItem key={m.id} value={String(m.id)}>{m.localName}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-sm font-medium">Purpose</Label>
+              <Select value={form.purpose || "none"} onValueChange={v => setForm({ ...form, purpose: v === "none" ? "" : v })}>
+                <SelectTrigger data-testid="select-domain-purpose"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">— ยังไม่กำหนด</SelectItem>
+                  <SelectItem value="app">App Server</SelectItem>
+                  <SelectItem value="db">Database Server</SelectItem>
+                  <SelectItem value="both">App + Database</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label className="text-sm font-medium">Port (ถ้าไม่ใช่ 80/443)</Label>
+              <Input className="font-mono" value={form.port} onChange={e => setForm({ ...form, port: e.target.value })} placeholder="เช่น 20541" data-testid="input-domain-port" />
+            </div>
+            <div>
+              <Label className="text-sm font-medium">Manage URL</Label>
+              <Input className="font-mono" value={form.manageUrl} onChange={e => setForm({ ...form, manageUrl: e.target.value })} placeholder="https://my.noip.com/..." data-testid="input-domain-manage-url" />
+            </div>
+          </div>
+          <div className="border-t pt-4">
+            <h3 className="text-sm font-semibold mb-3">Login Credentials</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label className="text-sm font-medium">Username</Label>
+                <Input className="font-mono" value={form.username} onChange={e => setForm({ ...form, username: e.target.value })} data-testid="input-domain-username" />
+              </div>
+              <div>
+                <Label className="text-sm font-medium">Password</Label>
+                <div className="flex gap-2">
+                  <Input className="font-mono flex-1" type={showPw ? "text" : "password"} value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} data-testid="input-domain-password" />
+                  <Button type="button" variant="outline" size="icon" onClick={() => setShowPw(!showPw)}>
+                    {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div>
+            <Label className="text-sm font-medium">หมายเหตุ</Label>
+            <Input value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} data-testid="input-domain-notes" />
+          </div>
+        </div>
+        <div className="p-6 border-t flex justify-end gap-3">
+          <Button variant="outline" onClick={onCancel} data-testid="button-cancel-domain">ยกเลิก</Button>
+          <Button className="bg-indigo-600 hover:bg-indigo-700 text-white" onClick={handleSave} disabled={saving || !form.domainName} data-testid="button-save-domain">
+            {saving ? "กำลังบันทึก..." : "บันทึก"}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function NicSection({ machineId, allNics, allMachines, allRouters }: { machineId: number; allNics: NicRecord[]; allMachines: MachineRecord[]; allRouters: RouterRecord[] }) {
   const [adding, setAdding] = useState(false);
-  const [form, setForm] = useState({ nicName: "", macAddress: "", ipAddress: "", subnetMask: "255.255.255.0", forwardedFor: "", forwardedPort: "", notes: "" });
+  const [form, setForm] = useState({ nicName: "", macAddress: "", ipAddress: "", subnetMask: "255.255.255.0", forwardedFor: "", forwardedPort: "", routerId: "", notes: "" });
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const myNics = allNics.filter(n => n.machineId === machineId);
@@ -470,7 +775,7 @@ function NicSection({ machineId, allNics, allMachines }: { machineId: number; al
       if (!res.ok) throw new Error((await res.json()).message);
       return res.json();
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/platform/all-nics"] }); setAdding(false); setForm({ nicName: "", macAddress: "", ipAddress: "", subnetMask: "255.255.255.0", forwardedFor: "", forwardedPort: "", notes: "" }); toast({ title: "เพิ่ม NIC แล้ว" }); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/platform/all-nics"] }); setAdding(false); setForm({ nicName: "", macAddress: "", ipAddress: "", subnetMask: "255.255.255.0", forwardedFor: "", forwardedPort: "", routerId: "", notes: "" }); toast({ title: "เพิ่ม NIC แล้ว" }); },
     onError: (err: any) => toast({ title: "เกิดข้อผิดพลาด", description: err.message, variant: "destructive" }),
   });
 
@@ -506,7 +811,7 @@ function NicSection({ machineId, allNics, allMachines }: { machineId: number; al
 
       {myNics.map(nic => {
         const fwd = nic.forwardedFor ? FORWARD_LABELS[nic.forwardedFor] : null;
-        const FwdIcon = fwd?.icon || Plug;
+        const linkedRouter = nic.routerId ? allRouters.find(r => r.id === nic.routerId) : null;
         return (
           <div key={nic.id} className="flex items-center gap-2 p-2 bg-white border rounded text-xs group" data-testid={`nic-row-${nic.id}`}>
             <Plug className="h-3.5 w-3.5 text-gray-400 shrink-0" />
@@ -514,6 +819,11 @@ function NicSection({ machineId, allNics, allMachines }: { machineId: number; al
             <span className="font-mono text-blue-600 font-bold">{nic.ipAddress}</span>
             <span className="font-mono text-gray-400 text-[10px]">/{nic.subnetMask}</span>
             {nic.macAddress && <span className="font-mono text-gray-400 text-[10px] hidden lg:inline">{nic.macAddress}</span>}
+            {linkedRouter && (
+              <Badge variant="outline" className="bg-teal-50 text-teal-700 border-teal-300 text-[10px] px-1.5 py-0">
+                <Router className="h-2.5 w-2.5 mr-0.5" />{linkedRouter.name}
+              </Badge>
+            )}
             {fwd && (
               <Badge variant="outline" className={`${fwd.color} text-[10px] px-1.5 py-0 flex items-center gap-0.5`}>
                 <Radio className="h-2.5 w-2.5" />
@@ -551,6 +861,18 @@ function NicSection({ machineId, allNics, allMachines }: { machineId: number; al
             </div>
           </div>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+            <div>
+              <Label className="text-[10px] text-gray-500">Router (เชื่อมต่อผ่าน)</Label>
+              <Select value={form.routerId || "none"} onValueChange={val => setForm({ ...form, routerId: val === "none" ? "" : val })}>
+                <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">— ไม่ระบุ</SelectItem>
+                  {allRouters.map(r => (
+                    <SelectItem key={r.id} value={String(r.id)}>{r.name} {r.lanIp ? `(${r.lanIp})` : ""}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             <div>
               <Label className="text-[10px] text-gray-500">Port Forwarding</Label>
               <Select value={form.forwardedFor || "none"} onValueChange={val => setForm({ ...form, forwardedFor: val === "none" ? "" : val, forwardedPort: val !== "db" ? "" : form.forwardedPort })}>
@@ -599,7 +921,7 @@ function NicSection({ machineId, allNics, allMachines }: { machineId: number; al
   );
 }
 
-function MachineCard({ machine, onEdit, expanded, onToggle, onToggleOfficial, allMachines, onChangeTarget, allNics }: {
+function MachineCard({ machine, onEdit, expanded, onToggle, onToggleOfficial, allMachines, onChangeTarget, allNics, allRouters, credentialsUnlocked }: {
   machine: MachineRecord;
   onEdit: (m: MachineRecord) => void;
   expanded: boolean;
@@ -608,6 +930,8 @@ function MachineCard({ machine, onEdit, expanded, onToggle, onToggleOfficial, al
   allMachines: MachineRecord[];
   onChangeTarget: (id: number, targetId: number | null) => void;
   allNics: NicRecord[];
+  allRouters: RouterRecord[];
+  credentialsUnlocked: boolean;
 }) {
   const [showPw, setShowPw] = useState(false);
   const osConfig = OS_CONFIG[machine.os] || OS_CONFIG.linux;
@@ -689,19 +1013,29 @@ function MachineCard({ machine, onEdit, expanded, onToggle, onToggleOfficial, al
               <span className="text-gray-400 text-xs block">DB</span>
               <span className="font-mono text-xs">{machine.dbName}:{machine.dbPort}</span>
             </div>
-            <div>
-              <span className="text-gray-400 text-xs block">DB User</span>
-              <span className="font-mono text-xs">{machine.dbUser}</span>
-            </div>
-            <div>
-              <span className="text-gray-400 text-xs block">DB Password</span>
-              <div className="flex items-center gap-1">
-                <span className="font-mono text-xs">{showPw ? machine.dbPassword : "••••••••"}</span>
-                <button onClick={e => { e.stopPropagation(); setShowPw(!showPw); }} className="p-0.5 hover:bg-gray-200 rounded" data-testid={`btn-toggle-pw-${machine.id}`}>
-                  {showPw ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
-                </button>
+            {credentialsUnlocked && (
+              <div>
+                <span className="text-gray-400 text-xs block">DB User</span>
+                <span className="font-mono text-xs">{machine.dbUser}</span>
               </div>
-            </div>
+            )}
+            {credentialsUnlocked && (
+              <div>
+                <span className="text-gray-400 text-xs block">DB Password</span>
+                <div className="flex items-center gap-1">
+                  <span className="font-mono text-xs">{showPw ? machine.dbPassword : "••••••••"}</span>
+                  <button onClick={e => { e.stopPropagation(); setShowPw(!showPw); }} className="p-0.5 hover:bg-gray-200 rounded" data-testid={`btn-toggle-pw-${machine.id}`}>
+                    {showPw ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+                  </button>
+                </div>
+              </div>
+            )}
+            {!credentialsUnlocked && (
+              <div>
+                <span className="text-gray-400 text-xs block">DB Credentials</span>
+                <span className="text-xs text-amber-500 flex items-center gap-1"><Lock className="h-3 w-3" /> Locked</span>
+              </div>
+            )}
             {machine.physicalLocation && (
               <div>
                 <span className="text-gray-400 text-xs block">สถานที่ตั้ง</span>
@@ -718,7 +1052,7 @@ function MachineCard({ machine, onEdit, expanded, onToggle, onToggleOfficial, al
             </div>
           )}
 
-          <NicSection machineId={machine.id} allNics={allNics} allMachines={allMachines} />
+          <NicSection machineId={machine.id} allNics={allNics} allMachines={allMachines} allRouters={allRouters} />
 
           <div className="flex items-center gap-2 p-2 bg-gray-50 rounded-lg border border-gray-200">
             <Database className="h-4 w-4 text-purple-500 shrink-0" />
@@ -828,7 +1162,6 @@ function EditMachineDialog({
     dbPassword: machine?.dbPassword || "",
     notes: machine?.notes || "",
     envContent: machine?.envContent || "",
-    internetType: machine?.internetType || "dynamic",
     physicalLocation: machine?.physicalLocation || "",
   });
 
@@ -873,16 +1206,6 @@ function EditMachineDialog({
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label className="text-sm font-medium">Internet Type</Label>
-              <Select value={form.internetType} onValueChange={(v: any) => setForm({ ...form, internetType: v })}>
-                <SelectTrigger data-testid="select-internet-type"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="dynamic">Dynamic IP (ใช้ DDNS)</SelectItem>
-                  <SelectItem value="fixed">Fixed IP (คงที่)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
             <div>
               <Label className="text-sm font-medium">สถานที่ตั้ง</Label>
               <Input value={form.physicalLocation} onChange={e => setForm({ ...form, physicalLocation: e.target.value })} placeholder="เช่น บ้านพี่ช้าง ห้องเซิร์ฟเวอร์" data-testid="input-physical-location" />
@@ -1478,12 +1801,27 @@ export default function AllServers() {
     queryKey: ["/api/platform/routers"],
   });
 
-  const { data: allDomains = [] } = useQuery<RouterDomainRecord[]>({
-    queryKey: ["/api/platform/all-router-domains"],
+  const { data: platformDomains = [] } = useQuery<PlatformDomainRecord[]>({
+    queryKey: ["/api/platform/domains"],
   });
 
   const [editingRouter, setEditingRouter] = useState<RouterRecord | null | undefined>(undefined);
   const [expandedRouterId, setExpandedRouterId] = useState<number | null>(null);
+  const [editingDomain, setEditingDomain] = useState<PlatformDomainRecord | null | undefined>(undefined);
+  const [expandedDomainId, setExpandedDomainId] = useState<number | null>(null);
+  const [credentialsUnlocked, setCredentialsUnlocked] = useState(false);
+  const [showPasswordPrompt, setShowPasswordPrompt] = useState(false);
+  const [masterPwInput, setMasterPwInput] = useState("");
+
+  const verifyPasswordMut = useMutation({
+    mutationFn: async (password: string) => {
+      const res = await fetch("/api/platform/verify-infra-password", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ password }) });
+      if (!res.ok) throw new Error((await res.json()).message);
+      return res.json();
+    },
+    onSuccess: () => { setCredentialsUnlocked(true); setShowPasswordPrompt(false); setMasterPwInput(""); toast({ title: "ปลดล็อค Credentials สำเร็จ" }); },
+    onError: (err: any) => toast({ title: "รหัสผ่านไม่ถูกต้อง", variant: "destructive" }),
+  });
 
   const createRouterMut = useMutation({
     mutationFn: async (data: any) => {
@@ -1514,22 +1852,32 @@ export default function AllServers() {
     onError: (err: any) => toast({ title: "เกิดข้อผิดพลาด", description: err.message, variant: "destructive" }),
   });
 
-  const addDomainMut = useMutation({
-    mutationFn: async ({ routerId, ...data }: any) => {
-      const res = await fetch(`/api/platform/routers/${routerId}/domains`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
+  const createDomainMut = useMutation({
+    mutationFn: async (data: any) => {
+      const res = await fetch("/api/platform/domains", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
       if (!res.ok) throw new Error((await res.json()).message);
       return res.json();
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/platform/all-router-domains"] }); toast({ title: "เพิ่ม Domain สำเร็จ" }); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/platform/domains"] }); setEditingDomain(undefined); toast({ title: "เพิ่ม Domain สำเร็จ" }); },
+    onError: (err: any) => toast({ title: "เกิดข้อผิดพลาด", description: err.message, variant: "destructive" }),
+  });
+
+  const updateDomainMut = useMutation({
+    mutationFn: async ({ id, ...data }: any) => {
+      const res = await fetch(`/api/platform/domains/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
+      if (!res.ok) throw new Error((await res.json()).message);
+      return res.json();
+    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/platform/domains"] }); setEditingDomain(undefined); toast({ title: "บันทึก Domain สำเร็จ" }); },
     onError: (err: any) => toast({ title: "เกิดข้อผิดพลาด", description: err.message, variant: "destructive" }),
   });
 
   const deleteDomainMut = useMutation({
-    mutationFn: async (domainId: number) => {
-      const res = await fetch(`/api/platform/router-domains/${domainId}`, { method: "DELETE" });
+    mutationFn: async (id: number) => {
+      const res = await fetch(`/api/platform/domains/${id}`, { method: "DELETE" });
       if (!res.ok) throw new Error((await res.json()).message);
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/platform/all-router-domains"] }); toast({ title: "ลบ Domain สำเร็จ" }); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/platform/domains"] }); toast({ title: "ลบ Domain สำเร็จ" }); },
     onError: (err: any) => toast({ title: "เกิดข้อผิดพลาด", description: err.message, variant: "destructive" }),
   });
 
@@ -1538,6 +1886,14 @@ export default function AllServers() {
       createRouterMut.mutate(data);
     } else if (editingRouter) {
       updateRouterMut.mutate({ id: editingRouter.id, ...data });
+    }
+  };
+
+  const handleSaveDomain = (data: any) => {
+    if (editingDomain === null) {
+      createDomainMut.mutate(data);
+    } else if (editingDomain) {
+      updateDomainMut.mutate({ id: editingDomain.id, ...data });
     }
   };
 
@@ -1635,6 +1991,51 @@ export default function AllServers() {
     }
   };
 
+  const locationGroups = (() => {
+    const devCloud = machines.filter(m => m.role === "dev_source");
+    const nonDev = machines.filter(m => m.role !== "dev_source");
+    const groups: Record<string, MachineRecord[]> = {};
+    nonDev.forEach(m => {
+      const loc = m.physicalLocation || "ไม่ระบุสถานที่";
+      if (!groups[loc]) groups[loc] = [];
+      groups[loc].push(m);
+    });
+    return { devCloud, locationGroups: groups };
+  })();
+
+  const renderMachineGroup = (icon: React.ReactNode, label: string, items: MachineRecord[]) => {
+    const officialCount = items.filter(m => m.isOfficial).length;
+    return (
+      <div>
+        <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-2 flex items-center gap-2">
+          {icon} {label} ({items.length})
+          {officialCount > 0 && (
+            <span className="flex items-center gap-1 text-amber-600 normal-case tracking-normal font-medium">
+              <Star className="h-3 w-3 fill-amber-400" /> {officialCount} official
+            </span>
+          )}
+        </h2>
+        <div className="space-y-1">
+          {[...items].sort((a, b) => (b.isOfficial ? 1 : 0) - (a.isOfficial ? 1 : 0)).map(m => (
+            <MachineCard
+              key={m.id}
+              machine={m}
+              onEdit={setEditingMachine}
+              expanded={expandedId === m.id}
+              onToggle={() => setExpandedId(expandedId === m.id ? null : m.id)}
+              onToggleOfficial={(id, val) => officialMut.mutate({ id, isOfficial: val })}
+              allMachines={machines}
+              onChangeTarget={(id, targetId) => targetDbMut.mutate({ id, targetDbMachineId: targetId })}
+              allNics={allNics}
+              allRouters={routersList}
+              credentialsUnlocked={credentialsUnlocked}
+            />
+          ))}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <PlatformLayout>
       <div className="max-w-7xl mx-auto" data-testid="page-all-servers">
@@ -1642,114 +2043,149 @@ export default function AllServers() {
           <div>
             <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
               <Server className="h-7 w-7 text-[#fb9678]" />
-              เซิร์ฟเวอร์ทั้งหมด
+              Infrastructure Management
               {machines.length > 0 && <Badge variant="outline" className="text-xs ml-1">{machines.length} เครื่อง</Badge>}
             </h1>
-            <p className="text-sm text-gray-500 mt-1">จัดการเครื่อง App Server และ Database Server ทั้งหมดที่ใช้ในระบบ</p>
+            <p className="text-sm text-gray-500 mt-1">จัดการเครื่อง, Router, และ Domain ทั้งหมดในระบบ</p>
           </div>
-          <Button className="bg-[#fb9678] hover:bg-[#e8855a] text-white" onClick={() => setEditingMachine(null)} data-testid="button-add-machine">
-            <Plus className="h-4 w-4 mr-1" /> เพิ่มเครื่องใหม่
-          </Button>
+          <div className="flex items-center gap-2">
+            {credentialsUnlocked ? (
+              <Button size="sm" variant="outline" className="h-8 text-xs border-green-400 text-green-700 bg-green-50" onClick={() => setCredentialsUnlocked(false)} data-testid="btn-lock-credentials">
+                <Unlock className="h-3.5 w-3.5 mr-1" /> Credentials Unlocked
+              </Button>
+            ) : (
+              <Button size="sm" variant="outline" className="h-8 text-xs border-amber-400 text-amber-700 hover:bg-amber-50" onClick={() => setShowPasswordPrompt(true)} data-testid="btn-unlock-credentials">
+                <Lock className="h-3.5 w-3.5 mr-1" /> Unlock Credentials
+              </Button>
+            )}
+            <Button className="bg-[#fb9678] hover:bg-[#e8855a] text-white" onClick={() => setEditingMachine(null)} data-testid="button-add-machine">
+              <Plus className="h-4 w-4 mr-1" /> เพิ่มเครื่อง
+            </Button>
+          </div>
         </div>
+
+        {showPasswordPrompt && (
+          <div className="mb-6 p-4 bg-amber-50 border border-amber-300 rounded-lg">
+            <h3 className="text-sm font-semibold text-amber-800 mb-2 flex items-center gap-1.5">
+              <Shield className="h-4 w-4" /> Master Password
+            </h3>
+            <p className="text-xs text-amber-600 mb-3">ใส่รหัสผ่านเพื่อดู Credentials ของ Router, Domain และ Machine</p>
+            <div className="flex gap-2 max-w-md">
+              <Input
+                type="password"
+                className="h-8 text-sm"
+                placeholder="Master password"
+                value={masterPwInput}
+                onChange={e => setMasterPwInput(e.target.value)}
+                onKeyDown={e => { if (e.key === "Enter" && masterPwInput) verifyPasswordMut.mutate(masterPwInput); }}
+                data-testid="input-master-password"
+              />
+              <Button size="sm" className="h-8 bg-amber-600 hover:bg-amber-700 text-white" onClick={() => verifyPasswordMut.mutate(masterPwInput)} disabled={!masterPwInput || verifyPasswordMut.isPending} data-testid="btn-verify-password">
+                <Unlock className="h-3.5 w-3.5 mr-1" /> ปลดล็อค
+              </Button>
+              <Button size="sm" variant="ghost" className="h-8" onClick={() => { setShowPasswordPrompt(false); setMasterPwInput(""); }}>ยกเลิก</Button>
+            </div>
+          </div>
+        )}
 
         {isLoading ? (
           <div className="text-center py-12 text-gray-400">
             <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-3" />
-            <p>กำลังโหลดข้อมูลเครื่อง...</p>
+            <p>กำลังโหลดข้อมูล...</p>
           </div>
-        ) : machines.length === 0 ? (
-          <div className="text-center py-12 text-gray-400">
-            <Server className="h-12 w-12 mx-auto mb-3 opacity-30" />
-            <p className="text-lg">ยังไม่มีเครื่องในระบบ</p>
-            <p className="text-sm">กด "เพิ่มเครื่องใหม่" เพื่อเริ่มต้น</p>
-          </div>
-        ) : (() => {
-          const devCloud = machines.filter(m => m.role === "dev_source");
-          const nonDev = machines.filter(m => m.role !== "dev_source");
-          const dbServers = nonDev.filter(m => m.serverType === "database");
-          const appServers = nonDev.filter(m => m.serverType === "app" || m.serverType === "app_database");
-          const others = nonDev.filter(m => !dbServers.includes(m) && !appServers.includes(m));
-          const renderGroup = (icon: React.ReactNode, label: string, items: MachineRecord[]) => {
-            const officialCount = items.filter(m => m.isOfficial).length;
-            return (
-              <div>
-                <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-2 flex items-center gap-2">
-                  {icon} {label} ({items.length})
-                  {officialCount > 0 && (
-                    <span className="flex items-center gap-1 text-amber-600 normal-case tracking-normal font-medium">
-                      <Star className="h-3 w-3 fill-amber-400" /> {officialCount} official
-                    </span>
-                  )}
+        ) : (
+          <div className="space-y-8">
+            {machines.length === 0 ? (
+              <div className="text-center py-12 text-gray-400">
+                <Server className="h-12 w-12 mx-auto mb-3 opacity-30" />
+                <p className="text-lg">ยังไม่มีเครื่องในระบบ</p>
+                <p className="text-sm">กด "เพิ่มเครื่อง" เพื่อเริ่มต้น</p>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {locationGroups.devCloud.length > 0 && renderMachineGroup(<Cloud className="h-4 w-4" />, "Dev / Cloud", locationGroups.devCloud)}
+                {Object.entries(locationGroups.locationGroups)
+                  .sort(([a], [b]) => a.localeCompare(b))
+                  .map(([location, items]) => (
+                    <div key={location}>
+                      {renderMachineGroup(<MapPin className="h-4 w-4 text-red-400" />, location, items)}
+                    </div>
+                  ))}
+              </div>
+            )}
+
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide flex items-center gap-2">
+                  <Router className="h-4 w-4" /> Routers ({routersList.length})
                 </h2>
+                <Button size="sm" variant="outline" className="h-7 text-xs border-teal-400 text-teal-700 hover:bg-teal-50" onClick={() => setEditingRouter(null)} data-testid="button-add-router">
+                  <Plus className="h-3 w-3 mr-1" /> เพิ่ม Router
+                </Button>
+              </div>
+              {routersList.length === 0 ? (
+                <div className="text-center py-6 text-gray-400 border rounded-lg border-dashed">
+                  <Router className="h-8 w-8 mx-auto mb-2 opacity-30" />
+                  <p className="text-sm">ยังไม่มี Router ในระบบ</p>
+                </div>
+              ) : (
                 <div className="space-y-1">
-                  {[...items].sort((a, b) => (b.isOfficial ? 1 : 0) - (a.isOfficial ? 1 : 0)).map(m => (
-                    <MachineCard
-                      key={m.id}
-                      machine={m}
-                      onEdit={setEditingMachine}
-                      expanded={expandedId === m.id}
-                      onToggle={() => setExpandedId(expandedId === m.id ? null : m.id)}
-                      onToggleOfficial={(id, val) => officialMut.mutate({ id, isOfficial: val })}
-                      allMachines={machines}
-                      onChangeTarget={(id, targetId) => targetDbMut.mutate({ id, targetDbMachineId: targetId })}
+                  {routersList.map(r => (
+                    <RouterCard
+                      key={r.id}
+                      router={r}
+                      domains={platformDomains}
                       allNics={allNics}
+                      machines={machines}
+                      expanded={expandedRouterId === r.id}
+                      onToggle={() => setExpandedRouterId(expandedRouterId === r.id ? null : r.id)}
+                      onEdit={setEditingRouter}
+                      onDelete={(id) => deleteRouterMut.mutate(id)}
+                      credentialsUnlocked={credentialsUnlocked}
                     />
                   ))}
                 </div>
+              )}
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide flex items-center gap-2">
+                  <Globe className="h-4 w-4" /> Domains ({platformDomains.length})
+                </h2>
+                <Button size="sm" variant="outline" className="h-7 text-xs border-indigo-400 text-indigo-700 hover:bg-indigo-50" onClick={() => setEditingDomain(null)} data-testid="button-add-domain">
+                  <Plus className="h-3 w-3 mr-1" /> เพิ่ม Domain
+                </Button>
               </div>
-            );
-          };
-          return (
-            <div className="space-y-6">
-              {devCloud.length > 0 && renderGroup(<Cloud className="h-4 w-4" />, "Dev / Cloud", devCloud)}
-              {dbServers.length > 0 && renderGroup(<Database className="h-4 w-4" />, "Database Servers", dbServers)}
-              {appServers.length > 0 && renderGroup(<Monitor className="h-4 w-4" />, "App Servers", appServers)}
-              {others.length > 0 && renderGroup(<Server className="h-4 w-4" />, "อื่นๆ", others)}
+              {platformDomains.length === 0 ? (
+                <div className="text-center py-6 text-gray-400 border rounded-lg border-dashed">
+                  <Globe className="h-8 w-8 mx-auto mb-2 opacity-30" />
+                  <p className="text-sm">ยังไม่มี Domain ในระบบ</p>
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  {platformDomains.map(d => (
+                    <DomainCard
+                      key={d.id}
+                      domain={d}
+                      routers={routersList}
+                      machines={machines}
+                      expanded={expandedDomainId === d.id}
+                      onToggle={() => setExpandedDomainId(expandedDomainId === d.id ? null : d.id)}
+                      onEdit={setEditingDomain}
+                      onDelete={(id) => deleteDomainMut.mutate(id)}
+                      credentialsUnlocked={credentialsUnlocked}
+                    />
+                  ))}
+                </div>
+              )}
             </div>
-          );
-        })()}
 
-        <div className="mt-8">
-          <div className="flex items-center justify-between mb-2">
-            <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide flex items-center gap-2">
-              <Router className="h-4 w-4" /> Routers ({routersList.length})
-            </h2>
-            <Button size="sm" variant="outline" className="h-7 text-xs border-teal-400 text-teal-700 hover:bg-teal-50" onClick={() => setEditingRouter(null)} data-testid="button-add-router">
-              <Plus className="h-3 w-3 mr-1" /> เพิ่ม Router
-            </Button>
+            <CloneHistoryTargetCard machines={machines} />
+
+            <EncryptionKeyGenerator machines={machines} onRefresh={() => queryClient.invalidateQueries({ queryKey: ["/api/platform/machines"] })} />
           </div>
-          {routersList.length === 0 ? (
-            <div className="text-center py-6 text-gray-400 border rounded-lg border-dashed">
-              <Router className="h-8 w-8 mx-auto mb-2 opacity-30" />
-              <p className="text-sm">ยังไม่มี Router ในระบบ</p>
-            </div>
-          ) : (
-            <div className="space-y-1">
-              {routersList.map(r => (
-                <RouterCard
-                  key={r.id}
-                  router={r}
-                  domains={allDomains}
-                  machines={machines}
-                  expanded={expandedRouterId === r.id}
-                  onToggle={() => setExpandedRouterId(expandedRouterId === r.id ? null : r.id)}
-                  onEdit={setEditingRouter}
-                  onDelete={(id) => deleteRouterMut.mutate(id)}
-                  onAddDomain={(routerId, data) => addDomainMut.mutate({ routerId, ...data })}
-                  onDeleteDomain={(domainId) => deleteDomainMut.mutate(domainId)}
-                />
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div className="mt-8">
-          <CloneHistoryTargetCard machines={machines} />
-        </div>
-
-        <div className="mt-8">
-          <EncryptionKeyGenerator machines={machines} onRefresh={() => queryClient.invalidateQueries({ queryKey: ["/api/platform/machines"] })} />
-        </div>
+        )}
 
         {editingMachine !== undefined && (
           <EditMachineDialog
@@ -1767,6 +2203,17 @@ export default function AllServers() {
             onSave={handleSaveRouter}
             onCancel={() => setEditingRouter(undefined)}
             saving={createRouterMut.isPending || updateRouterMut.isPending}
+          />
+        )}
+
+        {editingDomain !== undefined && (
+          <EditDomainDialog
+            domain={editingDomain}
+            routers={routersList}
+            machines={machines}
+            onSave={handleSaveDomain}
+            onCancel={() => setEditingDomain(undefined)}
+            saving={createDomainMut.isPending || updateDomainMut.isPending}
           />
         )}
       </div>
