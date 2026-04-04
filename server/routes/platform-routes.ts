@@ -339,6 +339,27 @@ app.get("/api/platform/github/largest-files", requireAuth, requireSuperAdmin, as
   }
 });
 
+app.patch("/api/platform/github/token", requireAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const { token } = req.body;
+    if (!token || typeof token !== "string" || token.trim().length < 10) {
+      return res.status(400).json({ message: "Invalid token" });
+    }
+    const cwd = process.cwd();
+    const currentUrl = (() => { try { return execSync("git remote get-url github", { cwd, stdio: "pipe" }).toString().trim(); } catch { return ""; } })();
+    if (!currentUrl) return res.status(400).json({ message: "GitHub remote 'github' not configured" });
+
+    const newUrl = currentUrl.replace(/\/\/[^@]+@/, `//${token.trim().includes(":") ? token.trim() : `pat:${token.trim()}`}@`);
+    execSync(`git remote set-url github "${newUrl}"`, { cwd, stdio: "pipe" });
+
+    const verify = (() => { try { execSync("git ls-remote --heads github 2>&1", { cwd, stdio: "pipe", timeout: 15000 }); return true; } catch { return false; } })();
+
+    res.json({ success: true, reachable: verify });
+  } catch (err: any) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 // ========== Database Backup & Clone ==========
 
 app.get("/api/platform/clone-progress", requireAuth, requireAdmin, (_req, res) => {
