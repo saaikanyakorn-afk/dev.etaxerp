@@ -265,6 +265,7 @@ async function renderReceiptToCanvas(data: ReceiptData, paper: PaperWidth): Prom
   ctx.fillStyle = "#fff";
   ctx.fillRect(0, 0, pw, totalHeight);
   ctx.fillStyle = "#000";
+  ctx.textBaseline = "top";
 
   for (const draw of draws) {
     draw();
