@@ -9,6 +9,7 @@ import crypto from "crypto";
 import path from "path";
 import fs from "fs";
 import os from "os";
+import { execSync } from "child_process";
 import { getConfig } from "../config-bootstrap";
 import { hashPassword } from "../auth";
 import { platformCloneProgress, setPlatformCloneProgress, cloneLockState, cloneScreenUserId, cloneScreenLastHeartbeat, setCloneScreen, setCloneScreenHeartbeat, acquireCloneLock, releaseCloneLock } from "../clone-state";
@@ -146,13 +147,11 @@ app.get("/api/platform/tenants/:tenantId/users", requireAuth, requireSuperAdmin,
 // ========== GitHub Management ==========
 
 function execGit(cmd: string, timeoutMs = 30000): string {
-  const { execSync } = require("child_process");
   return execSync(cmd, { cwd: process.cwd(), stdio: "pipe", timeout: timeoutMs }).toString().trim();
 }
 
 app.get("/api/platform/github/local-info", requireAuth, requireSuperAdmin, async (_req, res) => {
   try {
-    const { execSync } = require("child_process");
     const cwd = process.cwd();
     const exec = (cmd: string) => {
       try { return execSync(cmd, { cwd, stdio: "pipe", timeout: 15000, maxBuffer: 10 * 1024 * 1024 }).toString().trim(); } catch (e: any) { console.error(`[github-info] cmd failed: ${cmd}`, e.message); return ""; }
@@ -192,7 +191,6 @@ app.get("/api/platform/github/local-info", requireAuth, requireSuperAdmin, async
 
 app.get("/api/platform/github/remote-info", requireAuth, requireSuperAdmin, async (_req, res) => {
   try {
-    const { execSync } = require("child_process");
     const cwd = process.cwd();
     const exec = (cmd: string) => {
       try { return execSync(cmd, { cwd, stdio: "pipe", timeout: 15000, maxBuffer: 10 * 1024 * 1024 }).toString().trim(); } catch (e: any) { console.error(`[github-info] cmd failed: ${cmd}`, e.message); return ""; }
@@ -244,7 +242,6 @@ app.get("/api/platform/github/remote-info", requireAuth, requireSuperAdmin, asyn
 
 app.post("/api/platform/github/push", requireAuth, requireSuperAdmin, async (req, res) => {
   try {
-    const { execSync } = require("child_process");
     const cwd = process.cwd();
     const commitMsg = req.body.commitMessage || `Manual push ${new Date().toISOString().slice(0, 10)}`;
 
@@ -273,15 +270,14 @@ app.post("/api/platform/github/push", requireAuth, requireSuperAdmin, async (req
 
     res.json({ success: true, version: newVersion, tag, message: fullMsg });
   } catch (err: any) {
-    try { const { execSync } = require("child_process"); execSync("git checkout replit-agent", { cwd: process.cwd(), stdio: "pipe" }); } catch {}
-    try { const { execSync } = require("child_process"); execSync("git branch -D deploy-temp", { cwd: process.cwd(), stdio: "pipe" }); } catch {}
+    try { execSync("git checkout replit-agent", { cwd: process.cwd(), stdio: "pipe" }); } catch {}
+    try { execSync("git branch -D deploy-temp", { cwd: process.cwd(), stdio: "pipe" }); } catch {}
     res.status(500).json({ message: `Push failed: ${err.message}` });
   }
 });
 
 app.post("/api/platform/github/pull", requireAuth, requireSuperAdmin, async (_req, res) => {
   try {
-    const { execSync } = require("child_process");
     const cwd = process.cwd();
     const archiver = (await import("archiver")).default;
 
@@ -321,7 +317,6 @@ app.post("/api/platform/github/pull", requireAuth, requireSuperAdmin, async (_re
 
 app.get("/api/platform/github/largest-files", requireAuth, requireSuperAdmin, async (req, res) => {
   try {
-    const { execSync } = require("child_process");
     const cwd = process.cwd();
     const limit = Math.min(Math.max(Number(req.query.limit) || 10, 1), 50);
 
