@@ -10,7 +10,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, Plus, Minus, Trash2, ShoppingCart, CreditCard, Banknote, QrCode, X, Receipt, LogOut, ArrowLeft, Percent, User, Pause, Play, Bluetooth, BluetoothConnected, Star, Gift, Download, Copy, Package, Check } from "lucide-react";
+import { Search, Plus, Minus, Trash2, ShoppingCart, CreditCard, Banknote, QrCode, X, Receipt, LogOut, ArrowLeft, Percent, User, Pause, Play, Bluetooth, BluetoothConnected, Star, Gift, Download, Copy, Package, Check, Eye } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
   isWebBluetoothSupported,
@@ -18,6 +18,7 @@ import {
   isConnected as isBtConnected,
   getConnectedPrinterName,
   printReceipt,
+  renderReceiptPreview,
   getSavedPrinterConfig,
   type ReceiptData,
 } from "@/lib/thermal-printer";
@@ -87,6 +88,8 @@ export default function PosTerminal() {
   const [btConnected, setBtConnected] = useState(false);
   const [btPrinterName, setBtPrinterName] = useState<string | null>(null);
   const [btPrinting, setBtPrinting] = useState(false);
+  const [btPreviewImage, setBtPreviewImage] = useState<string | null>(null);
+  const [showBtPreview, setShowBtPreview] = useState(false);
   const [mobileView, setMobileView] = useState<"products" | "cart">("products");
   const [loyaltyMemberSearch, setLoyaltyMemberSearch] = useState("");
   const [selectedLoyaltyMember, setSelectedLoyaltyMember] = useState<any>(null);
@@ -271,61 +274,85 @@ export default function PosTerminal() {
     }
   };
 
+  const buildBtReceipt = async (txData: any): Promise<ReceiptData | null> => {
+    if (!txData) return null;
+    const tiv = txData.taxInvoice;
+    const rawItems = txData.processedItems || tiv?.items || [];
+    const items = rawItems.map((item: any) => ({
+      name: item.productName || "",
+      qty: parseFloat(String(item.quantity || item.qty || "0")),
+      unitPrice: parseFloat(String(item.unitPrice || "0")),
+      total: parseFloat(String(item.lineTotal || item.total || item.totalPrice || "0")),
+    }));
+
+    let logoDataUrl: string | undefined;
+    const logoUrl = docSettings?.logoUrl || (selectedCompany as any)?.logoUrl;
+    const showLogo = docSettings ? docSettings.posReceiptShowLogo !== false : true;
+    if (showLogo && logoUrl) {
+      try {
+        const resolvedUrl = objectPathToUrl(logoUrl) || logoUrl;
+        const imgRes = await fetch(resolvedUrl, { credentials: "include" });
+        if (imgRes.ok) {
+          const blob = await imgRes.blob();
+          logoDataUrl = await new Promise<string>((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.readAsDataURL(blob);
+          });
+        }
+      } catch {}
+    }
+
+    return {
+      companyName: selectedCompany?.name || "",
+      companyNameEn: selectedCompany?.nameEn || undefined,
+      companyAddress: selectedCompany?.address || undefined,
+      companyTaxId: selectedCompany?.taxId || undefined,
+      companyPhone: selectedCompany?.phone || undefined,
+      companyLogoUrl: logoDataUrl,
+      companyBranch: (selectedCompany as any)?.branch || activeSession?.branchName || "สำนักงานใหญ่",
+      companyBranchId: (selectedCompany as any)?.sellerBranchId || "00000",
+      headerText: docSettings?.posReceiptHeaderText || undefined,
+      footerText: docSettings?.posReceiptFooterText || undefined,
+      fontSize: docSettings?.posReceiptFontSize || "medium",
+      docNo: tiv?.taxInvoiceNo || txData.transaction?.transactionNo || "",
+      docDate: new Date().toLocaleDateString("th-TH"),
+      docTime: new Date().toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" }),
+      paymentMethod: txData.transaction?.paymentMethod || undefined,
+      items,
+      subtotal: parseFloat(String(txData.transaction?.subtotal || tiv?.subtotal || "0")),
+      discount: parseFloat(String(txData.transaction?.discountAmount || tiv?.discountAmount || "0")),
+      vatAmount: parseFloat(String(txData.transaction?.vatAmount || tiv?.vatAmount || "0")),
+      totalAmount: parseFloat(String(txData.transaction?.total || tiv?.totalAmount || "0")),
+    };
+  };
+
+  const handleBtPreviewReceipt = async (txData: any) => {
+    if (!txData) return;
+    setBtPrinting(true);
+    try {
+      const receipt = await buildBtReceipt(txData);
+      if (!receipt) return;
+      const config = getSavedPrinterConfig();
+      const imgUrl = await renderReceiptPreview(receipt, config?.paperWidth || 58);
+      setBtPreviewImage(imgUrl);
+      setShowBtPreview(true);
+    } catch (err: any) {
+      toast({ title: "พรีวิวไม่สำเร็จ", description: err.message, variant: "destructive" });
+    } finally {
+      setBtPrinting(false);
+    }
+  };
+
   const handleBtPrintReceipt = async (txData: any) => {
     if (!isBtConnected() || !txData) return;
     setBtPrinting(true);
     try {
-      const tiv = txData.taxInvoice;
-      const rawItems = txData.processedItems || tiv?.items || [];
-      const items = rawItems.map((item: any) => ({
-        name: item.productName || "",
-        qty: parseFloat(String(item.quantity || item.qty || "0")),
-        unitPrice: parseFloat(String(item.unitPrice || "0")),
-        total: parseFloat(String(item.lineTotal || item.total || item.totalPrice || "0")),
-      }));
-
-      let logoDataUrl: string | undefined;
-      const logoUrl = docSettings?.logoUrl || (selectedCompany as any)?.logoUrl;
-      const showLogo = docSettings ? docSettings.posReceiptShowLogo !== false : true;
-      if (showLogo && logoUrl) {
-        try {
-          const resolvedUrl = objectPathToUrl(logoUrl) || logoUrl;
-          const imgRes = await fetch(resolvedUrl, { credentials: "include" });
-          if (imgRes.ok) {
-            const blob = await imgRes.blob();
-            logoDataUrl = await new Promise<string>((resolve) => {
-              const reader = new FileReader();
-              reader.onloadend = () => resolve(reader.result as string);
-              reader.readAsDataURL(blob);
-            });
-          }
-        } catch {}
-      }
-
-      const receipt: ReceiptData = {
-        companyName: selectedCompany?.name || "",
-        companyNameEn: selectedCompany?.nameEn || undefined,
-        companyAddress: selectedCompany?.address || undefined,
-        companyTaxId: selectedCompany?.taxId || undefined,
-        companyPhone: selectedCompany?.phone || undefined,
-        companyLogoUrl: logoDataUrl,
-        companyBranch: (selectedCompany as any)?.branch || activeSession?.branchName || "สำนักงานใหญ่",
-        companyBranchId: (selectedCompany as any)?.sellerBranchId || "00000",
-        headerText: docSettings?.posReceiptHeaderText || undefined,
-        fontSize: docSettings?.posReceiptFontSize || "large",
-        docNo: tiv?.taxInvoiceNo || txData.transaction?.transactionNo || "",
-        docDate: new Date().toLocaleDateString("th-TH"),
-        docTime: new Date().toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" }),
-        paymentMethod: txData.transaction?.paymentMethod || undefined,
-        items,
-        subtotal: parseFloat(String(txData.transaction?.subtotal || tiv?.subtotal || "0")),
-        discount: parseFloat(String(txData.transaction?.discountAmount || tiv?.discountAmount || "0")),
-        vatAmount: parseFloat(String(txData.transaction?.vatAmount || tiv?.vatAmount || "0")),
-        totalAmount: parseFloat(String(txData.transaction?.total || tiv?.totalAmount || "0")),
-        footerText: docSettings?.posReceiptFooterText || undefined,
-      };
+      const receipt = await buildBtReceipt(txData);
+      if (!receipt) return;
       const config = getSavedPrinterConfig();
       await printReceipt(receipt, config?.paperWidth || 58);
+      setShowBtPreview(false);
       toast({ title: "พิมพ์ใบเสร็จสำเร็จ", variant: "success" as any });
     } catch (err: any) {
       toast({ title: "พิมพ์ไม่สำเร็จ", description: err.message, variant: "destructive" });
@@ -1638,6 +1665,16 @@ export default function PosTerminal() {
             </div>
           )}
           <div className="flex flex-col gap-2 w-full">
+            <Button
+              variant="outline"
+              className="w-full gap-1.5 border-purple-400 text-purple-600 hover:bg-purple-50"
+              onClick={() => handleBtPreviewReceipt(lastTransaction)}
+              disabled={btPrinting}
+              data-testid="btn-bt-preview-receipt"
+            >
+              <Eye className="h-4 w-4 shrink-0" />
+              <span className="truncate">{btPrinting ? "กำลังสร้าง..." : "พรีวิวใบเสร็จ"}</span>
+            </Button>
             {btConnected && (
               <Button
                 variant="default"
@@ -1677,6 +1714,41 @@ export default function PosTerminal() {
               ขายรายการถัดไป
             </Button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showBtPreview} onOpenChange={setShowBtPreview}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto max-w-sm">
+          <DialogHeader>
+            <DialogTitle>พรีวิวใบเสร็จ</DialogTitle>
+          </DialogHeader>
+          <div className="flex justify-center bg-gray-100 rounded p-3">
+            {btPreviewImage && (
+              <img
+                src={btPreviewImage}
+                alt="receipt preview"
+                style={{ width: (getSavedPrinterConfig()?.paperWidth || 58) === 58 ? "240px" : "320px", imageRendering: "auto" }}
+                className="shadow-md rounded"
+                data-testid="img-bt-receipt-preview"
+              />
+            )}
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setShowBtPreview(false)} data-testid="btn-close-bt-preview">
+              ปิด
+            </Button>
+            {btConnected && (
+              <Button
+                onClick={() => handleBtPrintReceipt(lastTransaction)}
+                className="gap-1.5 bg-blue-500 hover:bg-blue-600"
+                disabled={btPrinting}
+                data-testid="btn-bt-preview-print"
+              >
+                <BluetoothConnected className="h-4 w-4" />
+                {btPrinting ? "กำลังพิมพ์..." : "สั่งพิมพ์"}
+              </Button>
+            )}
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

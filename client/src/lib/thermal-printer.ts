@@ -49,11 +49,11 @@ export interface ReceiptData {
   totalAmount: number;
 }
 
-const THERMAL_FONT: Record<string, { sm: number; base: number; lg: number; xl: number }> = {
-  small:  { sm: 12, base: 14, lg: 16, xl: 18 },
-  medium: { sm: 14, base: 16, lg: 18, xl: 20 },
-  large:  { sm: 16, base: 18, lg: 22, xl: 24 },
-  xlarge: { sm: 18, base: 20, lg: 24, xl: 28 },
+const THERMAL_FONT: Record<string, { body: number; heading: number; title: number; gap: number }> = {
+  small:  { body: 13, heading: 15, title: 17, gap: 3 },
+  medium: { body: 14, heading: 16, title: 18, gap: 3 },
+  large:  { body: 16, heading: 18, title: 20, gap: 4 },
+  xlarge: { body: 18, heading: 20, title: 24, gap: 4 },
 };
 
 function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
@@ -88,9 +88,7 @@ async function renderReceiptToCanvas(data: ReceiptData, paper: PaperWidth): Prom
   const pw = getPixelWidth(paper);
   const margin = 8;
   const contentW = pw - margin * 2;
-  const f = THERMAL_FONT[data.fontSize || "large"] || THERMAL_FONT.large;
-  const lineH = 22;
-  const smallLineH = 18;
+  const ft = THERMAL_FONT[data.fontSize || "medium"] || THERMAL_FONT.medium;
 
   let logoImg: HTMLImageElement | null = null;
   if (data.companyLogoUrl) {
@@ -99,14 +97,14 @@ async function renderReceiptToCanvas(data: ReceiptData, paper: PaperWidth): Prom
 
   const tmpCanvas = document.createElement("canvas");
   tmpCanvas.width = pw;
-  tmpCanvas.height = 2000;
+  tmpCanvas.height = 3000;
   const tmpCtx = tmpCanvas.getContext("2d")!;
-  tmpCtx.font = '14px "Sarabun", "Noto Sans Thai", sans-serif';
+  tmpCtx.font = `${ft.body}px "Sarabun", "Noto Sans Thai", sans-serif`;
 
-  let y = 28;
+  let y = 20;
   const draws: Array<() => void> = [];
 
-  const drawCenterBold = (text: string, fontSize: number = 16) => {
+  const drawCenterBold = (text: string, fontSize: number) => {
     tmpCtx.font = `bold ${fontSize}px "Sarabun", "Noto Sans Thai", sans-serif`;
     const wrapped = wrapText(tmpCtx, text, contentW);
     for (const line of wrapped) {
@@ -116,11 +114,11 @@ async function renderReceiptToCanvas(data: ReceiptData, paper: PaperWidth): Prom
         ctx.textAlign = "center";
         ctx.fillText(line, pw / 2, currentY);
       });
-      y += fontSize + 6;
+      y += fontSize + ft.gap;
     }
   };
 
-  const drawCenter = (text: string, fontSize: number = 13) => {
+  const drawCenter = (text: string, fontSize: number) => {
     tmpCtx.font = `${fontSize}px "Sarabun", "Noto Sans Thai", sans-serif`;
     const wrapped = wrapText(tmpCtx, text, contentW);
     for (const line of wrapped) {
@@ -130,11 +128,11 @@ async function renderReceiptToCanvas(data: ReceiptData, paper: PaperWidth): Prom
         ctx.textAlign = "center";
         ctx.fillText(line, pw / 2, currentY);
       });
-      y += fontSize + 5;
+      y += fontSize + ft.gap;
     }
   };
 
-  const drawLeft = (text: string, fontSize: number = 13) => {
+  const drawLeft = (text: string, fontSize: number) => {
     tmpCtx.font = `${fontSize}px "Sarabun", "Noto Sans Thai", sans-serif`;
     const wrapped = wrapText(tmpCtx, text, contentW);
     for (const line of wrapped) {
@@ -144,21 +142,21 @@ async function renderReceiptToCanvas(data: ReceiptData, paper: PaperWidth): Prom
         ctx.textAlign = "left";
         ctx.fillText(line, margin, currentY);
       });
-      y += fontSize + 4;
+      y += fontSize + ft.gap;
     }
   };
 
-  const drawRow = (left: string, right: string, bold: boolean = false, fontSize: number = 13) => {
+  const drawRow = (left: string, right: string, bold: boolean = false, fontSize: number = ft.body) => {
     const currentY = y;
     draws.push(() => {
-      const f = bold ? `bold ${fontSize}px` : `${fontSize}px`;
-      ctx.font = `${f} "Sarabun", "Noto Sans Thai", sans-serif`;
+      const fw = bold ? `bold ${fontSize}px` : `${fontSize}px`;
+      ctx.font = `${fw} "Sarabun", "Noto Sans Thai", sans-serif`;
       ctx.textAlign = "left";
       ctx.fillText(left, margin, currentY);
       ctx.textAlign = "right";
       ctx.fillText(right, pw - margin, currentY);
     });
-    y += fontSize + 5;
+    y += fontSize + ft.gap;
   };
 
   const drawDash = () => {
@@ -168,91 +166,89 @@ async function renderReceiptToCanvas(data: ReceiptData, paper: PaperWidth): Prom
       ctx.lineWidth = 0.5;
       ctx.setLineDash([3, 2]);
       ctx.beginPath();
-      ctx.moveTo(margin, currentY - 4);
-      ctx.lineTo(pw - margin, currentY - 4);
+      ctx.moveTo(margin, currentY - 2);
+      ctx.lineTo(pw - margin, currentY - 2);
       ctx.stroke();
       ctx.setLineDash([]);
     });
-    y += 6;
+    y += 4;
   };
 
   if (logoImg) {
-    const logoSize = paper === 58 ? 48 : 64;
+    const logoSize = paper === 58 ? 60 : 80;
     const aspect = logoImg.naturalWidth / logoImg.naturalHeight;
     const logoW = aspect >= 1 ? logoSize : Math.round(logoSize * aspect);
     const logoH = aspect >= 1 ? Math.round(logoSize / aspect) : logoSize;
     const logoX = (pw - logoW) / 2;
     const currentY = y;
     draws.push(() => {
-      ctx.drawImage(logoImg!, logoX, currentY - logoH + 8, logoW, logoH);
+      ctx.drawImage(logoImg!, logoX, currentY, logoW, logoH);
     });
-    y += logoH + 8;
+    y += logoH + 6;
   }
 
-  drawCenterBold(data.companyName, f.xl);
-  if (data.companyNameEn) drawCenter(data.companyNameEn, f.base);
+  drawCenterBold(data.companyName, ft.title);
+  if (data.companyNameEn) drawCenter(data.companyNameEn, ft.body);
   if (data.companyBranch && data.companyBranch !== "สำนักงานใหญ่" && data.companyBranchId && data.companyBranchId !== "00000") {
-    drawCenter(`สาขา: ${data.companyBranch} (${data.companyBranchId})`, f.base);
+    drawCenter(`สาขา: ${data.companyBranch} (${data.companyBranchId})`, ft.body);
   } else {
-    drawCenter("สำนักงานใหญ่", f.base);
+    drawCenter("สำนักงานใหญ่", ft.body);
   }
-  if (data.companyAddress) {
-    drawCenter(data.companyAddress, f.base);
-  }
-  if (data.companyTaxId) drawCenter(`เลขประจำตัวผู้เสียภาษี: ${data.companyTaxId}`, f.base);
-  if (data.companyPhone) drawCenter(`โทร: ${data.companyPhone}`, f.base);
+  if (data.companyAddress) drawCenter(data.companyAddress, ft.body);
+  if (data.companyTaxId) drawCenter(`เลขประจำตัวผู้เสียภาษี: ${data.companyTaxId}`, ft.body);
+  if (data.companyPhone) drawCenter(`โทร: ${data.companyPhone}`, ft.body);
   if (data.headerText) {
     for (const line of data.headerText.split("\n")) {
-      drawCenter(line.trim(), f.base);
+      if (line.trim()) drawCenter(line.trim(), ft.body);
     }
   }
 
-  y += 6;
-  drawCenterBold("ใบกำกับภาษีอย่างย่อ", f.lg);
-  drawCenter("ABB. TAX INVOICE", f.base);
+  y += 4;
+  drawCenterBold("ใบกำกับภาษีอย่างย่อ", ft.heading);
+  drawCenter("ABB. TAX INVOICE", ft.body);
 
   drawDash();
-  drawRow("เลขที่:", data.docNo, false, f.base);
-  drawRow("วันที่:", data.docDate, false, f.base);
-  drawRow("เวลา:", data.docTime, false, f.base);
-  if (data.paymentMethod) drawRow("ชำระ:", data.paymentMethod, false, f.base);
+  drawRow("เลขที่:", data.docNo, false, ft.body);
+  drawRow("วันที่:", data.docDate, false, ft.body);
+  drawRow("เวลา:", data.docTime, false, ft.body);
+  if (data.paymentMethod) drawRow("ชำระ:", data.paymentMethod, false, ft.body);
 
   drawDash();
-  drawRow("รายการ", "จำนวนเงิน", true, f.base);
+  drawRow("รายการ", "จำนวนเงิน", true, ft.body);
   drawDash();
 
   for (const item of data.items) {
-    drawLeft(item.name, f.base);
+    drawLeft(item.name, ft.body);
     const detail = `  ${item.qty} x ${formatMoney(item.unitPrice)}`;
-    drawRow(detail, formatMoney(item.total), false, f.base);
+    drawRow(detail, formatMoney(item.total), false, ft.body);
   }
 
   drawDash();
 
   if (data.items.length > 1) {
-    drawRow(`รวม (${data.items.length} รายการ)`, formatMoney(data.subtotal + data.discount), false, f.base);
+    drawRow(`รวม (${data.items.length} รายการ)`, formatMoney(data.subtotal + data.discount), false, ft.body);
   }
   if (data.discount > 0) {
-    drawRow("ส่วนลด", `-${formatMoney(data.discount)}`, false, f.base);
+    drawRow("ส่วนลด", `-${formatMoney(data.discount)}`, false, ft.body);
   }
-  drawRow("ราคาก่อน VAT", formatMoney(data.subtotal), false, f.base);
-  drawRow("ภาษีมูลค่าเพิ่ม 7%", formatMoney(data.vatAmount), false, f.base);
+  drawRow("ราคาก่อน VAT", formatMoney(data.subtotal), false, ft.body);
+  drawRow("ภาษีมูลค่าเพิ่ม 7%", formatMoney(data.vatAmount), false, ft.body);
 
   drawDash();
-  drawRow("รวมทั้งสิ้น", formatMoney(data.totalAmount), true, f.lg);
+  drawRow("รวมทั้งสิ้น", formatMoney(data.totalAmount), true, ft.heading);
   drawDash();
 
-  y += 6;
-  drawCenter("ราคารวมภาษีมูลค่าเพิ่มแล้ว", f.sm);
+  y += 4;
+  drawCenter("ราคารวมภาษีมูลค่าเพิ่มแล้ว", ft.body);
   if (data.footerText) {
     for (const line of data.footerText.split("\n")) {
-      drawCenter(line.trim(), f.base);
+      if (line.trim()) drawCenter(line.trim(), ft.body);
     }
   } else {
-    drawCenter("ขอบคุณที่ใช้บริการ", f.base);
-    drawCenter("Thank you", f.sm);
+    drawCenter("ขอบคุณที่ใช้บริการ", ft.body);
+    drawCenter("Thank you", ft.body);
   }
-  y += 12;
+  y += 10;
 
   const totalHeight = y;
   const canvas = document.createElement("canvas");
@@ -276,27 +272,29 @@ function canvasToRasterBytes(canvas: HTMLCanvasElement): Uint8Array {
   const pixels = imgData.data;
   const w = canvas.width;
   const h = canvas.height;
-  const bytesPerRow = Math.ceil(w / 8);
 
-  const allRowData = new Uint8Array(bytesPerRow * h);
+  const bytesPerRow = Math.ceil(w / 8);
+  const allRowData = new Uint8Array(h * bytesPerRow);
+
   for (let row = 0; row < h; row++) {
-    const rowOffset = row * bytesPerRow;
     for (let col = 0; col < w; col++) {
       const idx = (row * w + col) * 4;
-      const gray = 0.299 * pixels[idx] + 0.587 * pixels[idx + 1] + 0.114 * pixels[idx + 2];
+      const r = pixels[idx], g = pixels[idx + 1], b = pixels[idx + 2];
+      const gray = 0.299 * r + 0.587 * g + 0.114 * b;
       if (gray < 128) {
-        allRowData[rowOffset + Math.floor(col / 8)] |= (1 << (7 - (col % 8)));
+        const byteIdx = row * bytesPerRow + Math.floor(col / 8);
+        allRowData[byteIdx] |= (0x80 >> (col % 8));
       }
     }
   }
 
-  const BATCH = 24;
-  const parts: Uint8Array[] = [];
-  parts.push(INIT);
+  const BLOCK_HEIGHT = 24;
+  const parts: Uint8Array[] = [INIT];
 
-  for (let startRow = 0; startRow < h; startRow += BATCH) {
-    const rowCount = Math.min(BATCH, h - startRow);
-    const dataLen = bytesPerRow * rowCount;
+  for (let startRow = 0; startRow < h; startRow += BLOCK_HEIGHT) {
+    const blockH = Math.min(BLOCK_HEIGHT, h - startRow);
+    const dataLen = blockH * bytesPerRow;
+
     const header = new Uint8Array(8);
     header[0] = GS;
     header[1] = 0x76;
@@ -304,8 +302,8 @@ function canvasToRasterBytes(canvas: HTMLCanvasElement): Uint8Array {
     header[3] = 0x00;
     header[4] = bytesPerRow & 0xff;
     header[5] = (bytesPerRow >> 8) & 0xff;
-    header[6] = rowCount & 0xff;
-    header[7] = (rowCount >> 8) & 0xff;
+    header[6] = blockH & 0xff;
+    header[7] = (blockH >> 8) & 0xff;
     parts.push(header);
     parts.push(allRowData.slice(startRow * bytesPerRow, startRow * bytesPerRow + dataLen));
   }
@@ -323,6 +321,11 @@ function canvasToRasterBytes(canvas: HTMLCanvasElement): Uint8Array {
 export async function buildReceiptBytes(data: ReceiptData, paper: PaperWidth = 58): Promise<Uint8Array> {
   const canvas = await renderReceiptToCanvas(data, paper);
   return canvasToRasterBytes(canvas);
+}
+
+export async function renderReceiptPreview(data: ReceiptData, paper: PaperWidth = 58): Promise<string> {
+  const canvas = await renderReceiptToCanvas(data, paper);
+  return canvas.toDataURL("image/png");
 }
 
 const PRINTER_STORAGE_KEY = "pos_printer_config";
@@ -411,23 +414,7 @@ export async function connectBluetoothPrinter(): Promise<{ name: string } | null
     }
 
     if (!characteristic) {
-      const services = await server.getPrimaryServices();
-      for (const svc of services) {
-        try {
-          const chars = await svc.getCharacteristics();
-          for (const c of chars) {
-            if (c.properties.write || c.properties.writeWithoutResponse) {
-              characteristic = c;
-              break;
-            }
-          }
-          if (characteristic) break;
-        } catch {}
-      }
-    }
-
-    if (!characteristic) {
-      throw new Error("ไม่พบ Bluetooth characteristic สำหรับส่งข้อมูล");
+      throw new Error("ไม่พบ Printer Service — ลองปิด/เปิด Bluetooth แล้วเชื่อมต่อใหม่");
     }
 
     btDevice = device;

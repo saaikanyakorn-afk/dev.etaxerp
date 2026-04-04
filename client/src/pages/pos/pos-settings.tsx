@@ -106,18 +106,18 @@ function ImageUploadBox({ label, currentUrl, onUploaded, onClear, testId }: {
   );
 }
 
-const FONT_SIZES: Record<string, { base: string; total: string; label: string }> = {
-  small: { base: "11px", total: "14px", label: "เล็ก (11px)" },
-  medium: { base: "12px", total: "16px", label: "กลาง (12px)" },
-  large: { base: "14px", total: "18px", label: "ใหญ่ (14px) — แนะนำ" },
-  xlarge: { base: "16px", total: "20px", label: "ใหญ่พิเศษ (16px)" },
+const FONT_SIZES: Record<string, { body: string; heading: string; title: string; label: string }> = {
+  small: { body: "10px", heading: "11px", title: "12px", label: "เล็ก (10px)" },
+  medium: { body: "11px", heading: "12px", title: "13px", label: "กลาง (11px) — แนะนำ" },
+  large: { body: "12px", heading: "13px", title: "14px", label: "ใหญ่ (12px)" },
+  xlarge: { body: "14px", heading: "15px", title: "16px", label: "ใหญ่พิเศษ (14px)" },
 };
 
 function ReceiptPreview({ settings, company }: { settings: DocSettings; company: any }) {
   const is58 = settings.posReceiptWidth === "58mm";
   const width = is58 ? 240 : 320;
-  const fontConf = FONT_SIZES[settings.posReceiptFontSize] || FONT_SIZES.large;
-  const fontSize = fontConf.base;
+  const fontConf = FONT_SIZES[settings.posReceiptFontSize] || FONT_SIZES.medium;
+  const fontSize = fontConf.body;
 
   return (
     <div
@@ -139,16 +139,16 @@ function ReceiptPreview({ settings, company }: { settings: DocSettings; company:
 
       {settings.posReceiptShowCompanyInfo && company && (
         <div className="text-center px-4 pb-3" style={{ fontSize }}>
-          <div className="font-bold text-base mb-0.5">{company.name || "ชื่อร้าน"}</div>
-          <div className="text-gray-500" style={{ fontSize: "10px" }}>{(company as any).branch || "สำนักงานใหญ่"}</div>
+          <div className="font-bold mb-0.5" style={{ fontSize: fontConf.title }}>{company.name || "ชื่อร้าน"}</div>
+          <div className="text-gray-500" style={{ fontSize }}>{(company as any).branch || "สำนักงานใหญ่"}</div>
           {company.address && <div className="text-gray-600 leading-snug">{company.address}</div>}
           {company.taxId && <div className="text-gray-500">เลขผู้เสียภาษี {company.taxId}</div>}
           {company.phone && <div className="text-gray-500">โทร {company.phone}</div>}
           {settings.posReceiptHeaderText && (
             <div className="text-gray-600 leading-snug whitespace-pre-line mt-1">{settings.posReceiptHeaderText}</div>
           )}
-          <div className="font-bold mt-1">ใบกำกับภาษีอย่างย่อ</div>
-          <div className="text-gray-500" style={{ fontSize: "10px" }}>ABB. TAX INVOICE</div>
+          <div className="font-bold mt-1" style={{ fontSize: fontConf.heading }}>ใบกำกับภาษีอย่างย่อ</div>
+          <div className="text-gray-500" style={{ fontSize }}>ABB. TAX INVOICE</div>
         </div>
       )}
 
@@ -179,7 +179,7 @@ function ReceiptPreview({ settings, company }: { settings: DocSettings; company:
       <div className="border-t border-dashed border-gray-400 mx-2" />
 
       <div className="px-4 py-3 space-y-1" style={{ fontSize }}>
-        <div className="flex justify-between font-bold" style={{ fontSize: fontConf.total }}>
+        <div className="flex justify-between font-bold" style={{ fontSize: fontConf.heading }}>
           <span>รวมทั้งหมด</span>
           <span>฿900.00</span>
         </div>
@@ -265,7 +265,7 @@ export default function PosSettings() {
         posReceiptShowCompanyInfo: true,
         posReceiptShowQr: true,
         posReceiptAutoPrint: false,
-        posReceiptFontSize: "large",
+        posReceiptFontSize: "medium",
         posReceiptPrefix: "POS",
       };
       return r.json();
