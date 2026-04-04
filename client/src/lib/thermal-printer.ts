@@ -50,10 +50,10 @@ export interface ReceiptData {
 }
 
 const THERMAL_FONT: Record<string, { body: number; heading: number; title: number; gap: number }> = {
-  small:  { body: 14, heading: 16, title: 18, gap: 4 },
-  medium: { body: 16, heading: 18, title: 20, gap: 5 },
-  large:  { body: 18, heading: 20, title: 22, gap: 6 },
-  xlarge: { body: 20, heading: 22, title: 26, gap: 7 },
+  small:  { body: 14, heading: 16, title: 18, gap: 7 },
+  medium: { body: 16, heading: 18, title: 20, gap: 8 },
+  large:  { body: 18, heading: 20, title: 22, gap: 9 },
+  xlarge: { body: 20, heading: 22, title: 26, gap: 10 },
 };
 
 function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
