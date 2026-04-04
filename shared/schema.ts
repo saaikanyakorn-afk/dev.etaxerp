@@ -65,6 +65,7 @@ export const machineNics = pgTable("machine_nics", {
   subnetMask: text("subnet_mask").notNull().default("255.255.255.0"),
   forwardedFor: text("forwarded_for"),
   forwardedPort: text("forwarded_port"),
+  routerId: integer("router_id"),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
 });
@@ -73,12 +74,28 @@ export const insertMachineNicSchema = createInsertSchema(machineNics).omit({ id:
 export type MachineNic = typeof machineNics.$inferSelect;
 export type InsertMachineNic = z.infer<typeof insertMachineNicSchema>;
 
+export const nicIpAddresses = pgTable("nic_ip_addresses", {
+  id: serial("id").primaryKey(),
+  nicId: integer("nic_id").notNull(),
+  ipAddress: text("ip_address").notNull(),
+  subnetMask: text("subnet_mask").notNull().default("255.255.255.0"),
+  label: text("label"),
+  isPrimary: boolean("is_primary").notNull().default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertNicIpAddressSchema = createInsertSchema(nicIpAddresses).omit({ id: true, createdAt: true });
+export type NicIpAddress = typeof nicIpAddresses.$inferSelect;
+export type InsertNicIpAddress = z.infer<typeof insertNicIpAddressSchema>;
+
 export const routers = pgTable("routers", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
   model: text("model"),
   lanIp: text("lan_ip"),
   adminUrl: text("admin_url"),
+  adminUsername: text("admin_username"),
+  adminPassword: text("admin_password"),
   wanIp: text("wan_ip"),
   internetType: text("internet_type").notNull().default("dynamic"),
   ispName: text("isp_name"),
@@ -97,6 +114,27 @@ export const routers = pgTable("routers", {
 export const insertRouterSchema = createInsertSchema(routers).omit({ id: true, createdAt: true, updatedAt: true });
 export type Router = typeof routers.$inferSelect;
 export type InsertRouter = z.infer<typeof insertRouterSchema>;
+
+export const platformDomains = pgTable("platform_domains", {
+  id: serial("id").primaryKey(),
+  domainName: text("domain_name").notNull(),
+  provider: text("provider").notNull().default("noip"),
+  manageUrl: text("manage_url"),
+  username: text("username"),
+  password: text("password"),
+  routerId: integer("router_id"),
+  isRouterManaged: boolean("is_router_managed").notNull().default(false),
+  machineId: integer("machine_id"),
+  purpose: text("purpose"),
+  port: integer("port"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertPlatformDomainSchema = createInsertSchema(platformDomains).omit({ id: true, createdAt: true, updatedAt: true });
+export type PlatformDomain = typeof platformDomains.$inferSelect;
+export type InsertPlatformDomain = z.infer<typeof insertPlatformDomainSchema>;
 
 export const routerDomains = pgTable("router_domains", {
   id: serial("id").primaryKey(),

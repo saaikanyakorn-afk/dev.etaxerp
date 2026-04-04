@@ -905,14 +905,17 @@ Once Stage 3 begins, revisit the JOIN inventory below and add appropriate indexe
 
 **Asus H97M-E specs:** Micro ATX, Intel H97 chipset, LGA1150, 4×DDR3 DIMM (max 32GB), 1×PCIe x16, 3×PCIe x1, 1×M.2 (2260/2280), 4×SATA III 6Gb/s. No overclocking (H97). Best CPU upgrade: Xeon E3-1281 v3 (3.7/4.1GHz, +12% vs current E3-1230 v3).
 
-**All Servers page:** `client/src/pages/platform/all-servers.tsx` (route `/platform/all-servers`) — compact expandable rows grouped by server type. Features:
+**All Servers page:** `client/src/pages/platform/all-servers.tsx` (route `/platform/all-servers`) — Infrastructure Management page. Features:
+- **Machine grouping:** Grouped by `physicalLocation` (not server type). Dev/Cloud machines shown separately.
 - **Official flag:** `isOfficial` boolean — amber highlight + ★ badge, sorted to top
 - **Target DB pairing:** `targetDbMachineId` FK → machines (many-to-one). App server picks its DB target (self = local DB, or remote server)
-- **NIC management:** `machine_nics` table — per-NIC: name, MAC, IP, subnet mask, port forwarding (db with custom port / app = 80+443)
-- **LAN connectivity:** Auto-computed from subnet matching across all machines' NICs — no flags needed
-- **Internet type:** `internetType` field (fixed / dynamic) per machine
-- **Physical location:** `physicalLocation` text field per machine
-- **Clone skip:** Both `machines` and `machine_nics` are in SKIP_CLONE_TABLES (system tables, not cloned)
+- **NIC management:** `machine_nics` table — per-NIC: name, MAC, IP, subnet mask, port forwarding (db/app), `routerId` FK linking NIC to a router
+- **LAN connectivity:** Auto-computed from subnet matching across all machines' NICs
+- **Routers:** Independent entities at physical locations. Fields: name, model, LAN/WAN IP, internet type (fixed/dynamic), ISP info, admin credentials (username/password)
+- **Domains (`platform_domains`):** Independent entities. Fields: domainName, provider (noip/freedns/other), purpose (ddns/website/app/db/ftp), port, credentials, linked router (FK), linked machine (FK), `isRouterManaged` flag
+- **Master password gate:** `INFRA_MASTER_PASSWORD` env var (default: "deep-sysadmin-2024"). Lock/unlock button in page header. Credentials (router admin, domain login, machine DB) hidden until unlocked via `/api/platform/verify-infra-password` POST endpoint
+- **Multi-IP per NIC:** `nic_ip_addresses` table — per-NIC: multiple IPs with label, isPrimary flag
+- **Clone skip:** `machines`, `machine_nics`, `nic_ip_addresses`, `routers`, `router_domains`, `platform_domains` are in SKIP_CLONE_TABLES
 
 **Encrypted Config File System (พี่ช้าง's config DB architecture):**
 - **Purpose:** Each app server has a local PostgreSQL "config DB" storing credentials for ALL known machines. No passwords in `.env` — only `MACHINE_NAME`.

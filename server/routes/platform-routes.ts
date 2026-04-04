@@ -2145,12 +2145,13 @@ app.post("/api/platform/machines/:id/nics", requireAuth, requireSuperAdmin, asyn
   try {
     const { machineNics } = await import("@shared/schema");
     const machineId = Number(req.params.id);
-    const { nicName, macAddress, ipAddress, subnetMask, forwardedFor, forwardedPort, notes } = req.body;
+    const { nicName, macAddress, ipAddress, subnetMask, forwardedFor, forwardedPort, routerId, notes } = req.body;
     if (!nicName || !ipAddress) return res.status(400).json({ message: "ต้องระบุชื่อ NIC และ IP Address" });
     const [row] = await db.insert(machineNics).values({
       machineId, nicName, macAddress: macAddress || null, ipAddress,
       subnetMask: subnetMask || "255.255.255.0",
       forwardedFor: forwardedFor || null, forwardedPort: forwardedPort || null,
+      routerId: routerId ? Number(routerId) : null,
       notes: notes || null,
     }).returning();
     res.json(row);
@@ -2371,6 +2372,138 @@ app.get("/api/platform/all-router-domains", requireAuth, requireSuperAdmin, asyn
     const { routerDomains } = await import("@shared/schema");
     const rows = await db.select().from(routerDomains).orderBy(routerDomains.routerId, routerDomains.domainName);
     res.json(rows);
+  } catch (err: any) { res.status(500).json({ message: err.message }); }
+});
+
+app.get("/api/platform/domains", requireAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const { platformDomains } = await import("@shared/schema");
+    const rows = await db.select().from(platformDomains).orderBy(platformDomains.domainName);
+    res.json(rows);
+  } catch (err: any) { res.status(500).json({ message: err.message }); }
+});
+
+app.post("/api/platform/domains", requireAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const { platformDomains } = await import("@shared/schema");
+    const { domainName, provider, manageUrl, username, password, routerId, isRouterManaged, machineId, purpose, port, notes } = req.body;
+    if (!domainName) return res.status(400).json({ message: "ต้องระบุ Domain Name" });
+    if (isRouterManaged && routerId) {
+      await db.update(platformDomains).set({ isRouterManaged: false }).where(
+        sql`${platformDomains.routerId} = ${routerId} AND ${platformDomains.isRouterManaged} = true`
+      );
+    }
+    const [row] = await db.insert(platformDomains).values({
+      domainName, provider: provider || "noip", manageUrl: manageUrl || null,
+      username: username || null, password: password || null,
+      routerId: routerId || null, isRouterManaged: isRouterManaged || false,
+      machineId: machineId || null, purpose: purpose || null,
+      port: port || null, notes: notes || null,
+    }).returning();
+    res.json(row);
+  } catch (err: any) { res.status(400).json({ message: err.message }); }
+});
+
+app.patch("/api/platform/domains/:id", requireAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const { platformDomains } = await import("@shared/schema");
+    const id = Number(req.params.id);
+    const { id: _id, createdAt: _ca, ...updates } = req.body;
+    if (updates.isRouterManaged && updates.routerId) {
+      await db.update(platformDomains).set({ isRouterManaged: false }).where(
+        sql`${platformDomains.routerId} = ${updates.routerId} AND ${platformDomains.isRouterManaged} = true AND ${platformDomains.id} != ${id}`
+      );
+    }
+    const [row] = await db.update(platformDomains).set({ ...updates, updatedAt: new Date() }).where(eq(platformDomains.id, id)).returning();
+    if (!row) return res.status(404).json({ message: "ไม่พบ Domain นี้" });
+    res.json(row);
+  } catch (err: any) { res.status(400).json({ message: err.message }); }
+});
+
+app.delete("/api/platform/domains/:id", requireAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const { platformDomains } = await import("@shared/schema");
+    const id = Number(req.params.id);
+    const [row] = await db.delete(platformDomains).where(eq(platformDomains.id, id)).returning();
+    if (!row) return res.status(404).json({ message: "ไม่พบ Domain นี้" });
+    res.json({ success: true });
+  } catch (err: any) { res.status(500).json({ message: err.message }); }
+});
+
+app.get("/api/platform/nics/:nicId/ips", requireAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const { nicIpAddresses } = await import("@shared/schema");
+    const nicId = Number(req.params.nicId);
+    const rows = await db.select().from(nicIpAddresses).where(eq(nicIpAddresses.nicId, nicId)).orderBy(nicIpAddresses.id);
+    res.json(rows);
+  } catch (err: any) { res.status(500).json({ message: err.message }); }
+});
+
+app.get("/api/platform/all-nic-ips", requireAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const { nicIpAddresses } = await import("@shared/schema");
+    const rows = await db.select().from(nicIpAddresses).orderBy(nicIpAddresses.nicId, nicIpAddresses.id);
+    res.json(rows);
+  } catch (err: any) { res.status(500).json({ message: err.message }); }
+});
+
+app.post("/api/platform/nics/:nicId/ips", requireAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const { nicIpAddresses } = await import("@shared/schema");
+    const nicId = Number(req.params.nicId);
+    const { ipAddress, subnetMask, label, isPrimary } = req.body;
+    if (!ipAddress) return res.status(400).json({ message: "ต้องระบุ IP Address" });
+    if (isPrimary) {
+      await db.update(nicIpAddresses).set({ isPrimary: false }).where(
+        sql`${nicIpAddresses.nicId} = ${nicId} AND ${nicIpAddresses.isPrimary} = true`
+      );
+    }
+    const [row] = await db.insert(nicIpAddresses).values({
+      nicId, ipAddress, subnetMask: subnetMask || "255.255.255.0",
+      label: label || null, isPrimary: isPrimary || false,
+    }).returning();
+    res.json(row);
+  } catch (err: any) { res.status(400).json({ message: err.message }); }
+});
+
+app.patch("/api/platform/nic-ips/:id", requireAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const { nicIpAddresses } = await import("@shared/schema");
+    const id = Number(req.params.id);
+    const { id: _id, createdAt: _ca, ...updates } = req.body;
+    if (updates.isPrimary) {
+      const existing = await db.select().from(nicIpAddresses).where(eq(nicIpAddresses.id, id));
+      if (existing.length > 0) {
+        await db.update(nicIpAddresses).set({ isPrimary: false }).where(
+          sql`${nicIpAddresses.nicId} = ${existing[0].nicId} AND ${nicIpAddresses.isPrimary} = true AND ${nicIpAddresses.id} != ${id}`
+        );
+      }
+    }
+    const [row] = await db.update(nicIpAddresses).set(updates).where(eq(nicIpAddresses.id, id)).returning();
+    if (!row) return res.status(404).json({ message: "ไม่พบ IP นี้" });
+    res.json(row);
+  } catch (err: any) { res.status(400).json({ message: err.message }); }
+});
+
+app.delete("/api/platform/nic-ips/:id", requireAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const { nicIpAddresses } = await import("@shared/schema");
+    const id = Number(req.params.id);
+    const [row] = await db.delete(nicIpAddresses).where(eq(nicIpAddresses.id, id)).returning();
+    if (!row) return res.status(404).json({ message: "ไม่พบ IP นี้" });
+    res.json({ success: true });
+  } catch (err: any) { res.status(500).json({ message: err.message }); }
+});
+
+app.post("/api/platform/verify-infra-password", requireAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const { password } = req.body;
+    const secret = process.env.INFRA_MASTER_PASSWORD || "deep-sysadmin-2024";
+    if (password === secret) {
+      res.json({ success: true });
+    } else {
+      res.status(401).json({ message: "รหัสผ่านไม่ถูกต้อง" });
+    }
   } catch (err: any) { res.status(500).json({ message: err.message }); }
 });
 
