@@ -86,7 +86,7 @@ export default function GithubManagement() {
   const [showToken, setShowToken] = useState(false);
   const [showCurrentToken, setShowCurrentToken] = useState(false);
 
-  interface TokenInfo { hasToken: boolean; masked?: string; full?: string; expiresAt?: string | null; }
+  interface TokenInfo { hasToken: boolean; masked?: string; full?: string; expiresAt?: string | null; tokenName?: string | null; scopes?: string | null; githubUser?: string | null; }
 
   const { data: localInfo, isLoading: localLoading, refetch: refetchLocal, isFetching: localFetching, error: localError } = useQuery<LocalInfo>({
     queryKey: ["/api/platform/github/local-info"],
@@ -514,6 +514,26 @@ export default function GithubManagement() {
 
                     {tokenInfo?.hasToken && (
                       <div className="space-y-2">
+                        {(tokenInfo.githubUser || tokenInfo.scopes !== undefined) && (
+                          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+                            {tokenInfo.githubUser && (
+                              <span className="text-gray-500" data-testid="text-github-user">
+                                <User className="h-3 w-3 inline mr-1" />{tokenInfo.githubUser}
+                              </span>
+                            )}
+                            {tokenInfo.tokenName && (
+                              <span className="text-gray-400" data-testid="text-token-name">{tokenInfo.tokenName}</span>
+                            )}
+                            {tokenInfo.scopes && (
+                              <span className="text-gray-400" data-testid="text-token-scopes">
+                                Scopes: {tokenInfo.scopes}
+                              </span>
+                            )}
+                            {tokenInfo.scopes === "" && (
+                              <span className="text-gray-400" data-testid="text-token-type">Fine-grained PAT (no classic scopes)</span>
+                            )}
+                          </div>
+                        )}
                         <div className="space-y-1">
                           <div className="flex items-center justify-between">
                             <span className="text-xs text-gray-400">Current Token:</span>
