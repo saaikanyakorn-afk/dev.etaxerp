@@ -2132,6 +2132,60 @@ app.patch("/api/platform/machines/:id", requireAuth, requireSuperAdmin, async (r
   } catch (err: any) { res.status(400).json({ message: err.message }); }
 });
 
+app.get("/api/platform/machines/:id/nics", requireAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const { machineNics } = await import("@shared/schema");
+    const machineId = Number(req.params.id);
+    const rows = await db.select().from(machineNics).where(eq(machineNics.machineId, machineId)).orderBy(machineNics.nicName);
+    res.json(rows);
+  } catch (err: any) { res.status(500).json({ message: err.message }); }
+});
+
+app.post("/api/platform/machines/:id/nics", requireAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const { machineNics } = await import("@shared/schema");
+    const machineId = Number(req.params.id);
+    const { nicName, macAddress, ipAddress, subnetMask, forwardedFor, forwardedPort, notes } = req.body;
+    if (!nicName || !ipAddress) return res.status(400).json({ message: "ต้องระบุชื่อ NIC และ IP Address" });
+    const [row] = await db.insert(machineNics).values({
+      machineId, nicName, macAddress: macAddress || null, ipAddress,
+      subnetMask: subnetMask || "255.255.255.0",
+      forwardedFor: forwardedFor || null, forwardedPort: forwardedPort || null,
+      notes: notes || null,
+    }).returning();
+    res.json(row);
+  } catch (err: any) { res.status(400).json({ message: err.message }); }
+});
+
+app.patch("/api/platform/machine-nics/:nicId", requireAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const { machineNics } = await import("@shared/schema");
+    const nicId = Number(req.params.nicId);
+    const { id: _id, machineId: _mid, createdAt: _ca, ...updates } = req.body;
+    const [row] = await db.update(machineNics).set(updates).where(eq(machineNics.id, nicId)).returning();
+    if (!row) return res.status(404).json({ message: "ไม่พบ NIC นี้" });
+    res.json(row);
+  } catch (err: any) { res.status(400).json({ message: err.message }); }
+});
+
+app.delete("/api/platform/machine-nics/:nicId", requireAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const { machineNics } = await import("@shared/schema");
+    const nicId = Number(req.params.nicId);
+    const [row] = await db.delete(machineNics).where(eq(machineNics.id, nicId)).returning();
+    if (!row) return res.status(404).json({ message: "ไม่พบ NIC นี้" });
+    res.json({ success: true });
+  } catch (err: any) { res.status(500).json({ message: err.message }); }
+});
+
+app.get("/api/platform/all-nics", requireAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const { machineNics } = await import("@shared/schema");
+    const rows = await db.select().from(machineNics).orderBy(machineNics.machineId, machineNics.nicName);
+    res.json(rows);
+  } catch (err: any) { res.status(500).json({ message: err.message }); }
+});
+
 app.delete("/api/platform/machines/:id", requireAuth, requireSuperAdmin, async (req, res) => {
   try {
     const { machines: machinesTable } = await import("@shared/schema");

@@ -45,6 +45,8 @@ export const machines = pgTable("machines", {
   envContent: text("env_content"),
   isOfficial: boolean("is_official").notNull().default(false),
   targetDbMachineId: integer("target_db_machine_id"),
+  internetType: text("internet_type").notNull().default("dynamic"),
+  physicalLocation: text("physical_location"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -52,6 +54,23 @@ export const machines = pgTable("machines", {
 export const insertMachineSchema = createInsertSchema(machines).omit({ id: true, createdAt: true, updatedAt: true });
 export type Machine = typeof machines.$inferSelect;
 export type InsertMachine = z.infer<typeof insertMachineSchema>;
+
+export const machineNics = pgTable("machine_nics", {
+  id: serial("id").primaryKey(),
+  machineId: integer("machine_id").notNull(),
+  nicName: text("nic_name").notNull(),
+  macAddress: text("mac_address"),
+  ipAddress: text("ip_address").notNull(),
+  subnetMask: text("subnet_mask").notNull().default("255.255.255.0"),
+  forwardedFor: text("forwarded_for"),
+  forwardedPort: text("forwarded_port"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertMachineNicSchema = createInsertSchema(machineNics).omit({ id: true, createdAt: true });
+export type MachineNic = typeof machineNics.$inferSelect;
+export type InsertMachineNic = z.infer<typeof insertMachineNicSchema>;
 
 export const tenants = pgTable("tenants", {
   id: serial("id").primaryKey(),
