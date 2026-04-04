@@ -374,34 +374,36 @@ app.get("/api/platform/github/token-info", requireAuth, requireSuperAdmin, async
     const masked = token.length > 8 ? token.slice(0, 4) + "•".repeat(token.length - 8) + token.slice(-4) : "•".repeat(token.length);
 
     let expiresAt: string | null = null;
-    let tokenName: string | null = null;
     let scopes: string | null = null;
     let githubUser: string | null = null;
+    let tokenType: string = "unknown";
+    let rateLimit: { limit: number; remaining: number; reset: string } | null = null;
     try {
       const resp = await fetch("https://api.github.com/user", {
-        headers: { Authorization: `Bearer ${token}`, "User-Agent": "etax-center" },
+        headers: { Authorization: `token ${token}`, "User-Agent": "etax-center" },
       });
       const expHeader = resp.headers.get("github-authentication-token-expiration");
       if (expHeader) expiresAt = expHeader;
-      scopes = resp.headers.get("x-oauth-scopes");
+      const scopeHeader = resp.headers.get("x-oauth-scopes");
+      if (scopeHeader !== null) {
+        scopes = scopeHeader;
+        tokenType = "classic";
+      } else {
+        tokenType = token.startsWith("github_pat_") ? "fine-grained" : "classic";
+      }
+      const rlLimit = resp.headers.get("x-ratelimit-limit");
+      const rlRemaining = resp.headers.get("x-ratelimit-remaining");
+      const rlReset = resp.headers.get("x-ratelimit-reset");
+      if (rlLimit && rlRemaining && rlReset) {
+        rateLimit = { limit: Number(rlLimit), remaining: Number(rlRemaining), reset: new Date(Number(rlReset) * 1000).toISOString() };
+      }
       if (resp.ok) {
         const userData = await resp.json();
         githubUser = userData.login || null;
       }
     } catch {}
 
-    if (token.startsWith("github_pat_")) {
-      try {
-        const resp = await fetch("https://api.github.com/installation/repositories", {
-          headers: { Authorization: `Bearer ${token}`, "User-Agent": "etax-center" },
-        });
-        if (resp.ok) {
-          tokenName = "(Fine-grained PAT)";
-        }
-      } catch {}
-    }
-
-    res.json({ hasToken: true, masked, full: token, expiresAt, tokenName, scopes, githubUser });
+    res.json({ hasToken: true, masked, full: token, expiresAt, scopes, githubUser, tokenType, rateLimit });
   } catch (err: any) {
     res.status(500).json({ message: err.message });
   }
