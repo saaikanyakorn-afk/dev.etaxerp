@@ -175,12 +175,11 @@ async function renderReceiptToCanvas(data: ReceiptData, paper: PaperWidth): Prom
   };
 
   if (logoImg) {
-    const logoMaxW = paper === 58 ? 160 : 220;
-    const logoMaxH = paper === 58 ? 80 : 100;
+    const logoMaxW = Math.round(contentW * 0.85);
+    const logoMaxH = paper === 58 ? 140 : 180;
     const aspect = logoImg.naturalWidth / logoImg.naturalHeight;
-    let logoW = logoImg.naturalWidth;
-    let logoH = logoImg.naturalHeight;
-    if (logoW > logoMaxW) { logoW = logoMaxW; logoH = Math.round(logoW / aspect); }
+    let logoW = logoMaxW;
+    let logoH = Math.round(logoW / aspect);
     if (logoH > logoMaxH) { logoH = logoMaxH; logoW = Math.round(logoH * aspect); }
     const logoX = (pw - logoW) / 2;
     const currentY = y;
