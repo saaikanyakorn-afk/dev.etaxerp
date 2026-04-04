@@ -1,0 +1,11 @@
+echo "=== Last Git Pull ==="
+stat -c '%y' .git/FETCH_HEAD 2>/dev/null || echo "Never fetched"
+echo ""
+echo "=== Current Commit ==="
+git log -1 --format="%H%n%ai%n%s"
+echo ""
+echo "=== Current Branch ==="
+git branch --show-current
+echo ""
+echo "=== VERSION File ==="
+cat VERSION 2>/dev/null || echo "No VERSION file"
