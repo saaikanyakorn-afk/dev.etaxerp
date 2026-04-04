@@ -23,17 +23,20 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-const PLATFORM_NAV = [
+const ADMIN_NAV = [
   { icon: LayoutDashboard, label: "ภาพรวมแพลตฟอร์ม", href: "/platform" },
   { icon: Building2, label: "จัดการ Tenant", href: "/platform/tenants" },
   { icon: Eye, label: "ภาพรวมลูกค้า & ข้อมูล", href: "/platform/tenant-overview" },
   { icon: Crown, label: "จัดการแพ็คเกจ", href: "/platform/subscriptions" },
   { icon: CreditCard, label: "ตั้งค่าการชำระเงิน", href: "/platform/payment-settings" },
   { icon: MessageCircle, label: "แชทสนับสนุน", href: "/platform/chat" },
+  { icon: Globe, label: "จัดการ Landing Page", href: "/settings/landing-cms" },
+];
+
+const TECH_NAV = [
   { icon: Server, label: "เซิร์ฟเวอร์ฐานข้อมูล", href: "/platform/db-servers" },
   { icon: ArrowLeftRight, label: "สลับฐานข้อมูล", href: "/platform/db-switch" },
   { icon: Database, label: "Clone ฐานข้อมูล", href: "/platform/backup" },
-  { icon: Globe, label: "จัดการ Landing Page", href: "/settings/landing-cms" },
   { icon: Wrench, label: "ปรับปรุงระบบ", href: "/platform/maintenance" },
   { icon: Download, label: "ดาวน์โหลด Source Code", href: "/platform/download-source" },
   { icon: FolderArchive, label: "ตั้งค่า FTP Archive", href: "/settings/ftp-archive" },
@@ -67,8 +70,8 @@ export default function PlatformLayout({ children }: { children: React.ReactNode
           </div>
         </div>
 
-        <nav className="flex-1 px-3 py-4 space-y-1">
-          {PLATFORM_NAV.map((item) => {
+        <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+          {ADMIN_NAV.map((item) => {
             const isActive = location === item.href;
             return (
               <Link key={item.href} href={item.href}>
@@ -78,6 +81,35 @@ export default function PlatformLayout({ children }: { children: React.ReactNode
                     isActive
                       ? "bg-amber-500/20 text-amber-300 border border-amber-500/30"
                       : "text-slate-300 hover:bg-slate-700/50 hover:text-white"
+                  )}
+                  data-testid={`nav-${item.href.replace(/\//g, "-")}`}
+                >
+                  <item.icon className="h-4 w-4" />
+                  {item.label}
+                </span>
+              </Link>
+            );
+          })}
+
+          <div className="relative my-3 px-2">
+            <div className="absolute inset-0 flex items-center px-2">
+              <div className="w-full border-t border-slate-600/60" />
+            </div>
+            <div className="relative flex justify-center">
+              <span className="bg-slate-900 px-2 text-[10px] uppercase tracking-widest text-slate-500">Technician</span>
+            </div>
+          </div>
+
+          {TECH_NAV.map((item) => {
+            const isActive = location === item.href;
+            return (
+              <Link key={item.href} href={item.href}>
+                <span
+                  className={cn(
+                    "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors cursor-pointer",
+                    isActive
+                      ? "bg-cyan-600/20 text-cyan-300 border border-cyan-500/30"
+                      : "text-slate-400 hover:bg-slate-700/50 hover:text-slate-200"
                   )}
                   data-testid={`nav-${item.href.replace(/\//g, "-")}`}
                 >
