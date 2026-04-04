@@ -2160,4 +2160,33 @@ app.post("/api/platform/machines/test-decrypt", requireAuth, requireSuperAdmin, 
   }
 });
 
+app.get("/api/platform/clone-history-target", requireAuth, requireSuperAdmin, async (_req, res) => {
+  try {
+    const { getTargetMachineInfo } = await import("../services/clone-history-central");
+    const info = await getTargetMachineInfo();
+    res.json(info || { machineId: 0, machineName: null, consecutiveFailDays: 0, lastCheckDate: null });
+  } catch (err: any) { res.status(500).json({ message: err.message }); }
+});
+
+app.patch("/api/platform/clone-history-target", requireAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const { machineId } = req.body;
+    if (!machineId || typeof machineId !== "number") {
+      return res.status(400).json({ message: "กรุณาระบุ machineId" });
+    }
+    const { machines: machinesTable } = await import("@shared/schema");
+    const target = await db.select().from(machinesTable).where(eq(machinesTable.id, machineId));
+    if (target.length === 0) return res.status(404).json({ message: "ไม่พบเซิร์ฟเวอร์ที่เลือก" });
+
+    const m = target[0];
+    if (m.serverType === "app") {
+      return res.status(400).json({ message: "ไม่สามารถเลือก App Server ได้ — ต้องเป็นเซิร์ฟเวอร์ที่มี Database" });
+    }
+
+    const { setTargetMachineId } = await import("../services/clone-history-central");
+    await setTargetMachineId(machineId);
+    res.json({ success: true, machineId, machineName: m.localName });
+  } catch (err: any) { res.status(500).json({ message: err.message }); }
+});
+
 }

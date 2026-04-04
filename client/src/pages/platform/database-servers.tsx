@@ -12,7 +12,7 @@ import {
   Server, Plus, Eye, EyeOff, Pencil, Trash2, Check, X,
   MonitorSmartphone, Cloud, Monitor, Wifi, WifiOff,
   ArrowRight, Database, Globe, MapPin, RefreshCw,
-  Key, Shield, Copy, Download, Lock, Unlock,
+  Key, Shield, Copy, Download, Lock, Unlock, History, AlertTriangle,
 } from "lucide-react";
 
 interface MachineRecord {
@@ -371,6 +371,120 @@ function EditMachineDialog({
         </div>
       </div>
     </div>
+  );
+}
+
+function CloneHistoryTargetCard({ machines }: { machines: MachineRecord[] }) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  const { data: targetInfo, isLoading } = useQuery<{ machineId: number; machineName: string | null; consecutiveFailDays: number; lastCheckDate: string | null }>({
+    queryKey: ["/api/platform/clone-history-target"],
+    queryFn: async () => {
+      const r = await fetch("/api/platform/clone-history-target", { credentials: "include" });
+      if (!r.ok) throw new Error("Failed to load");
+      return r.json();
+    },
+  });
+
+  const dbMachines = machines.filter(m => m.serverType === "database" || m.serverType === "app_database");
+
+  const changeMut = useMutation({
+    mutationFn: async (machineId: number) => {
+      const r = await fetch("/api/platform/clone-history-target", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ machineId }),
+      });
+      if (!r.ok) throw new Error((await r.json()).message);
+      return r.json();
+    },
+    onSuccess: (data) => {
+      toast({ title: "เปลี่ยนเซิร์ฟเวอร์เก็บ Clone Log สำเร็จ", description: `ย้ายไป ${data.machineName}` });
+      queryClient.invalidateQueries({ queryKey: ["/api/platform/clone-history-target"] });
+    },
+    onError: (err: any) => {
+      toast({ title: "ผิดพลาด", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const currentId = targetInfo?.machineId || 0;
+  const currentName = targetInfo?.machineName || "ยังไม่ได้กำหนด";
+  const failDays = targetInfo?.consecutiveFailDays || 0;
+
+  return (
+    <Card className="border-2 border-purple-200" data-testid="card-clone-history-target">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base flex items-center gap-2">
+          <History className="h-5 w-5 text-purple-600" />
+          Clone History — เซิร์ฟเวอร์เก็บ Log กลาง
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex items-center gap-3">
+          <div className="flex-1">
+            <div className="text-sm text-gray-500 mb-1">เซิร์ฟเวอร์ปัจจุบัน</div>
+            <div className="flex items-center gap-2">
+              {currentId > 0 ? (
+                <>
+                  <Badge className="bg-purple-100 text-purple-700 border-purple-200" data-testid="badge-clone-target-name">{currentName}</Badge>
+                  {failDays > 0 && (
+                    <Badge variant="destructive" className="text-xs" data-testid="badge-clone-fail-days">
+                      <AlertTriangle className="h-3 w-3 mr-1" />
+                      ส่งไม่ได้ {failDays} วัน
+                    </Badge>
+                  )}
+                </>
+              ) : (
+                <span className="text-sm text-orange-600 font-medium" data-testid="text-clone-target-none">⚠ ยังไม่ได้กำหนด</span>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <Label className="text-sm mb-1.5 block">เปลี่ยนเซิร์ฟเวอร์เก็บ Clone Log</Label>
+          <div className="flex items-center gap-2">
+            <Select
+              value={currentId > 0 ? String(currentId) : ""}
+              onValueChange={(val) => {
+                const newId = parseInt(val, 10);
+                if (newId && newId !== currentId) {
+                  if (confirm(`ย้าย Clone Log ไปเก็บที่ "${dbMachines.find(m => m.id === newId)?.localName}" ?\n\nLog ที่ค้างอยู่จะถูกส่งไปเซิร์ฟเวอร์ใหม่โดยอัตโนมัติ`)) {
+                    changeMut.mutate(newId);
+                  }
+                }
+              }}
+              data-testid="select-clone-target"
+            >
+              <SelectTrigger className="flex-1" data-testid="select-clone-target-trigger">
+                <SelectValue placeholder="เลือกเซิร์ฟเวอร์..." />
+              </SelectTrigger>
+              <SelectContent>
+                {dbMachines.map(m => (
+                  <SelectItem key={m.id} value={String(m.id)} data-testid={`select-item-machine-${m.id}`}>
+                    <span className="flex items-center gap-2">
+                      <Database className="h-3.5 w-3.5 text-purple-500" />
+                      {m.localName}
+                      {m.fqdn && <span className="text-xs text-gray-400">({m.fqdn})</span>}
+                      {m.id === currentId && <Badge variant="outline" className="text-xs ml-1">ปัจจุบัน</Badge>}
+                    </span>
+                  </SelectItem>
+                ))}
+                {dbMachines.length === 0 && (
+                  <div className="p-2 text-sm text-gray-500">ไม่มีเซิร์ฟเวอร์ Database</div>
+                )}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        <p className="text-xs text-gray-400">
+          ระบบจะตรวจสอบวันละ 1 ครั้ง — หากส่งไม่ได้ 7 วันติดต่อกัน จะส่ง Email แจ้ง Platform Admin ทุกคน
+        </p>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -887,6 +1001,10 @@ export default function DatabaseServers() {
             </div>
           );
         })()}
+
+        <div className="mt-8">
+          <CloneHistoryTargetCard machines={machines} />
+        </div>
 
         <div className="mt-8">
           <EncryptionKeyGenerator machines={machines} onRefresh={() => queryClient.invalidateQueries({ queryKey: ["/api/platform/machines"] })} />
