@@ -397,6 +397,8 @@ async function dailyFlushCheck(): Promise<void> {
   const today = new Date().toISOString().slice(0, 10);
   if (lastCheckDate === today) return;
 
+  await fetchTargetFromGitHub();
+
   try {
     const pendingResult = await db.select({ count: sql<number>`count(*)::int` })
       .from(cloneHistory)
