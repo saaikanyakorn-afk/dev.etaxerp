@@ -471,60 +471,37 @@ export default function GithubManagement() {
               <p className="text-xs mt-1">Add a remote named "github" to enable push/pull</p>
             </div>
           ) : remoteInfo ? (
-            <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
-              <Card className="lg:col-span-2 shadow-sm">
-                <CardContent className="p-4">
-                  <InfoRow icon={Globe} label="Remote URL" value={remoteInfo.remoteUrl} mono />
-                  <InfoRow icon={GitBranch} label="Branch" value={remoteInfo.branch || "—"} mono />
-                  <InfoRow icon={GitCommit} label="Commit" value={remoteInfo.commit || "—"} mono />
-                  <InfoRow icon={Clock} label="Last Changed" value={formatDate(remoteInfo.commitDate)} />
-                  <InfoRow icon={Hash} label="Message" value={remoteInfo.commitMsg || "—"} />
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              <div className="lg:col-span-2 space-y-4">
+                <Card className="shadow-sm">
+                  <CardContent className="p-4">
+                    <InfoRow icon={Globe} label="Remote URL" value={remoteInfo.remoteUrl} mono />
+                    <InfoRow icon={GitBranch} label="Branch" value={remoteInfo.branch || "—"} mono />
+                    <InfoRow icon={GitCommit} label="Commit" value={remoteInfo.commit || "—"} mono />
+                    <InfoRow icon={Clock} label="Last Changed" value={formatDate(remoteInfo.commitDate)} />
+                    <InfoRow icon={Hash} label="Message" value={remoteInfo.commitMsg || "—"} />
 
-                  {remoteInfo.reachable && (
-                    <div className="mt-3 pt-3 border-t border-gray-200">
-                      <p className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-2">Sync Status</p>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className={`flex items-center gap-2 p-2 rounded-lg ${remoteInfo.aheadCount > 0 ? "bg-blue-50" : "bg-gray-50"}`}>
-                          <ArrowUpCircle className={`h-5 w-5 ${remoteInfo.aheadCount > 0 ? "text-blue-500" : "text-gray-300"}`} />
-                          <div>
-                            <p className="text-lg font-semibold text-gray-900">{remoteInfo.aheadCount}</p>
-                            <p className="text-[10px] text-gray-500">Ahead (local new)</p>
+                    {remoteInfo.reachable && (
+                      <div className="mt-3 pt-3 border-t border-gray-200">
+                        <p className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-2">Sync Status</p>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className={`flex items-center gap-2 p-2 rounded-lg ${remoteInfo.aheadCount > 0 ? "bg-blue-50" : "bg-gray-50"}`}>
+                            <ArrowUpCircle className={`h-5 w-5 ${remoteInfo.aheadCount > 0 ? "text-blue-500" : "text-gray-300"}`} />
+                            <div>
+                              <p className="text-lg font-semibold text-gray-900">{remoteInfo.aheadCount}</p>
+                              <p className="text-[10px] text-gray-500">Ahead (local new)</p>
+                            </div>
                           </div>
-                        </div>
-                        <div className={`flex items-center gap-2 p-2 rounded-lg ${remoteInfo.behindCount > 0 ? "bg-amber-50" : "bg-gray-50"}`}>
-                          <ArrowDownCircle className={`h-5 w-5 ${remoteInfo.behindCount > 0 ? "text-amber-500" : "text-gray-300"}`} />
-                          <div>
-                            <p className="text-lg font-semibold text-gray-900">{remoteInfo.behindCount}</p>
-                            <p className="text-[10px] text-gray-500">Behind (github new)</p>
+                          <div className={`flex items-center gap-2 p-2 rounded-lg ${remoteInfo.behindCount > 0 ? "bg-amber-50" : "bg-gray-50"}`}>
+                            <ArrowDownCircle className={`h-5 w-5 ${remoteInfo.behindCount > 0 ? "text-amber-500" : "text-gray-300"}`} />
+                            <div>
+                              <p className="text-lg font-semibold text-gray-900">{remoteInfo.behindCount}</p>
+                              <p className="text-[10px] text-gray-500">Behind (github new)</p>
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-
-              <div className="lg:col-span-3 space-y-4">
-                <Card className="shadow-sm border-green-300 bg-white">
-                  <CardContent className="p-4 space-y-3">
-                    <p className="text-sm text-gray-500">
-                      ดาวน์โหลด source code ล่าสุดจาก GitHub เป็นไฟล์ ZIP
-                    </p>
-                    <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-lg">
-                      <p className="text-[11px] text-amber-700">ไฟล์จะถูกดาวน์โหลดเป็น ZIP — ไม่ได้ merge เข้า local โดยตรง เหมาะสำหรับนำไปใช้กับ etaxerp</p>
-                    </div>
-                    <Button
-                      onClick={handlePull}
-                      disabled={pullLoading || !remoteInfo.hasRemote}
-                      className="w-full bg-green-600 hover:bg-green-700 text-white"
-                      data-testid="button-pull"
-                    >
-                      {pullLoading ? (
-                        <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Downloading...</>
-                      ) : (
-                        <><Download className="h-4 w-4 mr-2" />Pull from GitHub (.zip)</>
-                      )}
-                    </Button>
+                    )}
                   </CardContent>
                 </Card>
 
@@ -620,6 +597,31 @@ export default function GithubManagement() {
                         <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Verifying...</>
                       ) : (
                         <><Key className="h-4 w-4 mr-2" />Update Token</>
+                      )}
+                    </Button>
+                  </CardContent>
+                </Card>
+              </div>
+
+              <div className="space-y-4">
+                <Card className="shadow-sm border-green-300 bg-white">
+                  <CardContent className="p-4 space-y-3">
+                    <p className="text-sm text-gray-500">
+                      ดาวน์โหลด source code ล่าสุดจาก GitHub เป็นไฟล์ ZIP
+                    </p>
+                    <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-lg">
+                      <p className="text-[11px] text-amber-700">ไฟล์จะถูกดาวน์โหลดเป็น ZIP — ไม่ได้ merge เข้า local โดยตรง เหมาะสำหรับนำไปใช้กับ etaxerp</p>
+                    </div>
+                    <Button
+                      onClick={handlePull}
+                      disabled={pullLoading || !remoteInfo.hasRemote}
+                      className="w-full bg-green-600 hover:bg-green-700 text-white"
+                      data-testid="button-pull"
+                    >
+                      {pullLoading ? (
+                        <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Downloading...</>
+                      ) : (
+                        <><Download className="h-4 w-4 mr-2" />Pull from GitHub (.zip)</>
                       )}
                     </Button>
                   </CardContent>
