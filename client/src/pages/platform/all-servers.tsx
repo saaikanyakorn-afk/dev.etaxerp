@@ -1272,6 +1272,12 @@ interface PathResult {
   error?: string;
 }
 
+interface SkippedPath {
+  label: string;
+  host: string;
+  reason: string;
+}
+
 function TargetDbSelector({ machine, allMachines, onChangeTarget }: {
   machine: MachineRecord;
   allMachines: MachineRecord[];
@@ -1281,7 +1287,9 @@ function TargetDbSelector({ machine, allMachines, onChangeTarget }: {
   const [selectedVal, setSelectedVal] = useState(currentVal);
   const [testStatus, setTestStatus] = useState<"idle" | "testing" | "done">("idle");
   const [pathResults, setPathResults] = useState<PathResult[]>([]);
+  const [skippedPaths, setSkippedPaths] = useState<SkippedPath[]>([]);
   const [testError, setTestError] = useState("");
+  const [isIncomplete, setIsIncomplete] = useState(false);
   const hasChanged = selectedVal !== currentVal;
   const isSelf = selectedVal === String(machine.id);
   const isNone = selectedVal === "none";
@@ -1291,14 +1299,18 @@ function TargetDbSelector({ machine, allMachines, onChangeTarget }: {
     setSelectedVal(currentVal);
     setTestStatus("idle");
     setPathResults([]);
+    setSkippedPaths([]);
     setTestError("");
+    setIsIncomplete(false);
   }, [currentVal]);
 
   const handleSelect = (val: string) => {
     setSelectedVal(val);
     setTestStatus("idle");
     setPathResults([]);
+    setSkippedPaths([]);
     setTestError("");
+    setIsIncomplete(false);
   };
 
   const handleTest = async () => {
@@ -1306,16 +1318,16 @@ function TargetDbSelector({ machine, allMachines, onChangeTarget }: {
     const targetId = parseInt(selectedVal, 10);
     setTestStatus("testing");
     setPathResults([]);
+    setSkippedPaths([]);
     setTestError("");
+    setIsIncomplete(false);
     try {
       const res = await fetch(`/api/platform/machines/${targetId}/test-db`, { method: "POST" });
       const data = await res.json();
-      if (data.paths) {
-        setPathResults(data.paths);
-      }
-      if (data.error) {
-        setTestError(data.error);
-      }
+      if (data.paths) setPathResults(data.paths);
+      if (data.skipped) setSkippedPaths(data.skipped);
+      if (data.error) setTestError(data.error);
+      if (data.incomplete) setIsIncomplete(true);
       setTestStatus("done");
     } catch (err: any) {
       setTestError(err.message);
@@ -1328,14 +1340,18 @@ function TargetDbSelector({ machine, allMachines, onChangeTarget }: {
     onChangeTarget(machine.id, newTarget);
     setTestStatus("idle");
     setPathResults([]);
+    setSkippedPaths([]);
     setTestError("");
+    setIsIncomplete(false);
   };
 
   const handleCancel = () => {
     setSelectedVal(currentVal);
     setTestStatus("idle");
     setPathResults([]);
+    setSkippedPaths([]);
     setTestError("");
+    setIsIncomplete(false);
   };
 
   const targetMachine = selectedVal !== "none" && selectedVal !== String(machine.id)
@@ -1390,7 +1406,7 @@ function TargetDbSelector({ machine, allMachines, onChangeTarget }: {
                 data-testid={`btn-test-db-${machine.id}`}
               >
                 {testStatus === "testing" ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Database className="h-3 w-3 mr-1" />}
-                {testStatus === "testing" ? "กำลังทดสอบทุกเส้นทาง..." : "ทดสอบการเชื่อมต่อ"}
+                {testStatus === "testing" ? "กำลังทดสอบ..." : "ทดสอบการเชื่อมต่อ"}
               </Button>
             )}
 
@@ -1408,7 +1424,7 @@ function TargetDbSelector({ machine, allMachines, onChangeTarget }: {
                 size="sm"
                 className="h-6 text-[11px] px-2 bg-purple-600 hover:bg-purple-700 text-white"
                 onClick={handleConfirm}
-                disabled={!isNone && testStatus !== "done"}
+                disabled={isIncomplete || (!isNone && testStatus !== "done")}
                 data-testid={`btn-confirm-target-${machine.id}`}
               >
                 <CheckCircle2 className="h-3 w-3 mr-1" /> ยืนยัน
@@ -1416,31 +1432,59 @@ function TargetDbSelector({ machine, allMachines, onChangeTarget }: {
             </div>
           </div>
 
-          {testError && !pathResults.length && (
-            <p className="text-[10px] font-mono px-1 text-red-400">{testError}</p>
-          )}
-
-          {pathResults.length > 0 && (
+          {testStatus === "done" && (
             <div className="space-y-1 bg-white rounded border border-gray-200 p-2">
-              <div className="text-[10px] font-medium text-gray-500 mb-1">ผลทดสอบ ({pathResults.filter(p => p.alive).length}/{pathResults.length} เส้นทางเชื่อมต่อได้)</div>
-              {pathResults.map((p, i) => (
-                <div key={i} className={`flex items-center gap-2 px-2 py-1 rounded text-[11px] font-mono ${p.alive ? "bg-green-50 border border-green-200" : "bg-red-50 border border-red-200"}`}>
-                  {p.alive ? <CheckCircle2 className="h-3 w-3 text-green-500 shrink-0" /> : <XCircle className="h-3 w-3 text-red-400 shrink-0" />}
-                  <span className={`font-semibold w-14 shrink-0 ${p.alive ? "text-green-700" : "text-red-600"}`}>{p.label}</span>
-                  <span className="text-gray-600 truncate">{p.host}:{p.port}</span>
-                  {p.alive ? (
-                    <>
-                      <span className="text-green-600 ml-auto shrink-0">{p.latency}ms</span>
-                      <span className="text-green-500 text-[9px] hidden sm:inline">{p.version?.match(/PostgreSQL [\d.]+/)?.[0] || ""}</span>
-                    </>
-                  ) : (
-                    <span className="text-red-400 text-[9px] ml-auto truncate max-w-[200px]" title={p.error}>{p.error}</span>
-                  )}
+              {isIncomplete && testError && (
+                <div className="flex items-center gap-1.5 text-[11px] text-amber-600 bg-amber-50 border border-amber-200 rounded px-2 py-1.5">
+                  <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                  <span>{testError}</span>
                 </div>
-              ))}
-              {!anyAlive && (
-                <div className="text-[10px] text-red-500 flex items-center gap-1 mt-1">
-                  <AlertTriangle className="h-3 w-3" /> ไม่มีเส้นทางใดเชื่อมต่อได้ — ยืนยันได้แต่อาจใช้งานไม่ได้จริง
+              )}
+
+              {pathResults.length > 0 && (
+                <>
+                  <div className="text-[10px] font-medium text-gray-500 mb-1">
+                    ผลทดสอบ ({pathResults.filter(p => p.alive).length}/{pathResults.length} เส้นทางเชื่อมต่อได้)
+                  </div>
+                  {pathResults.map((p, i) => (
+                    <div key={i} className={`flex items-center gap-2 px-2 py-1 rounded text-[11px] font-mono ${p.alive ? "bg-green-50 border border-green-200" : "bg-red-50 border border-red-200"}`}>
+                      {p.alive ? <CheckCircle2 className="h-3 w-3 text-green-500 shrink-0" /> : <XCircle className="h-3 w-3 text-red-400 shrink-0" />}
+                      <span className={`font-semibold w-14 shrink-0 ${p.alive ? "text-green-700" : "text-red-600"}`}>{p.label}</span>
+                      <span className="text-gray-600 truncate">{p.host}:{p.port}</span>
+                      {p.alive ? (
+                        <>
+                          <span className="text-green-600 ml-auto shrink-0">{p.latency}ms</span>
+                          <span className="text-green-500 text-[9px] hidden sm:inline">{p.version?.match(/PostgreSQL [\d.]+/)?.[0] || ""}</span>
+                        </>
+                      ) : (
+                        <span className="text-red-400 text-[9px] ml-auto truncate max-w-[200px]" title={p.error}>{p.error}</span>
+                      )}
+                    </div>
+                  ))}
+                </>
+              )}
+
+              {skippedPaths.length > 0 && (
+                <>
+                  {skippedPaths.map((s, i) => (
+                    <div key={`skip-${i}`} className="flex items-center gap-2 px-2 py-1 rounded text-[11px] font-mono bg-gray-100 border border-gray-200 text-gray-400">
+                      <span className="font-semibold w-14 shrink-0">{s.label}</span>
+                      <span className="truncate">{s.host}</span>
+                      <span className="text-[9px] ml-auto italic">{s.reason}</span>
+                    </div>
+                  ))}
+                </>
+              )}
+
+              {!isIncomplete && !anyAlive && pathResults.length > 0 && (
+                <div className="text-[10px] text-amber-600 flex items-center gap-1 mt-1">
+                  <AlertTriangle className="h-3 w-3" /> ไม่มีเส้นทางที่เชื่อมต่อได้จากเซิร์ฟเวอร์นี้
+                </div>
+              )}
+
+              {!isIncomplete && testError && pathResults.length === 0 && (
+                <div className="text-[10px] text-gray-500 flex items-center gap-1">
+                  <AlertTriangle className="h-3 w-3 text-gray-400" /> {testError}
                 </div>
               )}
             </div>
