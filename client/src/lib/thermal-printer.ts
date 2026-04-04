@@ -28,6 +28,10 @@ export interface ReceiptData {
   companyTaxId?: string;
   companyPhone?: string;
   companyLogoUrl?: string;
+  companyBranch?: string;
+  companyBranchId?: string;
+  headerText?: string;
+  footerText?: string;
   docNo: string;
   docDate: string;
   docTime: string;
@@ -176,11 +180,21 @@ async function renderReceiptToCanvas(data: ReceiptData, paper: PaperWidth): Prom
 
   drawCenterBold(data.companyName, 24);
   if (data.companyNameEn) drawCenter(data.companyNameEn, 16);
+  if (data.companyBranch && data.companyBranch !== "สำนักงานใหญ่" && data.companyBranchId && data.companyBranchId !== "00000") {
+    drawCenter(`สาขา: ${data.companyBranch} (${data.companyBranchId})`, 16);
+  } else {
+    drawCenter("สำนักงานใหญ่", 16);
+  }
   if (data.companyAddress) {
     drawCenter(data.companyAddress, 16);
   }
   if (data.companyTaxId) drawCenter(`เลขประจำตัวผู้เสียภาษี: ${data.companyTaxId}`, 16);
   if (data.companyPhone) drawCenter(`โทร: ${data.companyPhone}`, 16);
+  if (data.headerText) {
+    for (const line of data.headerText.split("\n")) {
+      drawCenter(line.trim(), 16);
+    }
+  }
 
   y += 6;
   drawCenterBold("ใบกำกับภาษีอย่างย่อ", 20);
@@ -219,8 +233,14 @@ async function renderReceiptToCanvas(data: ReceiptData, paper: PaperWidth): Prom
 
   y += 6;
   drawCenter("ราคารวมภาษีมูลค่าเพิ่มแล้ว", 16);
-  drawCenter("ขอบคุณที่ใช้บริการ", 18);
-  drawCenter("Thank you", 16);
+  if (data.footerText) {
+    for (const line of data.footerText.split("\n")) {
+      drawCenter(line.trim(), 16);
+    }
+  } else {
+    drawCenter("ขอบคุณที่ใช้บริการ", 18);
+    drawCenter("Thank you", 16);
+  }
   y += 12;
 
   const totalHeight = y;

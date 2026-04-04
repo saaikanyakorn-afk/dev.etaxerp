@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { objectPathToUrl } from "@/lib/utils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useCompany } from "@/lib/company-context";
 import { useAuth } from "@/lib/auth";
@@ -152,6 +153,16 @@ export default function PosTerminal() {
     enabled: !!selectedCompanyId,
   });
 
+  const { data: docSettings } = useQuery({
+    queryKey: ["/api/document-settings", selectedCompanyId],
+    queryFn: async () => {
+      const r = await fetch(`/api/document-settings/${selectedCompanyId}`, { credentials: "include" });
+      if (!r.ok) return null;
+      return r.json();
+    },
+    enabled: !!selectedCompanyId,
+  });
+
   const { data: contactsData } = useQuery({
     queryKey: ["/api/contacts", selectedCompanyId, customerSearch],
     queryFn: async () => {
@@ -272,12 +283,35 @@ export default function PosTerminal() {
         unitPrice: parseFloat(String(item.unitPrice || "0")),
         total: parseFloat(String(item.lineTotal || item.total || item.totalPrice || "0")),
       }));
+
+      let logoDataUrl: string | undefined;
+      const logoUrl = docSettings?.logoUrl || (selectedCompany as any)?.logoUrl;
+      const showLogo = docSettings ? docSettings.posReceiptShowLogo !== false : true;
+      if (showLogo && logoUrl) {
+        try {
+          const resolvedUrl = objectPathToUrl(logoUrl) || logoUrl;
+          const imgRes = await fetch(resolvedUrl, { credentials: "include" });
+          if (imgRes.ok) {
+            const blob = await imgRes.blob();
+            logoDataUrl = await new Promise<string>((resolve) => {
+              const reader = new FileReader();
+              reader.onloadend = () => resolve(reader.result as string);
+              reader.readAsDataURL(blob);
+            });
+          }
+        } catch {}
+      }
+
       const receipt: ReceiptData = {
         companyName: selectedCompany?.name || "",
         companyNameEn: selectedCompany?.nameEn || undefined,
         companyAddress: selectedCompany?.address || undefined,
         companyTaxId: selectedCompany?.taxId || undefined,
         companyPhone: selectedCompany?.phone || undefined,
+        companyLogoUrl: logoDataUrl,
+        companyBranch: (selectedCompany as any)?.branch || activeSession?.branchName || "สำนักงานใหญ่",
+        companyBranchId: (selectedCompany as any)?.sellerBranchId || "00000",
+        headerText: docSettings?.posReceiptHeaderText || undefined,
         docNo: tiv?.taxInvoiceNo || txData.transaction?.transactionNo || "",
         docDate: new Date().toLocaleDateString("th-TH"),
         docTime: new Date().toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" }),
@@ -287,6 +321,7 @@ export default function PosTerminal() {
         discount: parseFloat(String(txData.transaction?.discountAmount || tiv?.discountAmount || "0")),
         vatAmount: parseFloat(String(txData.transaction?.vatAmount || tiv?.vatAmount || "0")),
         totalAmount: parseFloat(String(txData.transaction?.total || tiv?.totalAmount || "0")),
+        footerText: docSettings?.posReceiptFooterText || undefined,
       };
       const config = getSavedPrinterConfig();
       await printReceipt(receipt, config?.paperWidth || 58);
