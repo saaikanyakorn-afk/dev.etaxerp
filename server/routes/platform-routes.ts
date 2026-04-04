@@ -14,6 +14,7 @@ import { getConfig } from "../config-bootstrap";
 import { hashPassword } from "../auth";
 import { platformCloneProgress, setPlatformCloneProgress, cloneLockState, cloneScreenUserId, cloneScreenLastHeartbeat, setCloneScreen, setCloneScreenHeartbeat, acquireCloneLock, releaseCloneLock } from "../clone-state";
 import { isMaintenanceMode, getMaintenanceStatus, activateNow, liftMaintenance, setCloneInProgress, isCloneInProgress, getCloneSessionUserId, freezeTimer, unfreezeTimer, destroyScheduleAfterClone, hasCompletedMaintenanceToday, getScheduleHistory, initMaintenanceOnStartup, getActiveSchedule, getPendingSchedule, createSchedule, rescheduleSchedule, cancelSchedule, setOnEnableCallback } from "../maintenance";
+import { recordCloneHistory } from "../services/clone-history-central";
 
 export function registerPlatformRoutes(app: Express) {
 // ========== Platform (Super Admin) Routes ==========
@@ -1164,9 +1165,6 @@ app.post("/api/platform/clone-db", requireAuth, requireSuperAdmin, async (req, r
     const pg2 = (await import("pg")).default;
 
     const replitDbUrl = process.env.DATABASE_URL!;
-    const historyPool = new pg2.Pool({ connectionString: replitDbUrl, max: 3, connectionTimeoutMillis: 10000 });
-    const { drizzle: drizzleFn } = await import("drizzle-orm/node-postgres");
-    const historyDb = drizzleFn(historyPool, { schema: await import("@shared/schema") });
 
     try {
       setPlatformCloneProgress({ status: "running", percent: 5, step: "ทดสอบเชื่อมต่อเซิร์ฟเวอร์ปลายทาง..." });
@@ -1312,7 +1310,7 @@ app.post("/api/platform/clone-db", requireAuth, requireSuperAdmin, async (req, r
                 try { await dropPool.query(`DROP TABLE IF EXISTS "${tableName}"`); } finally { await dropPool.end().catch(() => {}); }
               } catch {}
               const remoteDurationMs = Date.now() - remoteStart;
-              try { await historyDb.insert(cloneHistory).values({ sessionId, cloneType, direction: direction || "us_to_th", tableName, rowCount: 0, hostDurationMs, remoteDurationMs, status: "dropped", errorMessage: "Not in source — dropped from target", batchIndex: 0, totalBatches: 1, startedAt: new Date(batchStart), completedAt: new Date(), createdBy: userId }); } catch {}
+              try { await recordCloneHistory({ sessionId, cloneType, direction: direction || "us_to_th", tableName, rowCount: 0, hostDurationMs, remoteDurationMs, status: "dropped", errorMessage: "Not in source — dropped from target", batchIndex: 0, totalBatches: 1, startedAt: new Date(batchStart), completedAt: new Date(), createdBy: userId }); } catch {}
               if (!platformCloneProgress.completedTables) platformCloneProgress.completedTables = [];
               platformCloneProgress.completedTables.push({ tableName, status: "dropped", rowCount: 0, durationMs: hostDurationMs + remoteDurationMs });
               try { fs.unlinkSync(dumpFile); } catch {}
@@ -1323,7 +1321,7 @@ app.post("/api/platform/clone-db", requireAuth, requireSuperAdmin, async (req, r
             const hostDurationMs2 = Date.now() - hostStart;
             console.log(`[Clone] ERROR dumping batch ${bi + 1} (${batchTableNames.join(", ")}):`, (dumpErr.message || "").slice(0, 200));
             for (const t of batchTableNames) {
-              try { await historyDb.insert(cloneHistory).values({ sessionId, cloneType, direction: direction || "us_to_th", tableName: t, rowCount: rowCounts.get(t) || 0, hostDurationMs: hostDurationMs2, remoteDurationMs: 0, status: "error", errorMessage: `Batch dump failed: ${(dumpErr.message || "").slice(0, 300)}`, batchIndex: bi, totalBatches, startedAt: new Date(batchStart), completedAt: new Date(), createdBy: userId }); } catch {}
+              try { await recordCloneHistory({ sessionId, cloneType, direction: direction || "us_to_th", tableName: t, rowCount: rowCounts.get(t) || 0, hostDurationMs: hostDurationMs2, remoteDurationMs: 0, status: "error", errorMessage: `Batch dump failed: ${(dumpErr.message || "").slice(0, 300)}`, batchIndex: bi, totalBatches, startedAt: new Date(batchStart), completedAt: new Date(), createdBy: userId }); } catch {}
               if (!platformCloneProgress.completedTables) platformCloneProgress.completedTables = [];
               platformCloneProgress.completedTables.push({ tableName: t, status: "error", rowCount: rowCounts.get(t) || 0, durationMs: hostDurationMs2, errorMessage: "Dump failed" });
             }
@@ -1366,7 +1364,7 @@ app.post("/api/platform/clone-db", requireAuth, requireSuperAdmin, async (req, r
             const remoteDurationMs = Date.now() - remoteStart;
             console.log(`[Clone] ERROR restoring batch ${bi + 1}:`, (restoreErr.message || "").slice(0, 200));
             for (const t of batchTableNames) {
-              try { await historyDb.insert(cloneHistory).values({ sessionId, cloneType, direction: direction || "us_to_th", tableName: t, rowCount: rowCounts.get(t) || 0, hostDurationMs, remoteDurationMs, status: "error", errorMessage: `Batch restore failed: ${(restoreErr.message || "").slice(0, 300)}`, batchIndex: bi, totalBatches, startedAt: new Date(batchStart), completedAt: new Date(), createdBy: userId }); } catch {}
+              try { await recordCloneHistory({ sessionId, cloneType, direction: direction || "us_to_th", tableName: t, rowCount: rowCounts.get(t) || 0, hostDurationMs, remoteDurationMs, status: "error", errorMessage: `Batch restore failed: ${(restoreErr.message || "").slice(0, 300)}`, batchIndex: bi, totalBatches, startedAt: new Date(batchStart), completedAt: new Date(), createdBy: userId }); } catch {}
               if (!platformCloneProgress.completedTables) platformCloneProgress.completedTables = [];
               platformCloneProgress.completedTables.push({ tableName: t, status: "error", rowCount: rowCounts.get(t) || 0, durationMs: hostDurationMs + remoteDurationMs, errorMessage: "Restore failed" });
             }
@@ -1410,7 +1408,7 @@ app.post("/api/platform/clone-db", requireAuth, requireSuperAdmin, async (req, r
             const finalStatus = isDataLost ? "error" : "success";
             const errMsg = isDataLost ? `Restore silent failure: source=${vr!.sourceCount} target=${vr!.targetCount} (${vr!.status})` : undefined;
             try {
-              await historyDb.insert(cloneHistory).values({
+              await recordCloneHistory({
                 sessionId, cloneType, direction: direction || "us_to_th", tableName: t, rowCount: tRows,
                 hostDurationMs: isSingleTable ? hostDurationMs : perTableDumpMs,
                 remoteDurationMs: isSingleTable ? remoteDurationMs : perTableRestoreMs,
@@ -1442,7 +1440,7 @@ app.post("/api/platform/clone-db", requireAuth, requireSuperAdmin, async (req, r
             try {
               await execAsync(`psql "${targetUrl}" -c "DELETE FROM \\"${t}\\""`, { timeout: 30000 }).catch(() => {});
             } catch {}
-            try { await historyDb.insert(cloneHistory).values({ sessionId, cloneType, direction: direction || "us_to_th", tableName: t, rowCount: 0, hostDurationMs: 0, remoteDurationMs: 0, status: "error", errorMessage: `Unexpected: ${((batchErr as any).message || "").slice(0, 300)}`, batchIndex: bi, totalBatches: 1, startedAt: new Date(batchStart), completedAt: new Date(), createdBy: userId }); } catch {}
+            try { await recordCloneHistory({ sessionId, cloneType, direction: direction || "us_to_th", tableName: t, rowCount: 0, hostDurationMs: 0, remoteDurationMs: 0, status: "error", errorMessage: `Unexpected: ${((batchErr as any).message || "").slice(0, 300)}`, batchIndex: bi, totalBatches: 1, startedAt: new Date(batchStart), completedAt: new Date(), createdBy: userId }); } catch {}
             if (!platformCloneProgress.completedTables) platformCloneProgress.completedTables = [];
             platformCloneProgress.completedTables.push({ tableName: t, status: "error", rowCount: 0, durationMs: Date.now() - batchStart, errorMessage: "Unexpected error" });
           }
@@ -1454,17 +1452,17 @@ app.post("/api/platform/clone-db", requireAuth, requireSuperAdmin, async (req, r
 
       try {
         const KEEP_PER_TABLE = 5;
-        const allTables = await historyDb.selectDistinct({ tableName: cloneHistory.tableName }).from(cloneHistory);
+        const allTables = await db.selectDistinct({ tableName: cloneHistory.tableName }).from(cloneHistory);
         let purgedTotal = 0;
         for (const { tableName: tn } of allTables) {
-          const kept = await historyDb.select({ id: cloneHistory.id })
+          const kept = await db.select({ id: cloneHistory.id })
             .from(cloneHistory)
             .where(and(eq(cloneHistory.tableName, tn), eq(cloneHistory.status, "success")))
             .orderBy(desc(cloneHistory.completedAt))
             .limit(KEEP_PER_TABLE);
           const keptIds = kept.map(r => r.id);
           if (keptIds.length === KEEP_PER_TABLE) {
-            const oldRows = await historyDb.delete(cloneHistory)
+            const oldRows = await db.delete(cloneHistory)
               .where(and(
                 eq(cloneHistory.tableName, tn),
                 eq(cloneHistory.status, "success"),
@@ -1483,8 +1481,6 @@ app.post("/api/platform/clone-db", requireAuth, requireSuperAdmin, async (req, r
       await destroyScheduleAfterClone();
       setCloneScreen(null);
       releaseCloneLock();
-      try { await historyPool.end(); } catch {}
-
       const durationSec = Math.round((Date.now() - startedAt) / 1000);
       const dataLostTables = (platformCloneProgress.completedTables || []).filter((t: any) => t.status === "error" && t.errorMessage?.includes("silent failure"));
       if (dataLostTables.length > 0) {
@@ -1503,7 +1499,7 @@ app.post("/api/platform/clone-db", requireAuth, requireSuperAdmin, async (req, r
       try { await liftMaintenance(userName + " (clone error auto-lift)"); } catch {}
       setCloneScreen(null);
       releaseCloneLock();
-      try { await historyPool.end(); } catch {};
+      
       try {
         const { rescheduleForCloneFailure } = await import("./maintenance");
         await rescheduleForCloneFailure(userName, userId);

@@ -5084,6 +5084,8 @@ export const cloneHistory = pgTable("clone_history", {
   dumpFileSize: integer("dump_file_size").default(0),
   dumpSpeed: integer("dump_speed").default(0),
   restoreSpeed: integer("restore_speed").default(0),
+  sourceMachine: text("source_machine"),
+  syncedToCentral: boolean("synced_to_central").default(false),
 });
 
 export const insertCloneHistorySchema = createInsertSchema(cloneHistory).omit({ id: true });
