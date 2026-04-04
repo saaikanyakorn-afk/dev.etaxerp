@@ -24,9 +24,11 @@ function readVersion(): string {
 
 function bumpVersion(): string {
   const current = readVersion();
-  const parts = current.split(".").map(Number);
-  parts[2] = (parts[2] || 0) + 1;
-  const next = parts.join(".");
+  let [major, minor, patch] = current.split(".").map(Number);
+  patch = (patch || 0) + 1;
+  if (patch > 99) { patch = 0; minor++; }
+  if (minor > 99) { minor = 0; major++; }
+  const next = `${major}.${minor}.${patch}`;
   fs.writeFileSync(VERSION_FILE, next + "\n");
   return next;
 }

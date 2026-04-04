@@ -258,9 +258,11 @@ app.post("/api/platform/github/push", requireAuth, requireSuperAdmin, async (req
     const versionFile = path.join(cwd, "VERSION");
     let version = "1.0.0";
     try { version = fs.readFileSync(versionFile, "utf-8").trim(); } catch {}
-    const parts = version.split(".").map(Number);
-    parts[2] = (parts[2] || 0) + 1;
-    const newVersion = parts.join(".");
+    let [major, minor, patch] = version.split(".").map(Number);
+    patch = (patch || 0) + 1;
+    if (patch > 99) { patch = 0; minor++; }
+    if (minor > 99) { minor = 0; major++; }
+    const newVersion = `${major}.${minor}.${patch}`;
     const tag = `v${newVersion}`;
     const fullMsg = `${tag} — ${commitMsg}`;
 
