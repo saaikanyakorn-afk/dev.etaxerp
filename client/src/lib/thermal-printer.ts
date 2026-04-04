@@ -175,12 +175,16 @@ async function renderReceiptToCanvas(data: ReceiptData, paper: PaperWidth): Prom
   };
 
   if (logoImg) {
+    console.log("[thermal-printer] logo natural:", logoImg.naturalWidth, "x", logoImg.naturalHeight, "contentW:", contentW);
     const logoMaxW = Math.round(contentW * 0.85);
     const logoMaxH = paper === 58 ? 140 : 180;
-    const aspect = logoImg.naturalWidth / logoImg.naturalHeight;
+    const natW = logoImg.naturalWidth || 200;
+    const natH = logoImg.naturalHeight || 100;
+    const aspect = natW / natH;
     let logoW = logoMaxW;
     let logoH = Math.round(logoW / aspect);
     if (logoH > logoMaxH) { logoH = logoMaxH; logoW = Math.round(logoH * aspect); }
+    console.log("[thermal-printer] logo draw:", logoW, "x", logoH, "maxW:", logoMaxW, "maxH:", logoMaxH);
     const logoX = (pw - logoW) / 2;
     const currentY = y;
     draws.push(() => {
