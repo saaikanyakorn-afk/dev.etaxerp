@@ -14,6 +14,7 @@ import {
   ArrowRight, Database, Globe, MapPin, RefreshCw,
   Key, Shield, Copy, Download, Lock, Unlock, History, AlertTriangle,
   ChevronDown, ChevronRight, Star, Network, Plug, Radio,
+  Router, ExternalLink, Phone, Link2,
 } from "lucide-react";
 
 interface MachineRecord {
@@ -46,10 +47,43 @@ interface MachineRecord {
   envContent: string | null;
   isOfficial: boolean;
   targetDbMachineId: number | null;
+  routerId: number | null;
   internetType: string;
   physicalLocation: string | null;
   createdAt?: string;
   updatedAt?: string;
+}
+
+interface RouterRecord {
+  id: number;
+  name: string;
+  model: string | null;
+  lanIp: string | null;
+  adminUrl: string | null;
+  wanIp: string | null;
+  internetType: string;
+  ispName: string | null;
+  ispPackage: string | null;
+  ispRegisteredCompany: string | null;
+  ispAccountNumber: string | null;
+  ispLinkId: string | null;
+  ispCallCenter: string | null;
+  ispSupportUrl: string | null;
+  physicalLocation: string | null;
+  notes: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+interface RouterDomainRecord {
+  id: number;
+  routerId: number;
+  domainName: string;
+  noipManageUrl: string | null;
+  noipUsername: string | null;
+  noipPassword: string | null;
+  notes: string | null;
+  createdAt?: string;
 }
 
 interface NicRecord {
@@ -94,6 +128,323 @@ const ROLE_CONFIG: Record<string, { label: string; color: string; bgColor: strin
   testing: { label: "Testing", color: "text-yellow-700", bgColor: "bg-yellow-100" },
   backup: { label: "Backup", color: "text-gray-700", bgColor: "bg-gray-100" },
 };
+
+function RouterCard({ router, domains, machines, expanded, onToggle, onEdit, onDelete, onAddDomain, onDeleteDomain }: {
+  router: RouterRecord;
+  domains: RouterDomainRecord[];
+  machines: MachineRecord[];
+  expanded: boolean;
+  onToggle: () => void;
+  onEdit: (r: RouterRecord) => void;
+  onDelete: (id: number) => void;
+  onAddDomain: (routerId: number, data: { domainName: string; noipManageUrl?: string; noipUsername?: string; noipPassword?: string }) => void;
+  onDeleteDomain: (domainId: number) => void;
+}) {
+  const [addingDomain, setAddingDomain] = useState(false);
+  const [domainForm, setDomainForm] = useState({ domainName: "", noipManageUrl: "", noipUsername: "", noipPassword: "" });
+  const [showPw, setShowPw] = useState<Record<number, boolean>>({});
+  const connectedMachines = machines.filter(m => m.routerId === router.id);
+  const myDomains = domains.filter(d => d.routerId === router.id);
+
+  return (
+    <div className={`border rounded-lg transition-all border-teal-300 bg-teal-50/30 ${expanded ? "shadow-md" : "hover:shadow-sm"}`} data-testid={`card-router-${router.id}`}>
+      <button onClick={onToggle} className="w-full flex items-center gap-3 px-4 py-3 text-left" data-testid={`btn-toggle-router-${router.id}`}>
+        {expanded ? <ChevronDown className="h-4 w-4 text-gray-400 shrink-0" /> : <ChevronRight className="h-4 w-4 text-gray-400 shrink-0" />}
+        <Router className="h-4 w-4 text-teal-600 shrink-0" />
+        <span className="font-bold text-sm text-teal-900 truncate">{router.name}</span>
+        {router.lanIp && <span className="text-xs font-mono text-teal-600 hidden sm:inline">{router.lanIp}</span>}
+        {router.ispName && <span className="text-xs text-gray-400 hidden sm:inline">({router.ispName})</span>}
+        <div className="ml-auto flex items-center gap-1.5 shrink-0">
+          {myDomains.length > 0 && (
+            <Badge variant="outline" className="bg-indigo-50 text-indigo-700 border-indigo-300 text-[10px] px-1.5 py-0">
+              <Globe className="h-2.5 w-2.5 mr-0.5" />{myDomains.length} domain{myDomains.length > 1 ? "s" : ""}
+            </Badge>
+          )}
+          {connectedMachines.length > 0 && (
+            <Badge variant="outline" className="bg-teal-50 text-teal-700 border-teal-300 text-[10px] px-1.5 py-0">
+              <Server className="h-2.5 w-2.5 mr-0.5" />{connectedMachines.length}
+            </Badge>
+          )}
+          <Badge className={`text-[10px] px-1.5 py-0 ${router.internetType === "fixed" ? "bg-green-500 text-white" : "bg-orange-400 text-white"}`}>
+            {router.internetType === "fixed" ? "Fixed IP" : "Dynamic"}
+          </Badge>
+        </div>
+      </button>
+
+      {expanded && (
+        <div className="px-4 pb-4 pt-1 border-t border-teal-200 space-y-3">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-2 text-sm">
+            <div>
+              <span className="text-gray-400 text-xs block">LAN IP (Gateway)</span>
+              <div className="flex items-center gap-1">
+                <span className="font-mono text-xs font-bold text-teal-700">{router.lanIp || "—"}</span>
+                {router.adminUrl && (
+                  <a href={router.adminUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="text-blue-500 hover:text-blue-700" data-testid={`link-router-admin-${router.id}`}>
+                    <ExternalLink className="h-3 w-3" />
+                  </a>
+                )}
+              </div>
+            </div>
+            <div>
+              <span className="text-gray-400 text-xs block">WAN IP</span>
+              <span className="font-mono text-xs">{router.wanIp || "—"}</span>
+            </div>
+            {router.model && (
+              <div>
+                <span className="text-gray-400 text-xs block">รุ่น</span>
+                <span className="text-xs">{router.model}</span>
+              </div>
+            )}
+            {router.physicalLocation && (
+              <div>
+                <span className="text-gray-400 text-xs block">สถานที่ตั้ง</span>
+                <span className="text-xs flex items-center gap-1"><MapPin className="h-3 w-3 text-red-400" />{router.physicalLocation}</span>
+              </div>
+            )}
+          </div>
+
+          {(router.ispName || router.ispPackage) && (
+            <div className="p-2 bg-white rounded border border-gray-200">
+              <h5 className="text-[10px] font-semibold text-gray-500 mb-1">ISP Information</h5>
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-4 gap-y-1 text-xs">
+                {router.ispName && <div><span className="text-gray-400">ISP:</span> <span className="font-medium">{router.ispName}</span></div>}
+                {router.ispPackage && <div><span className="text-gray-400">แพ็กเกจ:</span> <span className="font-medium">{router.ispPackage}</span></div>}
+                {router.ispRegisteredCompany && <div><span className="text-gray-400">ชื่อบริษัท:</span> <span>{router.ispRegisteredCompany}</span></div>}
+                {router.ispAccountNumber && <div><span className="text-gray-400">เลขสัญญา:</span> <span className="font-mono">{router.ispAccountNumber}</span></div>}
+                {router.ispLinkId && <div><span className="text-gray-400">Link ID:</span> <span className="font-mono">{router.ispLinkId}</span></div>}
+                {router.ispCallCenter && (
+                  <div className="flex items-center gap-1">
+                    <Phone className="h-3 w-3 text-green-500" />
+                    <span className="font-medium">{router.ispCallCenter}</span>
+                  </div>
+                )}
+                {router.ispSupportUrl && (
+                  <div>
+                    <a href={router.ispSupportUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="text-blue-500 hover:text-blue-700 flex items-center gap-0.5">
+                      <Link2 className="h-3 w-3" /> Support
+                    </a>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <h5 className="text-[10px] font-semibold text-gray-500 flex items-center gap-1"><Globe className="h-3 w-3" /> DDNS Domains ({myDomains.length})</h5>
+              <Button size="sm" variant="ghost" className="h-5 text-[10px] px-1.5" onClick={e => { e.stopPropagation(); setAddingDomain(!addingDomain); }} data-testid={`btn-add-domain-${router.id}`}>
+                <Plus className="h-2.5 w-2.5 mr-0.5" /> เพิ่ม Domain
+              </Button>
+            </div>
+            {myDomains.map(d => (
+              <div key={d.id} className="flex items-center gap-2 p-1.5 bg-white border rounded text-xs group" data-testid={`domain-row-${d.id}`}>
+                <Globe className="h-3 w-3 text-indigo-500 shrink-0" />
+                <span className="font-mono font-medium text-indigo-700">{d.domainName}</span>
+                {d.noipUsername && (
+                  <span className="text-gray-400 hidden sm:inline">
+                    user: <span className="font-mono">{d.noipUsername}</span>
+                  </span>
+                )}
+                {d.noipPassword && (
+                  <span className="text-gray-400 hidden sm:inline">
+                    pw: <span className="font-mono">{showPw[d.id] ? d.noipPassword : "••••"}</span>
+                    <button onClick={e => { e.stopPropagation(); setShowPw(p => ({ ...p, [d.id]: !p[d.id] })); }} className="ml-0.5 p-0.5 hover:bg-gray-200 rounded">
+                      {showPw[d.id] ? <EyeOff className="h-2.5 w-2.5" /> : <Eye className="h-2.5 w-2.5" />}
+                    </button>
+                  </span>
+                )}
+                {d.noipManageUrl && (
+                  <a href={d.noipManageUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="text-blue-500 hover:text-blue-700" data-testid={`link-noip-${d.id}`}>
+                    <ExternalLink className="h-3 w-3" />
+                  </a>
+                )}
+                <button onClick={e => { e.stopPropagation(); if (confirm(`ลบ domain ${d.domainName}?`)) onDeleteDomain(d.id); }} className="ml-auto opacity-0 group-hover:opacity-100 p-0.5 hover:bg-red-100 rounded text-red-400 transition-opacity" data-testid={`btn-delete-domain-${d.id}`}>
+                  <Trash2 className="h-3 w-3" />
+                </button>
+              </div>
+            ))}
+            {addingDomain && (
+              <div className="p-2 bg-indigo-50/50 border border-indigo-200 rounded space-y-2" onClick={e => e.stopPropagation()}>
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+                  <div>
+                    <Label className="text-[10px] text-gray-500">Domain *</Label>
+                    <Input className="h-7 text-xs font-mono" placeholder="deep-main.hopto.org" value={domainForm.domainName} onChange={e => setDomainForm({ ...domainForm, domainName: e.target.value })} data-testid={`input-domain-name-${router.id}`} />
+                  </div>
+                  <div>
+                    <Label className="text-[10px] text-gray-500">noIP Username</Label>
+                    <Input className="h-7 text-xs font-mono" value={domainForm.noipUsername} onChange={e => setDomainForm({ ...domainForm, noipUsername: e.target.value })} data-testid={`input-noip-user-${router.id}`} />
+                  </div>
+                  <div>
+                    <Label className="text-[10px] text-gray-500">noIP Password</Label>
+                    <Input className="h-7 text-xs font-mono" type="password" value={domainForm.noipPassword} onChange={e => setDomainForm({ ...domainForm, noipPassword: e.target.value })} data-testid={`input-noip-pw-${router.id}`} />
+                  </div>
+                  <div>
+                    <Label className="text-[10px] text-gray-500">noIP Manage URL</Label>
+                    <Input className="h-7 text-xs font-mono" placeholder="https://my.noip.com/..." value={domainForm.noipManageUrl} onChange={e => setDomainForm({ ...domainForm, noipManageUrl: e.target.value })} data-testid={`input-noip-url-${router.id}`} />
+                  </div>
+                </div>
+                <div className="flex gap-2 justify-end">
+                  <Button size="sm" variant="ghost" className="h-6 text-[10px]" onClick={() => setAddingDomain(false)}>ยกเลิก</Button>
+                  <Button size="sm" className="h-6 text-[10px] bg-indigo-600 hover:bg-indigo-700" onClick={() => { onAddDomain(router.id, domainForm); setAddingDomain(false); setDomainForm({ domainName: "", noipManageUrl: "", noipUsername: "", noipPassword: "" }); }} disabled={!domainForm.domainName} data-testid={`btn-save-domain-${router.id}`}>
+                    <Check className="h-2.5 w-2.5 mr-0.5" /> บันทึก
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {connectedMachines.length > 0 && (
+            <div className="p-2 bg-teal-50 border border-teal-200 rounded">
+              <h5 className="text-[10px] font-semibold text-teal-700 mb-1 flex items-center gap-1"><Server className="h-3 w-3" /> เครื่องที่อยู่หลัง Router นี้</h5>
+              <div className="flex flex-wrap gap-1.5">
+                {connectedMachines.map(m => (
+                  <Badge key={m.id} variant="outline" className="bg-white text-teal-800 border-teal-300 text-[10px] px-1.5 py-0.5">
+                    {m.localName}
+                    {m.isOfficial && <Star className="h-2.5 w-2.5 ml-0.5 text-amber-400 fill-amber-300" />}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="flex items-center justify-end gap-2">
+            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={e => { e.stopPropagation(); onEdit(router); }} data-testid={`btn-edit-router-${router.id}`}>
+              <Pencil className="h-3 w-3 mr-1" /> แก้ไข
+            </Button>
+            <Button size="sm" variant="outline" className="h-7 text-xs text-red-500 border-red-300 hover:bg-red-50" onClick={e => { e.stopPropagation(); if (confirm(`ลบ Router "${router.name}"?`)) onDelete(router.id); }} data-testid={`btn-delete-router-${router.id}`}>
+              <Trash2 className="h-3 w-3 mr-1" /> ลบ
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function EditRouterDialog({ router, onSave, onCancel, saving }: { router: RouterRecord | null; onSave: (data: any) => void; onCancel: () => void; saving?: boolean }) {
+  const isNew = !router;
+  const [form, setForm] = useState({
+    name: router?.name || "",
+    model: router?.model || "",
+    lanIp: router?.lanIp || "",
+    adminUrl: router?.adminUrl || "",
+    wanIp: router?.wanIp || "",
+    internetType: router?.internetType || "dynamic",
+    ispName: router?.ispName || "",
+    ispPackage: router?.ispPackage || "",
+    ispRegisteredCompany: router?.ispRegisteredCompany || "",
+    ispAccountNumber: router?.ispAccountNumber || "",
+    ispLinkId: router?.ispLinkId || "",
+    ispCallCenter: router?.ispCallCenter || "",
+    ispSupportUrl: router?.ispSupportUrl || "",
+    physicalLocation: router?.physicalLocation || "",
+    notes: router?.notes || "",
+  });
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" data-testid="dialog-edit-router">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <div className="p-6 border-b">
+          <h2 className="text-lg font-bold flex items-center gap-2">
+            <Router className="h-5 w-5 text-teal-600" />
+            {isNew ? "เพิ่ม Router ใหม่" : `แก้ไข: ${router.name}`}
+          </h2>
+        </div>
+        <div className="p-6 space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label className="text-sm font-medium">ชื่อ Router *</Label>
+              <Input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="เช่น Router บ้านพี่ช้าง" data-testid="input-router-name" />
+            </div>
+            <div>
+              <Label className="text-sm font-medium">รุ่น / Model</Label>
+              <Input value={form.model} onChange={e => setForm({ ...form, model: e.target.value })} placeholder="เช่น TP-Link ER7206" data-testid="input-router-model" />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label className="text-sm font-medium">LAN IP (Gateway)</Label>
+              <Input className="font-mono" value={form.lanIp} onChange={e => setForm({ ...form, lanIp: e.target.value })} placeholder="192.168.1.1" data-testid="input-router-lan-ip" />
+            </div>
+            <div>
+              <Label className="text-sm font-medium">Admin URL</Label>
+              <Input className="font-mono" value={form.adminUrl} onChange={e => setForm({ ...form, adminUrl: e.target.value })} placeholder="http://192.168.1.1:8080" data-testid="input-router-admin-url" />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label className="text-sm font-medium">WAN IP</Label>
+              <Input className="font-mono" value={form.wanIp} onChange={e => setForm({ ...form, wanIp: e.target.value })} placeholder="184.82.xxx.xxx" data-testid="input-router-wan-ip" />
+            </div>
+            <div>
+              <Label className="text-sm font-medium">Internet Type</Label>
+              <Select value={form.internetType} onValueChange={v => setForm({ ...form, internetType: v })}>
+                <SelectTrigger data-testid="select-router-internet-type"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="dynamic">Dynamic IP (ใช้ DDNS)</SelectItem>
+                  <SelectItem value="fixed">Fixed IP (คงที่)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label className="text-sm font-medium">สถานที่ตั้ง</Label>
+              <Input value={form.physicalLocation} onChange={e => setForm({ ...form, physicalLocation: e.target.value })} placeholder="เช่น บ้านพี่ช้าง" data-testid="input-router-location" />
+            </div>
+            <div>
+              <Label className="text-sm font-medium">หมายเหตุ</Label>
+              <Input value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} data-testid="input-router-notes" />
+            </div>
+          </div>
+          <div className="border-t pt-4">
+            <h3 className="text-sm font-semibold mb-3">ข้อมูล ISP</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label className="text-sm font-medium">ชื่อ ISP</Label>
+                <Input value={form.ispName} onChange={e => setForm({ ...form, ispName: e.target.value })} placeholder="เช่น 3BB, TRUE, AIS" data-testid="input-isp-name" />
+              </div>
+              <div>
+                <Label className="text-sm font-medium">แพ็กเกจ (Speed)</Label>
+                <Input value={form.ispPackage} onChange={e => setForm({ ...form, ispPackage: e.target.value })} placeholder="เช่น 1000/500 Mbps" data-testid="input-isp-package" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4 mt-3">
+              <div>
+                <Label className="text-sm font-medium">จดในนามบริษัท</Label>
+                <Input value={form.ispRegisteredCompany} onChange={e => setForm({ ...form, ispRegisteredCompany: e.target.value })} data-testid="input-isp-company" />
+              </div>
+              <div>
+                <Label className="text-sm font-medium">เลขที่สัญญา / Account No.</Label>
+                <Input className="font-mono" value={form.ispAccountNumber} onChange={e => setForm({ ...form, ispAccountNumber: e.target.value })} data-testid="input-isp-account" />
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-4 mt-3">
+              <div>
+                <Label className="text-sm font-medium">Link ID</Label>
+                <Input className="font-mono" value={form.ispLinkId} onChange={e => setForm({ ...form, ispLinkId: e.target.value })} placeholder="แจ้ง ISP เวลาโทรแจ้งเหตุ" data-testid="input-isp-link-id" />
+              </div>
+              <div>
+                <Label className="text-sm font-medium">Call Center</Label>
+                <Input value={form.ispCallCenter} onChange={e => setForm({ ...form, ispCallCenter: e.target.value })} placeholder="เช่น 1530" data-testid="input-isp-call-center" />
+              </div>
+              <div>
+                <Label className="text-sm font-medium">Support URL</Label>
+                <Input className="font-mono" value={form.ispSupportUrl} onChange={e => setForm({ ...form, ispSupportUrl: e.target.value })} placeholder="https://support.3bb.co.th" data-testid="input-isp-support-url" />
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="p-6 border-t flex justify-end gap-3">
+          <Button variant="outline" onClick={onCancel} data-testid="button-cancel-router">ยกเลิก</Button>
+          <Button className="bg-teal-600 hover:bg-teal-700 text-white" onClick={() => onSave(form)} disabled={saving || !form.name} data-testid="button-save-router">
+            {saving ? "กำลังบันทึก..." : "บันทึก"}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function NicSection({ machineId, allNics, allMachines }: { machineId: number; allNics: NicRecord[]; allMachines: MachineRecord[] }) {
   const [adding, setAdding] = useState(false);
@@ -1123,6 +1474,73 @@ export default function AllServers() {
     queryKey: ["/api/platform/all-nics"],
   });
 
+  const { data: routersList = [] } = useQuery<RouterRecord[]>({
+    queryKey: ["/api/platform/routers"],
+  });
+
+  const { data: allDomains = [] } = useQuery<RouterDomainRecord[]>({
+    queryKey: ["/api/platform/all-router-domains"],
+  });
+
+  const [editingRouter, setEditingRouter] = useState<RouterRecord | null | undefined>(undefined);
+  const [expandedRouterId, setExpandedRouterId] = useState<number | null>(null);
+
+  const createRouterMut = useMutation({
+    mutationFn: async (data: any) => {
+      const res = await fetch("/api/platform/routers", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
+      if (!res.ok) throw new Error((await res.json()).message);
+      return res.json();
+    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/platform/routers"] }); setEditingRouter(undefined); toast({ title: "เพิ่ม Router สำเร็จ" }); },
+    onError: (err: any) => toast({ title: "เกิดข้อผิดพลาด", description: err.message, variant: "destructive" }),
+  });
+
+  const updateRouterMut = useMutation({
+    mutationFn: async ({ id, ...data }: any) => {
+      const res = await fetch(`/api/platform/routers/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
+      if (!res.ok) throw new Error((await res.json()).message);
+      return res.json();
+    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/platform/routers"] }); setEditingRouter(undefined); toast({ title: "บันทึก Router สำเร็จ" }); },
+    onError: (err: any) => toast({ title: "เกิดข้อผิดพลาด", description: err.message, variant: "destructive" }),
+  });
+
+  const deleteRouterMut = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await fetch(`/api/platform/routers/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error((await res.json()).message);
+    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/platform/routers"] }); toast({ title: "ลบ Router สำเร็จ" }); },
+    onError: (err: any) => toast({ title: "เกิดข้อผิดพลาด", description: err.message, variant: "destructive" }),
+  });
+
+  const addDomainMut = useMutation({
+    mutationFn: async ({ routerId, ...data }: any) => {
+      const res = await fetch(`/api/platform/routers/${routerId}/domains`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
+      if (!res.ok) throw new Error((await res.json()).message);
+      return res.json();
+    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/platform/all-router-domains"] }); toast({ title: "เพิ่ม Domain สำเร็จ" }); },
+    onError: (err: any) => toast({ title: "เกิดข้อผิดพลาด", description: err.message, variant: "destructive" }),
+  });
+
+  const deleteDomainMut = useMutation({
+    mutationFn: async (domainId: number) => {
+      const res = await fetch(`/api/platform/router-domains/${domainId}`, { method: "DELETE" });
+      if (!res.ok) throw new Error((await res.json()).message);
+    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/platform/all-router-domains"] }); toast({ title: "ลบ Domain สำเร็จ" }); },
+    onError: (err: any) => toast({ title: "เกิดข้อผิดพลาด", description: err.message, variant: "destructive" }),
+  });
+
+  const handleSaveRouter = (data: any) => {
+    if (editingRouter === null) {
+      createRouterMut.mutate(data);
+    } else if (editingRouter) {
+      updateRouterMut.mutate({ id: editingRouter.id, ...data });
+    }
+  };
+
   const createMut = useMutation({
     mutationFn: async (data: any) => {
       const res = await fetch("/api/platform/machines", {
@@ -1292,6 +1710,40 @@ export default function AllServers() {
         })()}
 
         <div className="mt-8">
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide flex items-center gap-2">
+              <Router className="h-4 w-4" /> Routers ({routersList.length})
+            </h2>
+            <Button size="sm" variant="outline" className="h-7 text-xs border-teal-400 text-teal-700 hover:bg-teal-50" onClick={() => setEditingRouter(null)} data-testid="button-add-router">
+              <Plus className="h-3 w-3 mr-1" /> เพิ่ม Router
+            </Button>
+          </div>
+          {routersList.length === 0 ? (
+            <div className="text-center py-6 text-gray-400 border rounded-lg border-dashed">
+              <Router className="h-8 w-8 mx-auto mb-2 opacity-30" />
+              <p className="text-sm">ยังไม่มี Router ในระบบ</p>
+            </div>
+          ) : (
+            <div className="space-y-1">
+              {routersList.map(r => (
+                <RouterCard
+                  key={r.id}
+                  router={r}
+                  domains={allDomains}
+                  machines={machines}
+                  expanded={expandedRouterId === r.id}
+                  onToggle={() => setExpandedRouterId(expandedRouterId === r.id ? null : r.id)}
+                  onEdit={setEditingRouter}
+                  onDelete={(id) => deleteRouterMut.mutate(id)}
+                  onAddDomain={(routerId, data) => addDomainMut.mutate({ routerId, ...data })}
+                  onDeleteDomain={(domainId) => deleteDomainMut.mutate(domainId)}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="mt-8">
           <CloneHistoryTargetCard machines={machines} />
         </div>
 
@@ -1306,6 +1758,15 @@ export default function AllServers() {
             onCancel={() => setEditingMachine(undefined)}
             onDelete={(id) => deleteMut.mutate(id)}
             saving={createMut.isPending || updateMut.isPending}
+          />
+        )}
+
+        {editingRouter !== undefined && (
+          <EditRouterDialog
+            router={editingRouter}
+            onSave={handleSaveRouter}
+            onCancel={() => setEditingRouter(undefined)}
+            saving={createRouterMut.isPending || updateRouterMut.isPending}
           />
         )}
       </div>
