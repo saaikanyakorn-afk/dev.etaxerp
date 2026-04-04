@@ -150,12 +150,12 @@ function execGit(cmd: string, timeoutMs = 30000): string {
   return execSync(cmd, { cwd: process.cwd(), stdio: "pipe", timeout: timeoutMs }).toString().trim();
 }
 
-app.get("/api/platform/github/info", requireAuth, requireSuperAdmin, async (_req, res) => {
+app.get("/api/platform/github/local-info", requireAuth, requireSuperAdmin, async (_req, res) => {
   try {
     const { execSync } = require("child_process");
     const cwd = process.cwd();
     const exec = (cmd: string) => {
-      try { return execSync(cmd, { cwd, stdio: "pipe", timeout: 15000, maxBuffer: 10 * 1024 * 1024 }).toString().trim(); } catch { return ""; }
+      try { return execSync(cmd, { cwd, stdio: "pipe", timeout: 15000, maxBuffer: 10 * 1024 * 1024 }).toString().trim(); } catch (e: any) { console.error(`[github-info] cmd failed: ${cmd}`, e.message); return ""; }
     };
 
     const localBranch = exec("git branch --show-current");
@@ -170,6 +170,33 @@ app.get("/api/platform/github/info", requireAuth, requireSuperAdmin, async (_req
     const tsFiles = exec("find client/src server shared \\( -name '*.ts' -o -name '*.tsx' \\) 2>/dev/null | wc -l");
     const totalLines = exec("find client/src server shared \\( -name '*.ts' -o -name '*.tsx' \\) -print0 2>/dev/null | xargs -0 wc -l 2>/dev/null | tail -1 | awk '{print $1}'");
     const fileCount = exec("git ls-files | wc -l");
+
+    res.json({
+      branch: localBranch,
+      commit: localCommit,
+      commitFull: localCommitFull,
+      lastCommitDate,
+      lastCommitMsg,
+      lastCommitAuthor,
+      totalCommits: Number(totalCommits) || 0,
+      version,
+      tsFiles: Number(tsFiles) || 0,
+      totalLines: Number(totalLines) || 0,
+      trackedFiles: Number(fileCount) || 0,
+    });
+  } catch (err: any) {
+    console.error("[github-local-info] Error:", err);
+    res.status(500).json({ message: err.message });
+  }
+});
+
+app.get("/api/platform/github/remote-info", requireAuth, requireSuperAdmin, async (_req, res) => {
+  try {
+    const { execSync } = require("child_process");
+    const cwd = process.cwd();
+    const exec = (cmd: string) => {
+      try { return execSync(cmd, { cwd, stdio: "pipe", timeout: 15000, maxBuffer: 10 * 1024 * 1024 }).toString().trim(); } catch (e: any) { console.error(`[github-info] cmd failed: ${cmd}`, e.message); return ""; }
+    };
 
     const remoteUrl = exec("git remote get-url github 2>/dev/null") || "";
     const safeRemoteUrl = remoteUrl.replace(/\/\/[^@]+@/, "//***@");
@@ -191,40 +218,26 @@ app.get("/api/platform/github/info", requireAuth, requireSuperAdmin, async (_req
         githubCommit = exec("git rev-parse --short github/main");
         githubCommitDate = exec("git log -1 --format=%ci github/main");
         githubCommitMsg = exec("git log -1 --format=%s github/main");
-        behindCount = Number(exec(`git rev-list --count HEAD..github/main`)) || 0;
-        aheadCount = Number(exec(`git rev-list --count github/main..HEAD`)) || 0;
+        behindCount = Number(exec("git rev-list --count HEAD..github/main")) || 0;
+        aheadCount = Number(exec("git rev-list --count github/main..HEAD")) || 0;
       } catch {
         githubReachable = false;
       }
     }
 
     res.json({
-      local: {
-        branch: localBranch,
-        commit: localCommit,
-        commitFull: localCommitFull,
-        lastCommitDate,
-        lastCommitMsg,
-        lastCommitAuthor,
-        totalCommits: Number(totalCommits) || 0,
-        version,
-        tsFiles: Number(tsFiles) || 0,
-        totalLines: Number(totalLines) || 0,
-        trackedFiles: Number(fileCount) || 0,
-      },
-      github: {
-        remoteUrl: safeRemoteUrl,
-        hasRemote,
-        reachable: githubReachable,
-        branch: githubBranch,
-        commit: githubCommit,
-        commitDate: githubCommitDate,
-        commitMsg: githubCommitMsg,
-        behindCount,
-        aheadCount,
-      },
+      remoteUrl: safeRemoteUrl,
+      hasRemote,
+      reachable: githubReachable,
+      branch: githubBranch,
+      commit: githubCommit,
+      commitDate: githubCommitDate,
+      commitMsg: githubCommitMsg,
+      behindCount,
+      aheadCount,
     });
   } catch (err: any) {
+    console.error("[github-remote-info] Error:", err);
     res.status(500).json({ message: err.message });
   }
 });
