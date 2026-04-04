@@ -321,7 +321,7 @@ export default function GithubManagement() {
                   <Card className="shadow-sm border-blue-300 bg-white">
                     <CardContent className="p-4 space-y-3">
                       <div>
-                        <label className="text-xs text-gray-500 mb-1 block">Commit Message (optional)</label>
+                        <label className="text-xs text-gray-500 mb-1 block">Commit Message</label>
                         <Input
                           value={commitMessage}
                           onChange={(e) => setCommitMessage(e.target.value)}
@@ -329,10 +329,13 @@ export default function GithubManagement() {
                           className="text-sm"
                           data-testid="input-commit-message"
                         />
+                        {commitMessage.length > 0 && commitMessage.length < 30 && (
+                          <p className="text-[11px] text-amber-500 mt-1">{30 - commitMessage.length} ตัวอักษรอีก (ขั้นต่ำ 30)</p>
+                        )}
                       </div>
                       <Button
                         onClick={handlePush}
-                        disabled={pushLoading || !(remoteInfo?.hasRemote)}
+                        disabled={pushLoading || !(remoteInfo?.hasRemote) || commitMessage.trim().length < 30}
                         className="w-full bg-blue-500 hover:bg-blue-600 text-white"
                         data-testid="button-push"
                       >
