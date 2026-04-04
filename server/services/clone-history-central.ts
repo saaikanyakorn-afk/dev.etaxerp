@@ -1,6 +1,6 @@
 import pg from "pg";
 import { db } from "../db";
-import { cloneHistory, users } from "@shared/schema";
+import { cloneHistory, machines, users } from "@shared/schema";
 import { eq, and, sql } from "drizzle-orm";
 
 const GITHUB_OWNER = "saaikanyakorn-afk";
@@ -18,9 +18,11 @@ let consecutiveFailDays = 0;
 let lastCheckDate: string | null = null;
 let alertSentForCurrentStreak = false;
 
-let activeTarget: { machineId: number; url: string; name: string; updatedAt: string } = {
-  machineId: 0, url: "", name: "", updatedAt: "",
+let activeTarget: { machineId: number; name: string; updatedAt: string } = {
+  machineId: 0, name: "", updatedAt: "",
 };
+
+let resolvedUrl: string | null = null;
 
 function getMachineName(): string {
   if (machineName !== "unknown") return machineName;
@@ -40,6 +42,19 @@ function getMachineName(): string {
 
 function getGitHubPat(): string {
   return process.env.GITHUB_PAT || "";
+}
+
+async function resolveConnectionUrl(machineId: number): Promise<string | null> {
+  try {
+    const rows = await db.select().from(machines).where(eq(machines.id, machineId));
+    if (rows.length === 0) return null;
+    const m = rows[0];
+    const host = m.fqdn || m.lanIp || m.localName;
+    const port = m.dbPort || "5432";
+    return `postgresql://${encodeURIComponent(m.dbUser || "")}:${encodeURIComponent(m.dbPassword || "")}@${host}:${port}/${m.dbName}`;
+  } catch {
+    return null;
+  }
 }
 
 async function fetchTargetFromGitHub(): Promise<boolean> {
@@ -73,22 +88,24 @@ async function fetchTargetFromGitHub(): Promise<boolean> {
     const content = Buffer.from(data.content, "base64").toString("utf-8");
     const target = JSON.parse(content);
 
-    if (!target.machineId || !target.url || !target.name) {
-      console.log("[CloneHistoryCentral] clone-target.json missing required fields");
+    if (!target.machineId || !target.name) {
+      console.log("[CloneHistoryCentral] clone-target.json missing required fields (machineId, name)");
       return false;
     }
 
     const oldId = activeTarget.machineId;
     activeTarget = {
       machineId: target.machineId,
-      url: target.url,
       name: target.name,
       updatedAt: target.updatedAt || "",
     };
 
-    if (centralPool && oldId !== target.machineId) {
-      centralPool.end().catch(() => {});
-      centralPool = null;
+    if (oldId !== target.machineId) {
+      if (centralPool) {
+        centralPool.end().catch(() => {});
+        centralPool = null;
+      }
+      resolvedUrl = null;
     }
 
     console.log(`[CloneHistoryCentral] ✓ Target from GitHub: ${target.name} (ID ${target.machineId}, updated ${target.updatedAt || "unknown"})`);
@@ -120,7 +137,7 @@ async function getFileSha(): Promise<string | null> {
   }
 }
 
-async function pushTargetToGitHub(machineId: number, connectionUrl: string, machineName: string): Promise<boolean> {
+async function pushTargetToGitHub(machineId: number, targetName: string): Promise<boolean> {
   const pat = getGitHubPat();
   if (!pat) {
     console.log("[CloneHistoryCentral] GITHUB_PAT not set — cannot push target to GitHub");
@@ -130,8 +147,7 @@ async function pushTargetToGitHub(machineId: number, connectionUrl: string, mach
   const now = new Date().toISOString();
   const payload = {
     machineId,
-    url: connectionUrl,
-    name: machineName,
+    name: targetName,
     updatedAt: now,
     updatedBy: getMachineName(),
   };
@@ -142,7 +158,7 @@ async function pushTargetToGitHub(machineId: number, connectionUrl: string, mach
   try {
     const url = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${GITHUB_TARGET_FILE}`;
     const body: any = {
-      message: `Clone target → ${machineName} (ID ${machineId})`,
+      message: `Clone target → ${targetName} (ID ${machineId})`,
       content,
       branch: GITHUB_BRANCH,
     };
@@ -165,7 +181,7 @@ async function pushTargetToGitHub(machineId: number, connectionUrl: string, mach
       return false;
     }
 
-    console.log(`[CloneHistoryCentral] ✓ Pushed clone-target.json to GitHub: ${machineName} (ID ${machineId})`);
+    console.log(`[CloneHistoryCentral] ✓ Pushed clone-target.json to GitHub: ${targetName} (ID ${machineId})`);
     return true;
   } catch (err: any) {
     console.log(`[CloneHistoryCentral] GitHub push error: ${err.message?.slice(0, 150)}`);
@@ -173,15 +189,14 @@ async function pushTargetToGitHub(machineId: number, connectionUrl: string, mach
   }
 }
 
-export async function setTargetMachine(machineId: number, connectionUrl: string, targetName: string): Promise<void> {
-  const pushed = await pushTargetToGitHub(machineId, connectionUrl, targetName);
+export async function setTargetMachine(machineId: number, targetName: string): Promise<void> {
+  const pushed = await pushTargetToGitHub(machineId, targetName);
   if (!pushed) {
     throw new Error("ไม่สามารถบันทึก clone-target.json ไป GitHub ได้ — กรุณาตรวจสอบ GITHUB_PAT และการเชื่อมต่อ");
   }
 
   activeTarget = {
     machineId,
-    url: connectionUrl,
     name: targetName,
     updatedAt: new Date().toISOString(),
   };
@@ -190,6 +205,7 @@ export async function setTargetMachine(machineId: number, connectionUrl: string,
     centralPool.end().catch(() => {});
     centralPool = null;
   }
+  resolvedUrl = null;
   consecutiveFailDays = 0;
   alertSentForCurrentStreak = false;
   lastCheckDate = null;
@@ -208,14 +224,22 @@ export function getTargetMachineInfo(): { machineId: number; machineName: string
   };
 }
 
-export function getTargetUrl(): string | null {
-  return activeTarget.url || null;
+export async function getTargetUrl(): Promise<string | null> {
+  if (!activeTarget.machineId) return null;
+  if (resolvedUrl) return resolvedUrl;
+  resolvedUrl = await resolveConnectionUrl(activeTarget.machineId);
+  return resolvedUrl;
+}
+
+export async function ensureTargetLoaded(): Promise<void> {
+  if (activeTarget.machineId > 0) return;
+  await fetchTargetFromGitHub();
 }
 
 async function getCentralPool(): Promise<pg.Pool | null> {
   if (centralPool) return centralPool;
 
-  const url = getTargetUrl();
+  const url = await getTargetUrl();
   if (!url) return null;
 
   centralPool = new pg.Pool({
@@ -445,11 +469,6 @@ async function dailyFlushCheck(): Promise<void> {
   } catch (err: any) {
     console.log(`[CloneHistoryCentral] Daily check error: ${err.message?.slice(0, 120)}`);
   }
-}
-
-export async function ensureTargetLoaded(): Promise<void> {
-  if (activeTarget.machineId > 0) return;
-  await fetchTargetFromGitHub();
 }
 
 export function startCentralHistorySync(): void {

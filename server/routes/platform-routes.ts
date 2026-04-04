@@ -435,7 +435,7 @@ app.get("/api/platform/clone-history", requireAuth, requireAdmin, async (_req, r
 
     const { getTargetUrl, ensureTargetLoaded } = await import("../services/clone-history-central");
     await ensureTargetLoaded();
-    const centralUrl = getTargetUrl();
+    const centralUrl = await getTargetUrl();
 
     if (centralUrl) {
       const pgLib = await import("pg");
@@ -2224,12 +2224,8 @@ app.patch("/api/platform/clone-history-target", requireAuth, requireSuperAdmin, 
       return res.status(400).json({ message: "ไม่สามารถเลือก App Server ได้ — ต้องเป็นเซิร์ฟเวอร์ที่มี Database" });
     }
 
-    const host = m.fqdn || m.lanIp || m.localName;
-    const port = m.dbPort || "5432";
-    const connectionUrl = `postgresql://${encodeURIComponent(m.dbUser || "")}:${encodeURIComponent(m.dbPassword || "")}@${host}:${port}/${m.dbName}`;
-
     const { setTargetMachine } = await import("../services/clone-history-central");
-    await setTargetMachine(machineId, connectionUrl, m.localName);
+    await setTargetMachine(machineId, m.localName);
     res.json({ success: true, machineId, machineName: m.localName });
   } catch (err: any) { res.status(500).json({ message: err.message }); }
 });
