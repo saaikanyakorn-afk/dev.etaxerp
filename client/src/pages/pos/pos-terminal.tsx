@@ -1673,7 +1673,20 @@ export default function PosTerminal() {
               data-testid="btn-bt-preview-receipt"
             >
               <Eye className="h-4 w-4 shrink-0" />
-              <span className="truncate">{btPrinting ? "กำลังสร้าง..." : "พรีวิวใบเสร็จ"}</span>
+              <span className="truncate">{btPrinting ? "กำลังสร้าง..." : "พรีวิว Bluetooth"}</span>
+            </Button>
+            <Button
+              variant="outline"
+              className="w-full gap-1.5 border-cyan-400 text-cyan-600 hover:bg-cyan-50"
+              onClick={() => {
+                if (lastTransaction?.taxInvoice?.id) {
+                  window.open(`/pos/receipt/${lastTransaction.taxInvoice.id}`, "_blank");
+                }
+              }}
+              data-testid="btn-preview-html-receipt"
+            >
+              <Eye className="h-4 w-4 shrink-0" />
+              <span className="truncate">พรีวิว HTML</span>
             </Button>
             {btConnected && (
               <Button
