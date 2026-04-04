@@ -13,7 +13,7 @@ import {
   MonitorSmartphone, Cloud, Monitor, Wifi, WifiOff,
   ArrowRight, Database, Globe, MapPin, RefreshCw,
   Key, Shield, Copy, Download, Lock, Unlock, History, AlertTriangle,
-  ChevronDown, ChevronRight,
+  ChevronDown, ChevronRight, Star,
 } from "lucide-react";
 
 interface MachineRecord {
@@ -44,6 +44,7 @@ interface MachineRecord {
   encContent: string | null;
   encGeneratedAt: string | null;
   envContent: string | null;
+  isOfficial: boolean;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -67,23 +68,25 @@ const ROLE_CONFIG: Record<string, { label: string; color: string; bgColor: strin
   backup: { label: "Backup", color: "text-gray-700", bgColor: "bg-gray-100" },
 };
 
-function MachineCard({ machine, onEdit, expanded, onToggle }: { machine: MachineRecord; onEdit: (m: MachineRecord) => void; expanded: boolean; onToggle: () => void }) {
+function MachineCard({ machine, onEdit, expanded, onToggle, onToggleOfficial }: { machine: MachineRecord; onEdit: (m: MachineRecord) => void; expanded: boolean; onToggle: () => void; onToggleOfficial: (id: number, val: boolean) => void }) {
   const [showPw, setShowPw] = useState(false);
   const osConfig = OS_CONFIG[machine.os] || OS_CONFIG.linux;
   const roleConfig = ROLE_CONFIG[machine.role] || ROLE_CONFIG.testing;
   const serverTypeConfig = SERVER_TYPE_CONFIG[machine.serverType] || SERVER_TYPE_CONFIG.app_database;
   const OsIcon = osConfig.icon;
+  const isOfficial = machine.isOfficial;
 
   return (
-    <div className={`border rounded-lg transition-all ${osConfig.color} ${expanded ? "shadow-md" : "hover:shadow-sm"}`} data-testid={`card-machine-${machine.id}`}>
+    <div className={`border rounded-lg transition-all ${isOfficial ? "border-amber-400 bg-amber-50/50 ring-1 ring-amber-300" : osConfig.color} ${expanded ? "shadow-md" : "hover:shadow-sm"}`} data-testid={`card-machine-${machine.id}`}>
       <button
         onClick={onToggle}
         className="w-full flex items-center gap-3 px-4 py-3 text-left"
         data-testid={`btn-toggle-machine-${machine.id}`}
       >
         {expanded ? <ChevronDown className="h-4 w-4 text-gray-400 shrink-0" /> : <ChevronRight className="h-4 w-4 text-gray-400 shrink-0" />}
+        {isOfficial && <Star className="h-4 w-4 text-amber-500 fill-amber-400 shrink-0" />}
         <OsIcon className="h-4 w-4 shrink-0" />
-        <span className="font-bold text-sm truncate">{machine.localName}</span>
+        <span className={`font-bold text-sm truncate ${isOfficial ? "text-amber-900" : ""}`}>{machine.localName}</span>
         <span className="text-xs text-gray-400 font-mono truncate hidden sm:inline">{machine.domainName || machine.lanIp || ""}</span>
         <div className="ml-auto flex items-center gap-1.5 shrink-0">
           <span className="text-xs text-gray-400 font-mono">{machine.dbName}:{machine.dbPort}</span>
@@ -93,6 +96,7 @@ function MachineCard({ machine, onEdit, expanded, onToggle }: { machine: Machine
           <Badge className={`${roleConfig.bgColor} ${roleConfig.color} text-[10px] px-1.5 py-0`}>
             {roleConfig.label}
           </Badge>
+          {isOfficial && <Badge className="bg-amber-500 text-white text-[10px] px-1.5 py-0">Official</Badge>}
           {machine.encContent && <Lock className="h-3 w-3 text-green-600" />}
         </div>
       </button>
@@ -164,7 +168,17 @@ function MachineCard({ machine, onEdit, expanded, onToggle }: { machine: Machine
             {machine.notes && (
               <span className="text-xs text-gray-400 italic truncate">{machine.notes}</span>
             )}
-            <div className="ml-auto">
+            <div className="ml-auto flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                className={`h-7 text-xs ${isOfficial ? "border-amber-400 text-amber-700 hover:bg-amber-100" : "border-gray-300 text-gray-500 hover:bg-gray-100"}`}
+                onClick={(e) => { e.stopPropagation(); onToggleOfficial(machine.id, !isOfficial); }}
+                data-testid={`btn-official-machine-${machine.id}`}
+              >
+                <Star className={`h-3 w-3 mr-1 ${isOfficial ? "fill-amber-400 text-amber-500" : ""}`} />
+                {isOfficial ? "ยกเลิก Official" : "ตั้งเป็น Official"}
+              </Button>
               <Button size="sm" variant="outline" className="h-7 text-xs" onClick={(e) => { e.stopPropagation(); onEdit(machine); }} data-testid={`btn-edit-machine-${machine.id}`}>
                 <Pencil className="h-3 w-3 mr-1" /> แก้ไข
               </Button>
@@ -869,6 +883,23 @@ export default function AllServers() {
     onError: (err: any) => toast({ title: "เกิดข้อผิดพลาด", description: err.message, variant: "destructive" }),
   });
 
+  const officialMut = useMutation({
+    mutationFn: async ({ id, isOfficial }: { id: number; isOfficial: boolean }) => {
+      const res = await fetch(`/api/platform/machines/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isOfficial }),
+      });
+      if (!res.ok) throw new Error((await res.json()).message);
+      return res.json();
+    },
+    onSuccess: (_, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/platform/machines"] });
+      toast({ title: vars.isOfficial ? "ตั้งเป็น Official แล้ว" : "ยกเลิก Official แล้ว" });
+    },
+    onError: (err: any) => toast({ title: "เกิดข้อผิดพลาด", description: err.message, variant: "destructive" }),
+  });
+
   const deleteMut = useMutation({
     mutationFn: async (id: number) => {
       const res = await fetch(`/api/platform/machines/${id}`, { method: "DELETE" });
@@ -925,24 +956,33 @@ export default function AllServers() {
           const dbServers = nonDev.filter(m => m.serverType === "database");
           const appServers = nonDev.filter(m => m.serverType === "app" || m.serverType === "app_database");
           const others = nonDev.filter(m => !dbServers.includes(m) && !appServers.includes(m));
-          const renderGroup = (icon: React.ReactNode, label: string, items: MachineRecord[]) => (
-            <div>
-              <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-2 flex items-center gap-2">
-                {icon} {label} ({items.length})
-              </h2>
-              <div className="space-y-1">
-                {items.map(m => (
-                  <MachineCard
-                    key={m.id}
-                    machine={m}
-                    onEdit={setEditingMachine}
-                    expanded={expandedId === m.id}
-                    onToggle={() => setExpandedId(expandedId === m.id ? null : m.id)}
-                  />
-                ))}
+          const renderGroup = (icon: React.ReactNode, label: string, items: MachineRecord[]) => {
+            const officialCount = items.filter(m => m.isOfficial).length;
+            return (
+              <div>
+                <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-2 flex items-center gap-2">
+                  {icon} {label} ({items.length})
+                  {officialCount > 0 && (
+                    <span className="flex items-center gap-1 text-amber-600 normal-case tracking-normal font-medium">
+                      <Star className="h-3 w-3 fill-amber-400" /> {officialCount} official
+                    </span>
+                  )}
+                </h2>
+                <div className="space-y-1">
+                  {[...items].sort((a, b) => (b.isOfficial ? 1 : 0) - (a.isOfficial ? 1 : 0)).map(m => (
+                    <MachineCard
+                      key={m.id}
+                      machine={m}
+                      onEdit={setEditingMachine}
+                      expanded={expandedId === m.id}
+                      onToggle={() => setExpandedId(expandedId === m.id ? null : m.id)}
+                      onToggleOfficial={(id, val) => officialMut.mutate({ id, isOfficial: val })}
+                    />
+                  ))}
+                </div>
               </div>
-            </div>
-          );
+            );
+          };
           return (
             <div className="space-y-6">
               {devCloud.length > 0 && renderGroup(<Cloud className="h-4 w-4" />, "Dev / Cloud", devCloud)}
