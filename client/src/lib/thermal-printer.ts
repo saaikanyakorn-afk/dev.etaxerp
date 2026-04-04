@@ -50,10 +50,10 @@ export interface ReceiptData {
 }
 
 const THERMAL_FONT: Record<string, { body: number; heading: number; title: number; gap: number }> = {
-  small:  { body: 13, heading: 15, title: 17, gap: 3 },
-  medium: { body: 14, heading: 16, title: 18, gap: 3 },
-  large:  { body: 16, heading: 18, title: 20, gap: 4 },
-  xlarge: { body: 18, heading: 20, title: 24, gap: 4 },
+  small:  { body: 13, heading: 15, title: 17, gap: 6 },
+  medium: { body: 14, heading: 16, title: 18, gap: 7 },
+  large:  { body: 16, heading: 18, title: 20, gap: 8 },
+  xlarge: { body: 18, heading: 20, title: 24, gap: 9 },
 };
 
 function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
@@ -175,10 +175,13 @@ async function renderReceiptToCanvas(data: ReceiptData, paper: PaperWidth): Prom
   };
 
   if (logoImg) {
-    const logoSize = paper === 58 ? 60 : 80;
+    const logoMaxW = paper === 58 ? 160 : 220;
+    const logoMaxH = paper === 58 ? 80 : 100;
     const aspect = logoImg.naturalWidth / logoImg.naturalHeight;
-    const logoW = aspect >= 1 ? logoSize : Math.round(logoSize * aspect);
-    const logoH = aspect >= 1 ? Math.round(logoSize / aspect) : logoSize;
+    let logoW = logoImg.naturalWidth;
+    let logoH = logoImg.naturalHeight;
+    if (logoW > logoMaxW) { logoW = logoMaxW; logoH = Math.round(logoW / aspect); }
+    if (logoH > logoMaxH) { logoH = logoMaxH; logoW = Math.round(logoH * aspect); }
     const logoX = (pw - logoW) / 2;
     const currentY = y;
     draws.push(() => {
@@ -231,7 +234,8 @@ async function renderReceiptToCanvas(data: ReceiptData, paper: PaperWidth): Prom
   if (data.discount > 0) {
     drawRow("ส่วนลด", `-${formatMoney(data.discount)}`, false, ft.body);
   }
-  drawRow("ราคาก่อน VAT", formatMoney(data.subtotal), false, ft.body);
+  const priceBeforeVat = data.totalAmount - data.vatAmount;
+  drawRow("ราคาก่อน VAT", formatMoney(priceBeforeVat), false, ft.body);
   drawRow("ภาษีมูลค่าเพิ่ม 7%", formatMoney(data.vatAmount), false, ft.body);
 
   drawDash();
