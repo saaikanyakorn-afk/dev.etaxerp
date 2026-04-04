@@ -226,14 +226,18 @@ export default function DatabaseBackup() {
     refetchInterval: cloning ? 3000 : 10000,
   });
 
-  const { data: cloneHistory = [], refetch: refetchHistory } = useQuery<CloneSession[]>({
+  const { data: cloneHistoryData, refetch: refetchHistory } = useQuery<{ source: string; sessions: CloneSession[] }>({
     queryKey: ["/api/platform/clone-history"],
     queryFn: async () => {
       const res = await fetch("/api/platform/clone-history", { credentials: "include" });
-      if (!res.ok) return [];
-      return res.json();
+      if (!res.ok) return { source: "local", sessions: [] };
+      const data = await res.json();
+      if (Array.isArray(data)) return { source: "local", sessions: data };
+      return data;
     },
   });
+  const cloneHistory = cloneHistoryData?.sessions || [];
+  const cloneHistorySource = cloneHistoryData?.source || "local";
 
   useEffect(() => {
     if (!hasEnteredRef.current) {
@@ -1623,7 +1627,15 @@ export default function DatabaseBackup() {
                 <CardContent className="p-5">
                   <div className="flex items-center gap-2 mb-3">
                     <History className="h-4 w-4 text-gray-500" />
-                    <h3 className="font-semibold text-gray-900 text-sm">ประวัติ Clone</h3>
+                    <h3 className="font-semibold text-gray-900 text-sm flex items-center gap-2">
+                      ประวัติ Clone
+                      {cloneHistorySource === "central" && (
+                        <span className="text-xs bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded" data-testid="badge-clone-source-central">จาก Central DB</span>
+                      )}
+                      {cloneHistorySource === "local" && cloneHistory.length > 0 && (
+                        <span className="text-xs bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded" data-testid="badge-clone-source-local">จาก Local DB</span>
+                      )}
+                    </h3>
                   </div>
                   <div className="space-y-3">
                     {cloneHistory.slice(0, 5).map((h) => {

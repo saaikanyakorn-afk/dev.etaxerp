@@ -430,7 +430,42 @@ app.get("/api/platform/clone-progress", requireAuth, requireAdmin, (_req, res) =
 
 app.get("/api/platform/clone-history", requireAuth, requireAdmin, async (_req, res) => {
   try {
-    const rows = await db.select().from(cloneHistory).orderBy(desc(cloneHistory.startedAt)).limit(200);
+    let rows: any[] = [];
+    let source = "local";
+
+    const { getConfig: getCfg } = await import("../config-bootstrap");
+    const centralUrl = getCfg("CLONE_HISTORY_TARGET_URL");
+
+    if (centralUrl) {
+      const pgLib = await import("pg");
+      const pool = new pgLib.default.Pool({ connectionString: centralUrl, max: 1, connectionTimeoutMillis: 5000 });
+      try {
+        const result = await pool.query(
+          `SELECT session_id, clone_type, direction, table_name, row_count, host_duration_ms, remote_duration_ms,
+                  status, error_message, batch_index, total_batches, started_at, completed_at, created_by,
+                  dump_file_size, dump_speed, restore_speed, source_machine
+           FROM clone_history ORDER BY started_at DESC LIMIT 200`
+        );
+        rows = result.rows.map(r => ({
+          sessionId: r.session_id, cloneType: r.clone_type, direction: r.direction || "us_to_th",
+          tableName: r.table_name, rowCount: r.row_count, hostDurationMs: r.host_duration_ms,
+          remoteDurationMs: r.remote_duration_ms, status: r.status, errorMessage: r.error_message,
+          startedAt: r.started_at, completedAt: r.completed_at, createdBy: r.created_by,
+          sourceMachine: r.source_machine,
+        }));
+        source = "central";
+        await pool.end();
+      } catch {
+        try { await pool.end(); } catch {}
+      }
+    }
+
+    if (rows.length === 0) {
+      const localRows = await db.select().from(cloneHistory).orderBy(desc(cloneHistory.startedAt)).limit(200);
+      rows = localRows;
+      source = "local";
+    }
+
     const sessionMap = new Map<string, any>();
     for (const r of rows) {
       if (!sessionMap.has(r.sessionId)) {
@@ -442,6 +477,7 @@ app.get("/api/platform/clone-history", requireAuth, requireAdmin, async (_req, r
           completedAt: r.completedAt,
           status: r.status,
           createdBy: r.createdBy,
+          sourceMachine: r.sourceMachine,
           tables: [],
         });
       }
@@ -461,7 +497,7 @@ app.get("/api/platform/clone-history", requireAuth, requireAdmin, async (_req, r
       }
       if (r.status === "error") session.status = "error";
     }
-    res.json(Array.from(sessionMap.values()).slice(0, 20));
+    res.json({ source, sessions: Array.from(sessionMap.values()).slice(0, 20) });
   } catch (err: any) {
     res.status(500).json({ message: err.message });
   }
@@ -2163,7 +2199,7 @@ app.post("/api/platform/machines/test-decrypt", requireAuth, requireSuperAdmin, 
 app.get("/api/platform/clone-history-target", requireAuth, requireSuperAdmin, async (_req, res) => {
   try {
     const { getTargetMachineInfo } = await import("../services/clone-history-central");
-    const info = await getTargetMachineInfo();
+    const info = getTargetMachineInfo();
     res.json(info || { machineId: 0, machineName: null, consecutiveFailDays: 0, lastCheckDate: null });
   } catch (err: any) { res.status(500).json({ message: err.message }); }
 });
@@ -2183,8 +2219,12 @@ app.patch("/api/platform/clone-history-target", requireAuth, requireSuperAdmin, 
       return res.status(400).json({ message: "ไม่สามารถเลือก App Server ได้ — ต้องเป็นเซิร์ฟเวอร์ที่มี Database" });
     }
 
-    const { setTargetMachineId } = await import("../services/clone-history-central");
-    await setTargetMachineId(machineId);
+    const host = m.fqdn || m.lanIp || m.localName;
+    const port = m.dbPort || "5432";
+    const connectionUrl = `postgresql://${encodeURIComponent(m.dbUser || "")}:${encodeURIComponent(m.dbPassword || "")}@${host}:${port}/${m.dbName}`;
+
+    const { setTargetMachine } = await import("../services/clone-history-central");
+    await setTargetMachine(machineId, connectionUrl, m.localName);
     res.json({ success: true, machineId, machineName: m.localName });
   } catch (err: any) { res.status(500).json({ message: err.message }); }
 });
