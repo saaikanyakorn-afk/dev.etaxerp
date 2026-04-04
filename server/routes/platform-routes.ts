@@ -143,31 +143,165 @@ app.get("/api/platform/tenants/:tenantId/users", requireAuth, requireSuperAdmin,
   } catch (err: any) { res.status(500).json({ message: err.message }); }
 });
 
-// ========== Download Source Code ==========
+// ========== GitHub Management ==========
 
-app.get("/api/platform/download-source", requireAuth, requireSuperAdmin, async (_req, res) => {
+function execGit(cmd: string, timeoutMs = 30000): string {
+  const { execSync } = require("child_process");
+  return execSync(cmd, { cwd: process.cwd(), stdio: "pipe", timeout: timeoutMs }).toString().trim();
+}
+
+app.get("/api/platform/github/info", requireAuth, requireSuperAdmin, async (_req, res) => {
   try {
-    const archiver = (await import("archiver")).default;
-    const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
-    const projectDir = process.cwd();
+    const { execSync } = require("child_process");
+    const cwd = process.cwd();
+    const exec = (cmd: string) => {
+      try { return execSync(cmd, { cwd, stdio: "pipe", timeout: 15000 }).toString().trim(); } catch { return ""; }
+    };
 
-    res.setHeader("Content-Type", "application/zip");
-    res.setHeader("Content-Disposition", `attachment; filename="etax-source-${timestamp}.zip"`);
+    const localBranch = exec("git branch --show-current");
+    const localCommit = exec("git rev-parse --short HEAD");
+    const localCommitFull = exec("git rev-parse HEAD");
+    const lastCommitDate = exec("git log -1 --format=%ci");
+    const lastCommitMsg = exec("git log -1 --format=%s");
+    const lastCommitAuthor = exec("git log -1 --format=%an");
+    const totalCommits = exec("git rev-list --count HEAD");
+    const version = (() => { try { return fs.readFileSync(path.join(cwd, "VERSION"), "utf-8").trim(); } catch { return "1.0.0"; } })();
 
-    const archive = archiver("zip", { zlib: { level: 6 } });
-    archive.pipe(res);
+    const tsFiles = exec("find client/src server shared -name '*.ts' -o -name '*.tsx' 2>/dev/null | wc -l");
+    const totalLines = exec("find client/src server shared -name '*.ts' -o -name '*.tsx' -exec cat {} + 2>/dev/null | wc -l");
+    const fileCount = exec("git ls-files | wc -l");
 
-    const excludeDirs = ["node_modules", ".git", ".cache", ".config", ".local", ".replit.dev", "attached_assets", ".upm", "dist", ".vite"];
-    archive.glob("**/*", {
-      cwd: projectDir,
-      ignore: [...excludeDirs.map(d => `${d}/**`), "*.zip"],
-      dot: true,
+    const remoteUrl = exec("git remote get-url github 2>/dev/null") || "";
+    const safeRemoteUrl = remoteUrl.replace(/\/\/[^@]+@/, "//***@");
+    const hasRemote = !!remoteUrl;
+
+    let githubBranch = "";
+    let githubCommit = "";
+    let githubCommitDate = "";
+    let githubCommitMsg = "";
+    let githubReachable = false;
+    let behindCount = 0;
+    let aheadCount = 0;
+
+    if (hasRemote) {
+      try {
+        execSync("git fetch github main --quiet", { cwd, stdio: "pipe", timeout: 20000 });
+        githubReachable = true;
+        githubBranch = "main";
+        githubCommit = exec("git rev-parse --short github/main");
+        githubCommitDate = exec("git log -1 --format=%ci github/main");
+        githubCommitMsg = exec("git log -1 --format=%s github/main");
+        behindCount = Number(exec(`git rev-list --count HEAD..github/main`)) || 0;
+        aheadCount = Number(exec(`git rev-list --count github/main..HEAD`)) || 0;
+      } catch {
+        githubReachable = false;
+      }
+    }
+
+    res.json({
+      local: {
+        branch: localBranch,
+        commit: localCommit,
+        commitFull: localCommitFull,
+        lastCommitDate,
+        lastCommitMsg,
+        lastCommitAuthor,
+        totalCommits: Number(totalCommits) || 0,
+        version,
+        tsFiles: Number(tsFiles) || 0,
+        totalLines: Number(totalLines) || 0,
+        trackedFiles: Number(fileCount) || 0,
+      },
+      github: {
+        remoteUrl: safeRemoteUrl,
+        hasRemote,
+        reachable: githubReachable,
+        branch: githubBranch,
+        commit: githubCommit,
+        commitDate: githubCommitDate,
+        commitMsg: githubCommitMsg,
+        behindCount,
+        aheadCount,
+      },
     });
+  } catch (err: any) {
+    res.status(500).json({ message: err.message });
+  }
+});
 
-    await archive.finalize();
+app.post("/api/platform/github/push", requireAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const { execSync } = require("child_process");
+    const cwd = process.cwd();
+    const commitMsg = req.body.commitMessage || `Manual push ${new Date().toISOString().slice(0, 10)}`;
+
+    const remoteUrl = (() => { try { return execSync("git remote get-url github", { cwd, stdio: "pipe" }).toString().trim(); } catch { return ""; } })();
+    if (!remoteUrl) return res.status(400).json({ message: "GitHub remote 'github' not configured" });
+
+    const versionFile = path.join(cwd, "VERSION");
+    let version = "1.0.0";
+    try { version = fs.readFileSync(versionFile, "utf-8").trim(); } catch {}
+    const parts = version.split(".").map(Number);
+    parts[2] = (parts[2] || 0) + 1;
+    const newVersion = parts.join(".");
+    fs.writeFileSync(versionFile, newVersion + "\n");
+
+    const tag = `v${newVersion}`;
+    const fullMsg = `${tag} — ${commitMsg}`;
+
+    execSync("git checkout --orphan deploy-temp", { cwd, stdio: "pipe" });
+    execSync("git add -A", { cwd, stdio: "pipe" });
+    execSync(`git commit -m "${fullMsg.replace(/"/g, '\\"')}"`, { cwd, stdio: "pipe" });
+    execSync(`git tag -f ${tag}`, { cwd, stdio: "pipe" });
+    execSync(`git push ${remoteUrl} deploy-temp:main --force`, { cwd, stdio: "pipe", timeout: 120000 });
+    execSync(`git push ${remoteUrl} ${tag} --force`, { cwd, stdio: "pipe", timeout: 30000 });
+    execSync("git checkout replit-agent", { cwd, stdio: "pipe" });
+    execSync("git branch -D deploy-temp", { cwd, stdio: "pipe" });
+
+    res.json({ success: true, version: newVersion, tag, message: fullMsg });
+  } catch (err: any) {
+    try { const { execSync } = require("child_process"); execSync("git checkout replit-agent", { cwd: process.cwd(), stdio: "pipe" }); } catch {}
+    try { const { execSync } = require("child_process"); execSync("git branch -D deploy-temp", { cwd: process.cwd(), stdio: "pipe" }); } catch {}
+    res.status(500).json({ message: `Push failed: ${err.message}` });
+  }
+});
+
+app.post("/api/platform/github/pull", requireAuth, requireSuperAdmin, async (_req, res) => {
+  try {
+    const { execSync } = require("child_process");
+    const cwd = process.cwd();
+    const archiver = (await import("archiver")).default;
+
+    const remoteUrl = (() => { try { return execSync("git remote get-url github", { cwd, stdio: "pipe" }).toString().trim(); } catch { return ""; } })();
+    if (!remoteUrl) return res.status(400).json({ message: "GitHub remote 'github' not configured" });
+
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "gh-pull-"));
+    const cloneDir = path.join(tmpDir, "repo");
+
+    try {
+      execSync(`git clone --depth 1 ${remoteUrl} "${cloneDir}"`, { stdio: "pipe", timeout: 120000 });
+
+      const commitHash = (() => { try { return execSync("git rev-parse --short HEAD", { cwd: cloneDir, stdio: "pipe" }).toString().trim(); } catch { return "unknown"; } })();
+      const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+      const filename = `etax-github-${commitHash}-${timestamp}.zip`;
+
+      res.setHeader("Content-Type", "application/zip");
+      res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+
+      const archive = archiver("zip", { zlib: { level: 6 } });
+      archive.pipe(res);
+      archive.glob("**/*", {
+        cwd: cloneDir,
+        ignore: [".git/**", "node_modules/**"],
+        dot: true,
+      });
+      await archive.finalize();
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
   } catch (err: any) {
     if (!res.headersSent) {
-      res.status(500).json({ message: `ดาวน์โหลด Source Code ไม่สำเร็จ: ${err.message}` });
+      res.status(500).json({ message: `Pull failed: ${err.message}` });
     }
   }
 });
