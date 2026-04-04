@@ -867,6 +867,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           )}
         </nav>
 
+        <div className="border-t border-sidebar-border shrink-0">
+          <Link href="/user-guide" className="flex items-center gap-2 px-6 py-2.5 text-sm text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 transition-colors" data-testid="link-user-guide">
+            <BookOpen className="h-4 w-4" />
+            <span>คู่มือการใช้งาน</span>
+          </Link>
+        </div>
         <div className="p-4 border-t border-sidebar-border shrink-0">
           <div className="flex items-center gap-3 px-2 py-2">
             <Link href="/settings/profile" className="shrink-0 cursor-pointer hover:opacity-80 transition-opacity" data-testid="link-user-avatar" title={t("header.profile")}>
