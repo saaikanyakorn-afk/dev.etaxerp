@@ -2284,4 +2284,94 @@ app.patch("/api/platform/clone-history-target", requireAuth, requireSuperAdmin, 
   } catch (err: any) { res.status(500).json({ message: err.message }); }
 });
 
+app.get("/api/platform/routers", requireAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const { routers: routersTable } = await import("@shared/schema");
+    const rows = await db.select().from(routersTable).orderBy(routersTable.name);
+    res.json(rows);
+  } catch (err: any) { res.status(500).json({ message: err.message }); }
+});
+
+app.post("/api/platform/routers", requireAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const { routers: routersTable } = await import("@shared/schema");
+    const [row] = await db.insert(routersTable).values(req.body).returning();
+    res.json(row);
+  } catch (err: any) { res.status(400).json({ message: err.message }); }
+});
+
+app.patch("/api/platform/routers/:id", requireAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const { routers: routersTable } = await import("@shared/schema");
+    const id = Number(req.params.id);
+    const { id: _id, createdAt: _ca, ...updates } = req.body;
+    const [row] = await db.update(routersTable).set({ ...updates, updatedAt: new Date() }).where(eq(routersTable.id, id)).returning();
+    if (!row) return res.status(404).json({ message: "ไม่พบ Router นี้" });
+    res.json(row);
+  } catch (err: any) { res.status(400).json({ message: err.message }); }
+});
+
+app.delete("/api/platform/routers/:id", requireAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const { routers: routersTable } = await import("@shared/schema");
+    const id = Number(req.params.id);
+    const [row] = await db.delete(routersTable).where(eq(routersTable.id, id)).returning();
+    if (!row) return res.status(404).json({ message: "ไม่พบ Router นี้" });
+    res.json({ success: true });
+  } catch (err: any) { res.status(500).json({ message: err.message }); }
+});
+
+app.get("/api/platform/routers/:id/domains", requireAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const { routerDomains } = await import("@shared/schema");
+    const routerId = Number(req.params.id);
+    const rows = await db.select().from(routerDomains).where(eq(routerDomains.routerId, routerId)).orderBy(routerDomains.domainName);
+    res.json(rows);
+  } catch (err: any) { res.status(500).json({ message: err.message }); }
+});
+
+app.post("/api/platform/routers/:id/domains", requireAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const { routerDomains } = await import("@shared/schema");
+    const routerId = Number(req.params.id);
+    const { domainName, noipManageUrl, noipUsername, noipPassword, notes } = req.body;
+    if (!domainName) return res.status(400).json({ message: "ต้องระบุ Domain Name" });
+    const [row] = await db.insert(routerDomains).values({
+      routerId, domainName, noipManageUrl: noipManageUrl || null,
+      noipUsername: noipUsername || null, noipPassword: noipPassword || null,
+      notes: notes || null,
+    }).returning();
+    res.json(row);
+  } catch (err: any) { res.status(400).json({ message: err.message }); }
+});
+
+app.patch("/api/platform/router-domains/:domainId", requireAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const { routerDomains } = await import("@shared/schema");
+    const domainId = Number(req.params.domainId);
+    const { id: _id, routerId: _rid, createdAt: _ca, ...updates } = req.body;
+    const [row] = await db.update(routerDomains).set(updates).where(eq(routerDomains.id, domainId)).returning();
+    if (!row) return res.status(404).json({ message: "ไม่พบ Domain นี้" });
+    res.json(row);
+  } catch (err: any) { res.status(400).json({ message: err.message }); }
+});
+
+app.delete("/api/platform/router-domains/:domainId", requireAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const { routerDomains } = await import("@shared/schema");
+    const domainId = Number(req.params.domainId);
+    const [row] = await db.delete(routerDomains).where(eq(routerDomains.id, domainId)).returning();
+    if (!row) return res.status(404).json({ message: "ไม่พบ Domain นี้" });
+    res.json({ success: true });
+  } catch (err: any) { res.status(500).json({ message: err.message }); }
+});
+
+app.get("/api/platform/all-router-domains", requireAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const { routerDomains } = await import("@shared/schema");
+    const rows = await db.select().from(routerDomains).orderBy(routerDomains.routerId, routerDomains.domainName);
+    res.json(rows);
+  } catch (err: any) { res.status(500).json({ message: err.message }); }
+});
+
 }

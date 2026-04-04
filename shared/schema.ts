@@ -45,6 +45,7 @@ export const machines = pgTable("machines", {
   envContent: text("env_content"),
   isOfficial: boolean("is_official").notNull().default(false),
   targetDbMachineId: integer("target_db_machine_id"),
+  routerId: integer("router_id"),
   internetType: text("internet_type").notNull().default("dynamic"),
   physicalLocation: text("physical_location"),
   createdAt: timestamp("created_at").defaultNow(),
@@ -71,6 +72,46 @@ export const machineNics = pgTable("machine_nics", {
 export const insertMachineNicSchema = createInsertSchema(machineNics).omit({ id: true, createdAt: true });
 export type MachineNic = typeof machineNics.$inferSelect;
 export type InsertMachineNic = z.infer<typeof insertMachineNicSchema>;
+
+export const routers = pgTable("routers", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  model: text("model"),
+  lanIp: text("lan_ip"),
+  adminUrl: text("admin_url"),
+  wanIp: text("wan_ip"),
+  internetType: text("internet_type").notNull().default("dynamic"),
+  ispName: text("isp_name"),
+  ispPackage: text("isp_package"),
+  ispRegisteredCompany: text("isp_registered_company"),
+  ispAccountNumber: text("isp_account_number"),
+  ispLinkId: text("isp_link_id"),
+  ispCallCenter: text("isp_call_center"),
+  ispSupportUrl: text("isp_support_url"),
+  physicalLocation: text("physical_location"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertRouterSchema = createInsertSchema(routers).omit({ id: true, createdAt: true, updatedAt: true });
+export type Router = typeof routers.$inferSelect;
+export type InsertRouter = z.infer<typeof insertRouterSchema>;
+
+export const routerDomains = pgTable("router_domains", {
+  id: serial("id").primaryKey(),
+  routerId: integer("router_id").notNull(),
+  domainName: text("domain_name").notNull(),
+  noipManageUrl: text("noip_manage_url"),
+  noipUsername: text("noip_username"),
+  noipPassword: text("noip_password"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertRouterDomainSchema = createInsertSchema(routerDomains).omit({ id: true, createdAt: true });
+export type RouterDomain = typeof routerDomains.$inferSelect;
+export type InsertRouterDomain = z.infer<typeof insertRouterDomainSchema>;
 
 export const tenants = pgTable("tenants", {
   id: serial("id").primaryKey(),
