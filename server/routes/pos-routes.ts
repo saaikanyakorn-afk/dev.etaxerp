@@ -377,7 +377,7 @@ export function registerPosRoutes(app: Express) {
   app.post("/api/pos/transactions", requireAuth, requireModule("pos"), async (req, res) => {
     try {
       const user = req.user as any;
-      const { companyId, sessionId, items, paymentMethod, cashReceived, customerId, customerName, discountAmount, fullTaxInvoice, taxCustomerName, taxAddress, taxId, taxPhone, taxEmail } = req.body;
+      const { companyId, sessionId, items, paymentMethod, cashReceived, customerId, customerName, discountAmount, fullTaxInvoice, taxCustomerName, taxAddress, taxId, taxBranchId, taxPhone, taxEmail } = req.body;
       if (!companyId || !sessionId || !items || !Array.isArray(items) || items.length === 0) {
         return res.status(400).json({ message: "กรุณากรอกข้อมูลให้ครบถ้วน" });
       }
@@ -468,6 +468,7 @@ export function registerPosRoutes(app: Express) {
           customerName: tivCustomerName,
           customerAddress: fullTaxInvoice ? (taxAddress || null) : null,
           customerTaxId: fullTaxInvoice ? (taxId || null) : null,
+          customerBranchId: fullTaxInvoice ? (taxBranchId || null) : null,
           contactPhone: fullTaxInvoice ? (taxPhone || null) : null,
           contactEmail: fullTaxInvoice ? (taxEmail || null) : null,
           subtotal: String(baseSubtotal.toFixed(2)),

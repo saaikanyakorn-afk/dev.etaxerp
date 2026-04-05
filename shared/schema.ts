@@ -1656,6 +1656,7 @@ export const taxInvoices = pgTable("tax_invoices", {
   customerName: text("customer_name").notNull(),
   customerAddress: text("customer_address"),
   customerTaxId: text("customer_tax_id"),
+  customerBranchId: text("customer_branch_id"),
   customerTaxIdType: text("customer_tax_id_type").notNull().default("TXID"),
   customerCountryCode: text("customer_country_code").notNull().default("TH"),
   branch: text("branch"),
