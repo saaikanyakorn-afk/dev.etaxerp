@@ -613,8 +613,8 @@ export default function PosReceipt() {
 
           {(data.isFullTaxInvoice || (data.customerTaxId && data.customerName)) && (
             <div style={{ marginTop: "16px", borderTop: "1px dashed #000", paddingTop: "8px" }}>
-              <div style={{ marginTop: "20px", borderTop: "1px solid #000", width: "60%", margin: "20px auto 4px", paddingTop: "4px" }}>
-                ลงชื่อผู้รับสินค้า/บริการ
+              <div style={{ marginTop: "40px", borderTop: "1px solid #000", width: "70%", margin: "40px auto 4px", paddingTop: "6px" }}>
+                ลงชื่อผู้รับเงิน
               </div>
             </div>
           )}

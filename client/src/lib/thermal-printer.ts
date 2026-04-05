@@ -373,8 +373,8 @@ async function renderReceiptToCanvas(data: ReceiptData, paper: PaperWidth): Prom
   if (data.isFullTaxInvoice) {
     y += ft.gap + 8;
     drawDash();
-    y += ft.gap * 3;
-    drawCenter("ลงชื่อผู้รับสินค้า/บริการ", ft.body);
+    y += ft.gap * 5;
+    drawCenter("ลงชื่อผู้รับเงิน", ft.body);
   }
   y += 14;
 
