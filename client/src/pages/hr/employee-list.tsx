@@ -83,18 +83,16 @@ export default function EmployeeList() {
   const [resignTarget, setResignTarget] = useState<any>(null);
   const [resignForm, setResignForm] = useState({ resignDate: "", resignReason: "" });
   const [empSearch, setEmpSearch] = useState("");
-  const [showAllCompanies, setShowAllCompanies] = useState(false);
   const isAdmin = user?.role === "admin" || user?.role === "super_admin" || user?.role === "owner";
 
   const { data: employees = [] } = useQuery<any[]>({
-    queryKey: ["/api/employees", showAllCompanies ? "all" : companyId],
+    queryKey: ["/api/employees", companyId],
     queryFn: async () => {
-      const url = showAllCompanies ? "/api/employees" : `/api/employees?companyId=${companyId}`;
-      const r = await fetch(url, { credentials: "include" });
+      const r = await fetch(`/api/employees?companyId=${companyId}`, { credentials: "include" });
       if (!r.ok) return [];
       return r.json();
     },
-    enabled: !!user && (showAllCompanies || !!companyId),
+    enabled: !!user && !!companyId,
   });
 
   const { data: users = [] } = useQuery<any[]>({
@@ -468,16 +466,6 @@ export default function EmployeeList() {
             <h1 className="text-2xl font-bold" data-testid="text-page-title">ทะเบียนพนักงาน</h1>
           </div>
           <div className="flex items-center gap-2">
-            {isAdmin && (
-              <Button
-                variant={showAllCompanies ? "default" : "outline"}
-                onClick={() => setShowAllCompanies(!showAllCompanies)}
-                className={showAllCompanies ? "rounded-full bg-[#03c9d7] hover:bg-[#03c9d7]/90 text-white" : "rounded-full border-[#03c9d7] text-[#03c9d7] hover:bg-[#03c9d7]/10"}
-                data-testid="button-toggle-all-companies"
-              >
-                <Building2 className="mr-2 h-4 w-4" /> {showAllCompanies ? "ดูทุกบริษัท" : "ทุกบริษัท"}
-              </Button>
-            )}
             <Button variant="outline" onClick={() => window.open(`/api/employees/export-excel?companyId=${companyId}`, "_blank")} className="rounded-full border-[var(--theme-primary)] text-[var(--theme-primary)] hover:bg-[var(--theme-primary)]/10" data-testid="button-export-excel">
               <Download className="mr-2 h-4 w-4" /> ส่งออก Excel
             </Button>
