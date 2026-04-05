@@ -399,24 +399,29 @@ export function registerExpenseRoutes(app: Express) {
               if (rc) { pmCode = rc; const a = acctMap.get(rc); if (a) pmAccName = a.nameTh || a.name || "เงินสด/ธนาคาร"; }
             }
             const sub = parseFloat(String(result.subtotal || "0"));
-            const vat = parseFloat(String(result.vatAmount || "0"));
+            const nonDeductibleVat = parseFloat(String(body.nonDeductibleVat || "0"));
+            const deductibleVat = parseFloat(String(body.deductibleVat || String(parseFloat(String(result.vatAmount || "0")) - nonDeductibleVat)));
             const wht = parseFloat(String(result.withholdingTax || "0"));
             const grouped: Record<string, { code: string; name: string; amount: number }> = {};
             let rawT = 0;
             for (const it of expItems) {
               const c = it.accountCode || "5265000"; const n = it.accountName || "ค่าใช้จ่ายอื่น";
-              const a = parseFloat(it.amount || "0");
+              let a = parseFloat(it.amount || "0");
+              if (it.vatType === "vat_non_deductible") {
+                a = a + (a * 0.07);
+              }
               if (!grouped[c]) grouped[c] = { code: c, name: n, amount: 0 };
               grouped[c].amount += a; rawT += a;
             }
-            const dr = rawT > 0 ? sub / rawT : 1;
+            const totalExpenseAmount = rawT > 0 ? Object.values(grouped).reduce((s, g) => s + g.amount, 0) : 0;
+            const expScale = totalExpenseAmount > 0 ? (sub + nonDeductibleVat) / totalExpenseAmount : 1;
             for (const g of Object.values(grouped)) {
-              const adj = parseFloat((g.amount * dr).toFixed(2));
+              const adj = parseFloat((g.amount * expScale).toFixed(2));
               jL.push({ accountCode: g.code, accountName: g.name, debit: adj.toFixed(2), credit: "0.00" });
             }
-            if (vat > 0) {
+            if (deductibleVat > 0) {
               const ivA = compAccts.find(a => a.code.length >= 7 && (a.name === "Input VAT" || a.nameTh === "ภาษีซื้อ"));
-              jL.push({ accountCode: ivA?.code || "1432000", accountName: ivA?.nameTh || "ภาษีซื้อ", debit: vat.toFixed(2), credit: "0.00" });
+              jL.push({ accountCode: ivA?.code || "1432000", accountName: ivA?.nameTh || "ภาษีซื้อ", debit: deductibleVat.toFixed(2), credit: "0.00" });
             }
             if (wht > 0) {
               const wA = acctMap.get("2346000") || acctMap.get("2344000") || acctMap.get("2224") || acctMap.get("2221");
@@ -1012,21 +1017,29 @@ export function registerExpenseRoutes(app: Express) {
               const jL: { accountCode: string; accountName: string; direction: string; amount: number }[] = [];
               const grp: Record<string, { code: string; name: string; amount: number }> = {};
               let rawT = 0;
+              let nonDeductVat = 0;
               for (const item of expItemsJ) {
                 const c = item.accountCode || "5265000";
                 const n = item.accountName || "ค่าใช้จ่ายอื่น";
-                const a = parseFloat(item.amount || "0");
+                let a = parseFloat(item.amount || "0");
+                if (item.vatType === "vat_non_deductible") {
+                  const itemVat = a * 0.07;
+                  nonDeductVat += itemVat;
+                  a = a + itemVat;
+                }
                 if (!grp[c]) grp[c] = { code: c, name: n, amount: 0 };
                 grp[c].amount += a;
                 rawT += a;
               }
-              const dr = rawT > 0 ? subJ / rawT : 1;
+              const deductVatJ = Math.max(0, vatJ - nonDeductVat);
+              const totalExpAmt = rawT > 0 ? Object.values(grp).reduce((s, g) => s + g.amount, 0) : 0;
+              const expScaleJ = totalExpAmt > 0 ? (subJ + nonDeductVat) / totalExpAmt : 1;
               for (const g of Object.values(grp)) {
-                jL.push({ accountCode: g.code, accountName: g.name, direction: "debit", amount: parseFloat((g.amount * dr).toFixed(2)) });
+                jL.push({ accountCode: g.code, accountName: g.name, direction: "debit", amount: parseFloat((g.amount * expScaleJ).toFixed(2)) });
               }
-              if (vatJ > 0) {
+              if (deductVatJ > 0) {
                 const [ivA] = await db.select().from(accounts).where(and(eq(accounts.companyId, result.companyId), sql`LENGTH(${accounts.code}) >= 7`, or(eq(accounts.name, "Input VAT"), eq(accounts.nameTh, "ภาษีซื้อ")))).limit(1);
-                jL.push({ accountCode: ivA?.code || "1432000", accountName: ivA?.nameTh || "ภาษีซื้อ", direction: "debit", amount: vatJ });
+                jL.push({ accountCode: ivA?.code || "1432000", accountName: ivA?.nameTh || "ภาษีซื้อ", direction: "debit", amount: deductVatJ });
               }
               if (whtJ > 0) {
                 const [wA] = await db.select().from(accounts).where(and(eq(accounts.companyId, result.companyId), or(eq(accounts.code, "2346000"), eq(accounts.code, "2224")))).limit(1);
