@@ -2106,12 +2106,19 @@ app.delete("/api/tax-invoices/:id", requireAuth, requireAnyModule("sales", "ecom
     const [existing] = await db.select().from(taxInvoices).where(eq(taxInvoices.id, Number(req.params.id)));
     if (!existing) return res.status(404).json({ message: "ไม่พบใบกำกับภาษี" });
     { const ac = await checkDocOwnership(existing.companyId, req.user); if (!ac.allowed) return res.status(403).json({ message: ac.message }); }
+    const linkedReceipts = await db.select({ id: receipts.id, receiptNo: receipts.receiptNo }).from(receipts).where(eq(receipts.taxInvoiceId, existing.id));
+    if (linkedReceipts.length > 0) {
+      const nos = linkedReceipts.map(r => r.receiptNo).join(", ");
+      return res.status(400).json({ message: `ไม่สามารถลบได้ เนื่องจากมีใบเสร็จรับเงินเชื่อมอยู่: ${nos} กรุณาลบใบเสร็จก่อน` });
+    }
     await db.transaction(async (tx) => {
       await deleteJournalEntriesForDoc(tx, "tax_invoice", existing.id);
       await deleteStockMovementsForDoc(tx, "tax_invoice", existing.id);
       await tx.delete(taxInvoiceItems).where(eq(taxInvoiceItems.taxInvoiceId, existing.id));
       await tx.delete(taxInvoices).where(eq(taxInvoices.id, existing.id));
     });
+    const user = req.user as any;
+    logActivity({ companyId: existing.companyId, userId: user.id, userName: user.username, action: "delete", entityType: "tax_invoice", entityId: String(existing.id), entityName: existing.taxInvoiceNo }).catch(() => {});
     res.json({ success: true });
   } catch (err: any) { res.status(500).json({ message: err.message }); }
 });
