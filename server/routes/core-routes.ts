@@ -2,9 +2,10 @@ import type { Express } from "express";
 import { db } from "../db";
 import { storage } from "../storage";
 import { eq, desc, and, or, isNull, inArray , sql } from "drizzle-orm";
-import { users, companies, employees, firmClients, permissions, tenants, accounts, tenantSubscriptions, subscriptionPlans } from "@shared/schema";
+import { users, companies, employees, firmClients, permissions, tenants, accounts, tenantSubscriptions, subscriptionPlans, insertUserSchema } from "@shared/schema";
 import { requireAuth, requireAdmin } from "../route-middleware";
 import { hashPassword } from "../auth";
+import { z } from "zod";
 
 export function registerCoreRoutes(app: Express) {
 app.get("/api/users", requireAuth, requireAdmin, async (req, res) => {
