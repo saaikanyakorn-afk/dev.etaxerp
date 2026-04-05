@@ -298,7 +298,6 @@ async function renderReceiptToCanvas(data: ReceiptData, paper: PaperWidth): Prom
   drawRow("วันที่:", data.docDate, false, ft.body);
   drawRow("เวลา:", data.docTime, false, ft.body);
   if (data.cashierName) drawRow("พนักงาน:", data.cashierName, false, ft.body);
-  if (data.paymentMethod) drawRow("ชำระ:", data.paymentMethod, false, ft.body);
   y += 4;
 
   drawDoubleDash();
