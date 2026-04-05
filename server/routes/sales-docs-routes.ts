@@ -2,7 +2,7 @@ import type { Express, Request, Response } from "express";
 import { db } from "../db";
 import { storage } from "../storage";
 import { eq, desc, and, inArray, count, sql, isNull } from "drizzle-orm";
-import { salesOrders, invoices, salesOrderItems, quotations, companies, documentSettings, quotationItems, users, invoiceItems, journalEntries, journalLines, accounts, products, contacts, documentImportBatches, taxInvoices, taxInvoiceItems, receipts, receiptItems, purchaseInvoices, expenses, commissionRules, commissionRecords, employees } from "@shared/schema";
+import { salesOrders, invoices, salesOrderItems, quotations, companies, documentSettings, quotationItems, users, invoiceItems, journalEntries, journalLines, accounts, products, contacts, documentImportBatches, taxInvoices, taxInvoiceItems, receipts, receiptItems, purchaseInvoices, expenses, commissionRules, commissionRecords, employees, liveCfOrders, salesCreditNotes } from "@shared/schema";
 import { gte, lte, or } from "drizzle-orm";
 import { requireAuth, requireRole, requireAnyModule, getCompanyTenantId, checkDocOwnership } from "../route-middleware";
 import { getNextDocNo, validateDocNo, getNextJournalEntryNo, createAutoJournalEntry, resolvePaymentMethodAccountCode, logActivity, checkDocumentLimit, deleteStockMovementsForDoc, deleteJournalEntriesForDoc, recomputePaymentStatus } from "../route-helpers";
@@ -2106,12 +2106,16 @@ app.delete("/api/tax-invoices/:id", requireAuth, requireAnyModule("sales", "ecom
     const [existing] = await db.select().from(taxInvoices).where(eq(taxInvoices.id, Number(req.params.id)));
     if (!existing) return res.status(404).json({ message: "ไม่พบใบกำกับภาษี" });
     { const ac = await checkDocOwnership(existing.companyId, req.user); if (!ac.allowed) return res.status(403).json({ message: ac.message }); }
+    const blockers: string[] = [];
     const linkedReceipts = await db.select({ id: receipts.id, receiptNo: receipts.receiptNo }).from(receipts).where(eq(receipts.taxInvoiceId, existing.id));
-    if (linkedReceipts.length > 0) {
-      const nos = linkedReceipts.map(r => r.receiptNo).join(", ");
-      return res.status(400).json({ message: `ไม่สามารถลบได้ เนื่องจากมีใบเสร็จรับเงินเชื่อมอยู่: ${nos} กรุณาลบใบเสร็จก่อน` });
+    if (linkedReceipts.length > 0) blockers.push(`ใบเสร็จรับเงิน: ${linkedReceipts.map(r => r.receiptNo).join(", ")}`);
+    const linkedCN = await db.select({ id: salesCreditNotes.id, creditNoteNo: salesCreditNotes.creditNoteNo }).from(salesCreditNotes).where(eq(salesCreditNotes.refTaxInvoiceId, existing.id));
+    if (linkedCN.length > 0) blockers.push(`ใบลดหนี้: ${linkedCN.map(r => r.creditNoteNo).join(", ")}`);
+    if (blockers.length > 0) {
+      return res.status(400).json({ message: `ไม่สามารถลบได้ เนื่องจากมีเอกสารเชื่อมอยู่:\n${blockers.join("\n")}\nกรุณาลบเอกสารที่เชื่อมก่อน` });
     }
     await db.transaction(async (tx) => {
+      await tx.update(liveCfOrders).set({ taxInvoiceId: null }).where(eq(liveCfOrders.taxInvoiceId, existing.id));
       await deleteJournalEntriesForDoc(tx, "tax_invoice", existing.id);
       await deleteStockMovementsForDoc(tx, "tax_invoice", existing.id);
       await tx.delete(taxInvoiceItems).where(eq(taxInvoiceItems.taxInvoiceId, existing.id));
