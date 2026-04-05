@@ -534,12 +534,15 @@ export class DatabaseStorage implements IStorage {
 
   async getEmployees(tenantId?: number, companyId?: number): Promise<Employee[]> {
     const conditions = [];
-    if (tenantId) conditions.push(eq(employees.tenantId, tenantId));
-    if (companyId) conditions.push(eq(employees.companyId, companyId));
-    if (conditions.length > 0) {
-      return db.select().from(employees).where(and(...conditions));
+    if (companyId) {
+      conditions.push(eq(employees.companyId, companyId));
+    } else if (tenantId) {
+      conditions.push(eq(employees.tenantId, tenantId));
+    } else {
+      console.warn("[SECURITY] getEmployees called without tenantId or companyId — returning empty");
+      return [];
     }
-    return db.select().from(employees);
+    return db.select().from(employees).where(and(...conditions));
   }
 
   async getEmployee(id: number): Promise<Employee | undefined> {
