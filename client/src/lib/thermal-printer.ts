@@ -50,10 +50,10 @@ export interface ReceiptData {
 }
 
 const THERMAL_FONT: Record<string, { body: number; heading: number; title: number; gap: number }> = {
-  small:  { body: 14, heading: 16, title: 18, gap: 7 },
-  medium: { body: 16, heading: 18, title: 20, gap: 8 },
-  large:  { body: 18, heading: 20, title: 22, gap: 9 },
-  xlarge: { body: 20, heading: 22, title: 26, gap: 10 },
+  small:  { body: 14, heading: 16, title: 18, gap: 10 },
+  medium: { body: 16, heading: 18, title: 20, gap: 12 },
+  large:  { body: 18, heading: 20, title: 22, gap: 14 },
+  xlarge: { body: 20, heading: 22, title: 26, gap: 16 },
 };
 
 function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
@@ -207,7 +207,7 @@ async function renderReceiptToCanvas(data: ReceiptData, paper: PaperWidth): Prom
     draws.push(() => {
       ctx.drawImage(logoImg!, logoX, currentY, logoW, logoH);
     });
-    y += logoH + 14;
+    y += logoH + 16;
   }
 
   drawCenter(data.companyName, ft.title);
@@ -220,34 +220,43 @@ async function renderReceiptToCanvas(data: ReceiptData, paper: PaperWidth): Prom
   if (data.companyAddress) drawCenter(data.companyAddress, ft.body);
   if (data.companyTaxId) drawCenter(`เลขประจำตัวผู้เสียภาษี: ${data.companyTaxId}`, ft.body);
   if (data.companyPhone) drawCenter(`โทร: ${data.companyPhone}`, ft.body);
-  y += ft.gap;
+  y += ft.gap + 4;
   if (data.headerText) {
     for (const line of data.headerText.split("\n")) {
       if (line.trim()) drawCenter(line.trim(), ft.body);
     }
+    y += 4;
   }
 
-  y += 4;
+  y += 6;
   drawCenter("ใบกำกับภาษีอย่างย่อ", ft.heading);
   drawCenter("ABB. TAX INVOICE", ft.body);
+  y += 4;
 
   drawDoubleDash();
+  y += 4;
   drawRow("เลขที่:", data.docNo, false, ft.body);
   drawRow("วันที่:", data.docDate, false, ft.body);
   drawRow("เวลา:", data.docTime, false, ft.body);
   if (data.paymentMethod) drawRow("ชำระ:", data.paymentMethod, false, ft.body);
+  y += 4;
 
   drawDoubleDash();
+  y += 4;
   drawRow("รายการ", "จำนวนเงิน", false, ft.body);
   drawDash();
+  y += 2;
 
   for (const item of data.items) {
     drawLeft(item.name, ft.body);
     const detail = `  ${item.qty} x ${formatMoney(item.unitPrice)}`;
     drawRow(detail, formatMoney(item.total), false, ft.body);
+    y += 2;
   }
 
+  y += 2;
   drawDash();
+  y += 4;
 
   if (data.items.length > 1) {
     drawRow(`รวม (${data.items.length} รายการ)`, formatMoney(data.subtotal + data.discount), false, ft.body);
@@ -258,14 +267,17 @@ async function renderReceiptToCanvas(data: ReceiptData, paper: PaperWidth): Prom
   const priceBeforeVat = data.totalAmount - data.vatAmount;
   drawRow("ราคาก่อน VAT", formatMoney(priceBeforeVat), false, ft.body);
   drawRow("ภาษีมูลค่าเพิ่ม 7%", formatMoney(data.vatAmount), false, ft.body);
-
-  drawDoubleDash();
-  drawRow("รวมทั้งสิ้น", formatMoney(data.totalAmount), true, ft.heading);
-  drawDoubleDash();
-
   y += 4;
+
+  drawDoubleDash();
+  y += 4;
+  drawRow("รวมทั้งสิ้น", formatMoney(data.totalAmount), true, ft.heading);
+  y += 4;
+  drawDoubleDash();
+
+  y += 8;
   drawCenter("ราคารวมภาษีมูลค่าเพิ่มแล้ว", ft.body);
-  y += ft.gap;
+  y += ft.gap + 4;
   if (data.footerText) {
     for (const line of data.footerText.split("\n")) {
       if (line.trim()) drawCenter(line.trim(), ft.body);
@@ -274,7 +286,7 @@ async function renderReceiptToCanvas(data: ReceiptData, paper: PaperWidth): Prom
     drawCenter("ขอบคุณที่ใช้บริการ", ft.body);
     drawCenter("Thank you", ft.body);
   }
-  y += 10;
+  y += 14;
 
   const totalHeight = y;
   const canvas = document.createElement("canvas");
