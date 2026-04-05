@@ -26,6 +26,7 @@ const docTypeConfig: Record<string, { label: string; icon: any; color: string; l
   purchase_order: { label: "ใบสั่งซื้อ", icon: ClipboardList, color: "#05b187", listPath: "/purchases/po", searchParam: "poNo" },
   purchase_invoice: { label: "เอกสารซื้อ", icon: FileText, color: "var(--theme-primary)", listPath: "/purchases/invoice", searchParam: "apNo" },
   expense: { label: "รายจ่ายอื่น", icon: Receipt, color: "#03c9d7", listPath: "/purchases/expense", searchParam: "expNo" },
+  billing_note: { label: "ใบวางบิล", icon: FileText, color: "#fec90f", listPath: "/finance/billing-notes", searchParam: "billingNo" },
 };
 
 const statusLabels: Record<string, { label: string; color: string }> = {
@@ -62,6 +63,7 @@ const editPaths: Record<string, string> = {
   purchase_order: "/purchases/po/edit",
   purchase_invoice: "/purchases/ap/edit",
   expense: "/purchases/exp/edit",
+  billing_note: "/finance/billing-note/edit",
 };
 
 export default function RelatedDocsDialog({

@@ -2,7 +2,7 @@ import type { Express, Request, Response } from "express";
 import { db } from "../db";
 import { storage } from "../storage";
 import { eq, desc, and, inArray, count, sql, isNull } from "drizzle-orm";
-import { salesOrders, invoices, salesOrderItems, quotations, companies, documentSettings, quotationItems, users, invoiceItems, journalEntries, journalLines, accounts, products, contacts, documentImportBatches, taxInvoices, taxInvoiceItems, receipts, receiptItems, purchaseInvoices, expenses, commissionRules, commissionRecords, employees, liveCfOrders, salesCreditNotes } from "@shared/schema";
+import { salesOrders, invoices, salesOrderItems, quotations, companies, documentSettings, quotationItems, users, invoiceItems, journalEntries, journalLines, accounts, products, contacts, documentImportBatches, taxInvoices, taxInvoiceItems, receipts, receiptItems, purchaseInvoices, expenses, commissionRules, commissionRecords, employees, liveCfOrders, salesCreditNotes, billingNotes, billingNoteLinkedDocs } from "@shared/schema";
 import { gte, lte, or } from "drizzle-orm";
 import { requireAuth, requireRole, requireAnyModule, getCompanyTenantId, checkDocOwnership } from "../route-middleware";
 import { getNextDocNo, validateDocNo, getNextJournalEntryNo, createAutoJournalEntry, resolvePaymentMethodAccountCode, logActivity, checkDocumentLimit, deleteStockMovementsForDoc, deleteJournalEntriesForDoc, recomputePaymentStatus } from "../route-helpers";
@@ -2772,6 +2772,19 @@ app.get("/api/related-documents/:docType/:docId", requireAuth, async (req, res) 
       for (const rc of rcs) addUnique({ type: "receipt", id: rc.id, docNo: rc.receiptNo, date: rc.receiptDate, status: rc.status, totalAmount: rc.totalAmount });
       const rcsByRef = await db.select().from(receipts).where(and(eq(receipts.refDoc, tx.taxInvoiceNo), eq(receipts.companyId, companyId)));
       for (const rc of rcsByRef) addUnique({ type: "receipt", id: rc.id, docNo: rc.receiptNo, date: rc.receiptDate, status: rc.status, totalAmount: rc.totalAmount });
+      const jes = await db.select().from(journalEntries).where(and(eq(journalEntries.sourceDocType, "tax_invoice"), eq(journalEntries.sourceDocId, id), eq(journalEntries.companyId, companyId)));
+      for (const je of jes) addUnique({ type: "journal", id: je.id, docNo: je.entryNo || je.reference || `JE#${je.id}`, date: je.entryDate, status: je.status || "approved", totalAmount: je.totalDebit || "0" });
+      const blLinks = await db.select({ billingNoteId: billingNoteLinkedDocs.billingNoteId }).from(billingNoteLinkedDocs).where(and(eq(billingNoteLinkedDocs.docType, "tax_invoice"), eq(billingNoteLinkedDocs.docId, id)));
+      if (blLinks.length > 0) {
+        const blIds = blLinks.map(l => l.billingNoteId);
+        const bls = await db.select().from(billingNotes).where(and(inArray(billingNotes.id, blIds), eq(billingNotes.companyId, companyId)));
+        for (const bl of bls) addUnique({ type: "billing_note", id: bl.id, docNo: bl.billingNo, date: bl.billingDate, status: bl.status, totalAmount: String(bl.totalAmount) });
+      }
+      if (tx.refDoc) {
+        const refNo = tx.refDoc.trim();
+        const blsByRef = await db.select().from(billingNotes).where(and(eq(billingNotes.billingNo, refNo), eq(billingNotes.companyId, companyId)));
+        for (const bl of blsByRef) addUnique({ type: "billing_note", id: bl.id, docNo: bl.billingNo, date: bl.billingDate, status: bl.status, totalAmount: String(bl.totalAmount) });
+      }
 
     } else if (docType === "receipt") {
       const [rc] = await db.select().from(receipts).where(and(eq(receipts.id, id), eq(receipts.companyId, companyId)));
