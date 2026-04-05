@@ -76,13 +76,17 @@ app.get("/api/approval-center", requireAuth, async (req, res) => {
     let otItems: any[] = [];
     try {
       const tenantId = user.tenantId;
-      const isApprover = ["admin", "super_admin", "owner", "manager", "hr"].includes(user.role);
+      const isTenantApprover = ["admin", "super_admin", "owner"].includes(user.role);
+      const isCompanyApprover = ["manager", "hr"].includes(user.role);
       if (tenantId) {
         const leaveConditions = [
-          eq(employees.tenantId, tenantId),
           eq(leaveRequests.status, "pending"),
         ];
-        if (!isApprover && user.employeeId) {
+        if (isTenantApprover) {
+          leaveConditions.push(eq(employees.tenantId, tenantId));
+        } else if (isCompanyApprover) {
+          leaveConditions.push(eq(employees.companyId, companyId));
+        } else if (user.employeeId) {
           leaveConditions.push(eq(leaveRequests.employeeId, user.employeeId));
         }
 
@@ -113,10 +117,13 @@ app.get("/api/approval-center", requireAuth, async (req, res) => {
         }
 
         const otConditions = [
-          eq(employees.tenantId, tenantId),
           eq(otRecords.status, "pending"),
         ];
-        if (!isApprover && user.employeeId) {
+        if (isTenantApprover) {
+          otConditions.push(eq(employees.tenantId, tenantId));
+        } else if (isCompanyApprover) {
+          otConditions.push(eq(employees.companyId, companyId));
+        } else if (user.employeeId) {
           otConditions.push(eq(otRecords.employeeId, user.employeeId));
         }
 
