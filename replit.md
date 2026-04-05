@@ -934,6 +934,21 @@ Once Stage 3 begins, revisit the JOIN inventory below and add appropriate indexe
 - **`scripts/etaxerp-health-check.sh`**: Post-deployment health check. Run on etaxerp to verify endpoints, DB connection, required files, and env vars. Usage: `bash scripts/etaxerp-health-check.sh http://localhost:5000`
 - **`deploy-package/`**: Output directory (gitignored, contains secrets). Has `DEPLOY-CHECKLIST.md`, SQL scripts for system_config, `.env.etaxerp` template, and host binding fix helper.
 
+## Future Roadmap (Planned but not yet built)
+
+### Accountant Invitation System (Email-based Cross-Tenant Access)
+- **Concept:** Business owners invite accountants by email (like Xero/PEAK model). If multiple companies invite the same email, the accountant logs in once and sees all companies they've been invited to, switching between them freely.
+- **Flow:** Owner clicks "เชิญนักบัญชี" → enters email → system sends invitation email → accountant clicks link → registers/logs in → accepts → sees the company in their list. Multiple companies can invite the same email.
+- **Key Requirements:**
+  - `accountant_invitations` table (email, companyId, status, invitedBy, invitedAt, acceptedAt)
+  - Cross-tenant company visibility (accountant sees companies from different tenants)
+  - "เชิญนักบัญชี" button in company settings
+  - Invitation acceptance page (register or login + auto-link)
+  - Owner can revoke access at any time
+  - Single login for accountant, switch between all invited companies
+- **Priority:** Phase 2 — after core POS/eTax features stabilize
+- **Status:** Concept approved by owner, not yet started
+
 ## External Dependencies
 - **Replit Object Storage:** Stores document template assets.
 - **LINE Messaging API:** Used for sending messages and processing webhooks.
