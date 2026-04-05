@@ -870,7 +870,7 @@ app.get("/api/work-status/export", requireAuth, requireModule("firm-mgmt"), asyn
     const columns = await storage.getWorkStatusColumns(board.id);
     const rows = await storage.getWorkStatusRows(board.id);
     const allClients = await storage.getFirmClients(user.tenantId);
-    const allEmployees = await storage.getEmployees();
+    const allEmployees = await storage.getEmployees(user.tenantId);
     
     const statusMap: Record<string, string> = {
       not_started: "ยังไม่เริ่ม",

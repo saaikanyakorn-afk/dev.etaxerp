@@ -174,6 +174,7 @@ export function registerHrRoutes(app: Express) {
     const user = req.user as any;
     const tenantId = user.tenantId;
     const companyId = req.query.companyId ? Number(req.query.companyId) : undefined;
+    if (!companyId && !tenantId) return res.json([]);
     const allEmployees = await storage.getEmployees(tenantId, companyId);
     const sampleIds = allEmployees.slice(0, 5).map((e: any) => `${e.employeeCode}(cid=${e.companyId})`).join(", ");
     console.log(`[employees] tenantId=${tenantId} companyId=${companyId} role=${user.role} returned=${allEmployees.length} sample=[${sampleIds}]`);
@@ -1107,9 +1108,13 @@ export function registerHrRoutes(app: Express) {
         return workDays.includes(dayName);
       };
 
+      const empIds = allEmps.map((e: any) => e.id);
+      if (empIds.length === 0) return res.json({ rows: [], summary: { total: 0, present: 0, late: 0, absent: 0, earlyLeaving: 0, totalOtMinutes: 0 } });
+
       const conditions = [
         gte(attendanceRecords.date, dateFrom),
         lte(attendanceRecords.date, dateTo),
+        inArray(attendanceRecords.employeeId, empIds),
       ];
       const records = await db.select().from(attendanceRecords)
         .where(and(...conditions))
@@ -1119,6 +1124,7 @@ export function registerHrRoutes(app: Express) {
         gte(otRecords.date, dateFrom),
         lte(otRecords.date, dateTo),
         eq(otRecords.status, "approved"),
+        inArray(otRecords.employeeId, empIds),
       ];
       const ots = await db.select().from(otRecords).where(and(...otConditions));
       const otMap = new Map<string, number>();
@@ -1135,7 +1141,6 @@ export function registerHrRoutes(app: Express) {
         attMap.set(`${r.employeeId}-${normalizeDate(r.date)}`, r);
       }
 
-      const empIds = activeEmps.map((e: any) => e.id);
       let shiftAssignmentMap = new Map<string, any>();
       let shiftMap = new Map<number, any>();
       if (empIds.length > 0) {
@@ -2316,8 +2321,13 @@ export function registerHrRoutes(app: Express) {
 
   app.put("/api/payroll-records/approve", requireAuth, requireModule("hr"), requireRole("admin", "manager"), async (req, res) => {
     try {
+      const user = req.user as any;
       const { companyId, month, year } = req.body;
       if (!companyId || !month || !year) return res.status(400).json({ message: "ข้อมูลไม่ครบถ้วน" });
+      if (user.tenantId) {
+        const company = await storage.getCompany(companyId);
+        if (!company || company.tenantId !== user.tenantId) return res.status(403).json({ message: "ไม่มีสิทธิ์เข้าถึงข้อมูลบริษัทนี้" });
+      }
       await storage.updatePayrollStatus(companyId, month, year, "approved");
       res.json({ message: "อนุมัติเงินเดือนสำเร็จ" });
     } catch (err: any) { res.status(400).json({ message: err.message }); }
