@@ -104,6 +104,7 @@ export default function PosTerminal() {
   const [taxCustomerName, setTaxCustomerName] = useState("");
   const [taxAddress, setTaxAddress] = useState("");
   const [taxId, setTaxId] = useState("");
+  const [taxBranchId, setTaxBranchId] = useState("");
   const [taxPhone, setTaxPhone] = useState("");
   const [taxEmail, setTaxEmail] = useState("");
   const [loyaltyQRUrl, setLoyaltyQRUrl] = useState<string | null>(null);
@@ -326,6 +327,7 @@ export default function PosTerminal() {
       buyerTaxId: isFullTiv ? (tiv?.customerTaxId || taxId || undefined) : undefined,
       buyerPhone: isFullTiv ? (tiv?.contactPhone || taxPhone || undefined) : undefined,
       buyerEmail: isFullTiv ? (tiv?.contactEmail || taxEmail || undefined) : undefined,
+      buyerBranchId: isFullTiv ? (tiv?.customerBranchId || taxBranchId || undefined) : undefined,
       items,
       subtotal: parseFloat(String(txData.transaction?.subtotal || tiv?.subtotal || "0")),
       discount: parseFloat(String(txData.transaction?.discountAmount || tiv?.discountAmount || "0")),
@@ -672,6 +674,7 @@ export default function PosTerminal() {
         taxCustomerName: taxCustomerName || undefined,
         taxAddress: taxAddress || undefined,
         taxId: taxId || undefined,
+        taxBranchId: taxBranchId || undefined,
         taxPhone: taxPhone || undefined,
         taxEmail: taxEmail || undefined,
       }),
@@ -1578,12 +1581,20 @@ export default function PosTerminal() {
                   onChange={(e) => setTaxCustomerName(e.target.value)}
                   data-testid="input-tax-customer-name"
                 />
-                <Input
-                  placeholder="เลขประจำตัวผู้เสียภาษี *"
-                  value={taxId}
-                  onChange={(e) => setTaxId(e.target.value)}
-                  data-testid="input-tax-id"
-                />
+                <div className="grid grid-cols-2 gap-2">
+                  <Input
+                    placeholder="เลขประจำตัวผู้เสียภาษี *"
+                    value={taxId}
+                    onChange={(e) => setTaxId(e.target.value)}
+                    data-testid="input-tax-id"
+                  />
+                  <Input
+                    placeholder="สาขา (เว้นว่าง = สำนักงานใหญ่)"
+                    value={taxBranchId}
+                    onChange={(e) => setTaxBranchId(e.target.value)}
+                    data-testid="input-tax-branch-id"
+                  />
+                </div>
                 <Input
                   placeholder="ที่อยู่"
                   value={taxAddress}
