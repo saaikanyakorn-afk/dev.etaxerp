@@ -303,6 +303,7 @@ export default function PosTerminal() {
       } catch {}
     }
 
+    const isFullTiv = !!txData.transaction?.isFullTaxInvoice || wantFullTaxInvoice;
     return {
       companyName: selectedCompany?.name || "",
       companyNameEn: selectedCompany?.nameEn || undefined,
@@ -319,6 +320,12 @@ export default function PosTerminal() {
       docDate: new Date().toLocaleDateString("th-TH"),
       docTime: new Date().toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" }),
       paymentMethod: txData.transaction?.paymentMethod || undefined,
+      isFullTaxInvoice: isFullTiv,
+      buyerName: isFullTiv ? (tiv?.customerName || taxCustomerName || undefined) : undefined,
+      buyerAddress: isFullTiv ? (tiv?.customerAddress || taxAddress || undefined) : undefined,
+      buyerTaxId: isFullTiv ? (tiv?.customerTaxId || taxId || undefined) : undefined,
+      buyerPhone: isFullTiv ? (tiv?.contactPhone || taxPhone || undefined) : undefined,
+      buyerEmail: isFullTiv ? (tiv?.contactEmail || taxEmail || undefined) : undefined,
       items,
       subtotal: parseFloat(String(txData.transaction?.subtotal || tiv?.subtotal || "0")),
       discount: parseFloat(String(txData.transaction?.discountAmount || tiv?.discountAmount || "0")),
