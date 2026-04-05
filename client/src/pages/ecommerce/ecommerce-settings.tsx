@@ -9,7 +9,7 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Building2, Save, Loader2, Phone, Mail, Globe, MapPin, FileText,
-  FileImage, Upload, X, Settings, Receipt, BookOpen, Truck
+  FileImage, Upload, X, Settings, Receipt, BookOpen, Truck, Shield
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, useEffect, useRef, useCallback } from "react";
@@ -307,6 +307,43 @@ export default function EcommerceSettings() {
     },
   });
 
+  const { data: etaxData, isLoading: etaxLoading } = useQuery({
+    queryKey: ["/api/etax/settings", selectedCompanyId],
+    queryFn: async () => {
+      const r = await fetch(`/api/etax/settings?companyId=${selectedCompanyId}`, { credentials: "include" });
+      if (!r.ok) return null;
+      return r.json();
+    },
+    enabled: !!selectedCompanyId,
+  });
+  const [etaxForm, setEtaxForm] = useState<any>(null);
+  const [etaxSaving, setEtaxSaving] = useState(false);
+  useEffect(() => { if (etaxData) setEtaxForm(etaxData); }, [etaxData]);
+
+  const handleSaveEtax = async () => {
+    if (!etaxForm || !selectedCompanyId) return;
+    setEtaxSaving(true);
+    try {
+      const r = await fetch("/api/etax/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ ...etaxForm, companyId: selectedCompanyId }),
+      });
+      if (!r.ok) {
+        const err = await r.json();
+        toast({ title: "บันทึกไม่สำเร็จ", description: err.message, variant: "destructive" });
+      } else {
+        queryClient.invalidateQueries({ queryKey: ["/api/etax/settings", selectedCompanyId] });
+        toast({ title: "บันทึกการตั้งค่า e-Tax สำเร็จ" });
+      }
+    } catch (err: any) {
+      toast({ title: "เกิดข้อผิดพลาด", description: err.message, variant: "destructive" });
+    } finally {
+      setEtaxSaving(false);
+    }
+  };
+
   const set = (key: string, val: string | boolean) => setCompanyForm(prev => ({ ...prev, [key]: val }));
   const updateDocLocal = (key: string, val: any) => setLocalDocSettings(prev => prev ? { ...prev, [key]: val } : prev);
 
@@ -336,10 +373,11 @@ export default function EcommerceSettings() {
         </div>
 
         <Tabs defaultValue="company" className="space-y-4">
-          <TabsList className="grid grid-cols-3 w-full max-w-md">
+          <TabsList className="grid grid-cols-4 w-full max-w-lg">
             <TabsTrigger value="company" data-testid="tab-company">ข้อมูลบริษัท</TabsTrigger>
             <TabsTrigger value="document" data-testid="tab-document">เอกสาร</TabsTrigger>
             <TabsTrigger value="accounting" data-testid="tab-accounting">โหมดบัญชี</TabsTrigger>
+            <TabsTrigger value="etax" data-testid="tab-etax">e-Tax</TabsTrigger>
           </TabsList>
 
           <TabsContent value="company" className="space-y-4">
@@ -806,6 +844,151 @@ export default function EcommerceSettings() {
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <Loader2 className="h-4 w-4 animate-spin" /> กำลังบันทึก...
                   </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="etax" className="space-y-4">
+            <Card className="border-none shadow-sm">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Mail className="w-5 h-5 text-cyan-500" /> ตั้งค่า e-Tax Invoice
+                </CardTitle>
+                <p className="text-xs text-slate-500 mt-1">ตั้งค่าการส่งใบกำกับภาษีอิเล็กทรอนิกส์ทางอีเมลจาก eCommerce</p>
+              </CardHeader>
+              <CardContent className="space-y-5">
+                {etaxLoading ? (
+                  <div className="text-center py-6"><Loader2 className="h-6 w-6 animate-spin mx-auto text-slate-400" /></div>
+                ) : etaxForm ? (
+                  <>
+                    <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
+                      <div className="flex items-center gap-2">
+                        <Shield className="w-4 h-4 text-cyan-500" />
+                        <span className="text-sm font-medium">เปิดใช้งาน e-Tax Invoice</span>
+                      </div>
+                      <Switch
+                        checked={etaxForm.etaxEnabled || false}
+                        onCheckedChange={(v) => setEtaxForm((f: any) => ({ ...f, etaxEnabled: v }))}
+                        data-testid="switch-etax-enabled"
+                      />
+                    </div>
+
+                    {etaxForm.etaxEnabled && (
+                      <div className="space-y-4">
+                        <div>
+                          <Label className="text-sm font-medium">ผู้ให้บริการอีเมล</Label>
+                          <Select
+                            value={etaxForm.etaxEmailProvider || "resend"}
+                            onValueChange={(v) => setEtaxForm((f: any) => ({ ...f, etaxEmailProvider: v }))}
+                          >
+                            <SelectTrigger className="mt-1" data-testid="select-etax-provider">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="resend">Resend (ค่าเริ่มต้น)</SelectItem>
+                              <SelectItem value="gmail">Gmail</SelectItem>
+                              <SelectItem value="smtp">SMTP อื่นๆ</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        {(etaxForm.etaxEmailProvider === "gmail" || etaxForm.etaxEmailProvider === "smtp") && (
+                          <div className="space-y-3 p-3 bg-amber-50 rounded-lg border border-amber-200">
+                            <p className="text-xs text-amber-700 font-medium">ตั้งค่า SMTP</p>
+                            {etaxForm.etaxEmailProvider === "smtp" && (
+                              <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                  <Label className="text-xs">SMTP Host</Label>
+                                  <Input
+                                    value={etaxForm.smtpHost || ""}
+                                    onChange={(e) => setEtaxForm((f: any) => ({ ...f, smtpHost: e.target.value }))}
+                                    placeholder="smtp.example.com"
+                                    data-testid="input-smtp-host"
+                                  />
+                                </div>
+                                <div>
+                                  <Label className="text-xs">SMTP Port</Label>
+                                  <Input
+                                    type="number"
+                                    value={etaxForm.smtpPort || 587}
+                                    onChange={(e) => setEtaxForm((f: any) => ({ ...f, smtpPort: parseInt(e.target.value) || 587 }))}
+                                    data-testid="input-smtp-port"
+                                  />
+                                </div>
+                              </div>
+                            )}
+                            <div>
+                              <Label className="text-xs">Email/Username</Label>
+                              <Input
+                                value={etaxForm.smtpUser || ""}
+                                onChange={(e) => setEtaxForm((f: any) => ({ ...f, smtpUser: e.target.value }))}
+                                placeholder="your@email.com"
+                                data-testid="input-smtp-user"
+                              />
+                            </div>
+                            <div>
+                              <Label className="text-xs">Password / App Password</Label>
+                              <Input
+                                type="password"
+                                value={etaxForm.smtpPass || ""}
+                                onChange={(e) => setEtaxForm((f: any) => ({ ...f, smtpPass: e.target.value }))}
+                                placeholder="••••••••"
+                                data-testid="input-smtp-pass"
+                              />
+                            </div>
+                          </div>
+                        )}
+
+                        <div>
+                          <Label className="text-sm font-medium">อีเมล Timestamp (สพธอ.)</Label>
+                          <Input
+                            value={etaxForm.etaxTimestampEmail || "csemail@etax.teda.th"}
+                            onChange={(e) => setEtaxForm((f: any) => ({ ...f, etaxTimestampEmail: e.target.value }))}
+                            placeholder="csemail@etax.teda.th"
+                            className="mt-1"
+                            data-testid="input-etax-timestamp-email"
+                          />
+                          <p className="text-xs text-slate-400 mt-1">CC ทุกฉบับไปที่อีเมลนี้เพื่อประทับเวลาตามกฎหมาย</p>
+                        </div>
+
+                        <div>
+                          <Label className="text-sm font-medium">อีเมลทดสอบ (ถ้ากรอก — ส่งไปอีเมลนี้แทนลูกค้าจริง)</Label>
+                          <Input
+                            value={etaxForm.etaxBuyerTestEmail || ""}
+                            onChange={(e) => setEtaxForm((f: any) => ({ ...f, etaxBuyerTestEmail: e.target.value }))}
+                            placeholder="test@company.com"
+                            className="mt-1"
+                            data-testid="input-etax-test-email"
+                          />
+                        </div>
+
+                        <div>
+                          <Label className="text-sm font-medium">เลขสาขาผู้ขาย</Label>
+                          <Input
+                            value={etaxForm.sellerBranchId || "00000"}
+                            onChange={(e) => setEtaxForm((f: any) => ({ ...f, sellerBranchId: e.target.value }))}
+                            placeholder="00000"
+                            className="mt-1"
+                            data-testid="input-etax-seller-branch"
+                          />
+                          <p className="text-xs text-slate-400 mt-1">00000 = สำนักงานใหญ่</p>
+                        </div>
+                      </div>
+                    )}
+
+                    <Button
+                      onClick={handleSaveEtax}
+                      className="w-full bg-cyan-500 hover:bg-cyan-600"
+                      disabled={etaxSaving}
+                      data-testid="button-save-etax"
+                    >
+                      <Save className="w-4 h-4 mr-1" />
+                      {etaxSaving ? "กำลังบันทึก..." : "บันทึกการตั้งค่า e-Tax"}
+                    </Button>
+                  </>
+                ) : (
+                  <div className="text-center py-6 text-sm text-slate-500">ไม่สามารถโหลดการตั้งค่าได้</div>
                 )}
               </CardContent>
             </Card>
