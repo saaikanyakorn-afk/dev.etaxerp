@@ -21,6 +21,52 @@ function formatMoney(val: number): string {
   return val.toLocaleString("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+const THAI_DIGITS = ["", "หนึ่ง", "สอง", "สาม", "สี่", "ห้า", "หก", "เจ็ด", "แปด", "เก้า"];
+const THAI_POSITIONS = ["", "สิบ", "ร้อย", "พัน", "หมื่น", "แสน", "ล้าน"];
+
+function numberGroupToThai(n: number): string {
+  if (n === 0) return "";
+  const digits = String(n).split("").map(Number);
+  const len = digits.length;
+  let result = "";
+  for (let i = 0; i < len; i++) {
+    const d = digits[i];
+    const pos = len - 1 - i;
+    if (d === 0) continue;
+    if (pos === 1 && d === 1) { result += "สิบ"; continue; }
+    if (pos === 1 && d === 2) { result += "ยี่สิบ"; continue; }
+    if (pos === 0 && d === 1 && len > 1) { result += "เอ็ด"; continue; }
+    result += THAI_DIGITS[d] + THAI_POSITIONS[pos];
+  }
+  return result;
+}
+
+export function numberToThaiText(amount: number): string {
+  if (amount === 0) return "ศูนย์บาทถ้วน";
+  const [intPart, decPart] = Math.abs(amount).toFixed(2).split(".");
+  const intNum = parseInt(intPart);
+  const decNum = parseInt(decPart);
+
+  let result = amount < 0 ? "ลบ" : "";
+  if (intNum === 0) {
+    result += "ศูนย์";
+  } else if (intNum >= 1000000) {
+    const millions = Math.floor(intNum / 1000000);
+    const remainder = intNum % 1000000;
+    result += numberGroupToThai(millions) + "ล้าน";
+    if (remainder > 0) result += numberGroupToThai(remainder);
+  } else {
+    result += numberGroupToThai(intNum);
+  }
+  result += "บาท";
+  if (decNum === 0) {
+    result += "ถ้วน";
+  } else {
+    result += numberGroupToThai(decNum) + "สตางค์";
+  }
+  return result;
+}
+
 export interface ReceiptData {
   companyName: string;
   companyNameEn?: string;
@@ -37,6 +83,14 @@ export interface ReceiptData {
   docDate: string;
   docTime: string;
   paymentMethod?: string;
+  isFullTaxInvoice?: boolean;
+  buyerName?: string;
+  buyerAddress?: string;
+  buyerTaxId?: string;
+  buyerPhone?: string;
+  buyerEmail?: string;
+  buyerBranchId?: string;
+  cashierName?: string;
   items: Array<{
     name: string;
     qty: number;
@@ -229,8 +283,13 @@ async function renderReceiptToCanvas(data: ReceiptData, paper: PaperWidth): Prom
   }
 
   y += 6;
-  drawCenter("ใบกำกับภาษีอย่างย่อ", ft.heading);
-  drawCenter("ABB. TAX INVOICE", ft.body);
+  if (data.isFullTaxInvoice) {
+    drawCenter("ใบเสร็จรับเงิน/ใบกำกับภาษี", ft.heading);
+    drawCenter("RECEIPT/TAX INVOICE", ft.body);
+  } else {
+    drawCenter("ใบกำกับภาษีอย่างย่อ", ft.heading);
+    drawCenter("ABB. TAX INVOICE", ft.body);
+  }
   y += 4;
 
   drawDoubleDash();
@@ -238,6 +297,7 @@ async function renderReceiptToCanvas(data: ReceiptData, paper: PaperWidth): Prom
   drawRow("เลขที่:", data.docNo, false, ft.body);
   drawRow("วันที่:", data.docDate, false, ft.body);
   drawRow("เวลา:", data.docTime, false, ft.body);
+  if (data.cashierName) drawRow("พนักงาน:", data.cashierName, false, ft.body);
   if (data.paymentMethod) drawRow("ชำระ:", data.paymentMethod, false, ft.body);
   y += 4;
 
@@ -265,16 +325,39 @@ async function renderReceiptToCanvas(data: ReceiptData, paper: PaperWidth): Prom
     drawRow("ส่วนลด", `-${formatMoney(data.discount)}`, false, ft.body);
   }
   const priceBeforeVat = data.totalAmount - data.vatAmount;
-  drawRow("ราคาก่อน VAT", formatMoney(priceBeforeVat), false, ft.body);
+  drawRow("มูลค่าสินค้า", formatMoney(priceBeforeVat), false, ft.body);
   drawRow("ภาษีมูลค่าเพิ่ม 7%", formatMoney(data.vatAmount), false, ft.body);
   y += 4;
 
   drawDoubleDash();
   y += 4;
   drawRow("รวมทั้งสิ้น", formatMoney(data.totalAmount), true, ft.heading);
+  y += 2;
+  const thaiText = numberToThaiText(data.totalAmount);
+  drawCenter(thaiText, ft.body);
   y += 4;
   drawDoubleDash();
 
+  if (data.paymentMethod) {
+    y += 4;
+    drawRow(`ชำระด้วย: ${data.paymentMethod}`, `${formatMoney(data.totalAmount)} ฿`, false, ft.body);
+    y += 4;
+  }
+
+  if (data.isFullTaxInvoice && data.buyerName) {
+    drawDoubleDash();
+    y += 4;
+    drawCenter("ข้อมูลผู้ซื้อ", ft.heading);
+    y += 2;
+    drawLeft(data.buyerName + (data.buyerBranchId && data.buyerBranchId !== "00000" ? ` (${data.buyerBranchId})` : " (สำนักงานใหญ่)"), ft.body);
+    if (data.buyerAddress) drawLeft(data.buyerAddress, ft.body);
+    if (data.buyerTaxId) drawLeft(`เลขผู้เสียภาษี: ${data.buyerTaxId}`, ft.body);
+    if (data.buyerPhone) drawLeft(`โทร: ${data.buyerPhone}`, ft.body);
+    if (data.buyerEmail) drawLeft(`Email: ${data.buyerEmail}`, ft.body);
+    y += 4;
+  }
+
+  drawDash();
   y += 8;
   drawCenter("ราคารวมภาษีมูลค่าเพิ่มแล้ว", ft.body);
   y += ft.gap + 4;
@@ -285,6 +368,13 @@ async function renderReceiptToCanvas(data: ReceiptData, paper: PaperWidth): Prom
   } else {
     drawCenter("ขอบคุณที่ใช้บริการ", ft.body);
     drawCenter("Thank you", ft.body);
+  }
+
+  if (data.isFullTaxInvoice) {
+    y += ft.gap + 8;
+    drawDash();
+    y += ft.gap * 3;
+    drawCenter("ลงชื่อผู้รับสินค้า/บริการ", ft.body);
   }
   y += 14;
 

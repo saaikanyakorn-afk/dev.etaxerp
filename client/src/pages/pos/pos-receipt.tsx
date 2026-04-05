@@ -20,6 +20,7 @@ import {
   savePrinterConfig,
   clearPrinterConfig,
   getPlatform,
+  numberToThaiText,
   type ReceiptData,
   type PrinterConfig,
 } from "@/lib/thermal-printer";
@@ -138,6 +139,7 @@ export default function PosReceipt() {
       total: parseFloat(String(item.totalPrice || String(parseFloat(String(item.qty || "0")) * parseFloat(String(item.unitPrice || "0"))))),
     }));
     const showLogo = docSettings ? docSettings.posReceiptShowLogo !== false : company?.showLogo !== false;
+    const isFullTiv = !!data.isFullTaxInvoice || !!(data.customerTaxId && data.customerName);
     return {
       companyName: company?.name || "",
       companyNameEn: company?.nameEn || undefined,
@@ -154,6 +156,12 @@ export default function PosReceipt() {
       docDate: toBuddhistDate(data.taxInvoiceDate),
       docTime: formatTime(data.createdAt),
       paymentMethod: data.paymentMethod || undefined,
+      isFullTaxInvoice: isFullTiv,
+      buyerName: isFullTiv ? (data.customerName || undefined) : undefined,
+      buyerAddress: isFullTiv ? (data.customerAddress || undefined) : undefined,
+      buyerTaxId: isFullTiv ? (data.customerTaxId || undefined) : undefined,
+      buyerPhone: isFullTiv ? (data.contactPhone || undefined) : undefined,
+      buyerEmail: isFullTiv ? (data.contactEmail || undefined) : undefined,
       items,
       subtotal: parseFloat(String(data.subtotal || "0")),
       discount: parseFloat(String(data.discountAmount || "0")),
@@ -475,8 +483,17 @@ export default function PosReceipt() {
           {docSettings?.posReceiptHeaderText && (
             <div style={{ fontSize: fc.body, marginTop: "3px", whiteSpace: "pre-line", lineHeight: "1.4" }}>{docSettings.posReceiptHeaderText}</div>
           )}
-          <div style={{ fontSize: fc.heading, marginTop: "4px" }}>ใบกำกับภาษีอย่างย่อ</div>
-          <div style={{ fontSize: fc.body }}>ABB. TAX INVOICE</div>
+          {(data.isFullTaxInvoice || (data.customerTaxId && data.customerName)) ? (
+            <>
+              <div style={{ fontSize: fc.heading, marginTop: "4px" }}>ใบเสร็จรับเงิน/ใบกำกับภาษี</div>
+              <div style={{ fontSize: fc.body }}>RECEIPT/TAX INVOICE</div>
+            </>
+          ) : (
+            <>
+              <div style={{ fontSize: fc.heading, marginTop: "4px" }}>ใบกำกับภาษีอย่างย่อ</div>
+              <div style={{ fontSize: fc.body }}>ABB. TAX INVOICE</div>
+            </>
+          )}
         </div>
 
         <div style={{ fontSize: fc.body, marginBottom: "6px" }}>
@@ -547,7 +564,7 @@ export default function PosReceipt() {
             </div>
           )}
           <div style={{ display: "flex", justifyContent: "space-between" }}>
-            <span>ราคาสินค้า (ก่อน VAT)</span>
+            <span>มูลค่าสินค้า</span>
             <span>{formatMoney(totalAmount - vatAmount)}</span>
           </div>
           <div style={{ display: "flex", justifyContent: "space-between" }}>
@@ -558,7 +575,30 @@ export default function PosReceipt() {
             <span>รวมทั้งสิ้น</span>
             <span>{formatMoney(totalAmount)}</span>
           </div>
+          <div style={{ textAlign: "right", fontSize: fc.body, marginTop: "2px" }}>
+            {numberToThaiText(totalAmount)}
+          </div>
         </div>
+
+        {data.paymentMethod && (
+          <div style={{ fontSize: fc.body, borderTop: "1px dashed #000", paddingTop: "4px", marginBottom: "6px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <span>ชำระด้วย: {data.paymentMethod}</span>
+              <span>{formatMoney(totalAmount)} ฿</span>
+            </div>
+          </div>
+        )}
+
+        {(data.isFullTaxInvoice || (data.customerTaxId && data.customerName)) && data.customerName && (
+          <div style={{ fontSize: fc.body, borderTop: "2px dashed #000", paddingTop: "6px", marginBottom: "6px" }}>
+            <div style={{ textAlign: "center", fontSize: fc.heading, marginBottom: "4px" }}>ข้อมูลผู้ซื้อ</div>
+            <div>{data.customerName}{data.customerBranchId && data.customerBranchId !== "00000" ? ` (${data.customerBranchId})` : " (สำนักงานใหญ่)"}</div>
+            {data.customerAddress && <div>{data.customerAddress}</div>}
+            {data.customerTaxId && <div>เลขผู้เสียภาษี: {data.customerTaxId}</div>}
+            {data.contactPhone && <div>โทร: {data.contactPhone}</div>}
+            {data.contactEmail && <div>Email: {data.contactEmail}</div>}
+          </div>
+        )}
 
         <div style={{ textAlign: "center", borderTop: "1px dashed #000", paddingTop: "6px", fontSize: fc.body }}>
           <div>ราคารวมภาษีมูลค่าเพิ่มแล้ว</div>
@@ -569,6 +609,14 @@ export default function PosReceipt() {
               <div style={{ marginTop: "4px" }}>ขอบคุณที่ใช้บริการ</div>
               <div>Thank you</div>
             </>
+          )}
+
+          {(data.isFullTaxInvoice || (data.customerTaxId && data.customerName)) && (
+            <div style={{ marginTop: "16px", borderTop: "1px dashed #000", paddingTop: "8px" }}>
+              <div style={{ marginTop: "20px", borderTop: "1px solid #000", width: "60%", margin: "20px auto 4px", paddingTop: "4px" }}>
+                ลงชื่อผู้รับสินค้า/บริการ
+              </div>
+            </div>
           )}
         </div>
       </div>
