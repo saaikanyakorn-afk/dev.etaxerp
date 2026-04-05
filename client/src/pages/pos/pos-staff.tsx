@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Users, Plus, Pencil, Upload, Download, Search, UserCheck, UserX } from "lucide-react";
+import { Users, Plus, Pencil, Upload, Download, Search, UserCheck, UserX, Link2 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useCompany } from "@/lib/company-context";
 import { useToast } from "@/hooks/use-toast";
@@ -23,6 +23,16 @@ interface StaffMember {
   allowedCompanyIds: number[] | null;
   allowedBranchIds: number[] | null;
   branchNames: string[];
+  linkedEmployee?: { employeeId: number; fullName: string; position: string | null } | null;
+}
+
+interface HrEmployee {
+  id: number;
+  fullName: string;
+  position: string | null;
+  department: string | null;
+  userId: number | null;
+  active: boolean;
 }
 
 interface Branch {
@@ -64,6 +74,7 @@ export default function PosStaff() {
     password: "",
     role: "staff",
     selectedBranchIds: [] as number[],
+    linkEmployeeId: "" as string,
   });
 
   const { data: staff = [], isLoading } = useQuery<StaffMember[]>({
@@ -85,6 +96,18 @@ export default function PosStaff() {
     },
     enabled: !!selectedCompanyId,
   });
+
+  const { data: hrEmployees = [] } = useQuery<HrEmployee[]>({
+    queryKey: ["/api/pos/hr-employees", selectedCompanyId],
+    queryFn: async () => {
+      const r = await fetch(`/api/pos/hr-employees?companyId=${selectedCompanyId}`, { credentials: "include" });
+      if (!r.ok) return [];
+      return r.json();
+    },
+    enabled: !!selectedCompanyId,
+  });
+
+  const unlinkedHrEmployees = hrEmployees.filter(e => !e.userId);
 
   const createMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -148,7 +171,7 @@ export default function PosStaff() {
   const resetForm = () => {
     setShowForm(false);
     setEditingStaff(null);
-    setForm({ fullName: "", username: "", password: "", role: "staff", selectedBranchIds: [] });
+    setForm({ fullName: "", username: "", password: "", role: "staff", selectedBranchIds: [], linkEmployeeId: "" });
   };
 
   const openEdit = (s: StaffMember) => {
@@ -159,6 +182,7 @@ export default function PosStaff() {
       password: "",
       role: s.role,
       selectedBranchIds: s.allowedBranchIds || [],
+      linkEmployeeId: s.linkedEmployee?.employeeId?.toString() || "",
     });
     setShowForm(true);
   };
@@ -181,6 +205,7 @@ export default function PosStaff() {
       allowedBranchIds: form.selectedBranchIds,
     };
     if (form.password) payload.password = form.password;
+    if (form.linkEmployeeId) payload.linkEmployeeId = Number(form.linkEmployeeId);
 
     if (editingStaff) {
       updateMutation.mutate({ id: editingStaff.id, ...payload });
@@ -276,7 +301,15 @@ export default function PosStaff() {
                 <TableBody>
                   {filtered.map(s => (
                     <TableRow key={s.id} data-testid={`row-staff-${s.id}`}>
-                      <TableCell className="font-medium" data-testid={`text-name-${s.id}`}>{s.fullName}</TableCell>
+                      <TableCell data-testid={`text-name-${s.id}`}>
+                        <div className="font-medium">{s.fullName}</div>
+                        {s.linkedEmployee && (
+                          <div className="flex items-center gap-1 mt-0.5">
+                            <Link2 className="h-3 w-3 text-cyan-500" />
+                            <span className="text-xs text-cyan-600">HR: {s.linkedEmployee.fullName}{s.linkedEmployee.position ? ` (${s.linkedEmployee.position})` : ""}</span>
+                          </div>
+                        )}
+                      </TableCell>
                       <TableCell className="text-sm text-gray-500">{s.username}</TableCell>
                       <TableCell>
                         <Badge variant="outline" className="text-xs">
@@ -316,6 +349,44 @@ export default function PosStaff() {
               <DialogTitle>{editingStaff ? "แก้ไขพนักงาน" : "เพิ่มพนักงานใหม่"}</DialogTitle>
             </DialogHeader>
             <div className="space-y-4 mt-2">
+              {!editingStaff && unlinkedHrEmployees.length > 0 && (
+                <div className="p-3 bg-cyan-50 rounded-lg border border-cyan-200">
+                  <Label className="text-sm font-medium flex items-center gap-1.5">
+                    <Link2 className="h-4 w-4 text-cyan-500" />
+                    เชื่อมกับพนักงาน HR
+                  </Label>
+                  <p className="text-xs text-cyan-600 mb-2">เลือกพนักงานจากระบบ HR เพื่อใช้ข้อมูลเดียวกัน (เงินเดือน, ลางาน, OT)</p>
+                  <Select
+                    value={form.linkEmployeeId || "none"}
+                    onValueChange={(v) => {
+                      const empId = v === "none" ? "" : v;
+                      setForm(p => ({ ...p, linkEmployeeId: empId }));
+                      if (empId) {
+                        const emp = hrEmployees.find(e => e.id === Number(empId));
+                        if (emp) {
+                          setForm(p => ({ ...p, linkEmployeeId: empId, fullName: emp.fullName }));
+                        }
+                      }
+                    }}
+                  >
+                    <SelectTrigger data-testid="select-link-hr-employee"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">-- ไม่เชื่อม (สร้างใหม่) --</SelectItem>
+                      {unlinkedHrEmployees.map(e => (
+                        <SelectItem key={e.id} value={e.id.toString()}>
+                          {e.fullName}{e.position ? ` — ${e.position}` : ""}{e.department ? ` (${e.department})` : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              {editingStaff?.linkedEmployee && (
+                <div className="flex items-center gap-2 p-2 bg-cyan-50 rounded-lg border border-cyan-200">
+                  <Link2 className="h-4 w-4 text-cyan-500" />
+                  <span className="text-sm text-cyan-700">เชื่อมกับ HR: <strong>{editingStaff.linkedEmployee.fullName}</strong>{editingStaff.linkedEmployee.position ? ` (${editingStaff.linkedEmployee.position})` : ""}</span>
+                </div>
+              )}
               <div>
                 <Label>ชื่อ-นามสกุล *</Label>
                 <Input value={form.fullName} onChange={e => setForm(p => ({ ...p, fullName: e.target.value }))} data-testid="input-staff-fullname" />

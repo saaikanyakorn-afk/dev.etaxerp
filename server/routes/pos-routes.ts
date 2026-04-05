@@ -1487,6 +1487,30 @@ export function registerPosRoutes(app: Express) {
 
   // ==================== POS STAFF MANAGEMENT ====================
 
+  app.get("/api/pos/hr-employees", requireAuth, requireModule("pos"), async (req, res) => {
+    try {
+      const currentUser = req.user as any;
+      const tenantId = currentUser.tenantId;
+      if (!tenantId) return res.status(403).json({ message: "ไม่มีสิทธิ์" });
+      const companyId = Number(req.query.companyId);
+      if (!companyId) return res.json([]);
+
+      const emps = await db.select({
+        id: employees.id,
+        fullName: employees.fullName,
+        position: employees.position,
+        department: employees.department,
+        userId: employees.userId,
+        active: employees.active,
+      }).from(employees).where(and(
+        eq(employees.companyId, companyId),
+        eq(employees.active, true),
+      ));
+
+      res.json(emps);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
   app.get("/api/pos/staff", requireAuth, requireModule("pos"), async (req, res) => {
     try {
       const currentUser = req.user as any;
@@ -1514,13 +1538,26 @@ export function registerPosRoutes(app: Express) {
         ? await db.select().from(branches).where(eq(branches.companyId, companyId))
         : await db.select().from(branches);
 
-      const staffList = allUsers.map(u => ({
-        ...u,
-        branchNames: u.allowedBranchIds?.map(bid => {
-          const b = companyBranches.find(br => br.id === bid);
-          return b ? b.name : `สาขา #${bid}`;
-        }) || [],
-      }));
+      const linkedEmployeeIds = allUsers.map(u => u.id);
+      const linkedEmps = linkedEmployeeIds.length > 0
+        ? await db.select({ userId: employees.userId, fullName: employees.fullName, position: employees.position, id: employees.id })
+            .from(employees).where(and(
+              inArray(employees.userId, linkedEmployeeIds),
+              companyId ? eq(employees.companyId, companyId) : sql`1=1`,
+            ))
+        : [];
+
+      const staffList = allUsers.map(u => {
+        const linkedEmp = linkedEmps.find(e => e.userId === u.id);
+        return {
+          ...u,
+          branchNames: u.allowedBranchIds?.map(bid => {
+            const b = companyBranches.find(br => br.id === bid);
+            return b ? b.name : `สาขา #${bid}`;
+          }) || [],
+          linkedEmployee: linkedEmp ? { employeeId: linkedEmp.id, fullName: linkedEmp.fullName, position: linkedEmp.position } : null,
+        };
+      });
 
       res.json(staffList);
     } catch (err: any) { res.status(500).json({ message: err.message }); }
@@ -1532,7 +1569,7 @@ export function registerPosRoutes(app: Express) {
       const tenantId = currentUser.tenantId;
       if (!tenantId) return res.status(403).json({ message: "ไม่มีสิทธิ์" });
 
-      const { username, password, fullName, role, allowedCompanyIds, allowedBranchIds } = req.body;
+      const { username, password, fullName, role, allowedCompanyIds, allowedBranchIds, linkEmployeeId } = req.body;
       if (!username || !password || !fullName) return res.status(400).json({ message: "กรุณากรอกข้อมูลให้ครบ" });
 
       const existing = await db.select().from(users).where(eq(users.username, username));
@@ -1549,6 +1586,13 @@ export function registerPosRoutes(app: Express) {
         allowedCompanyIds: allowedCompanyIds || [],
         allowedBranchIds: allowedBranchIds || [],
       }).returning();
+
+      if (linkEmployeeId) {
+        await db.update(employees).set({ userId: newUser.id }).where(and(
+          eq(employees.id, Number(linkEmployeeId)),
+          isNull(employees.userId),
+        ));
+      }
 
       res.json(newUser);
     } catch (err: any) { res.status(500).json({ message: err.message }); }
