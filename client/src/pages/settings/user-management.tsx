@@ -425,13 +425,18 @@ export default function UserManagement() {
                   <div>
                     <Label>บริษัทที่เข้าถึงได้</Label>
                     <div className="border rounded-md p-2 max-h-40 overflow-y-auto space-y-1 mt-1">
-                      {allCompanies.map((c: any) => (
-                        <label key={c.id} className="flex items-center gap-2 text-sm cursor-pointer hover:bg-muted/50 rounded px-1 py-0.5" data-testid={`checkbox-company-${c.id}`}>
+                      {[...allCompanies].sort((a: any, b: any) => {
+                        if (a.id === selectedCompanyId) return -1;
+                        if (b.id === selectedCompanyId) return 1;
+                        return 0;
+                      }).map((c: any) => (
+                        <label key={c.id} className={`flex items-center gap-2 text-sm cursor-pointer rounded px-1 py-0.5 ${c.id === selectedCompanyId ? "bg-cyan-50 font-medium border border-cyan-200" : "hover:bg-muted/50"}`} data-testid={`checkbox-company-${c.id}`}>
                           <input type="checkbox" checked={allowedCompanyIds.includes(c.id)} onChange={e => {
                             if (e.target.checked) setAllowedCompanyIds([...allowedCompanyIds, c.id]);
                             else setAllowedCompanyIds(allowedCompanyIds.filter(id => id !== c.id));
                           }} className="rounded" />
                           {c.name}
+                          {c.id === selectedCompanyId && <span className="text-xs text-cyan-600 ml-auto">(บริษัทปัจจุบัน)</span>}
                         </label>
                       ))}
                     </div>
@@ -807,13 +812,18 @@ export default function UserManagement() {
                 <div>
                   <Label>บริษัทที่เข้าถึงได้</Label>
                   <div className="border rounded-md p-2 max-h-40 overflow-y-auto space-y-1 mt-1">
-                    {allCompanies.map((c: any) => (
-                      <label key={c.id} className="flex items-center gap-2 text-sm cursor-pointer hover:bg-muted/50 rounded px-1 py-0.5" data-testid={`checkbox-edit-company-${c.id}`}>
+                    {[...allCompanies].sort((a: any, b: any) => {
+                      if (a.id === selectedCompanyId) return -1;
+                      if (b.id === selectedCompanyId) return 1;
+                      return 0;
+                    }).map((c: any) => (
+                      <label key={c.id} className={`flex items-center gap-2 text-sm cursor-pointer rounded px-1 py-0.5 ${c.id === selectedCompanyId ? "bg-cyan-50 font-medium border border-cyan-200" : "hover:bg-muted/50"}`} data-testid={`checkbox-edit-company-${c.id}`}>
                         <input type="checkbox" checked={allowedCompanyIds.includes(c.id)} onChange={e => {
                           if (e.target.checked) setAllowedCompanyIds([...allowedCompanyIds, c.id]);
                           else setAllowedCompanyIds(allowedCompanyIds.filter(id => id !== c.id));
                         }} className="rounded" />
                         {c.name}
+                        {c.id === selectedCompanyId && <span className="text-xs text-cyan-600 ml-auto">(บริษัทปัจจุบัน)</span>}
                       </label>
                     ))}
                   </div>
