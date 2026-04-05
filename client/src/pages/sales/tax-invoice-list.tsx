@@ -136,13 +136,15 @@ export default function TaxInvoiceList() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => {
-      await apiRequest("DELETE", `/api/tax-invoices/${id}`);
+      const res = await fetch(`/api/tax-invoices/${id}`, { method: "DELETE", credentials: "include" });
+      if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.message || "ลบไม่สำเร็จ"); }
+      return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/tax-invoices"] });
       toast({ title: "ลบใบกำกับภาษีสำเร็จ", variant: "success" as any });
     },
-    onError: (err: any) => toast({ title: "เกิดข้อผิดพลาด", description: err.message, variant: "destructive" }),
+    onError: (err: any) => toast({ title: "ไม่สามารถลบได้", description: err.message, variant: "destructive" }),
   });
 
   const statusMutation = useMutation({
