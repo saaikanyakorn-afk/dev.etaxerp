@@ -522,7 +522,7 @@ app.post("/api/firm-billing/batch-generate", requireAuth, requireModule("firm-mg
           exchangeRate: "1",
           userId: user.id,
           customerName: client.name,
-          overrideLines: body?.journalOverrideLines || req?.body?.journalOverrideLines || undefined,
+          overrideLines: req?.body?.journalOverrideLines || undefined,
         });
         console.log(`[FirmBilling] IV#${result.id} (${invoiceNo}) journal:`, JSON.stringify(jr));
       } catch (e: any) { console.error(`[FirmBilling] IV#${result.id} journal error:`, e.message); }
@@ -573,7 +573,7 @@ app.post("/api/firm-billing/backfill-journals", requireAuth, requireModule("firm
           exchangeRate: "1",
           userId: user.id,
           customerName: inv.customerName,
-          overrideLines: body?.journalOverrideLines || req?.body?.journalOverrideLines || undefined,
+          overrideLines: req?.body?.journalOverrideLines || undefined,
         });
         results.push({ invoiceId: inv.id, invoiceNo: inv.invoiceNo, ...jr });
         if (!jr.skipped) created++;
