@@ -521,12 +521,6 @@ export default function PosReceipt() {
               <span>{session.terminalName}</span>
             </div>
           )}
-          {data.paymentMethod && (
-            <div style={{ display: "flex", justifyContent: "space-between" }}>
-              <span>ชำระ:</span>
-              <span>{data.paymentMethod}</span>
-            </div>
-          )}
         </div>
 
         <div style={{ borderTop: "1px dashed #000", borderBottom: "1px dashed #000", padding: "6px 0", marginBottom: "6px" }}>
