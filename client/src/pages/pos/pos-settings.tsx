@@ -289,6 +289,9 @@ export default function PosSettings() {
   const [etaxForm, setEtaxForm] = useState<any>(null);
   const [etaxSaving, setEtaxSaving] = useState(false);
   const [branchForm, setBranchForm] = useState<any>(null);
+  const [bulkBranchMode, setBulkBranchMode] = useState(false);
+  const [bulkBranchText, setBulkBranchText] = useState("");
+  const [bulkAdding, setBulkAdding] = useState(false);
   useEffect(() => { if (etaxData) setEtaxForm(etaxData); }, [etaxData]);
 
   const handleSaveEtax = async () => {
@@ -716,9 +719,14 @@ export default function PosSettings() {
                 <CardTitle className="text-base flex items-center gap-2">
                   <Store className="w-5 h-5 text-[#03c9d7]" /> สาขาที่เปิดใช้งาน
                 </CardTitle>
-                <Button size="sm" onClick={() => setBranchForm({ name: "", code: "", address: "", phone: "", editing: false })} data-testid="btn-add-branch">
-                  <Plus className="w-4 h-4 mr-1" /> เพิ่มสาขา
-                </Button>
+                <div className="flex gap-2">
+                  <Button size="sm" variant="outline" onClick={() => { setBulkBranchMode(true); setBranchForm(null); }} data-testid="btn-bulk-branch">
+                    <Plus className="w-4 h-4 mr-1" /> เพิ่มหลายสาขา
+                  </Button>
+                  <Button size="sm" onClick={() => { setBranchForm({ name: "", code: "", address: "", phone: "", editing: false }); setBulkBranchMode(false); }} data-testid="btn-add-branch">
+                    <Plus className="w-4 h-4 mr-1" /> เพิ่มสาขา
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent>
                 {branchForm && (
@@ -764,7 +772,47 @@ export default function PosSettings() {
                     </div>
                   </div>
                 )}
-                {branches.length === 0 && !branchForm ? (
+                {bulkBranchMode && (
+                  <div className="mb-4 p-4 border rounded-lg bg-cyan-50 border-cyan-200 space-y-3" data-testid="form-bulk-branch">
+                    <Label className="text-sm font-medium">เพิ่มหลายสาขาพร้อมกัน</Label>
+                    <p className="text-xs text-cyan-600">พิมพ์ชื่อสาขาทีละบรรทัด (1 บรรทัด = 1 สาขา) ระบบจะสร้างรหัสสาขาให้อัตโนมัติ</p>
+                    <Textarea
+                      value={bulkBranchText}
+                      onChange={e => setBulkBranchText(e.target.value)}
+                      placeholder={"สาขาสยามสแควร์\nสาขาเซ็นทรัลลาดพร้าว\nสาขาเมกาบางนา\nสาขาฟิวเจอร์พาร์ค"}
+                      rows={8}
+                      data-testid="textarea-bulk-branch"
+                    />
+                    <p className="text-xs text-slate-400">{bulkBranchText.split("\n").filter(l => l.trim()).length} สาขา</p>
+                    <div className="flex gap-2 pt-1">
+                      <Button size="sm" disabled={bulkAdding} onClick={async () => {
+                        const lines = bulkBranchText.split("\n").map(l => l.trim()).filter(Boolean);
+                        if (lines.length === 0) { toast({ title: "กรุณาใส่ชื่อสาขาอย่างน้อย 1 รายการ", variant: "destructive" }); return; }
+                        setBulkAdding(true);
+                        let success = 0, fail = 0;
+                        for (const name of lines) {
+                          try {
+                            const r = await fetch("/api/pos/branches", {
+                              method: "POST", credentials: "include",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ companyId: selectedCompanyId, name }),
+                            });
+                            if (r.ok) success++; else fail++;
+                          } catch { fail++; }
+                        }
+                        toast({ title: `เพิ่มสาขาสำเร็จ ${success} รายการ${fail > 0 ? ` (ล้มเหลว ${fail})` : ""}` });
+                        setBulkBranchMode(false);
+                        setBulkBranchText("");
+                        setBulkAdding(false);
+                        queryClient.invalidateQueries({ queryKey: ["/api/pos/branches"] });
+                      }} data-testid="btn-save-bulk-branch">
+                        {bulkAdding ? <><Loader2 className="w-4 h-4 mr-1 animate-spin" /> กำลังเพิ่ม...</> : <><Save className="w-4 h-4 mr-1" /> เพิ่มทั้งหมด</>}
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => { setBulkBranchMode(false); setBulkBranchText(""); }} data-testid="btn-cancel-bulk-branch">ยกเลิก</Button>
+                    </div>
+                  </div>
+                )}
+                {branches.length === 0 && !branchForm && !bulkBranchMode ? (
                   <div className="text-center py-6 text-slate-400 text-sm">ยังไม่มีสาขา กดปุ่ม "เพิ่มสาขา" เพื่อเริ่มต้น</div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
