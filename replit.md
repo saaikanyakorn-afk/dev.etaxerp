@@ -929,6 +929,11 @@ Once Stage 3 begins, revisit the JOIN inventory below and add appropriate indexe
 - **Schema note:** `machines` table added to `shared/schema.ts` — requires `db:push` on deep-main when deploying.
 - **Status:** Backend + frontend complete, tested encrypt/decrypt round-trip. พี่ช้าง still deciding final deployment strategy (pg_hba.conf trust vs encrypted file for aaPanel Linux servers). Conversation paused — พี่ช้าง went out, will continue later.
 
+## Deployment Scripts (scripts/)
+- **`scripts/etaxerp-deploy-prepare.sh`**: Full deployment preparation script for worst-case full-codebase deploy to etaxerp. Generates `deploy-package/` with SQL exports, .env template, and checklist.
+- **`scripts/etaxerp-health-check.sh`**: Post-deployment health check. Run on etaxerp to verify endpoints, DB connection, required files, and env vars. Usage: `bash scripts/etaxerp-health-check.sh http://localhost:5000`
+- **`deploy-package/`**: Output directory (gitignored, contains secrets). Has `DEPLOY-CHECKLIST.md`, SQL scripts for system_config, `.env.etaxerp` template, and host binding fix helper.
+
 ## External Dependencies
 - **Replit Object Storage:** Stores document template assets.
 - **LINE Messaging API:** Used for sending messages and processing webhooks.
