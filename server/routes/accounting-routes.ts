@@ -348,12 +348,12 @@ app.post("/api/accounts/apply-formula-mappings", requireAuth, requireModule("acc
 
 app.get("/api/journal-entries", requireAuth, requireAnyModule("accounting", "inventory"), async (req, res) => {
   const companyId = req.query.companyId ? Number(req.query.companyId) : undefined;
+  if (!companyId) return res.status(400).json({ message: "กรุณาระบุ companyId" });
   const startDate = req.query.startDate as string | undefined;
   const endDate = req.query.endDate as string | undefined;
   const journalBook = req.query.journalBook as string | undefined;
   const { page, pageSize, offset } = parsePagination(req, { pageSize: 100 });
-  const conditions = [];
-  if (companyId) conditions.push(eq(journalEntries.companyId, companyId));
+  const conditions: any[] = [eq(journalEntries.companyId, companyId)];
   if (startDate) conditions.push(gte(journalEntries.entryDate, startDate));
   if (endDate) conditions.push(lte(journalEntries.entryDate, endDate));
   if (journalBook) conditions.push(eq(journalEntries.journalBook, journalBook));
