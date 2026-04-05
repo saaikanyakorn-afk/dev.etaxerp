@@ -430,7 +430,8 @@ export function registerHrRoutes(app: Express) {
           };
 
           const existingConditions = [eq(employees.employeeCode, employeeCode)];
-          if (importUser.tenantId) existingConditions.push(eq(employees.tenantId, importUser.tenantId));
+          if (empData.companyId) existingConditions.push(eq(employees.companyId, empData.companyId));
+          else if (importUser.tenantId) existingConditions.push(eq(employees.tenantId, importUser.tenantId));
           const existing = await db.select().from(employees).where(and(...existingConditions)).limit(1);
           if (existing.length > 0) {
             await db.update(employees).set(empData).where(eq(employees.id, existing[0].id));
