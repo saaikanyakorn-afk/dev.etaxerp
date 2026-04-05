@@ -288,6 +288,7 @@ export default function PosSettings() {
   });
   const [etaxForm, setEtaxForm] = useState<any>(null);
   const [etaxSaving, setEtaxSaving] = useState(false);
+  const [branchForm, setBranchForm] = useState<any>(null);
   useEffect(() => { if (etaxData) setEtaxForm(etaxData); }, [etaxData]);
 
   const handleSaveEtax = async () => {
@@ -711,23 +712,74 @@ export default function PosSettings() {
 
           <TabsContent value="branches" className="space-y-4">
             <Card className="border-none shadow-sm">
-              <CardHeader className="pb-3">
+              <CardHeader className="pb-3 flex flex-row items-center justify-between">
                 <CardTitle className="text-base flex items-center gap-2">
                   <Store className="w-5 h-5 text-[#03c9d7]" /> สาขาที่เปิดใช้งาน
                 </CardTitle>
+                <Button size="sm" onClick={() => setBranchForm({ name: "", code: "", address: "", phone: "", editing: false })} data-testid="btn-add-branch">
+                  <Plus className="w-4 h-4 mr-1" /> เพิ่มสาขา
+                </Button>
               </CardHeader>
               <CardContent>
-                {branches.length === 0 ? (
-                  <div className="text-center py-6 text-slate-400 text-sm">ยังไม่มีสาขา</div>
+                {branchForm && (
+                  <div className="mb-4 p-4 border rounded-lg bg-slate-50 space-y-3" data-testid="form-branch">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div>
+                        <Label className="text-sm">ชื่อสาขา *</Label>
+                        <Input value={branchForm.name} onChange={e => setBranchForm((f: any) => ({ ...f, name: e.target.value }))} placeholder="เช่น สาขาสยามสแควร์" data-testid="input-branch-name" />
+                      </div>
+                      <div>
+                        <Label className="text-sm">รหัสสาขา</Label>
+                        <Input value={branchForm.code} onChange={e => setBranchForm((f: any) => ({ ...f, code: e.target.value }))} placeholder="เช่น 00001 (ถ้าไม่ใส่ระบบสร้างให้)" data-testid="input-branch-code" />
+                      </div>
+                    </div>
+                    <div>
+                      <Label className="text-sm">ที่อยู่</Label>
+                      <Input value={branchForm.address} onChange={e => setBranchForm((f: any) => ({ ...f, address: e.target.value }))} placeholder="ที่อยู่สาขา (ไม่บังคับ)" data-testid="input-branch-address" />
+                    </div>
+                    <div className="md:w-1/2">
+                      <Label className="text-sm">เบอร์โทร</Label>
+                      <Input value={branchForm.phone} onChange={e => setBranchForm((f: any) => ({ ...f, phone: e.target.value }))} placeholder="เบอร์โทรสาขา (ไม่บังคับ)" data-testid="input-branch-phone" />
+                    </div>
+                    <div className="flex gap-2 pt-1">
+                      <Button size="sm" onClick={async () => {
+                        if (!branchForm.name) { toast({ title: "กรุณาใส่ชื่อสาขา", variant: "destructive" }); return; }
+                        try {
+                          const url = branchForm.editing ? `/api/pos/branches/${branchForm.editId}` : "/api/pos/branches";
+                          const method = branchForm.editing ? "PATCH" : "POST";
+                          const r = await fetch(url, {
+                            method, credentials: "include",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ companyId: selectedCompanyId, name: branchForm.name, code: branchForm.code || undefined, address: branchForm.address || undefined, phone: branchForm.phone || undefined }),
+                          });
+                          if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.error || "Error"); }
+                          toast({ title: branchForm.editing ? "แก้ไขสาขาสำเร็จ" : "เพิ่มสาขาสำเร็จ" });
+                          setBranchForm(null);
+                          queryClient.invalidateQueries({ queryKey: ["/api/pos/branches"] });
+                        } catch (err: any) { toast({ title: err.message, variant: "destructive" }); }
+                      }} data-testid="btn-save-branch">
+                        <Save className="w-4 h-4 mr-1" /> {branchForm.editing ? "บันทึก" : "เพิ่มสาขา"}
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => setBranchForm(null)} data-testid="btn-cancel-branch">ยกเลิก</Button>
+                    </div>
+                  </div>
+                )}
+                {branches.length === 0 && !branchForm ? (
+                  <div className="text-center py-6 text-slate-400 text-sm">ยังไม่มีสาขา กดปุ่ม "เพิ่มสาขา" เพื่อเริ่มต้น</div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     {branches.map((b: any) => (
                       <div key={b.id} className="flex items-center justify-between p-3 rounded-lg border bg-white" data-testid={`card-branch-${b.id}`}>
                         <div>
                           <div className="font-medium text-slate-800">{b.name}</div>
-                          <div className="text-xs text-slate-400">{b.code || ""} {b.address ? `• ${b.address}` : ""}</div>
+                          <div className="text-xs text-slate-400">{b.code || ""} {b.address ? `• ${b.address}` : ""}{b.phone ? ` • ${b.phone}` : ""}</div>
                         </div>
-                        <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 text-xs">เปิดใช้งาน</Badge>
+                        <div className="flex items-center gap-2">
+                          <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 text-xs">เปิดใช้งาน</Badge>
+                          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setBranchForm({ name: b.name, code: b.code || "", address: b.address || "", phone: b.phone || "", editing: true, editId: b.id })} data-testid={`btn-edit-branch-${b.id}`}>
+                            <Pencil className="w-3.5 h-3.5 text-slate-400" />
+                          </Button>
+                        </div>
                       </div>
                     ))}
                   </div>
