@@ -13,3 +13,6 @@ attached_assets/
 cookie.txt
 /tmp/
 logs/
+
+# Deploy package (may contain secrets)
+deploy-package/
