@@ -119,12 +119,21 @@ export default function PosTerminal() {
   const { data: activeSession, isLoading: sessionLoading } = useQuery({
     queryKey: ["/api/pos/sessions/active", selectedCompanyId],
     queryFn: async () => {
-      const r = await fetch(`/api/pos/sessions/active?companyId=${selectedCompanyId}`, { credentials: "include" });
-      if (!r.ok) return null;
-      return r.json();
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 12000);
+      try {
+        const r = await fetch(`/api/pos/sessions/active?companyId=${selectedCompanyId}`, { credentials: "include", signal: controller.signal });
+        clearTimeout(timeout);
+        if (!r.ok) return null;
+        return r.json();
+      } catch {
+        clearTimeout(timeout);
+        return null;
+      }
     },
     enabled: !!selectedCompanyId,
     refetchInterval: 30000,
+    retry: 1,
   });
 
   const { data: branchesData } = useQuery({
@@ -252,19 +261,35 @@ export default function PosTerminal() {
 
   const closeSessionMutation = useMutation({
     mutationFn: async (data: any) => {
-      const r = await fetch(`/api/pos/sessions/${activeSession?.id}/close`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify(data),
-      });
-      if (!r.ok) throw new Error((await r.json()).message);
-      return r.json();
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 15000);
+      try {
+        const r = await fetch(`/api/pos/sessions/${activeSession?.id}/close`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify(data),
+          signal: controller.signal,
+        });
+        clearTimeout(timeout);
+        if (!r.ok) {
+          const body = await r.json().catch(() => ({ message: "เกิดข้อผิดพลาด" }));
+          throw new Error(body.message || "ปิดกะไม่สำเร็จ");
+        }
+        return r.json();
+      } catch (err: any) {
+        clearTimeout(timeout);
+        if (err.name === "AbortError") throw new Error("เซิร์ฟเวอร์ไม่ตอบสนอง กรุณาลองใหม่อีกครั้ง");
+        throw err;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/pos/sessions/active"] });
       setShowCloseSession(false);
       setCart([]);
+    },
+    onError: (err: any) => {
+      alert(err.message || "ปิดกะไม่สำเร็จ กรุณาลองใหม่");
     },
   });
 
