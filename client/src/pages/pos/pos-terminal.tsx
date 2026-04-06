@@ -219,17 +219,27 @@ export default function PosTerminal() {
 
   const openSessionMutation = useMutation({
     mutationFn: async (data: any) => {
-      const r = await fetch("/api/pos/sessions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify(data),
-      });
-      if (!r.ok) {
-        const body = await r.json().catch(() => ({ message: "เกิดข้อผิดพลาด กรุณาลองใหม่" }));
-        throw new Error(body.message || "เปิดกะไม่สำเร็จ");
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 15000);
+      try {
+        const r = await fetch("/api/pos/sessions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify(data),
+          signal: controller.signal,
+        });
+        clearTimeout(timeout);
+        if (!r.ok) {
+          const body = await r.json().catch(() => ({ message: "เกิดข้อผิดพลาด กรุณาลองใหม่" }));
+          throw new Error(body.message || "เปิดกะไม่สำเร็จ");
+        }
+        return r.json();
+      } catch (err: any) {
+        clearTimeout(timeout);
+        if (err.name === "AbortError") throw new Error("เซิร์ฟเวอร์ไม่ตอบสนอง กรุณาลองใหม่อีกครั้ง");
+        throw err;
       }
-      return r.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/pos/sessions/active"] });
