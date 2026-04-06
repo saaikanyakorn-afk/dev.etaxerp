@@ -853,7 +853,7 @@ function Router() {
       <Route path="/hr/pnd1a">{() => { window.location.href = "/hr/payroll-tax?tab=pnd1a"; return null; }}</Route>
       <Route path="/hr/tax-attachment">{() => { window.location.href = "/hr/payroll-tax?tab=attachment"; return null; }}</Route>
       <Route path="/hr/fifty-tawi">{() => { window.location.href = "/hr/payroll-tax?tab=50tawi"; return null; }}</Route>
-      <Route path="/ess" component={EssDashboard} />
+      <Route path="/ess" component={UserProfile} />
       <Route path="/etax-hub" component={EtaxHubDashboard} />
       <Route path="/etax-hub/board" component={EtaxHubClientBoard} />
       <Route path="/etax-hub/calendar" component={EtaxHubMyCalendar} />
