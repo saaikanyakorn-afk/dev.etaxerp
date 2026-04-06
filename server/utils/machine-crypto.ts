@@ -57,3 +57,41 @@ export function generateEncryptedConfigFile(
   const keyPreview = key.toString("hex").slice(0, 8) + "..." + key.toString("hex").slice(-8);
   return { encryptedContent, keyPreview };
 }
+
+export interface EncContentPayload {
+  configDb: { host: string; port: string; database: string; user: string; password: string };
+  mainDb?: { host: string; port: string; database: string; user: string; password: string };
+  generatedAt: string;
+  machine: { hostname: string; macAddress: string };
+}
+
+export function generateFullEncContent(
+  hostname: string,
+  macAddress: string,
+  encPort: string,
+  configDb: { host: string; port: string; database: string; user: string; password: string },
+  mainDb?: { host: string; port: string; database: string; user: string; password: string }
+): { encryptedContent: string; keyPreview: string } {
+  const key = deriveKey(hostname, macAddress, encPort);
+  const payload: EncContentPayload = {
+    configDb,
+    generatedAt: new Date().toISOString(),
+    machine: { hostname, macAddress },
+  };
+  if (mainDb && mainDb.user && mainDb.password) {
+    payload.mainDb = mainDb;
+  }
+  const encryptedContent = encrypt(JSON.stringify(payload), key);
+  const keyPreview = key.toString("hex").slice(0, 8) + "..." + key.toString("hex").slice(-8);
+  return { encryptedContent, keyPreview };
+}
+
+export function decryptEncContent(
+  encContent: string,
+  encHostname: string,
+  encMacAddress: string,
+  encPort: string
+): EncContentPayload {
+  const key = deriveKey(encHostname, encMacAddress, encPort);
+  return JSON.parse(decrypt(encContent, key));
+}
