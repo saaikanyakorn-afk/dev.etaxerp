@@ -25,8 +25,8 @@ let _posDb: NodePgDatabase<typeof schema> | null = null;
 let _posLabel = "";
 let _keepaliveStarted = false;
 
-function createPosPool(): { pool: pg.Pool; db: NodePgDatabase<typeof schema> } {
-  const config = getPosDbUrl();
+function createPosPool(overrideConfig?: { url: string; label: string }): { pool: pg.Pool; db: NodePgDatabase<typeof schema> } {
+  const config = overrideConfig || getPosDbUrl();
   _posLabel = config.label;
   console.log(`[PosDB] Creating pool: ${config.label}`);
 
@@ -99,8 +99,13 @@ export function isPosSeparateDb(): boolean {
   return !!posUrl;
 }
 
-export async function reinitializePosDb(): Promise<void> {
-  const newConfig = getPosDbUrl();
+export async function reinitializePosDb(machineResolvedUrl?: string | null): Promise<void> {
+  let newConfig: { url: string; label: string };
+  if (machineResolvedUrl) {
+    newConfig = { url: machineResolvedUrl, label: "POS (Machine Registry)" };
+  } else {
+    newConfig = getPosDbUrl();
+  }
   if (_posPool && newConfig.url && newConfig.label === _posLabel) {
     console.log(`[PosDB] reinitialize: URL unchanged, skipping`);
     return;
@@ -115,5 +120,5 @@ export async function reinitializePosDb(): Promise<void> {
   }
   _posPool = null;
   _posDb = null;
-  createPosPool();
+  createPosPool(newConfig);
 }
