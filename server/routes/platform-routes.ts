@@ -2865,17 +2865,36 @@ app.get("/api/platform/server-identity", requireAuth, requireSuperAdmin, async (
     }
 
     const { machines: machinesTable, machineNics, nicIpAddresses } = await import("@shared/schema");
+    const allMachines = await db.select().from(machinesTable);
     let matchedMachine: any = null;
+    let matchMethod = "";
 
+    // 1. MACHINE_NAME env var → match encHostname / localName / windowsName
     if (process.env.MACHINE_NAME) {
-      const byName = await db.select().from(machinesTable);
-      matchedMachine = byName.find(m =>
+      matchedMachine = allMachines.find(m =>
+        m.encHostname === process.env.MACHINE_NAME ||
         m.localName === process.env.MACHINE_NAME ||
-        m.windowsName === process.env.MACHINE_NAME ||
-        m.encHostname === process.env.MACHINE_NAME
+        m.windowsName === process.env.MACHINE_NAME
       );
+      if (matchedMachine) matchMethod = "MACHINE_NAME env";
     }
 
+    // 2. os.hostname() → match windowsName / localName
+    if (!matchedMachine) {
+      const hn = os.hostname();
+      matchedMachine = allMachines.find(m =>
+        m.windowsName === hn || m.localName === hn
+      );
+      if (matchedMachine) matchMethod = "os.hostname()";
+    }
+
+    // 3. Replit environment → find machine with os='cloud' and role='dev_source'
+    if (!matchedMachine && (process.env.REPL_ID || process.env.REPL_SLUG)) {
+      matchedMachine = allMachines.find(m => m.os === "cloud" && m.role === "dev_source");
+      if (matchedMachine) matchMethod = "Replit env (REPL_ID)";
+    }
+
+    // 4. NIC IP matching → machine_nics table
     if (!matchedMachine) {
       const externalIps = localIps.filter(i => !i.internal).map(i => i.ip);
       if (externalIps.length > 0) {
@@ -2884,11 +2903,18 @@ app.get("/api/platform/server-identity", requireAuth, requireSuperAdmin, async (
         for (const nic of allNics) {
           const nicIps = [nic.ipAddress, ...allNicIps.filter(ip => ip.nicId === nic.id).map(ip => ip.ipAddress)];
           if (nicIps.some(ip => externalIps.includes(ip))) {
-            const [machine] = await db.select().from(machinesTable).where(eq(machinesTable.id, nic.machineId));
-            if (machine) { matchedMachine = machine; break; }
+            matchedMachine = allMachines.find(m => m.id === nic.machineId);
+            if (matchedMachine) { matchMethod = "NIC IP match"; break; }
           }
         }
       }
+    }
+
+    // 5. machines.lanIp direct match
+    if (!matchedMachine) {
+      const externalIps = localIps.filter(i => !i.internal).map(i => i.ip);
+      matchedMachine = allMachines.find(m => m.lanIp && externalIps.includes(m.lanIp));
+      if (matchedMachine) matchMethod = "machines.lanIp match";
     }
 
     res.json({
@@ -2897,6 +2923,7 @@ app.get("/api/platform/server-identity", requireAuth, requireSuperAdmin, async (
       localIps,
       matchedMachineId: matchedMachine?.id || null,
       matchedMachineName: matchedMachine?.localName || null,
+      matchMethod: matchMethod || null,
       isCloud: !!(process.env.REPL_ID || process.env.REPL_SLUG),
     });
   } catch (err: any) { res.status(500).json({ message: err.message }); }
