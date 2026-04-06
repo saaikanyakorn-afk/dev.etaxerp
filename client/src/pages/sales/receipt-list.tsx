@@ -74,7 +74,10 @@ export default function ReceiptList() {
   const queryClient = useQueryClient();
   const [, navigate] = useLocation();
 
-  const [searchText, setSearchText] = useState("");
+  const [searchText, setSearchText] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get("search") || "";
+  });
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
   const [relatedDoc, setRelatedDoc] = useState<{ open: boolean; id: number; docNo: string } | null>(null);
   const [journalDoc, setJournalDoc] = useState<{ open: boolean; id: number } | null>(null);

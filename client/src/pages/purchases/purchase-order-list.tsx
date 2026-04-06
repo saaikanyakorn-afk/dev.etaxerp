@@ -65,7 +65,10 @@ export default function PurchaseOrderList() {
   const queryClient = useQueryClient();
   const [, navigate] = useLocation();
 
-  const [searchText, setSearchText] = useState("");
+  const [searchText, setSearchText] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get("search") || "";
+  });
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
   const [lineDialog, setLineDialog] = useState<{ open: boolean; url: string; docNo: string; customerName: string }>({ open: false, url: "", docNo: "", customerName: "" });
   const [filterStatus, setFilterStatus] = useState("all");

@@ -366,7 +366,7 @@ export default function Journal() {
                                 data-testid={`link-ref-${entry.id}`}
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  navigate(`${DOC_TYPE_LIST_ROUTES[entry.sourceDocType]}?companyId=${companyId}`);
+                                  navigate(`${DOC_TYPE_LIST_ROUTES[entry.sourceDocType]}?companyId=${companyId}${entry.reference ? "&search=" + encodeURIComponent(entry.reference) : ""}`);
                                 }}
                               >
                                 {entry.reference || "-"}
