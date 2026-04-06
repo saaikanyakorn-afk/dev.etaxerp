@@ -29,14 +29,22 @@ Kai tracks all files cherry-picked to production. This is the single source of t
 ### Pending Cherry-Pick (not yet deployed)
 | File | Purpose | Status | Commit |
 |---|---|---|---|
-| server/routes/expense-routes.ts | Error logging + fallback message | Ready | fd3f574 |
+| server/routes/expense-routes.ts | Error logging + fallback message | Deployed 2026-04-06 | fd3f574 |
 | server/replit_integrations/object_storage/routes.ts | Fix logo lost on pull (UPLOAD_DIR) | Ready | 102ddaf |
 | deepmain_schema_sync.sql | Add tax_invoices.customer_branch_id | Ready | a6a5853 |
+
+### Production Server Commands
+- **Build:** `npm run build`
+- **Restart:** `pm2 restart etax-center`
+- **Status:** `pm2 status`
+- **Logs:** `pm2 logs etax-center`
+- **Project path:** `C:\GitApp\etaxcenter`
 
 ### Rules
 - Kai must update this table whenever requesting or confirming a cherry-pick.
 - Files from unfinished features (security/infra) must NEVER appear here.
 - Production is NOT a debugging tool. Only cherry-pick solutions, never test code.
+- Kai must NEVER send wrong commands for production. Verify process names, paths, and syntax before sending.
 
 ## Code vs Data Separation (CRITICAL)
 - **Code** and **Data (DB structure)** are separate concerns — always treat them independently.
