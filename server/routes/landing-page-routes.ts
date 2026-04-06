@@ -81,16 +81,10 @@ app.post("/api/landing-content/upload-image", requireAuth, uploadLandingImage.si
     if (!file) return res.status(400).json({ message: "ไม่พบไฟล์" });
     const { safeFilename } = makeStorageFilename(file.originalname);
     const key = `public/landing/${safeFilename}`;
-    try {
-      const { Client } = await import("@replit/object-storage");
-      const client = new Client({ bucketId: process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID });
-      await client.uploadFromBytes(key, file.buffer);
-      res.json({ url: `/objects/${key}` });
-    } catch {
-      const uploadDir = path.join(process.cwd(), "uploads", "landing");
-      if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
-      fs.writeFileSync(path.join(uploadDir, safeFilename), file.buffer);
-      res.json({ url: `/uploads/landing/${safeFilename}` });
+    {
+      const { saveBufferToPath } = await import("../replit_integrations/object_storage/routes");
+      saveBufferToPath(file.buffer, key);
+      res.json({ url: `/api/local-file/${key}` });
     }
   } catch (err: any) { res.status(400).json({ message: err.message }); }
 });

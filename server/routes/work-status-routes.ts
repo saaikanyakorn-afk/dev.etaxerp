@@ -537,18 +537,12 @@ app.post("/api/work-status/attachments", requireAuth, requireModule("firm-mgmt")
     const rowId = req.body.rowId ? Number(req.body.rowId) : null;
     
     let fileUrl = "";
-    try {
-      const { Client } = await import("@replit/object-storage");
-      const client = new Client({ bucketId: process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID });
-      const { safeFilename: safeWsName } = makeStorageFilename(file.originalname); const key = `work-status/${safeWsName}`;
-      await client.uploadFromBytes(key, file.buffer);
+    {
+      const { saveBufferToPath } = await import("../replit_integrations/object_storage/routes");
+      const { safeFilename: safeWsName } = makeStorageFilename(file.originalname);
+      const key = `work-status/${safeWsName}`;
+      saveBufferToPath(file.buffer, key);
       fileUrl = key;
-    } catch {
-      const uploadDir = path.join(process.cwd(), "uploads", "work-status");
-      if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
-      const { safeFilename: safeLocalName } = makeStorageFilename(file.originalname); const fileName = safeLocalName;
-      fs.writeFileSync(path.join(uploadDir, fileName), file.buffer);
-      fileUrl = `/uploads/work-status/${fileName}`;
     }
     
     const attachment = await storage.createWorkStatusAttachment({
@@ -678,18 +672,12 @@ app.post("/api/firm-documents", requireAuth, requireModule("firm-mgmt"), uploadF
     let mimeType = undefined;
 
     if (file) {
-      try {
-        const { Client } = await import("@replit/object-storage");
-        const client = new Client({ bucketId: process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID });
-        const { safeFilename: safeFdName } = makeStorageFilename(file.originalname); const key = `firm-documents/${safeFdName}`;
-        await client.uploadFromBytes(key, file.buffer);
+      {
+        const { saveBufferToPath } = await import("../replit_integrations/object_storage/routes");
+        const { safeFilename: safeFdName } = makeStorageFilename(file.originalname);
+        const key = `firm-documents/${safeFdName}`;
+        saveBufferToPath(file.buffer, key);
         fileUrl = key;
-      } catch {
-        const uploadDir = path.join(process.cwd(), "uploads", "firm-documents");
-        if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
-        const { safeFilename: safeFdLocal } = makeStorageFilename(file.originalname); const fn = safeFdLocal;
-        fs.writeFileSync(path.join(uploadDir, fn), file.buffer);
-        fileUrl = `/uploads/firm-documents/${fn}`;
       }
       fileName = decodeMulterFilename(file.originalname);
       fileSize = file.size;

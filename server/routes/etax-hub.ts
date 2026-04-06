@@ -2365,14 +2365,12 @@ export function registerEtaxHubRoutes(app: Express) {
       if (items.length > 100) return res.status(400).json({ message: "ดาวน์โหลดได้สูงสุด 100 ไฟล์ต่อครั้ง" });
 
       const archiver = (await import("archiver")).default;
-      const { Client } = await import("@replit/object-storage");
-      const client = new Client({ bucketId: process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID });
+      const { readFromPath } = await import("../replit_integrations/object_storage/routes");
 
       res.setHeader("Content-Type", "application/zip");
       res.setHeader("Content-Disposition", `attachment; filename="documents-${Date.now()}.zip"`);
       const archive = archiver("zip", { zlib: { level: 5 } });
-      archive.on("error", () => { cleanupTmp(); });
-      res.on("close", () => { cleanupTmp(); });
+      archive.on("error", () => {});
       archive.pipe(res);
 
       const usedNames = new Set<string>();
@@ -2380,10 +2378,8 @@ export function registerEtaxHubRoutes(app: Express) {
         try {
           const objectPath = item.objectPath;
           if (!objectPath) continue;
-          const tmpFile = `${osLib.tmpdir()}/batch_dl_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-          const result = await client.downloadToFilename(objectPath, tmpFile);
-          if (!result.ok) continue;
-          tmpFiles.push(tmpFile);
+          const fileData = readFromPath(objectPath);
+          if (!fileData) continue;
           let name = item.fileName || `file_${item.id}`;
           if (usedNames.has(name)) {
             const ext = name.lastIndexOf(".") > 0 ? name.slice(name.lastIndexOf(".")) : "";
@@ -2391,7 +2387,7 @@ export function registerEtaxHubRoutes(app: Express) {
             name = `${base}_${item.id}${ext}`;
           }
           usedNames.add(name);
-          archive.file(tmpFile, { name });
+          archive.append(fileData, { name });
         } catch {}
       }
       await archive.finalize();
@@ -2408,8 +2404,7 @@ export function registerEtaxHubRoutes(app: Express) {
       if (!Array.isArray(items) || items.length === 0) return res.status(400).json({ message: "กรุณาเลือกเอกสารอย่างน้อย 1 รายการ" });
       if (items.length > 100) return res.status(400).json({ message: "ลบได้สูงสุด 100 ไฟล์ต่อครั้ง" });
 
-      const { Client } = await import("@replit/object-storage");
-      const client = new Client({ bucketId: process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID });
+      const { deleteFromPath } = await import("../replit_integrations/object_storage/routes");
 
       let deleted = 0;
       for (const item of items) {
@@ -2417,13 +2412,13 @@ export function registerEtaxHubRoutes(app: Express) {
           if (item.source === "line") {
             const [doc] = await db.select().from(lineDocuments).where(and(eq(lineDocuments.id, Number(item.id)), eq(lineDocuments.tenantId, user.tenantId)));
             if (!doc) continue;
-            if (doc.storageUrl) { try { await client.delete(doc.storageUrl); } catch {} }
+            if (doc.storageUrl) { try { deleteFromPath(doc.storageUrl); } catch {} }
             await db.delete(lineDocuments).where(eq(lineDocuments.id, doc.id));
             deleted++;
           } else {
             const [file] = await db.select().from(clientUploadFiles).where(and(eq(clientUploadFiles.id, Number(item.id)), eq(clientUploadFiles.tenantId, user.tenantId)));
             if (!file) continue;
-            if (file.objectPath) { try { await client.delete(file.objectPath); } catch {} }
+            if (file.objectPath) { try { deleteFromPath(file.objectPath); } catch {} }
             await db.delete(clientUploadFiles).where(eq(clientUploadFiles.id, file.id));
             deleted++;
           }
@@ -2442,9 +2437,8 @@ export function registerEtaxHubRoutes(app: Express) {
       if (!file) return res.status(404).json({ message: "ไม่พบไฟล์" });
       if (file.objectPath) {
         try {
-          const { Client } = await import("@replit/object-storage");
-          const client = new Client({ bucketId: process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID });
-          await client.delete(file.objectPath);
+          const { deleteFromPath } = await import("../replit_integrations/object_storage/routes");
+          deleteFromPath(file.objectPath);
         } catch (storageErr) {
           console.error("Failed to delete from storage:", storageErr);
         }
