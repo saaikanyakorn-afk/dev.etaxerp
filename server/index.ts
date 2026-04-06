@@ -1021,13 +1021,13 @@ async function runMigrationsInBackground() {
   await reinitializeFromConfig();
 
   const { resolveDbFromMachineRegistry } = await import("./machine-db-resolver");
-  const { getConfigDbUrl } = await import("./config-bootstrap");
-  const configDbUrl = getConfigDbUrl();
+  const { getActiveDbInfo } = await import("./db");
+  const mainDbUrl = getActiveDbInfo().url;
   let machineResolvedUrl: string | null = null;
 
-  if (configDbUrl && process.env.MACHINE_NAME) {
+  if (mainDbUrl && process.env.MACHINE_NAME) {
     log("Resolving DB from machine registry...");
-    const resolved = await resolveDbFromMachineRegistry(configDbUrl);
+    const resolved = await resolveDbFromMachineRegistry(mainDbUrl);
     if (resolved) {
       machineResolvedUrl = resolved.url;
       log(`Machine registry resolved: ${resolved.label} (${resolved.path}, ${resolved.latencyMs}ms)`);
