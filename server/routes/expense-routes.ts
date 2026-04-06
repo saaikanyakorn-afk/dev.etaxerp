@@ -1449,53 +1449,6 @@ export function registerExpenseRoutes(app: Express) {
         });
       }
 
-      if ((body.status === "approved") && parseFloat(result.taxWithheld || "0") > 0) {
-        try {
-          const existingJE = await db.select().from(journalEntries).where(and(eq(journalEntries.sourceDocType, "wht_cert"), eq(journalEntries.sourceDocId, result.id)));
-          if (existingJE.length === 0) {
-            const allAccounts = await db.select().from(accounts).where(eq(accounts.companyId, companyId));
-            const accountMap = new Map(allAccounts.map(a => [a.code, a]));
-            const whtAcc = accountMap.get("2381000") || accountMap.get("2303");
-            const cashAcc = accountMap.get("1001000") || accountMap.get("1011000") || accountMap.get("1001") || accountMap.get("1011");
-            if (whtAcc && cashAcc) {
-              const taxAmount = parseFloat(result.taxWithheld || "0");
-              const whtEntryNo = await getNextJournalEntryNo(companyId, "payment", result.certDate);
-              await db.transaction(async (tx) => {
-                const [je] = await tx.insert(journalEntries).values({
-                  companyId,
-                  entryNo: whtEntryNo,
-                  entryDate: result.certDate,
-                  reference: result.certNo,
-                  description: `นำส่งภาษีหัก ณ ที่จ่าย ${result.certNo} - ${result.payeeName}`,
-                  journalBook: "payment",
-                  contactName: result.payeeName,
-                  createdBy: user.id,
-                  status: "posted",
-                  sourceDocType: "wht_cert",
-                  sourceDocId: result.id,
-                }).returning();
-                await tx.insert(journalLines).values({
-                  journalEntryId: je.id,
-                  accountId: whtAcc.id,
-                  description: whtAcc.nameTh ? `${whtAcc.nameTh}(${whtAcc.name})` : whtAcc.name || "ภาษีหัก ณ ที่จ่ายค้างจ่าย",
-                  debit: String(taxAmount.toFixed(2)),
-                  credit: "0",
-                });
-                await tx.insert(journalLines).values({
-                  journalEntryId: je.id,
-                  accountId: cashAcc.id,
-                  description: cashAcc.nameTh ? `${cashAcc.nameTh}(${cashAcc.name})` : cashAcc.name || "เงินสด",
-                  debit: "0",
-                  credit: String(taxAmount.toFixed(2)),
-                });
-              });
-            }
-          }
-        } catch (e) {
-          console.log("Auto journal for WHT cert skipped:", (e as any).message);
-        }
-      }
-
       const savedItems = await db.select().from(whtCertItems).where(eq(whtCertItems.whtCertId, result.id));
       res.status(201).json({ ...result, items: savedItems });
     } catch (err: any) { res.status(400).json({ message: err.message }); }
@@ -1543,53 +1496,6 @@ export function registerExpenseRoutes(app: Express) {
       }
 
       const [updated] = await db.select().from(withholdingTaxCerts).where(eq(withholdingTaxCerts.id, existing.id));
-
-      if (body.status === "approved" && existing.status !== "approved" && parseFloat(updated.taxWithheld || "0") > 0) {
-        try {
-          const existingJE = await db.select().from(journalEntries).where(and(eq(journalEntries.sourceDocType, "wht_cert"), eq(journalEntries.sourceDocId, updated.id)));
-          if (existingJE.length === 0) {
-            const allAccounts = await db.select().from(accounts).where(eq(accounts.companyId, updated.companyId));
-            const accountMap = new Map(allAccounts.map(a => [a.code, a]));
-            const whtAcc = accountMap.get("2381000") || accountMap.get("2303");
-            const cashAcc = accountMap.get("1001000") || accountMap.get("1011000") || accountMap.get("1001") || accountMap.get("1011");
-            if (whtAcc && cashAcc) {
-              const taxAmount = parseFloat(updated.taxWithheld || "0");
-              const whtEntryNo2 = await getNextJournalEntryNo(updated.companyId, "payment", updated.certDate);
-              await db.transaction(async (tx) => {
-                const [je] = await tx.insert(journalEntries).values({
-                  companyId: updated.companyId,
-                  entryNo: whtEntryNo2,
-                  entryDate: updated.certDate,
-                  reference: updated.certNo,
-                  description: `นำส่งภาษีหัก ณ ที่จ่าย ${updated.certNo} - ${updated.payeeName}`,
-                  journalBook: "payment",
-                  contactName: updated.payeeName,
-                  createdBy: (req.user as any).id,
-                  status: "posted",
-                  sourceDocType: "wht_cert",
-                  sourceDocId: updated.id,
-                }).returning();
-                await tx.insert(journalLines).values({
-                  journalEntryId: je.id,
-                  accountId: whtAcc.id,
-                  description: whtAcc.nameTh ? `${whtAcc.nameTh}(${whtAcc.name})` : whtAcc.name || "ภาษีหัก ณ ที่จ่ายค้างจ่าย",
-                  debit: String(taxAmount.toFixed(2)),
-                  credit: "0",
-                });
-                await tx.insert(journalLines).values({
-                  journalEntryId: je.id,
-                  accountId: cashAcc.id,
-                  description: cashAcc.nameTh ? `${cashAcc.nameTh}(${cashAcc.name})` : cashAcc.name || "เงินสด",
-                  debit: "0",
-                  credit: String(taxAmount.toFixed(2)),
-                });
-              });
-            }
-          }
-        } catch (e) {
-          console.log("Auto journal for WHT cert (PATCH) skipped:", (e as any).message);
-        }
-      }
 
       const savedItems = await db.select().from(whtCertItems).where(eq(whtCertItems.whtCertId, existing.id));
       res.json({ ...updated, items: savedItems });
