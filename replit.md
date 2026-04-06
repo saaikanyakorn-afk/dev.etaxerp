@@ -462,6 +462,7 @@ Every block of code that calls an external AI API MUST be marked with a `⚠️ 
 - `getArchiveSettings()` in `server/services/ftp-archive.ts` builds `FtpArchiveSettings` object from `system_config` via `getConfig()`.
 - `upsertArchiveSettings()` writes back to `system_config` via `setConfig()`.
 - Production server: `tax-gateway.hopto.org`, folder `/fa` (shortened from `/app_attachment` to save 12 chars on NTFS paths).
+- **FTP Archive Server Status:** Currently **OFFLINE** (was used for testing file naming rules only). When it comes back online, it MUST have its own record in the `machines` table with full connection info (IP, LAN IPs, router link, physical location, etc.) — just like any other equipment. The FTP archive service should resolve connection details from the machines record, not rely solely on hardcoded system_config keys. This ensures FTP server discovery follows the same pattern as all other infrastructure (DB servers, app servers, etc.).
 
 **FTP Archive Folder System:**
 - Utilizes `company_folder_codes` (C + 5 digits) and `store_folder_codes` (S + 3 digits) for immutable folder structures.
@@ -472,7 +473,7 @@ Every block of code that calls an external AI API MUST be marked with a `⚠️ 
 - **LAN Fallback:** Dual base URLs (FQDN + LAN IP) in settings. Server-side probe on `/api/ftp-archive/resolve-url` checks FQDN reachability (HEAD, 3s timeout) and falls back to LAN URL for head office users when internet is down. Uses `useArchiveLink` hook in 7 document forms. SSRF-protected: only probes URLs matching configured `ftpBaseUrl`.
 - **HO Staff always use LAN-IP** to access archived files — never FQDN. It's a waste of network resources to route internally through the public domain. FTP server LAN IP: `192.168.1.222` (separate NIC from WAN — LAN and WAN traffic don't interfere with each other).
 - **Emergency Restore (HO only):** Screen for head office staff to temporarily move an archived file back to the app server when a branch user urgently needs access. The restore is temporary — the next scheduled archive run will move it back to FTP automatically. If the branch still needs it the next day, HO must restore it again manually.
-- **Archive Engine:** 3 parallel FTP connections (`FTP_CONCURRENCY=3`). After verified transfer, source file on Object Storage is cleaned up. `SAFE_DELETE` flag: when `true` (testing), files are renamed to `.archived`/`.reverted` instead of deleted; when `false` (production), files are actually deleted to free disk space.
+- **Archive Engine:** 3 parallel FTP connections (`FTP_CONCURRENCY=3`). After verified transfer, source file on local storage is cleaned up. `SAFE_DELETE` flag: when `true` (testing), files are renamed to `.archived`/`.reverted` instead of deleted; when `false` (production), files are actually deleted to free disk space.
 - **Auto-Resume:** On startup, `recoverOrphanedTransfers()` resets items stuck in "transferring" → "pending". Scheduler calls `resumePendingItems()` every 5 min to retry pending/failed items. Max 5 retries (`MAX_RETRY_ATTEMPTS`); exhausted items marked permanently failed. Shared `processOneItem()` function handles both new and resumed transfers.
 - **Mutual Exclusion (Clone ↔ Archive):** In-memory `_ftpArchiveRunning` flag (set atomically before any async work) prevents concurrent archive runs. Clone DB checks `isFtpArchiveRunning()` before starting. Archive checks `isCloneInProgress()` before starting. Both return 409/skip if the other is active.
 
@@ -831,9 +832,9 @@ Once Stage 3 begins, revisit the JOIN inventory below and add appropriate indexe
 **Solution implemented: Enhanced `/api/attachments/download` endpoint as universal resolver**
 - Existing endpoint in `server/routes/expense-routes.ts` enhanced with archive-aware fallback chain:
   1. HTTP URLs → validate against `isAllowedRedirectUrl()` (FTP_BASE_URL/FTP_LAN_BASE_URL only) → redirect or 400
-  2. Try Object Storage (original path) → serve if found (covers: file not yet picked up, or mid-transfer)
-  3. Try Object Storage with `pdf-imports/` prefix → serve if found
-  4. Try `.archived` suffix in Object Storage → serve if found (LOCAL FIRST — faster than FTP redirect, covers SAFE_DELETE renamed files)
+  2. Try local storage (original path) → serve if found (covers: file not yet picked up, or mid-transfer)
+  3. Try local storage with `pdf-imports/` prefix → serve if found
+  4. Try `.archived` suffix in local storage → serve if found (LOCAL FIRST — faster than FTP redirect, covers SAFE_DELETE renamed files)
   5. Query `ftp_archive_items` for archive status:
      - completed → redirect to `archivedUrl` (only after all local copies exhausted)
      - transferring → HTML page with progress bar (% complete, MB, attempt count), auto-refresh 10s
@@ -846,7 +847,7 @@ Once Stage 3 begins, revisit the JOIN inventory below and add appropriate indexe
 **Server-side middleware approach (zero frontend changes — พี่ทราย-safe):**
 - `server/attachment-middleware.ts`: Express middleware intercepts `GET /.private/*`, `GET /public/*`, `GET /pdf-imports/*` requests
 - Registered in `server/routes.ts` AFTER `setupAuth()` (Passport session required for auth check)
-- Same fallback chain (Object Storage → .archived → ftp_archive_items → status pages) runs server-side
+- Same fallback chain (local storage → .archived → ftp_archive_items → status pages) runs server-side
 - UI code untouched — `<a href={file.path}>` works transparently, middleware handles resolution
 - `expense-list.tsx` still uses `/api/attachments/download?url=` proxy (already existed, no change)
 - Both paths (middleware intercept + explicit proxy endpoint) coexist — belt and suspenders
@@ -994,8 +995,11 @@ Once Stage 3 begins, revisit the JOIN inventory below and add appropriate indexe
 - **Priority:** Phase 2 — after core POS/eTax features stabilize
 - **Status:** Concept approved by owner, not yet started
 
+## File Storage
+- **Local Filesystem:** All uploaded files (logos, signatures, LINE documents, slips, work board files, firm documents, PDF imports, etc.) are stored in `{cwd}/uploads/` directory using `saveBufferLocally()` and `saveBufferToPath()` from `server/replit_integrations/object_storage/routes.ts`. Custom path via `UPLOAD_DIR` env var. Works on any OS (Linux, Windows). No dependency on any cloud/proprietary storage — purely local disk.
+- **Storage utility functions:** `saveBufferLocally(buffer, contentType, originalName)` → UUID-named flat file; `saveBufferToPath(buffer, relativePath)` → organized subdirectory; `readFromPath(relativePath)` → read; `deleteFromPath(relativePath)` → delete; `getFullLocalPath(relativePath)` → absolute path.
+
 ## External Dependencies
-- **Replit Object Storage:** Stores document template assets.
 - **LINE Messaging API:** Used for sending messages and processing webhooks.
 - **Resend (Email Service):** Sends e-Tax Invoice emails with PDF/A-3 attachments, document sharing, and HR payslips.
 - **OpenAI Vision API:** Powers AI-based slip verification for Facebook Chat Orders.
