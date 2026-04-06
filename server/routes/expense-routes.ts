@@ -462,7 +462,10 @@ export function registerExpenseRoutes(app: Express) {
 
       logActivity({ companyId, userId: user.id, userName: user.username, action: "create", entityType: "expense", entityId: String(result.id), entityName: result.expenseNo || "" }).catch(() => {});
       res.status(201).json({ ...result, items: savedItems, journalResult });
-    } catch (err: any) { res.status(400).json({ message: err.message }); }
+    } catch (err: any) {
+      console.error("[EXP CREATE ERROR]", err);
+      res.status(400).json({ message: err.message || err.detail || "เกิดข้อผิดพลาดในการบันทึกค่าใช้จ่าย" });
+    }
   });
 
   app.patch("/api/expenses/:id", requireAuth, requireModule("purchases"), async (req, res) => {
