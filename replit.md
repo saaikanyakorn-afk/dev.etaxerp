@@ -12,6 +12,32 @@ The E-Tax Center is a multi-tenant digital accounting platform designed to revol
 - **GitHub remote**: `origin` → `https://github.com/saaikanyakorn-afk/etaxcenter.git`
 - **Push method**: Create orphan branch `deploy-temp`, add all files, commit, force push to `origin main`, then switch back to `replit-agent` and delete `deploy-temp`.
 
+## Cherry-Pick Tracking (Production Deploy Log)
+
+Kai tracks all files cherry-picked to production. This is the single source of truth.
+
+### v1.0.2 (cherry-picked 2026-04-05, confirmed by พี่ช้าง)
+| File | Purpose | Status |
+|---|---|---|
+| server/routes/sales-docs-routes.ts | Related docs fix, data isolation | Deployed |
+| server/routes/billing-notes-routes.ts | Firm billing journal fix | Deployed |
+| server/routes/approval-center-routes.ts | Approval scope fix | Deployed |
+| server/routes/expense-routes.ts | Non-deductible VAT fix | Deployed |
+| client/src/components/related-docs-dialog.tsx | Related docs UI | Deployed |
+| shared/schema.ts | Schema (code-only, no new tables) | Deployed |
+
+### Pending Cherry-Pick (not yet deployed)
+| File | Purpose | Status | Commit |
+|---|---|---|---|
+| server/routes/expense-routes.ts | Error logging + fallback message | Ready | fd3f574 |
+| server/replit_integrations/object_storage/routes.ts | Fix logo lost on pull (UPLOAD_DIR) | Ready | 102ddaf |
+| deepmain_schema_sync.sql | Add tax_invoices.customer_branch_id | Ready | a6a5853 |
+
+### Rules
+- Kai must update this table whenever requesting or confirming a cherry-pick.
+- Files from unfinished features (security/infra) must NEVER appear here.
+- Production is NOT a debugging tool. Only cherry-pick solutions, never test code.
+
 ## Code vs Data Separation (CRITICAL)
 - **Code** and **Data (DB structure)** are separate concerns — always treat them independently.
 - **Dev DB (Neon/US):** Schema changes happen here during development. No users on this DB.
