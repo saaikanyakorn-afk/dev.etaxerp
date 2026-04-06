@@ -972,16 +972,25 @@ export async function deleteJournalEntriesForDoc(tx: any, sourceDocType: string,
   if (entries.length === 0) return;
   const entryIds = entries.map((e: any) => e.id);
   const idsList = entryIds.join(",");
-  try { await tx.execute(sql.raw(`UPDATE bank_statements SET matched_journal_id = NULL WHERE matched_journal_id IN (${idsList})`)); } catch {}
-  try { await tx.execute(sql.raw(`UPDATE manufacturing_orders SET journal_entry_id = NULL WHERE journal_entry_id IN (${idsList})`)); } catch {}
-  try { await tx.execute(sql.raw(`UPDATE payroll_records SET journal_entry_id = NULL WHERE journal_entry_id IN (${idsList})`)); } catch {}
-  try { await tx.execute(sql.raw(`UPDATE petty_cash_transactions SET journal_entry_id = NULL WHERE journal_entry_id IN (${idsList})`)); } catch {}
-  try { await tx.execute(sql.raw(`UPDATE petty_cash_funds SET journal_entry_id = NULL WHERE journal_entry_id IN (${idsList})`)); } catch {}
-  try { await tx.execute(sql.raw(`UPDATE live_cf_orders SET journal_entry_id = NULL WHERE journal_entry_id IN (${idsList})`)); } catch {}
-  try { await tx.execute(sql.raw(`UPDATE closed_periods SET journal_entry_id = NULL WHERE journal_entry_id IN (${idsList})`)); } catch {}
-  try { await tx.execute(sql.raw(`UPDATE fixed_assets SET journal_entry_id = NULL WHERE journal_entry_id IN (${idsList})`)); } catch {}
-  try { await tx.execute(sql.raw(`UPDATE pos_sessions SET close_journal_id = NULL WHERE close_journal_id IN (${idsList})`)); } catch {}
-  try { await tx.execute(sql.raw(`UPDATE restaurant_pos_sessions SET close_journal_id = NULL WHERE close_journal_id IN (${idsList})`)); } catch {}
+  const safeUpdate = async (statement: string) => {
+    try {
+      await tx.execute(sql.raw(`SAVEPOINT _su`));
+      await tx.execute(sql.raw(statement));
+      await tx.execute(sql.raw(`RELEASE SAVEPOINT _su`));
+    } catch {
+      try { await tx.execute(sql.raw(`ROLLBACK TO SAVEPOINT _su`)); } catch {}
+    }
+  };
+  await safeUpdate(`UPDATE bank_statements SET matched_journal_id = NULL WHERE matched_journal_id IN (${idsList})`);
+  await safeUpdate(`UPDATE manufacturing_orders SET journal_entry_id = NULL WHERE journal_entry_id IN (${idsList})`);
+  await safeUpdate(`UPDATE payroll_records SET journal_entry_id = NULL WHERE journal_entry_id IN (${idsList})`);
+  await safeUpdate(`UPDATE petty_cash_transactions SET journal_entry_id = NULL WHERE journal_entry_id IN (${idsList})`);
+  await safeUpdate(`UPDATE petty_cash_funds SET journal_entry_id = NULL WHERE journal_entry_id IN (${idsList})`);
+  await safeUpdate(`UPDATE live_cf_orders SET journal_entry_id = NULL WHERE journal_entry_id IN (${idsList})`);
+  await safeUpdate(`UPDATE closed_periods SET journal_entry_id = NULL WHERE journal_entry_id IN (${idsList})`);
+  await safeUpdate(`UPDATE fixed_assets SET journal_entry_id = NULL WHERE journal_entry_id IN (${idsList})`);
+  await safeUpdate(`UPDATE pos_sessions SET close_journal_id = NULL WHERE close_journal_id IN (${idsList})`);
+  await safeUpdate(`UPDATE restaurant_pos_sessions SET close_journal_id = NULL WHERE close_journal_id IN (${idsList})`);
   try { await ecomDb.execute(sql.raw(`UPDATE ecommerce_orders SET journal_entry_id = NULL WHERE journal_entry_id IN (${idsList})`)); } catch {}
   try { await ecomDb.execute(sql.raw(`UPDATE ecommerce_settlements SET settle_journal_id = NULL WHERE settle_journal_id IN (${idsList})`)); } catch {}
   try { await ecomDb.execute(sql.raw(`UPDATE ecommerce_settlements SET withdraw_journal_id = NULL WHERE withdraw_journal_id IN (${idsList})`)); } catch {}
