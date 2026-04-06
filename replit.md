@@ -35,8 +35,8 @@ Kai tracks all files cherry-picked to production. This is the single source of t
 | server/routes/expense-routes.ts | Remove auto journal from WHT cert (50ทวิ = doc only) | Deployed 2026-04-06 | 8ac7213 |
 | server/route-helpers.ts | deleteJournalEntriesForDoc: try-catch ecomDb | Ready | ca95c74 |
 | server/routes/expense-routes.ts | Expense delete: error logging + fix | Ready | 113fe6a |
-| server/ecom-db.ts | ROOT FIX: reinitialize ecomDb after config bootstrap | Ready | 71df458 |
-| server/pos-db.ts | ROOT FIX: reinitialize posDb after config bootstrap | Ready | 7117169 |
+| server/ecom-db.ts | ROOT FIX: lazy init — pool created on first use, not module load | Ready | a9b3e7b |
+| server/pos-db.ts | ROOT FIX: lazy init — pool created on first use, not module load | Ready | 0785fad |
 | server/index.ts | Call reinitializeEcomDb/PosDb after bootstrap | Ready | f3df8da |
 | server/replit_integrations/object_storage/routes.ts | Fix logo lost on pull (UPLOAD_DIR) | Ready | 102ddaf |
 | deepmain_schema_sync.sql | Add tax_invoices.customer_branch_id | Ready | a6a5853 |
