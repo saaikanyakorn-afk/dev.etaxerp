@@ -505,17 +505,10 @@ app.post("/api/line/webhook", async (req, res) => {
               const clientFolder = mapping.firmClientId ? `client-${mapping.firmClientId}` : "unassigned";
               const safeLineFilename = sanitizeFilename(filename, { prefix: `${Date.now()}_` }); const storagePath = `.private/line-documents/${clientFolder}/${yearMonth}/${categoryFolder}/${safeLineFilename}`;
 
-              const { Client } = await import("@replit/object-storage");
-              const fs = await import("fs");
-              const os = await import("os");
-              const bucketId = process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID;
-              const client = new Client({ bucketId });
-              const tmpFile = `${os.tmpdir()}/line_upload_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-              fs.writeFileSync(tmpFile, buffer);
-              console.log(`[LINE Doc] Uploading to ${storagePath}...`);
-              await client.uploadFromFilename(storagePath, tmpFile);
-              try { fs.unlinkSync(tmpFile); } catch {}
-              console.log(`[LINE Doc] Upload complete`);
+              const { saveBufferToPath } = await import("../replit_integrations/object_storage/routes");
+              console.log(`[LINE Doc] Saving to ${storagePath}...`);
+              saveBufferToPath(buffer, storagePath);
+              console.log(`[LINE Doc] Save complete`);
 
               let senderName = null;
               if (capturedEvent.source.userId) {
@@ -740,15 +733,9 @@ app.get("/api/line-documents/:id/download", requireAuth, async (req, res) => {
     const doc = docs.find(d => d.id === Number(req.params.id));
     if (!doc) return res.status(404).json({ message: "ไม่พบเอกสาร" });
     { const ac = await checkDocOwnership(doc.companyId, req.user); if (!ac.allowed) return res.status(403).json({ message: ac.message }); }
-    const { Client } = await import("@replit/object-storage");
-    const fs = await import("fs");
-    const os = await import("os");
-    const client = new Client({ bucketId: process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID });
-    const tmpFile = `${os.tmpdir()}/line_dl_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-    const result = await client.downloadToFilename(doc.storageUrl, tmpFile);
-    if (!result.ok) return res.status(404).json({ message: "ไม่พบไฟล์ในระบบจัดเก็บ" });
-    const fileData = fs.readFileSync(tmpFile);
-    try { fs.unlinkSync(tmpFile); } catch {}
+    const { readFromPath } = await import("../replit_integrations/object_storage/routes");
+    const fileData = readFromPath(doc.storageUrl);
+    if (!fileData) return res.status(404).json({ message: "ไม่พบไฟล์ในระบบจัดเก็บ" });
     res.setHeader("Content-Type", doc.mimeType || "application/octet-stream");
     res.setHeader("Content-Disposition", `inline; filename="${encodeURIComponent(doc.originalFilename || "file")}"`);
     res.send(fileData);
@@ -773,8 +760,7 @@ app.post("/api/line-documents/batch-download", requireAuth, async (req, res) => 
     const docs = allDocs.filter(d => numIds.includes(d.id));
     if (docs.length === 0) return res.status(404).json({ message: "ไม่พบเอกสารที่เลือก" });
     const archiver = (await import("archiver")).default;
-    const { Client } = await import("@replit/object-storage");
-    const client = new Client({ bucketId: process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID });
+    const { readFromPath } = await import("../replit_integrations/object_storage/routes");
     res.setHeader("Content-Type", "application/zip");
     res.setHeader("Content-Disposition", `attachment; filename="line-documents-${Date.now()}.zip"`);
     const archive = archiver("zip", { zlib: { level: 5 } });
@@ -784,10 +770,8 @@ app.post("/api/line-documents/batch-download", requireAuth, async (req, res) => 
     const usedNames = new Set<string>();
     for (const doc of docs) {
       try {
-        const tmpFile = `${osLib.tmpdir()}/line_batch_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-        const result = await client.downloadToFilename(doc.storageUrl, tmpFile);
-        if (!result.ok) continue;
-        tmpFiles.push(tmpFile);
+        const fileData = readFromPath(doc.storageUrl);
+        if (!fileData) continue;
         let name = doc.originalFilename || `file_${doc.id}`;
         if (usedNames.has(name)) {
           const ext = name.lastIndexOf(".") > 0 ? name.slice(name.lastIndexOf(".")) : "";
@@ -795,12 +779,11 @@ app.post("/api/line-documents/batch-download", requireAuth, async (req, res) => 
           name = `${base}_${doc.id}${ext}`;
         }
         usedNames.add(name);
-        archive.file(tmpFile, { name });
+        archive.append(fileData, { name });
       } catch {}
     }
     await archive.finalize();
   } catch (err: any) {
-    cleanupTmp();
     if (!res.headersSent) res.status(500).json({ message: err.message });
   }
 });
@@ -815,9 +798,8 @@ app.delete("/api/line-documents/:id", requireAuth, async (req, res) => {
     if (!doc) return res.status(404).json({ message: "ไม่พบเอกสาร" });
     { const ac = await checkDocOwnership(doc.companyId, req.user); if (!ac.allowed) return res.status(403).json({ message: ac.message }); }
     try {
-      const { Client } = await import("@replit/object-storage");
-      const client = new Client({ bucketId: process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID });
-      await client.delete(doc.storageUrl);
+      const { deleteFromPath } = await import("../replit_integrations/object_storage/routes");
+      deleteFromPath(doc.storageUrl);
     } catch {}
     await storage.deleteLineDocument(doc.id);
     res.json({ success: true });
@@ -836,15 +818,9 @@ app.post("/api/line-documents/:id/extract-date", requireAuth, async (req, res) =
     if (!doc) return res.status(404).json({ message: "ไม่พบเอกสาร" });
     { const ac = await checkDocOwnership(doc.companyId, req.user); if (!ac.allowed) return res.status(403).json({ message: ac.message }); }
     if (doc.category !== "image" && doc.category !== "document") return res.status(400).json({ message: "ไม่รองรับไฟล์ประเภทนี้" });
-    const { Client } = await import("@replit/object-storage");
-    const fs = await import("fs");
-    const os = await import("os");
-    const client = new Client({ bucketId: process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID });
-    const tmpFile = `${os.tmpdir()}/line_ai_${Date.now()}`;
-    const result = await client.downloadToFilename(doc.storageUrl, tmpFile);
-    if (!result.ok) return res.status(404).json({ message: "ไม่พบไฟล์" });
-    const buffer = fs.readFileSync(tmpFile);
-    try { fs.unlinkSync(tmpFile); } catch {}
+    const { readFromPath } = await import("../replit_integrations/object_storage/routes");
+    const buffer = readFromPath(doc.storageUrl);
+    if (!buffer) return res.status(404).json({ message: "ไม่พบไฟล์" });
     if (buffer.length > 10 * 1024 * 1024) return res.status(400).json({ message: "ไฟล์ใหญ่เกินไป (สูงสุด 10MB)" });
     const base64Data = buffer.toString("base64");
     let imageContent: any[] = [];

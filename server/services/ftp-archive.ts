@@ -398,11 +398,10 @@ async function processOneItem(client: ftp.Client, item: any, settings: FtpArchiv
     let localSize = 0;
 
     try {
-      const { Client: ObjClient } = await import("@replit/object-storage");
-      const objClient = new ObjClient({ bucketId: process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID });
-      const result = await objClient.downloadAsBytes(objectKey);
-      if (result.ok && result.value) {
-        localFileBuffer = Buffer.from(result.value as unknown as ArrayBuffer);
+      const { readFromPath } = await import("../replit_integrations/object_storage/routes");
+      const fileData = readFromPath(objectKey);
+      if (fileData && fileData.length > 0) {
+        localFileBuffer = fileData;
         localSize = localFileBuffer.length;
       }
     } catch (err: any) {
@@ -496,19 +495,21 @@ async function processOneItem(client: ftp.Client, item: any, settings: FtpArchiv
 
 async function cleanupObjectStorage(objectKey: string) {
   try {
-    const { Client: ObjClient } = await import("@replit/object-storage");
-    const objClient = new ObjClient({ bucketId: process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID });
+    const { readFromPath, saveBufferToPath, deleteFromPath } = await import("../replit_integrations/object_storage/routes");
     if (SAFE_DELETE) {
       const archivedKey = objectKey + ".archived";
-      await objClient.copy(objectKey, archivedKey);
-      await objClient.delete(objectKey);
-      log(`FTP Archive: Object Storage renamed ${objectKey} → ${archivedKey}`, "ftp-archive");
+      const data = readFromPath(objectKey);
+      if (data) {
+        saveBufferToPath(data, archivedKey);
+        deleteFromPath(objectKey);
+        log(`FTP Archive: Local storage renamed ${objectKey} → ${archivedKey}`, "ftp-archive");
+      }
     } else {
-      await objClient.delete(objectKey);
-      log(`FTP Archive: Object Storage deleted ${objectKey}`, "ftp-archive");
+      deleteFromPath(objectKey);
+      log(`FTP Archive: Local storage deleted ${objectKey}`, "ftp-archive");
     }
   } catch (cleanupErr: any) {
-    log(`FTP Archive: Object Storage cleanup failed for ${objectKey}: ${cleanupErr.message}`, "ftp-archive");
+    log(`FTP Archive: Local storage cleanup failed for ${objectKey}: ${cleanupErr.message}`, "ftp-archive");
   }
 }
 
@@ -969,12 +970,11 @@ export async function revertArchivedFiles(): Promise<{ success: boolean; reverte
         }
 
         try {
-          const { Client: ObjClient } = await import("@replit/object-storage");
-          const objClient = new ObjClient({ bucketId: process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID });
-          await objClient.uploadFromBytes(item.localPath, fileBuffer);
-          log(`FTP Archive [REVERT]: Re-uploaded to Object Storage: ${item.localPath}`, "ftp-archive");
+          const { saveBufferToPath } = await import("../replit_integrations/object_storage/routes");
+          saveBufferToPath(fileBuffer, item.localPath);
+          log(`FTP Archive [REVERT]: Re-saved to local storage: ${item.localPath}`, "ftp-archive");
         } catch (uploadErr: any) {
-          log(`FTP Archive [REVERT]: Could not upload to Object Storage ${item.localPath}: ${uploadErr.message}`, "ftp-archive");
+          log(`FTP Archive [REVERT]: Could not save to local storage ${item.localPath}: ${uploadErr.message}`, "ftp-archive");
           failed++;
           try { fs.unlinkSync(tmpPath); } catch {}
           return;

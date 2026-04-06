@@ -1869,13 +1869,12 @@ export function registerPurchaseRoutes(app: Express) {
           let attachedUrl = "";
           const tUpload = performance.now();
           try {
-            const { Client } = await import("@replit/object-storage");
-            const storageClient = new Client({ bucketId: process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID });
+            const { saveBufferToPath } = await import("../replit_integrations/object_storage/routes");
             const { randomUUID } = await import("crypto");
             const uuid = randomUUID();
             const safeExt = fileExt || ".bin";
             const objectKey = `pdf-imports/${uuid}${safeExt}`;
-            await storageClient.uploadFromBytes(objectKey, file.buffer);
+            saveBufferToPath(file.buffer, objectKey);
             attachedUrl = objectKey;
           } catch (uploadErr: any) {
             console.log("File upload to storage skipped:", uploadErr.message);

@@ -71,18 +71,17 @@ export function attachmentInterceptMiddleware(req: Request, res: Response, next:
 }
 
 async function handleObjectStorageFallback(objectPath: string, res: Response) {
-  const { Client } = await import("@replit/object-storage");
-  const client = new Client({ bucketId: process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID });
+  const { readFromPath } = await import("./replit_integrations/object_storage/routes");
   const ext = path.extname(objectPath).toLowerCase();
   const contentType = MIME_MAP[ext] || "application/octet-stream";
 
   const tryServe = async (tryPath: string): Promise<boolean> => {
     try {
-      const result = await client.downloadAsBytes(tryPath);
-      if (result.ok) {
+      const fileData = readFromPath(tryPath);
+      if (fileData) {
         res.setHeader("Content-Type", contentType);
         res.setHeader("Content-Disposition", `inline; filename="${encodeURIComponent(path.basename(tryPath).replace('.archived', ''))}"`);
-        res.send(Buffer.from(result.value));
+        res.send(fileData);
         return true;
       }
     } catch {}

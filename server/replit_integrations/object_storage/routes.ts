@@ -70,6 +70,33 @@ export function getLocalFilePath(fileId: string): string | null {
   return path.join(LOCAL_UPLOAD_DIR, candidates[0]);
 }
 
+export function saveBufferToPath(buffer: Buffer, relativePath: string): void {
+  ensureUploadDir();
+  const fullPath = path.join(LOCAL_UPLOAD_DIR, relativePath);
+  const dir = path.dirname(fullPath);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(fullPath, buffer);
+}
+
+export function readFromPath(relativePath: string): Buffer | null {
+  ensureUploadDir();
+  const fullPath = path.join(LOCAL_UPLOAD_DIR, relativePath);
+  if (!fs.existsSync(fullPath)) return null;
+  return fs.readFileSync(fullPath);
+}
+
+export function getFullLocalPath(relativePath: string): string {
+  return path.join(LOCAL_UPLOAD_DIR, relativePath);
+}
+
+export function deleteFromPath(relativePath: string): boolean {
+  try {
+    const fullPath = path.join(LOCAL_UPLOAD_DIR, relativePath);
+    if (fs.existsSync(fullPath)) { fs.unlinkSync(fullPath); return true; }
+  } catch {}
+  return false;
+}
+
 export function registerObjectStorageRoutes(app: Express): void {
   ensureUploadDir();
   console.log(`[Upload] Local disk storage — ${LOCAL_UPLOAD_DIR}`);
@@ -186,17 +213,28 @@ export function registerObjectStorageRoutes(app: Express): void {
 
   app.use("/objects", (req, res, next) => {
     if (req.method !== "GET") return next();
-    const parts = req.originalUrl.replace(/\?.*$/, "").split("/");
-    const fileId = parts[parts.length - 1];
-    if (!fileId) return res.status(404).json({ error: "Object not found" });
+    const relativePath = decodeURIComponent(req.originalUrl.replace(/^\/objects\//, "").replace(/\?.*$/, ""));
+    if (!relativePath) return res.status(404).json({ error: "Object not found" });
     ensureUploadDir();
-    const candidates = fs.readdirSync(LOCAL_UPLOAD_DIR).filter(f => f.startsWith(fileId) && !f.endsWith(".meta.json"));
-    if (candidates.length === 0) {
-      return res.status(404).json({ error: "Object not found" });
+    const fullPath = path.join(LOCAL_UPLOAD_DIR, relativePath);
+    const resolved = path.resolve(fullPath);
+    if (!resolved.startsWith(path.resolve(LOCAL_UPLOAD_DIR))) return res.status(403).json({ error: "Forbidden" });
+    if (fs.existsSync(resolved)) {
+      const contentType = detectContentType(path.basename(resolved));
+      res.set({ "Content-Type": contentType, "Cache-Control": "public, max-age=86400" });
+      return fs.createReadStream(resolved).pipe(res);
     }
-    const filePath = path.join(LOCAL_UPLOAD_DIR, candidates[0]);
-    const contentType = detectContentType(candidates[0]);
-    res.set({ "Content-Type": contentType, "Cache-Control": "public, max-age=86400" });
-    fs.createReadStream(filePath).pipe(res);
+    const dirPath = path.dirname(resolved);
+    const baseName = path.basename(relativePath);
+    if (fs.existsSync(dirPath)) {
+      const candidates = fs.readdirSync(dirPath).filter(f => f.startsWith(baseName) && !f.endsWith(".meta.json"));
+      if (candidates.length > 0) {
+        const filePath2 = path.join(dirPath, candidates[0]);
+        const contentType = detectContentType(candidates[0]);
+        res.set({ "Content-Type": contentType, "Cache-Control": "public, max-age=86400" });
+        return fs.createReadStream(filePath2).pipe(res);
+      }
+    }
+    return res.status(404).json({ error: "Object not found" });
   });
 }

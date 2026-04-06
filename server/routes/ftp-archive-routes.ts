@@ -275,8 +275,7 @@ app.get('/api/ftp-archive/proxy', requireAuth, async (req, res) => {
 
 app.post('/api/ftp-archive/seed-test-files', requireAuth, async (req, res) => {
   try {
-    const { Client: ObjClient } = await import("@replit/object-storage");
-    const objClient = new ObjClient();
+    const { saveBufferToPath } = await import("../replit_integrations/object_storage/routes");
     const { Pool: Pg2Pool } = await import("pg");
 
     const testFiles = [
@@ -286,7 +285,7 @@ app.post('/api/ftp-archive/seed-test-files', requireAuth, async (req, res) => {
     ];
 
     for (const f of testFiles) {
-      await objClient.uploadFromBytes(f.key, Buffer.from(f.content));
+      saveBufferToPath(Buffer.from(f.content), f.key);
     }
 
     const tivs = await db.select().from(taxInvoices)

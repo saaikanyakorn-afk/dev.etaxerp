@@ -156,8 +156,7 @@ export function registerExpenseRoutes(app: Express) {
         return res.status(400).json({ message: "URL ไม่อยู่ในโดเมนที่อนุญาต" });
       }
 
-      const { Client } = await import("@replit/object-storage");
-      const client = new Client({ bucketId: process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID });
+      const { readFromPath } = await import("../replit_integrations/object_storage/routes");
 
       const objectPath = normalizeObjectPath(fileUrl);
       const fileName = path.basename(objectPath);
@@ -170,8 +169,8 @@ export function registerExpenseRoutes(app: Express) {
       let downloaded = false;
       for (const tryPath of tryPaths) {
         try {
-          const result = await client.downloadAsBytes(tryPath);
-          if (result.ok) {
+          const fileData = readFromPath(tryPath);
+          if (fileData) {
             const ext = path.extname(tryPath).toLowerCase();
             const mimeMap: Record<string, string> = {
               ".pdf": "application/pdf", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
@@ -180,7 +179,7 @@ export function registerExpenseRoutes(app: Express) {
             const contentType = mimeMap[ext] || "application/octet-stream";
             res.setHeader("Content-Type", contentType);
             res.setHeader("Content-Disposition", `inline; filename="${encodeURIComponent(path.basename(tryPath))}"`);
-            res.send(Buffer.from(result.value));
+            res.send(fileData);
             downloaded = true;
             break;
           }
@@ -190,8 +189,8 @@ export function registerExpenseRoutes(app: Express) {
       if (!downloaded) {
         const archivedPath = objectPath + ".archived";
         try {
-          const archivedCopy = await client.downloadAsBytes(archivedPath);
-          if (archivedCopy.ok) {
+          const archivedData = readFromPath(archivedPath);
+          if (archivedData) {
             const ext = path.extname(objectPath).toLowerCase();
             const mimeMap: Record<string, string> = {
               ".pdf": "application/pdf", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
@@ -200,7 +199,7 @@ export function registerExpenseRoutes(app: Express) {
             const contentType = mimeMap[ext] || "application/octet-stream";
             res.setHeader("Content-Type", contentType);
             res.setHeader("Content-Disposition", `inline; filename="${encodeURIComponent(fileName)}"`);
-            res.send(Buffer.from(archivedCopy.value));
+            res.send(archivedData);
             downloaded = true;
           }
         } catch {}

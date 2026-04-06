@@ -20,8 +20,7 @@ if (process.env.NODE_ENV !== "production") {
 
   app.post("/api/dev/ftp-archive-test", async (_req, res) => {
     try {
-      const { Client: ObjClient } = await import("@replit/object-storage");
-      const objClient = new ObjClient({ bucketId: process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID });
+      const { saveBufferToPath } = await import("../replit_integrations/object_storage/routes");
       const results: string[] = [];
 
       const testFiles = [
@@ -31,7 +30,7 @@ if (process.env.NODE_ENV !== "production") {
       ];
 
       for (const f of testFiles) {
-        await objClient.uploadFromBytes(f.key, Buffer.from(f.content));
+        saveBufferToPath(Buffer.from(f.content), f.key);
         results.push(`Uploaded ${f.key} (${f.content.length} bytes)`);
       }
 
