@@ -222,7 +222,7 @@ export async function migrateChartOfAccountCodes() {
   }
 }
 
-const SCHEMA_VERSION = "86";
+const SCHEMA_VERSION = "85";
 
 async function autoSyncSchema() {
   try {
@@ -1035,9 +1035,6 @@ async function runMigrationsInBackground() {
       log("Machine registry: identified self, no DB redirection needed");
     }
   }
-
-  const { applyMachineUploadDir } = await import("./replit_integrations/object_storage/routes");
-  applyMachineUploadDir();
 
   const { reinitializeEcomDb } = await import("./ecom-db");
   const { reinitializePosDb } = await import("./pos-db");
