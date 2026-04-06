@@ -1019,10 +1019,27 @@ async function runMigrationsInBackground() {
   log("Bootstrapping config from config DB...");
   await bootstrapConfig();
   await reinitializeFromConfig();
+
+  const { resolveDbFromMachineRegistry } = await import("./machine-db-resolver");
+  const { getConfigDbUrl } = await import("./config-bootstrap");
+  const configDbUrl = getConfigDbUrl();
+  let machineResolvedUrl: string | null = null;
+
+  if (configDbUrl && process.env.MACHINE_NAME) {
+    log("Resolving DB from machine registry...");
+    const resolved = await resolveDbFromMachineRegistry(configDbUrl);
+    if (resolved) {
+      machineResolvedUrl = resolved.url;
+      log(`Machine registry resolved: ${resolved.label} (${resolved.path}, ${resolved.latencyMs}ms)`);
+    } else {
+      log("Machine registry: no result, falling back to config");
+    }
+  }
+
   const { reinitializeEcomDb } = await import("./ecom-db");
   const { reinitializePosDb } = await import("./pos-db");
-  await reinitializeEcomDb();
-  await reinitializePosDb();
+  await reinitializeEcomDb(machineResolvedUrl);
+  await reinitializePosDb(machineResolvedUrl);
   log("Config bootstrap complete");
 
   const { testMainDbConnection, isRecoveryMode, setRecoveryMode } = await import("./db");

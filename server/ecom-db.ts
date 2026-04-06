@@ -25,8 +25,8 @@ let _ecomDb: NodePgDatabase<typeof schema> | null = null;
 let _ecomLabel = "";
 let _keepaliveStarted = false;
 
-function createEcomPool(): { pool: pg.Pool; db: NodePgDatabase<typeof schema> } {
-  const config = getEcomDbUrl();
+function createEcomPool(overrideConfig?: { url: string; label: string }): { pool: pg.Pool; db: NodePgDatabase<typeof schema> } {
+  const config = overrideConfig || getEcomDbUrl();
   _ecomLabel = config.label;
   console.log(`[EcomDB] Creating pool: ${config.label}`);
 
@@ -99,8 +99,13 @@ export function isEcomSeparateDb(): boolean {
   return !!ecomUrl;
 }
 
-export async function reinitializeEcomDb(): Promise<void> {
-  const newConfig = getEcomDbUrl();
+export async function reinitializeEcomDb(machineResolvedUrl?: string | null): Promise<void> {
+  let newConfig: { url: string; label: string };
+  if (machineResolvedUrl) {
+    newConfig = { url: machineResolvedUrl, label: "E-Commerce (Machine Registry)" };
+  } else {
+    newConfig = getEcomDbUrl();
+  }
   if (_ecomPool && newConfig.url && newConfig.label === _ecomLabel) {
     console.log(`[EcomDB] reinitialize: URL unchanged, skipping`);
     return;
@@ -115,5 +120,5 @@ export async function reinitializeEcomDb(): Promise<void> {
   }
   _ecomPool = null;
   _ecomDb = null;
-  createEcomPool();
+  createEcomPool(newConfig);
 }
