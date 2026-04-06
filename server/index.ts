@@ -1038,8 +1038,9 @@ async function runMigrationsInBackground() {
 
   const { reinitializeEcomDb } = await import("./ecom-db");
   const { reinitializePosDb } = await import("./pos-db");
-  await reinitializeEcomDb(machineResolvedUrl);
-  await reinitializePosDb(machineResolvedUrl);
+  const sharedDbUrl = machineResolvedUrl || mainDbUrl;
+  await reinitializeEcomDb(sharedDbUrl);
+  await reinitializePosDb(sharedDbUrl);
   log("Config bootstrap complete");
 
   const { testMainDbConnection, isRecoveryMode, setRecoveryMode } = await import("./db");

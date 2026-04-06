@@ -99,10 +99,13 @@ export function isPosSeparateDb(): boolean {
   return !!posUrl;
 }
 
-export async function reinitializePosDb(machineResolvedUrl?: string | null): Promise<void> {
+export async function reinitializePosDb(sharedDbUrl?: string | null): Promise<void> {
   let newConfig: { url: string; label: string };
-  if (machineResolvedUrl) {
-    newConfig = { url: machineResolvedUrl, label: "POS (Machine Registry)" };
+  const posUrl = process.env.DATABASE_URL_POS || getConfig("DATABASE_URL_POS");
+  if (posUrl) {
+    newConfig = { url: posUrl, label: "POS (Separate DB)" };
+  } else if (sharedDbUrl) {
+    newConfig = { url: sharedDbUrl, label: "POS (Shared DB)" };
   } else {
     newConfig = getPosDbUrl();
   }
