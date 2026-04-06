@@ -25,6 +25,9 @@ interface MachineRow {
   db_user: string;
   db_password: string;
   enc_hostname: string | null;
+  enc_mac_address: string | null;
+  enc_config_db_port: string | null;
+  enc_content: string | null;
   target_db_machine_id: number | null;
 }
 
@@ -143,8 +146,9 @@ export async function resolveDbFromMachineRegistry(configDbUrl: string): Promise
   try {
     const machinesResult = await pool.query<MachineRowWithOs>(
       `SELECT id, local_name, windows_name, fqdn, domain_name, lan_ip, wan_ip,
-              db_port, db_name, db_user, db_password, enc_hostname, target_db_machine_id,
-              os, role
+              db_port, db_name, db_user, db_password,
+              enc_hostname, enc_mac_address, enc_config_db_port, enc_content,
+              target_db_machine_id, os, role
        FROM machines`
     );
     const allMachines = machinesResult.rows;
@@ -173,10 +177,51 @@ export async function resolveDbFromMachineRegistry(configDbUrl: string): Promise
       return null;
     }
 
-    const dbPort = parseInt(targetMachine.db_port || "5432", 10);
-    const dbName = targetMachine.db_name;
-    const dbUser = targetMachine.db_user;
-    const dbPassword = targetMachine.db_password;
+    let dbPort: number;
+    let dbName: string;
+    let dbUser: string;
+    let dbPassword: string;
+    let credSource = "plaintext";
+
+    if (targetMachine.enc_content && targetMachine.enc_hostname && targetMachine.enc_mac_address && targetMachine.enc_config_db_port) {
+      try {
+        const { decryptEncContent } = require("./utils/machine-crypto");
+        const payload = decryptEncContent(
+          targetMachine.enc_content,
+          targetMachine.enc_hostname,
+          targetMachine.enc_mac_address,
+          targetMachine.enc_config_db_port
+        );
+        const mb = payload.mainDb;
+        const mbPort = mb ? parseInt(mb.port, 10) : NaN;
+        if (mb && mb.user && mb.password && mb.database && mb.port && !isNaN(mbPort) && mbPort > 0 && mbPort <= 65535) {
+          dbPort = mbPort;
+          dbName = mb.database;
+          dbUser = mb.user;
+          dbPassword = mb.password;
+          credSource = "encrypted (mainDb)";
+        } else {
+          console.log(`[MachineResolver] enc_content for "${targetMachine.local_name}" has no mainDb section — using plaintext fallback`);
+          dbPort = parseInt(targetMachine.db_port || "5432", 10);
+          dbName = targetMachine.db_name;
+          dbUser = targetMachine.db_user;
+          dbPassword = targetMachine.db_password;
+        }
+      } catch (err: any) {
+        console.log(`[MachineResolver] Decrypt failed for "${targetMachine.local_name}" (${err.message}) — using plaintext fallback`);
+        dbPort = parseInt(targetMachine.db_port || "5432", 10);
+        dbName = targetMachine.db_name;
+        dbUser = targetMachine.db_user;
+        dbPassword = targetMachine.db_password;
+      }
+    } else {
+      dbPort = parseInt(targetMachine.db_port || "5432", 10);
+      dbName = targetMachine.db_name;
+      dbUser = targetMachine.db_user;
+      dbPassword = targetMachine.db_password;
+    }
+
+    console.log(`[MachineResolver] Credentials for "${targetMachine.local_name}": source=${credSource}, port=${dbPort}`);
 
     if (!dbUser || !dbPassword || !dbName) {
       console.log(`[MachineResolver] Target "${targetMachine.local_name}" missing DB credentials`);

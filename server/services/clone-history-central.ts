@@ -50,8 +50,28 @@ async function resolveConnectionUrl(machineId: number): Promise<string | null> {
     if (rows.length === 0) return null;
     const m = rows[0];
     const host = m.fqdn || m.lanIp || m.localName;
-    const port = m.dbPort || "5432";
-    return `postgresql://${encodeURIComponent(m.dbUser || "")}:${encodeURIComponent(m.dbPassword || "")}@${host}:${port}/${m.dbName}`;
+
+    let port = m.dbPort || "5432";
+    let dbName = m.dbName;
+    let dbUser = m.dbUser || "";
+    let dbPassword = m.dbPassword || "";
+
+    if (m.encContent && m.encHostname && m.encMacAddress && m.encConfigDbPort) {
+      try {
+        const { decryptEncContent } = await import("../utils/machine-crypto");
+        const payload = decryptEncContent(m.encContent, m.encHostname, m.encMacAddress, m.encConfigDbPort);
+        const mb = payload.mainDb;
+        const mbPort = mb ? parseInt(mb.port, 10) : NaN;
+        if (mb && mb.user && mb.password && mb.database && mb.port && !isNaN(mbPort) && mbPort > 0 && mbPort <= 65535) {
+          port = mb.port;
+          dbName = mb.database;
+          dbUser = mb.user;
+          dbPassword = mb.password;
+        }
+      } catch {}
+    }
+
+    return `postgresql://${encodeURIComponent(dbUser)}:${encodeURIComponent(dbPassword)}@${host}:${port}/${dbName}`;
   } catch {
     return null;
   }

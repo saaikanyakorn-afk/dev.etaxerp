@@ -2456,15 +2456,49 @@ app.post("/api/platform/machines/:id/benchmark-query", requireAuth, requireSuper
 
 app.post("/api/platform/machines/generate-config", requireAuth, requireSuperAdmin, async (req, res) => {
   try {
-    const { hostname, macAddress, configDbPort, configDbName, machineId } = req.body;
+    const { hostname, macAddress, configDbPort, configDbName, machineId, mainDbHost, mainDbPort, mainDbName, mainDbUser, mainDbPassword } = req.body;
     if (!hostname || !macAddress) {
       return res.status(400).json({ message: "ต้องระบุ hostname และ MAC address" });
     }
-    const { deriveKey, encrypt, generateConfigDbCredentials, generateEncryptedConfigFile } = await import("../utils/machine-crypto");
+    const { generateConfigDbCredentials, generateFullEncContent } = await import("../utils/machine-crypto");
     const creds = generateConfigDbCredentials();
-    const { encryptedContent, keyPreview } = generateEncryptedConfigFile(
-      hostname, macAddress, creds.username, creds.password,
-      configDbPort || "5432", configDbName || "etax_config"
+    const encPort = configDbPort || "5432";
+
+    const configDb = {
+      host: "127.0.0.1",
+      port: encPort,
+      database: configDbName || "etax_config",
+      user: creds.username,
+      password: creds.password,
+    };
+
+    let mainDb: { host: string; port: string; database: string; user: string; password: string } | undefined;
+
+    if (machineId) {
+      const { machines: machinesTable } = await import("@shared/schema");
+      const [existingMachine] = await db.select().from(machinesTable).where(eq(machinesTable.id, Number(machineId)));
+
+      if (mainDbUser && mainDbPassword && mainDbName) {
+        mainDb = {
+          host: mainDbHost || "127.0.0.1",
+          port: mainDbPort || existingMachine?.dbPort || "5432",
+          database: mainDbName,
+          user: mainDbUser,
+          password: mainDbPassword,
+        };
+      } else if (existingMachine?.dbUser && existingMachine?.dbPassword && existingMachine?.dbName) {
+        mainDb = {
+          host: mainDbHost || "127.0.0.1",
+          port: existingMachine.dbPort || "5432",
+          database: existingMachine.dbName,
+          user: existingMachine.dbUser,
+          password: existingMachine.dbPassword,
+        };
+      }
+    }
+
+    const { encryptedContent, keyPreview } = generateFullEncContent(
+      hostname, macAddress, encPort, configDb, mainDb
     );
 
     if (machineId) {
@@ -2472,16 +2506,12 @@ app.post("/api/platform/machines/generate-config", requireAuth, requireSuperAdmi
       await db.update(machinesTable).set({
         encHostname: hostname.trim(),
         encMacAddress: macAddress.trim(),
-        encConfigDbPort: configDbPort || "5432",
+        encConfigDbPort: encPort,
         encConfigDbName: configDbName || "etax_config",
         encConfigDbUser: creds.username,
         encConfigDbPassword: creds.password,
         encContent: encryptedContent,
         encGeneratedAt: new Date(),
-        dbUser: creds.username,
-        dbPassword: creds.password,
-        dbName: configDbName || "etax_config",
-        dbPort: configDbPort || "5432",
         updatedAt: new Date(),
       }).where(eq(machinesTable.id, Number(machineId)));
     }
@@ -2493,6 +2523,7 @@ app.post("/api/platform/machines/generate-config", requireAuth, requireSuperAdmi
       keyPreview,
       hostname: hostname.trim(),
       macAddress: macAddress.trim(),
+      hasMainDb: !!mainDb,
     });
   } catch (err: any) { res.status(500).json({ message: err.message }); }
 });
