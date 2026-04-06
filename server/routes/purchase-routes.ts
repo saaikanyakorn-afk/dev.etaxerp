@@ -1784,9 +1784,6 @@ export function registerPurchaseRoutes(app: Express) {
       const existingNos = new Set(existingDocs.map(d => d.no));
       const existingTaxRefs = new Set(existingDocs.filter(d => d.taxRef).map(d => d.taxRef));
 
-      const { ObjectStorageService, objectStorageClient } = await import("../replit_integrations/object_storage/objectStorage");
-      const objService = new ObjectStorageService();
-
       const results: any[] = [];
 
       for (const file of req.files) {

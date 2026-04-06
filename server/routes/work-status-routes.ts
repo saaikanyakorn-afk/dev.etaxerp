@@ -761,25 +761,15 @@ app.get("/api/firm-documents/download/:id", requireAuth, requireModule("firm-mgm
     const encodedName = encodeURIComponent(doc.fileName || "file");
 
     try {
-      if (doc.fileUrl.startsWith("/objects/")) {
-        const { ObjectStorageService } = await import("./replit_integrations/object_storage/objectStorage");
-        const objStorage = new ObjectStorageService();
-        const objectFile = await objStorage.getObjectEntityFile(doc.fileUrl);
+      const { getLocalFilePath } = await import("./replit_integrations/object_storage/routes");
+      const fileId = doc.fileUrl.replace(/.*\//, "");
+      const localPath = getLocalFilePath(fileId);
+      if (localPath) {
         res.setHeader("Content-Disposition", `${disposition}; filename="${encodedName}"`);
         res.setHeader("Content-Type", doc.mimeType || "application/octet-stream");
-        const stream = objectFile.createReadStream();
-        stream.pipe(res);
+        fs.createReadStream(localPath).pipe(res);
       } else {
-        const { Client } = await import("@replit/object-storage");
-        const client = new Client({ bucketId: process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID });
-        const result = await client.downloadAsBytes(doc.fileUrl);
-        if (result.ok) {
-          res.setHeader("Content-Disposition", `${disposition}; filename="${encodedName}"`);
-          res.setHeader("Content-Type", doc.mimeType || "application/octet-stream");
-          res.send(Buffer.from(result.value));
-        } else {
-          res.status(404).json({ message: "ไม่พบไฟล์ในที่เก็บ" });
-        }
+        res.status(404).json({ message: "ไม่พบไฟล์ในที่เก็บ" });
       }
     } catch {
       const filePath = path.join(process.cwd(), "uploads", "firm-documents", path.basename(doc.fileUrl));

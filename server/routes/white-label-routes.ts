@@ -77,16 +77,8 @@ const uploadLogo = multer({ storage: multer.memoryStorage(), limits: { fileSize:
 app.post("/api/white-label/upload-logo", requireAuth, uploadLogo.single("logo"), async (req: any, res) => {
   try {
     if (!req.file) return res.status(400).json({ message: "กรุณาเลือกไฟล์รูปภาพ" });
-    const { ObjectStorageService } = await import("./replit_integrations/object_storage/objectStorage");
-    const objStorageSvc = new ObjectStorageService();
-    const uploadURL = await objStorageSvc.getObjectEntityUploadURL();
-    const objectPath = objStorageSvc.normalizeObjectEntityPath(uploadURL);
-    const uploadRes = await fetch(uploadURL, {
-      method: "PUT",
-      headers: { "Content-Type": req.file.mimetype || "image/png" },
-      body: req.file.buffer,
-    });
-    if (!uploadRes.ok) throw new Error("อัปโหลดไฟล์ล้มเหลว");
+    const { saveBufferLocally } = await import("./replit_integrations/object_storage/routes");
+    const { objectPath } = saveBufferLocally(req.file.buffer, req.file.mimetype || "image/png", req.file.originalname);
     res.json({ url: objectPath, fileName: decodeMulterFilename(req.file.originalname) });
   } catch (err: any) {
     res.status(500).json({ message: err.message });

@@ -196,16 +196,8 @@ export function registerLiveSellingRoutes(app: Express) {
       const base64Image = fileBuffer.toString("base64");
       const mimeType = req.file.mimetype || "image/jpeg";
 
-      const { ObjectStorageService } = await import("../replit_integrations/object_storage/objectStorage");
-      const objStorage = new ObjectStorageService();
-      const uploadURL = await objStorage.getObjectEntityUploadURL();
-      const objectPath = objStorage.normalizeObjectEntityPath(uploadURL);
-
-      await fetch(uploadURL, {
-        method: "PUT",
-        body: fileBuffer,
-        headers: { "Content-Type": mimeType },
-      });
+      const { saveBufferLocally } = await import("../replit_integrations/object_storage/routes");
+      const { objectPath } = saveBufferLocally(fileBuffer, mimeType, req.file.originalname);
 
       const orderAmount = Number(cfOrder.totalAmount) || 0;
 

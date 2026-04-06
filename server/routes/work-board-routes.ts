@@ -401,16 +401,8 @@ const wbFileUpload = multer({ storage: multer.memoryStorage(), limits: { fileSiz
 app.post("/api/work-board-files/upload", requireAuth, wbFileUpload.single("file"), async (req: any, res) => {
   try {
     if (!req.file) return res.status(400).json({ message: "ไม่พบไฟล์" });
-    const { ObjectStorageService } = await import("./replit_integrations/object_storage/objectStorage");
-    const objStorage = new ObjectStorageService();
-    const uploadURL = await objStorage.getObjectEntityUploadURL();
-    const objectPath = objStorage.normalizeObjectEntityPath(uploadURL);
-    const uploadRes = await fetch(uploadURL, {
-      method: "PUT",
-      headers: { "Content-Type": req.file.mimetype || "application/octet-stream" },
-      body: req.file.buffer,
-    });
-    if (!uploadRes.ok) throw new Error("Failed to upload to object storage");
+    const { saveBufferLocally } = await import("./replit_integrations/object_storage/routes");
+    const { objectPath } = saveBufferLocally(req.file.buffer, req.file.mimetype || "application/octet-stream", req.file.originalname);
     res.json({ url: objectPath, fileName: decodeMulterFilename(req.file.originalname) });
   } catch (e: any) {
     console.error("Work board file upload error:", e);

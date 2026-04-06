@@ -212,17 +212,14 @@ app.get("/api/platform/sync-object", async (req, res) => {
   const objPath = req.query.path as string;
   if (!objPath || objPath.includes("..")) return res.status(400).json({ message: "Invalid path" });
   try {
-    const { ObjectStorageService } = await import("./replit_integrations/object_storage/objectStorage");
-    const objStorage = new ObjectStorageService();
-    const normalizedPath = objPath.startsWith("/objects/") ? objPath : `/objects/${objPath}`;
-    const file = await objStorage.getObjectEntityFile(normalizedPath);
-    const [buffer] = await file.download();
+    const { getLocalFilePath } = await import("./replit_integrations/object_storage/routes");
+    const fileId = objPath.replace(/.*\//, "");
+    const localPath = getLocalFilePath(fileId);
+    if (!localPath) return res.status(404).json({ message: "Not found" });
     res.setHeader("Content-Type", "application/octet-stream");
-    res.send(buffer);
+    const fss = await import("fs");
+    fss.createReadStream(localPath).pipe(res);
   } catch (err: any) {
-    if (err.message?.includes("not found") || err.name === "ObjectNotFoundError") {
-      return res.status(404).json({ message: "Not found" });
-    }
     res.status(500).json({ message: err.message });
   }
 });
