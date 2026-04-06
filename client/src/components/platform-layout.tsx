@@ -17,7 +17,7 @@ import {
   Wrench,
   KeyRound,
   FolderArchive,
-  Server,
+  Network,
   CreditCard,
   Eye,
 } from "lucide-react";
@@ -35,7 +35,7 @@ const ADMIN_NAV = [
 ];
 
 const TECH_NAV = [
-  { icon: Server, label: "เซิร์ฟเวอร์ทั้งหมด", href: "/platform/all-servers" },
+  { icon: Network, label: "โครงสร้างพื้นฐาน", href: "/platform/infrastructure" },
   { icon: ArrowLeftRight, label: "สลับฐานข้อมูล", href: "/platform/db-switch" },
   { icon: Database, label: "Clone ข้อมูล", href: "/platform/clone-data" },
   { icon: Wrench, label: "Maintenance Schedule", href: "/platform/maintenance" },
