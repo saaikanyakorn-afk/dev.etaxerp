@@ -99,10 +99,13 @@ export function isEcomSeparateDb(): boolean {
   return !!ecomUrl;
 }
 
-export async function reinitializeEcomDb(machineResolvedUrl?: string | null): Promise<void> {
+export async function reinitializeEcomDb(sharedDbUrl?: string | null): Promise<void> {
   let newConfig: { url: string; label: string };
-  if (machineResolvedUrl) {
-    newConfig = { url: machineResolvedUrl, label: "E-Commerce (Machine Registry)" };
+  const ecomUrl = process.env.DATABASE_URL_ECOM || getConfig("DATABASE_URL_ECOM");
+  if (ecomUrl) {
+    newConfig = { url: ecomUrl, label: "E-Commerce (Separate DB)" };
+  } else if (sharedDbUrl) {
+    newConfig = { url: sharedDbUrl, label: "E-Commerce (Shared DB)" };
   } else {
     newConfig = getEcomDbUrl();
   }
