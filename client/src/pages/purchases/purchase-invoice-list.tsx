@@ -81,7 +81,10 @@ export default function PurchaseInvoiceList() {
   const [, navigate] = useLocation();
   const bulk = useBulkDelete({ endpoint: "/api/purchase-invoices/bulk-delete", queryKey: ["purchase-invoices"], docLabel: "เอกสารซื้อ", companyId });
 
-  const [searchText, setSearchText] = useState("");
+  const [searchText, setSearchText] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get("search") || "";
+  });
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [filterStatus, setFilterStatus] = useState("all");

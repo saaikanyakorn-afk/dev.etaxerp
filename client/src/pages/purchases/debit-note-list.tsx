@@ -49,7 +49,10 @@ export default function DebitNoteList() {
   const queryClient = useQueryClient();
   const [, navigate] = useLocation();
 
-  const [searchText, setSearchText] = useState("");
+  const [searchText, setSearchText] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get("search") || "";
+  });
   const [filterStatus, setFilterStatus] = useState("all");
   const now = new Date();
   const yearStart = `${now.getFullYear()}-01-01`;
