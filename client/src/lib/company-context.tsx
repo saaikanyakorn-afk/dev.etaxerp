@@ -132,8 +132,9 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
       return;
     }
 
+    const empCo = user?.empCompanyId && companies.find(c => c.id === user.empCompanyId);
     const primary = companies.find(c => c.isPrimary);
-    const fallback = primary ? primary.id : companies[0].id;
+    const fallback = empCo ? empCo.id : primary ? primary.id : companies[0].id;
     idRef.current = fallback;
     setRaw(fallback);
     writeSaved(fallback);

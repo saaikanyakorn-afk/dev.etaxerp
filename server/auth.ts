@@ -101,6 +101,7 @@ export function setupAuth(app: Express) {
       if (user) {
         const emp = await storage.getEmployeeByUserId(user.id);
         (user as any).employeeId = emp?.id || null;
+        (user as any).empCompanyId = emp?.companyId || null;
       }
       done(null, user);
     } catch (err) {
@@ -311,13 +312,15 @@ export function setupAuth(app: Express) {
           } catch {}
         }
         let empId: number | null = null;
+        let empCompanyId: number | null = null;
         try {
           const emp = await storage.getEmployeeByUserId(user.id);
           empId = emp?.id || null;
+          empCompanyId = emp?.companyId || null;
         } catch {}
-        logActivity({ companyId: user.primaryCompanyId || 0, userId: user.id, userName: user.username, action: "login", entityType: "user", entityId: String(user.id), entityName: user.fullName || user.username }).catch(() => {});
+        logActivity({ companyId: empCompanyId || user.primaryCompanyId || 0, userId: user.id, userName: user.username, action: "login", entityType: "user", entityId: String(user.id), entityName: user.fullName || user.username }).catch(() => {});
         const signedSid = cookieSignature.sign(req.sessionID, sessionSecret);
-        return res.json({ ...safeUser, tenantType, employeeId: empId, sessionToken: signedSid });
+        return res.json({ ...safeUser, tenantType, employeeId: empId, empCompanyId, sessionToken: signedSid });
       });
     })(req, res, next);
   });
