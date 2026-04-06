@@ -949,10 +949,14 @@ export async function logActivity(params: {
 export async function checkDocumentLimit(req: any, res: any): Promise<boolean> {
   const currentUser = req.user as any;
   if (currentUser?.tenantId) {
-    const limitCheck = await storage.checkTenantLimit(currentUser.tenantId, "documents");
-    if (!limitCheck.allowed) {
-      res.status(403).json({ message: `แพ็คเกจ ${limitCheck.planName} รองรับเอกสารสูงสุด ${limitCheck.limit} รายการ/เดือน (ใช้แล้ว ${limitCheck.current}) กรุณาอัพเกรดแพ็คเกจ` });
-      return false;
+    try {
+      const limitCheck = await storage.checkTenantLimit(currentUser.tenantId, "documents");
+      if (!limitCheck.allowed) {
+        res.status(403).json({ message: `แพ็คเกจ ${limitCheck.planName} รองรับเอกสารสูงสุด ${limitCheck.limit} รายการ/เดือน (ใช้แล้ว ${limitCheck.current}) กรุณาอัพเกรดแพ็คเกจ` });
+        return false;
+      }
+    } catch (err: any) {
+      console.error("[checkDocumentLimit] Subscription check failed, allowing operation:", err?.message || err);
     }
   }
   return true;
