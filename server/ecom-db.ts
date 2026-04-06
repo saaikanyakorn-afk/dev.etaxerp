@@ -57,8 +57,8 @@ if (isProduction) {
   }, 30_000);
 }
 
-export const ecomDb: NodePgDatabase<typeof schema> = drizzle(ecomPool, { schema });
-export const ecomPoolInstance = ecomPool;
+export let ecomDb: NodePgDatabase<typeof schema> = drizzle(ecomPool, { schema });
+export let ecomPoolInstance = ecomPool;
 
 export function getEcomDbLabel(): string {
   return ecomConfig.label;
@@ -67,4 +67,36 @@ export function getEcomDbLabel(): string {
 export function isEcomSeparateDb(): boolean {
   const ecomUrl = process.env.DATABASE_URL_ECOM || getConfig("DATABASE_URL_ECOM");
   return !!ecomUrl;
+}
+
+export async function reinitializeEcomDb(): Promise<void> {
+  const newConfig = getEcomDbUrl();
+  if (newConfig.url === ecomConfig.url) {
+    console.log(`[EcomDB] reinitialize: URL unchanged, skipping`);
+    return;
+  }
+  if (!newConfig.url) {
+    console.error("[EcomDB] reinitialize: no URL available");
+    return;
+  }
+  console.log(`[EcomDB] reinitialize: "${ecomConfig.label}" → "${newConfig.label}"`);
+  try { await ecomPool.end(); } catch {}
+  Object.assign(ecomConfig, newConfig);
+  const newPool = new pg.Pool({
+    connectionString: newConfig.url,
+    max: isProduction ? 15 : 10,
+    min: isProduction ? 2 : 1,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 10000,
+    statement_timeout: 60000,
+    allowExitOnIdle: false,
+    keepAlive: true,
+    keepAliveInitialDelayMillis: 10000,
+  });
+  newPool.on("error", (err) => {
+    console.error("[EcomDB Pool] Unexpected error on idle client:", err.message);
+  });
+  ecomDb = drizzle(newPool, { schema });
+  ecomPoolInstance = newPool;
+  console.log(`[EcomDB] reinitialize complete: ${newConfig.label}`);
 }
