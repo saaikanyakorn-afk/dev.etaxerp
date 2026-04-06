@@ -978,10 +978,10 @@ export async function deleteJournalEntriesForDoc(tx: any, sourceDocType: string,
   await tx.execute(sql.raw(`UPDATE petty_cash_transactions SET journal_entry_id = NULL WHERE journal_entry_id IN (${idsList})`));
   await tx.execute(sql.raw(`UPDATE petty_cash_funds SET journal_entry_id = NULL WHERE journal_entry_id IN (${idsList})`));
   await tx.execute(sql.raw(`UPDATE live_cf_orders SET journal_entry_id = NULL WHERE journal_entry_id IN (${idsList})`));
-  await ecomDb.execute(sql.raw(`UPDATE ecommerce_orders SET journal_entry_id = NULL WHERE journal_entry_id IN (${idsList})`));
-  await ecomDb.execute(sql.raw(`UPDATE ecommerce_settlements SET settle_journal_id = NULL WHERE settle_journal_id IN (${idsList})`));
-  await ecomDb.execute(sql.raw(`UPDATE ecommerce_settlements SET withdraw_journal_id = NULL WHERE withdraw_journal_id IN (${idsList})`));
-  await ecomDb.execute(sql.raw(`UPDATE ecommerce_settlements SET reversal_journal_id = NULL WHERE reversal_journal_id IN (${idsList})`));
+  try { await ecomDb.execute(sql.raw(`UPDATE ecommerce_orders SET journal_entry_id = NULL WHERE journal_entry_id IN (${idsList})`)); } catch {}
+  try { await ecomDb.execute(sql.raw(`UPDATE ecommerce_settlements SET settle_journal_id = NULL WHERE settle_journal_id IN (${idsList})`)); } catch {}
+  try { await ecomDb.execute(sql.raw(`UPDATE ecommerce_settlements SET withdraw_journal_id = NULL WHERE withdraw_journal_id IN (${idsList})`)); } catch {}
+  try { await ecomDb.execute(sql.raw(`UPDATE ecommerce_settlements SET reversal_journal_id = NULL WHERE reversal_journal_id IN (${idsList})`)); } catch {}
   await tx.delete(journalLines).where(inArray(journalLines.journalEntryId, entryIds));
   await tx.delete(journalEntries).where(inArray(journalEntries.id, entryIds));
 }

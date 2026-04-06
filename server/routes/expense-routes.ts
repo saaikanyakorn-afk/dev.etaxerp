@@ -648,7 +648,10 @@ export function registerExpenseRoutes(app: Express) {
         await tx.delete(expenses).where(eq(expenses.id, existing.id));
       });
       res.json({ success: true });
-    } catch (err: any) { res.status(500).json({ message: err.message }); }
+    } catch (err: any) {
+      console.error("[EXP DELETE ERROR]", err);
+      res.status(500).json({ message: err.message || "ไม่สามารถลบค่าใช้จ่ายได้" });
+    }
   });
 
   app.post("/api/expenses/bulk-delete", requireAuth, requireModule("purchases"), async (req, res) => {
