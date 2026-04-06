@@ -1025,14 +1025,14 @@ async function runMigrationsInBackground() {
   const mainDbUrl = getActiveDbInfo().url;
   let machineResolvedUrl: string | null = null;
 
-  if (mainDbUrl && process.env.MACHINE_NAME) {
+  if (mainDbUrl) {
     log("Resolving DB from machine registry...");
     const resolved = await resolveDbFromMachineRegistry(mainDbUrl);
     if (resolved) {
       machineResolvedUrl = resolved.url;
       log(`Machine registry resolved: ${resolved.label} (${resolved.path}, ${resolved.latencyMs}ms)`);
     } else {
-      log("Machine registry: no result, falling back to config");
+      log("Machine registry: identified self, no DB redirection needed");
     }
   }
 

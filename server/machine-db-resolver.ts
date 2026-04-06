@@ -89,13 +89,50 @@ function buildUrl(host: string, port: number, dbName: string, user: string, pass
   return `postgresql://${encodeURIComponent(user)}:${encodeURIComponent(password)}@${host}:${port}/${dbName}`;
 }
 
-export async function resolveDbFromMachineRegistry(configDbUrl: string): Promise<ResolvedDbUrl | null> {
+interface MachineRowWithOs extends MachineRow {
+  os: string | null;
+  role: string | null;
+}
+
+function identifyMachine(allMachines: MachineRowWithOs[]): { machine: MachineRowWithOs; method: string } | null {
   const machineName = process.env.MACHINE_NAME;
-  if (!machineName) {
-    console.log("[MachineResolver] MACHINE_NAME not set, skipping machine registry");
-    return null;
+  const hostname = os.hostname();
+  const localIps = getLocalIps().map(l => l.ip);
+
+  // 1. MACHINE_NAME env → match encHostname / localName / windowsName
+  if (machineName) {
+    const m = allMachines.find(r =>
+      r.enc_hostname === machineName ||
+      r.local_name === machineName ||
+      r.windows_name === machineName
+    );
+    if (m) return { machine: m, method: "MACHINE_NAME env" };
   }
 
+  // 2. os.hostname() → match windowsName / localName
+  {
+    const m = allMachines.find(r =>
+      r.windows_name === hostname || r.local_name === hostname
+    );
+    if (m) return { machine: m, method: "os.hostname()" };
+  }
+
+  // 3. Replit environment → find cloud/dev_source machine
+  if (process.env.REPL_ID || process.env.REPL_SLUG) {
+    const m = allMachines.find(r => r.os === "cloud" && r.role === "dev_source");
+    if (m) return { machine: m, method: "Replit env (REPL_ID)" };
+  }
+
+  // 4. LAN IP match → machines.lanIp
+  if (localIps.length > 0) {
+    const m = allMachines.find(r => r.lan_ip && localIps.includes(r.lan_ip));
+    if (m) return { machine: m, method: "machines.lanIp match" };
+  }
+
+  return null;
+}
+
+export async function resolveDbFromMachineRegistry(configDbUrl: string): Promise<ResolvedDbUrl | null> {
   const pool = new pg.Pool({
     connectionString: configDbUrl,
     max: 2,
@@ -104,26 +141,24 @@ export async function resolveDbFromMachineRegistry(configDbUrl: string): Promise
   });
 
   try {
-    const machinesResult = await pool.query<MachineRow>(
+    const machinesResult = await pool.query<MachineRowWithOs>(
       `SELECT id, local_name, windows_name, fqdn, domain_name, lan_ip, wan_ip,
-              db_port, db_name, db_user, db_password, enc_hostname, target_db_machine_id
+              db_port, db_name, db_user, db_password, enc_hostname, target_db_machine_id,
+              os, role
        FROM machines`
     );
     const allMachines = machinesResult.rows;
 
-    const me = allMachines.find(m =>
-      m.local_name === machineName ||
-      m.windows_name === machineName ||
-      m.enc_hostname === machineName
-    );
+    const identity = identifyMachine(allMachines);
 
-    if (!me) {
-      console.log(`[MachineResolver] Machine "${machineName}" not found in registry (${allMachines.length} machines)`);
+    if (!identity) {
+      console.log(`[MachineResolver] Could not identify this machine in registry (${allMachines.length} machines, hostname=${os.hostname()})`);
       await pool.end();
       return null;
     }
 
-    console.log(`[MachineResolver] Identified as: "${me.local_name}" (id=${me.id}), targetDbMachineId=${me.target_db_machine_id}`);
+    const me = identity.machine;
+    console.log(`[MachineResolver] Identified as: "${me.local_name}" (id=${me.id}) via ${identity.method}, targetDbMachineId=${me.target_db_machine_id}`);
 
     const targetId = me.target_db_machine_id;
     const targetMachine = targetId ? allMachines.find(m => m.id === targetId) : null;
