@@ -13,7 +13,7 @@ import ThaiDateInput from "@/components/thai-date-input";
 import { useDateSettings } from "@/hooks/use-date-settings";
 import {
   User, CalendarDays, Clock, FileText, Plus, CheckCircle, XCircle,
-  Palmtree, Briefcase, Heart, Timer, Printer, Download, AlertCircle
+  Palmtree, Briefcase, Heart, Timer, Printer, Download, AlertCircle, Monitor
 } from "lucide-react";
 import { useState, useMemo, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -375,7 +375,12 @@ export default function EssDashboard() {
             <CardContent className="py-12 text-center">
               <AlertCircle className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
               <h3 className="text-lg font-semibold mb-2">ไม่พบข้อมูลพนักงาน</h3>
-              <p className="text-sm text-muted-foreground">กรุณาติดต่อฝ่ายบุคคลเพื่อลงทะเบียนข้อมูลพนักงาน</p>
+              <p className="text-sm text-muted-foreground mb-4">กรุณาติดต่อฝ่ายบุคคลเพื่อลงทะเบียนข้อมูลพนักงาน</p>
+              {(user as any)?.role === "cashier" && (
+                <Button data-testid="btn-go-pos-no-emp" onClick={() => window.location.href = "/pos/terminal"} style={{ background: "#03c9d7" }} className="text-white">
+                  <Monitor className="w-4 h-4 mr-1" /> เข้าหน้าขาย
+                </Button>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -390,10 +395,15 @@ export default function EssDashboard() {
           <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold" style={{ background: "#fb9678" }}>
             {employee.fullName?.charAt(0) || "?"}
           </div>
-          <div>
+          <div className="flex-1">
             <h1 className="text-lg font-bold" data-testid="text-ess-title">บริการตนเอง (ESS)</h1>
             <p className="text-sm text-muted-foreground">{employee.fullName} - {employee.position || "พนักงาน"} | {employee.department || "-"}</p>
           </div>
+          {(user as any)?.role === "cashier" && (
+            <Button data-testid="btn-go-pos" onClick={() => window.location.href = "/pos/terminal"} style={{ background: "#03c9d7" }} className="text-white">
+              <Monitor className="w-4 h-4 mr-1" /> เข้าหน้าขาย
+            </Button>
+          )}
         </div>
 
         {leaveBalanceSummary.some((b: any) => b.carriedOver > 0 && !b.carryOverExpired && b.carryOverExpiryDate) && (() => {

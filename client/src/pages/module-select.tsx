@@ -66,6 +66,7 @@ export default function ModuleSelectPage() {
     if (authLoading || permLoading) return;
     if (!user) { setLocation("/login"); return; }
     if ((user as any).role === "employee") { setLocation("/ess"); return; }
+    if ((user as any).role === "cashier") { setLocation("/ess"); return; }
     if ((user as any).role === "client_external") { setLocation("/etax-hub/board"); return; }
     if ((user as any).role === "super_admin") { setLocation("/platform"); return; }
     if (ownedCards.length === 1 && lockedCards.length === 0) {

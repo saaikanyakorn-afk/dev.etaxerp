@@ -1,4 +1,4 @@
-export type Role = "super_admin" | "admin" | "manager" | "accountant" | "employee" | "client";
+export type Role = "super_admin" | "admin" | "manager" | "accountant" | "employee" | "cashier" | "client";
 
 export const ROLE_LABELS: Record<Role, string> = {
   super_admin: "เจ้าของแพลตฟอร์ม",
@@ -6,6 +6,7 @@ export const ROLE_LABELS: Record<Role, string> = {
   manager: "ผู้จัดการ",
   accountant: "นักบัญชี",
   employee: "พนักงาน",
+  cashier: "แคชเชียร์",
   client: "ลูกค้า",
 };
 
@@ -30,7 +31,7 @@ export const PERMISSION_MODULES: PermissionModule[] = [
   { key: "firm-mgmt", label: "บริหารสำนักงาน", description: "จัดการลูกค้า, ค่าบริการ, ติดตามงาน", allowedRoles: ["admin", "manager", "accountant"] },
   { key: "hr", label: "HR & เวลาทำงาน", description: "ลงเวลา, OT, ทะเบียนพนักงาน, เงินเดือน", allowedRoles: ["admin", "manager", "accountant", "employee"] },
   { key: "ecommerce", label: "eCommerce Hub", description: "เชื่อมต่อ Shopee/Lazada/TikTok, จัดการออเดอร์, ซิงค์สต๊อก, ไลฟ์ขายของ", allowedRoles: ["admin", "manager", "accountant", "employee"] },
-  { key: "pos", label: "POS ขายหน้าร้าน", description: "ขายหน้าร้าน, เปิด/ปิดกะ, รายงานยอดขาย", allowedRoles: ["admin", "manager", "accountant", "employee"] },
+  { key: "pos", label: "POS ขายหน้าร้าน", description: "ขายหน้าร้าน, เปิด/ปิดกะ, รายงานยอดขาย", allowedRoles: ["admin", "manager", "accountant", "employee", "cashier"] },
   { key: "commerce-intelligence", label: "Commerce Intelligence", description: "วิเคราะห์ธุรกิจ eCommerce: Executive, Channel, Product, Campaign, Live", allowedRoles: ["admin", "manager", "accountant"] },
   { key: "etax-hub", label: "E-Tax Hub", description: "จัดการงานลูกค้า, มอบหมายงาน, แชร์เอกสาร (Monday.com style)", allowedRoles: ["admin", "manager", "accountant"] },
   { key: "gas-station", label: "ปั๊มน้ำมัน", description: "บัญชีปั๊มน้ำมัน, ยอดขายรายวัน, สต็อก, มิเตอร์, Oil Loss/Gain, ภาษีท้องถิ่น", allowedRoles: ["admin", "manager", "accountant"] },

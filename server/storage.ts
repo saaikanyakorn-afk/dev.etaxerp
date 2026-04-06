@@ -1398,7 +1398,7 @@ export class DatabaseStorage implements IStorage {
 
   async initDefaultPermissions(): Promise<void> {
     const { PERMISSION_MODULES } = await import("@shared/permissions");
-    const allRoles = ["admin", "manager", "accountant", "employee", "client"];
+    const allRoles = ["admin", "manager", "accountant", "employee", "cashier", "client"];
 
     const existing = await db.select().from(rolePermissions).limit(1);
     if (existing.length === 0) {
