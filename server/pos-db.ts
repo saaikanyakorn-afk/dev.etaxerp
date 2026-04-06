@@ -14,10 +14,13 @@ function getPosDbUrl(): { url: string; label: string } {
     return { url: posUrl, label: "POS (Separate DB)" };
   }
   const prodUrl = getConfig("DB_PROD_URL") || process.env.DB_PROD_URL;
-  if (isProduction && prodUrl) {
+  if (prodUrl) {
     return { url: prodUrl, label: "POS (Shared Production DB)" };
   }
-  return { url: process.env.DATABASE_URL!, label: "POS (Shared Dev DB)" };
+  if (process.env.DATABASE_URL) {
+    return { url: process.env.DATABASE_URL, label: "POS (Shared Dev DB)" };
+  }
+  throw new Error("[PosDB] No database URL available — DATABASE_URL_POS, DB_PROD_URL, and DATABASE_URL are all unset");
 }
 
 let _posPool: pg.Pool | null = null;
