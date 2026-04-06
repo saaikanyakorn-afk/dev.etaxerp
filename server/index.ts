@@ -1019,6 +1019,10 @@ async function runMigrationsInBackground() {
   log("Bootstrapping config from config DB...");
   await bootstrapConfig();
   await reinitializeFromConfig();
+  const { reinitializeEcomDb } = await import("./ecom-db");
+  const { reinitializePosDb } = await import("./pos-db");
+  await reinitializeEcomDb();
+  await reinitializePosDb();
   log("Config bootstrap complete");
 
   const { testMainDbConnection, isRecoveryMode, setRecoveryMode } = await import("./db");

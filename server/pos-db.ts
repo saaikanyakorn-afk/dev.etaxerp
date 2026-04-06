@@ -57,8 +57,8 @@ if (isProduction) {
   }, 30_000);
 }
 
-export const posDb: NodePgDatabase<typeof schema> = drizzle(posPool, { schema });
-export const posPoolInstance = posPool;
+export let posDb: NodePgDatabase<typeof schema> = drizzle(posPool, { schema });
+export let posPoolInstance = posPool;
 
 export function getPosDbLabel(): string {
   return posConfig.label;
@@ -67,4 +67,36 @@ export function getPosDbLabel(): string {
 export function isPosSeparateDb(): boolean {
   const posUrl = process.env.DATABASE_URL_POS || getConfig("DATABASE_URL_POS");
   return !!posUrl;
+}
+
+export async function reinitializePosDb(): Promise<void> {
+  const newConfig = getPosDbUrl();
+  if (newConfig.url === posConfig.url) {
+    console.log(`[PosDB] reinitialize: URL unchanged, skipping`);
+    return;
+  }
+  if (!newConfig.url) {
+    console.error("[PosDB] reinitialize: no URL available");
+    return;
+  }
+  console.log(`[PosDB] reinitialize: "${posConfig.label}" → "${newConfig.label}"`);
+  try { await posPool.end(); } catch {}
+  Object.assign(posConfig, newConfig);
+  const newPool = new pg.Pool({
+    connectionString: newConfig.url,
+    max: isProduction ? 15 : 10,
+    min: isProduction ? 2 : 1,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 10000,
+    statement_timeout: 60000,
+    allowExitOnIdle: false,
+    keepAlive: true,
+    keepAliveInitialDelayMillis: 10000,
+  });
+  newPool.on("error", (err) => {
+    console.error("[PosDB Pool] Unexpected error on idle client:", err.message);
+  });
+  posDb = drizzle(newPool, { schema });
+  posPoolInstance = newPool;
+  console.log(`[PosDB] reinitialize complete: ${newConfig.label}`);
 }
