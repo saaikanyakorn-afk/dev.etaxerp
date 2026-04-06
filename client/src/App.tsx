@@ -63,7 +63,7 @@ import ChatManagement from "@/pages/platform/chat-management";
 import PlatformSubscriptions from "@/pages/platform/subscriptions";
 import PlatformPaymentSettings from "@/pages/platform/payment-settings";
 import CloneData from "@/pages/platform/clone-data";
-import AllServers from "@/pages/platform/all-servers";
+import Infrastructure from "@/pages/platform/infrastructure";
 import DatabaseSwitch from "@/pages/platform/database-switch";
 import GithubManagement from "@/pages/platform/github-management";
 import PlatformMaintenance from "@/pages/platform/maintenance";
@@ -595,7 +595,8 @@ function Router() {
       <Route path="/platform/subscriptions" component={PlatformSubscriptions} />
       <Route path="/platform/payment-settings" component={PlatformPaymentSettings} />
       <Route path="/platform/chat" component={ChatManagement} />
-      <Route path="/platform/all-servers" component={AllServers} />
+      <Route path="/platform/infrastructure" component={Infrastructure} />
+      <Route path="/platform/all-servers" component={Infrastructure} />
       <Route path="/platform/db-switch" component={DatabaseSwitch} />
       <Route path="/platform/clone-data" component={CloneData} />
       <Route path="/platform/maintenance" component={PlatformMaintenance} />
