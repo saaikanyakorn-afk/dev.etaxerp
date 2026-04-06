@@ -77,7 +77,7 @@ const uploadLogo = multer({ storage: multer.memoryStorage(), limits: { fileSize:
 app.post("/api/white-label/upload-logo", requireAuth, uploadLogo.single("logo"), async (req: any, res) => {
   try {
     if (!req.file) return res.status(400).json({ message: "กรุณาเลือกไฟล์รูปภาพ" });
-    const { saveBufferLocally } = await import("./replit_integrations/object_storage/routes");
+    const { saveBufferLocally } = await import("../replit_integrations/object_storage/routes");
     const { objectPath } = saveBufferLocally(req.file.buffer, req.file.mimetype || "image/png", req.file.originalname);
     res.json({ url: objectPath, fileName: decodeMulterFilename(req.file.originalname) });
   } catch (err: any) {

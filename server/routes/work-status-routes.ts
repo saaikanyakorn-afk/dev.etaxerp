@@ -748,23 +748,26 @@ app.get("/api/firm-documents/download/:id", requireAuth, requireModule("firm-mgm
     const disposition = isInline ? "inline" : "attachment";
     const encodedName = encodeURIComponent(doc.fileName || "file");
 
-    try {
-      const { getLocalFilePath } = await import("./replit_integrations/object_storage/routes");
-      const fileId = doc.fileUrl.replace(/.*\//, "");
-      const localPath = getLocalFilePath(fileId);
-      if (localPath) {
+    const { getLocalFilePath, readFromPath, getFullLocalPath } = await import("../replit_integrations/object_storage/routes");
+    const fileId = doc.fileUrl.replace(/.*\//, "");
+    const localPath = getLocalFilePath(fileId);
+    if (localPath) {
+      res.setHeader("Content-Disposition", `${disposition}; filename="${encodedName}"`);
+      res.setHeader("Content-Type", doc.mimeType || "application/octet-stream");
+      fs.createReadStream(localPath).pipe(res);
+    } else {
+      const fileData = readFromPath(doc.fileUrl);
+      if (fileData) {
         res.setHeader("Content-Disposition", `${disposition}; filename="${encodedName}"`);
         res.setHeader("Content-Type", doc.mimeType || "application/octet-stream");
-        fs.createReadStream(localPath).pipe(res);
+        res.send(fileData);
       } else {
-        res.status(404).json({ message: "ไม่พบไฟล์ในที่เก็บ" });
-      }
-    } catch {
-      const filePath = path.join(process.cwd(), "uploads", "firm-documents", path.basename(doc.fileUrl));
-      if (fs.existsSync(filePath)) {
-        res.download(filePath, doc.fileName || "file");
-      } else {
-        res.status(404).json({ message: "ไม่พบไฟล์" });
+        const fullLocal = getFullLocalPath(`firm-documents/${path.basename(doc.fileUrl)}`);
+        if (fs.existsSync(fullLocal)) {
+          res.download(fullLocal, doc.fileName || "file");
+        } else {
+          res.status(404).json({ message: "ไม่พบไฟล์" });
+        }
       }
     }
   } catch (err: any) {

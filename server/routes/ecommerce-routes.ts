@@ -4051,7 +4051,7 @@ app.post("/api/facebook/chat-orders/:id/upload-slip", requireAuth, requireModule
     const base64Image = fileBuffer.toString("base64");
     const mimeType = req.file.mimetype || "image/jpeg";
 
-    const { saveBufferLocally } = await import("./replit_integrations/object_storage/routes");
+    const { saveBufferLocally } = await import("../replit_integrations/object_storage/routes");
     const { objectPath } = saveBufferLocally(fileBuffer, mimeType, req.file.originalname);
 
     const orderAmount = Number(chatOrder.totalAmount) || 0;

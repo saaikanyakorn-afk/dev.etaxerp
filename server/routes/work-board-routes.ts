@@ -401,7 +401,7 @@ const wbFileUpload = multer({ storage: multer.memoryStorage(), limits: { fileSiz
 app.post("/api/work-board-files/upload", requireAuth, wbFileUpload.single("file"), async (req: any, res) => {
   try {
     if (!req.file) return res.status(400).json({ message: "ไม่พบไฟล์" });
-    const { saveBufferLocally } = await import("./replit_integrations/object_storage/routes");
+    const { saveBufferLocally } = await import("../replit_integrations/object_storage/routes");
     const { objectPath } = saveBufferLocally(req.file.buffer, req.file.mimetype || "application/octet-stream", req.file.originalname);
     res.json({ url: objectPath, fileName: decodeMulterFilename(req.file.originalname) });
   } catch (e: any) {
