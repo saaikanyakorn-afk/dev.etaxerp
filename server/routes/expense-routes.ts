@@ -435,7 +435,7 @@ export function registerExpenseRoutes(app: Express) {
           const entryNo = await getNextJournalEntryNo(result.companyId, "payment", result.expDate);
           const [entry] = await db.insert(journalEntries).values({
             companyId: result.companyId, entryDate: result.expDate, reference: result.expNo,
-            description: `บันทึกบัญชีจากค่าใช้จ่าย ${result.expNo}`, journalBook: "payment",
+            description: `${result.vendorName || ""}${savedItems[0]?.description ? " - " + savedItems[0].description : (result.notes ? " - " + result.notes : "")}`.trim() || `บันทึกบัญชีจากค่าใช้จ่าย ${result.expNo}`, journalBook: "payment",
             entryNo, createdBy: user.id, status: "posted", sourceDocType: "expense", sourceDocId: result.id,
           }).returning();
           const linesToInsert = jL
@@ -608,7 +608,7 @@ export function registerExpenseRoutes(app: Express) {
           const entryNoUp = await getNextJournalEntryNo(updated.companyId, "payment", updated.expDate);
           const [entry] = await db.insert(journalEntries).values({
             companyId: updated.companyId, entryDate: updated.expDate, reference: updated.expNo,
-            description: `บันทึกบัญชีจากค่าใช้จ่าย ${updated.expNo}`, journalBook: "payment",
+            description: `${updated.vendorName || ""}${savedItems[0]?.description ? " - " + savedItems[0].description : (updated.notes ? " - " + updated.notes : "")}`.trim() || `บันทึกบัญชีจากค่าใช้จ่าย ${updated.expNo}`, journalBook: "payment",
             entryNo: entryNoUp, createdBy: user.id, status: "posted", sourceDocType: "expense", sourceDocId: updated.id,
           }).returning();
           const linesToInsert = jL
@@ -1059,7 +1059,7 @@ export function registerExpenseRoutes(app: Express) {
               const entryNoJ = await getNextJournalEntryNo(result.companyId, "payment", result.expDate);
               const [entJ] = await db.insert(journalEntries).values({
                 companyId: result.companyId, entryDate: result.expDate, reference: result.expNo,
-                description: `บันทึกบัญชีจากค่าใช้จ่าย ${result.expNo}`, journalBook: "payment",
+                description: `${result.vendorName || ""}${expItemsJ[0]?.description ? " - " + expItemsJ[0].description : (result.notes ? " - " + result.notes : "")}`.trim() || `บันทึกบัญชีจากค่าใช้จ่าย ${result.expNo}`, journalBook: "payment",
                 entryNo: entryNoJ, createdBy: user.id, status: "posted", sourceDocType: "expense", sourceDocId: result.id,
               }).returning();
               for (const ln of jL) {

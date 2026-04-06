@@ -787,7 +787,14 @@ app.post("/api/journal-entries/from-document", requireAuth, requireModule("accou
       invoice: "ใบแจ้งหนี้", tax_invoice: "ใบกำกับภาษี", receipt: "ใบเสร็จรับเงิน", expense: "ค่าใช้จ่าย",
     };
     const currencyNote = isForeignCurrency ? ` (${currencyCode} → THB @${exchangeRate})` : "";
-    const description = `บันทึกบัญชีจาก${docTypeLabels[documentType] || documentType} ${docNo}${currencyNote}`;
+    let description = `บันทึกบัญชีจาก${docTypeLabels[documentType] || documentType} ${docNo}${currencyNote}`;
+    if (documentType === "expense" && doc.vendorName) {
+      const expItemsForDesc = await db.select().from(expenseItems).where(eq(expenseItems.expenseId, Number(documentId)));
+      const itemDesc = expItemsForDesc[0]?.description || doc.notes || "";
+      description = `${doc.vendorName}${itemDesc ? " - " + itemDesc : ""}`;
+    } else if (documentType !== "expense" && doc.customerName) {
+      description = `${doc.customerName} - ${docTypeLabels[documentType] || documentType} ${docNo}${currencyNote}`;
+    }
 
     const isExpenseDoc = documentType === "expense";
 
