@@ -14,10 +14,13 @@ function getEcomDbUrl(): { url: string; label: string } {
     return { url: ecomUrl, label: "E-Commerce (Separate DB)" };
   }
   const prodUrl = getConfig("DB_PROD_URL") || process.env.DB_PROD_URL;
-  if (isProduction && prodUrl) {
+  if (prodUrl) {
     return { url: prodUrl, label: "E-Commerce (Shared Production DB)" };
   }
-  return { url: process.env.DATABASE_URL!, label: "E-Commerce (Shared Dev DB)" };
+  if (process.env.DATABASE_URL) {
+    return { url: process.env.DATABASE_URL, label: "E-Commerce (Shared Dev DB)" };
+  }
+  throw new Error("[EcomDB] No database URL available — DATABASE_URL_ECOM, DB_PROD_URL, and DATABASE_URL are all unset");
 }
 
 let _ecomPool: pg.Pool | null = null;
