@@ -10,14 +10,6 @@ function resolveUploadDir(): string {
   if (process.env.UPLOAD_DIR) {
     return process.env.UPLOAD_DIR;
   }
-  if (process.env.REPL_ID || process.env.REPL_SLUG) {
-    return path.join(process.cwd(), "uploads");
-  }
-  const isWindows = process.platform === "win32";
-  if (isWindows) {
-    const appData = process.env.APPDATA || "C:\\ProgramData";
-    return path.join(appData, "etax-uploads");
-  }
   return path.join(process.cwd(), "uploads");
 }
 

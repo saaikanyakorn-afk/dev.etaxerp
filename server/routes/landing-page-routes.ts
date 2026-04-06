@@ -206,7 +206,7 @@ app.get("/api/platform/sync-object", async (req, res) => {
   const objPath = req.query.path as string;
   if (!objPath || objPath.includes("..")) return res.status(400).json({ message: "Invalid path" });
   try {
-    const { getLocalFilePath } = await import("./replit_integrations/object_storage/routes");
+    const { getLocalFilePath } = await import("../replit_integrations/object_storage/routes");
     const fileId = objPath.replace(/.*\//, "");
     const localPath = getLocalFilePath(fileId);
     if (!localPath) return res.status(404).json({ message: "Not found" });
