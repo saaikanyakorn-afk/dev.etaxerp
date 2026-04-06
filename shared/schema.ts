@@ -64,7 +64,6 @@ export const machines = pgTable("machines", {
   internetType: text("internet_type").notNull().default("dynamic"),
   physicalLocation: text("physical_location"),
   locationId: integer("location_id"),
-  uploadDir: text("upload_dir"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

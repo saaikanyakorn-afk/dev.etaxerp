@@ -4,22 +4,7 @@ import { randomUUID } from "crypto";
 import * as fs from "fs";
 import * as path from "path";
 
-let LOCAL_UPLOAD_DIR = path.join(process.cwd(), "uploads");
-
-function resolveUploadDir(): string {
-  return LOCAL_UPLOAD_DIR;
-}
-
-export function applyMachineUploadDir(): void {
-  try {
-    const { getIdentifiedMachine } = require("../../machine-db-resolver");
-    const machine = getIdentifiedMachine();
-    if (machine?.upload_dir) {
-      LOCAL_UPLOAD_DIR = machine.upload_dir;
-      console.log(`[Upload] upload_dir from machines table: ${LOCAL_UPLOAD_DIR}`);
-    }
-  } catch {}
-}
+const LOCAL_UPLOAD_DIR = path.join(process.cwd(), "uploads");
 
 function ensureUploadDir(): void {
   if (!fs.existsSync(LOCAL_UPLOAD_DIR)) {

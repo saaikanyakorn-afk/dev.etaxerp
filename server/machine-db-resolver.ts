@@ -95,13 +95,6 @@ function buildUrl(host: string, port: number, dbName: string, user: string, pass
 interface MachineRowWithOs extends MachineRow {
   os: string | null;
   role: string | null;
-  upload_dir: string | null;
-}
-
-let _identifiedMachine: MachineRowWithOs | null = null;
-
-export function getIdentifiedMachine(): MachineRowWithOs | null {
-  return _identifiedMachine;
 }
 
 function identifyMachine(allMachines: MachineRowWithOs[]): { machine: MachineRowWithOs; method: string } | null {
@@ -169,18 +162,6 @@ export async function resolveDbFromMachineRegistry(configDbUrl: string): Promise
     }
 
     const me = identity.machine;
-    _identifiedMachine = me;
-
-    try {
-      const colCheck = await pool.query(`SELECT 1 FROM information_schema.columns WHERE table_name='machines' AND column_name='upload_dir'`);
-      if (colCheck.rows.length > 0) {
-        const udResult = await pool.query(`SELECT upload_dir FROM machines WHERE id = $1`, [me.id]);
-        if (udResult.rows[0]?.upload_dir) {
-          me.upload_dir = udResult.rows[0].upload_dir;
-        }
-      }
-    } catch {}
-
     console.log(`[MachineResolver] Identified as: "${me.local_name}" (id=${me.id}) via ${identity.method}, targetDbMachineId=${me.target_db_machine_id}`);
 
     const targetId = me.target_db_machine_id;
