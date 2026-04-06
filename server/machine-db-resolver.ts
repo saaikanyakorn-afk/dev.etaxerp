@@ -201,8 +201,9 @@ export async function resolveDbFromMachineRegistry(configDbUrl: string): Promise
 
     console.log(`[MachineResolver] My NICs: ${myIps.length} IPs, Target NICs: ${targetIps.length} IPs, Local OS IPs: ${localIps.length}, LAN candidates: ${lanCandidates.length}`);
 
+    // Step 1: Try NIC subnet-matched LAN candidates (same subnet = direct L2)
     for (const candidate of lanCandidates) {
-      console.log(`[MachineResolver] Probing LAN: ${candidate.myIp} → ${candidate.targetIp}:${dbPort} ...`);
+      console.log(`[MachineResolver] Probing LAN (subnet match): ${candidate.myIp} → ${candidate.targetIp}:${dbPort} ...`);
       const probe = await probeDb(candidate.targetIp, dbPort, dbName, dbUser, dbPassword, 5000);
       if (probe.ok) {
         console.log(`[MachineResolver] LAN probe OK (${probe.latencyMs}ms): ${candidate.targetIp}:${dbPort}/${dbName}`);
@@ -216,15 +217,35 @@ export async function resolveDbFromMachineRegistry(configDbUrl: string): Promise
           latencyMs: probe.latencyMs,
         };
       }
-      console.log(`[MachineResolver] LAN probe FAILED: ${candidate.targetIp}:${dbPort}`);
+      console.log(`[MachineResolver] LAN subnet probe FAILED: ${candidate.targetIp}:${dbPort}`);
     }
 
+    // Step 2: Try target machine's lanIp directly (cross-subnet but same physical LAN via router)
+    if (targetMachine.lan_ip && !lanCandidates.some(c => c.targetIp === targetMachine.lan_ip)) {
+      console.log(`[MachineResolver] Probing LAN (direct lanIp): ${targetMachine.lan_ip}:${dbPort} ...`);
+      const probe = await probeDb(targetMachine.lan_ip, dbPort, dbName, dbUser, dbPassword, 5000);
+      if (probe.ok) {
+        console.log(`[MachineResolver] LAN direct probe OK (${probe.latencyMs}ms): ${targetMachine.lan_ip}:${dbPort}/${dbName}`);
+        return {
+          url: buildUrl(targetMachine.lan_ip, dbPort, dbName, dbUser, dbPassword),
+          label: `${targetMachine.local_name} (LAN-direct ${targetMachine.lan_ip})`,
+          path: "lan",
+          host: targetMachine.lan_ip,
+          port: dbPort,
+          dbName,
+          latencyMs: probe.latencyMs,
+        };
+      }
+      console.log(`[MachineResolver] LAN direct probe FAILED: ${targetMachine.lan_ip}:${dbPort}`);
+    }
+
+    // Step 3: Try FQDN / domain / WAN (internet path)
     const fqdnHosts: { host: string; label: string; path: "fqdn" | "wan" }[] = [];
     if (targetMachine.fqdn) fqdnHosts.push({ host: targetMachine.fqdn, label: "FQDN", path: "fqdn" });
     if (targetMachine.domain_name && targetMachine.domain_name !== targetMachine.fqdn) {
       fqdnHosts.push({ host: targetMachine.domain_name, label: "Domain", path: "fqdn" });
     }
-    if (targetMachine.wan_ip) fqdnHosts.push({ host: targetMachine.wan_ip, label: "WAN", path: "wan" });
+    if (targetMachine.wan_ip && !targetMachine.wan_ip.startsWith("N/A")) fqdnHosts.push({ host: targetMachine.wan_ip, label: "WAN", path: "wan" });
 
     for (const fh of fqdnHosts) {
       console.log(`[MachineResolver] Probing ${fh.label}: ${fh.host}:${dbPort} ...`);
