@@ -482,7 +482,8 @@ export class DatabaseStorage implements IStorage {
     }
     const tenantCompanies = await db.select().from(companies).where(and(...tenantConditions));
     const primaryIds = tenantCompanies.filter(c => c.isPrimary).map(c => c.id);
-    const allIds = Array.from(new Set([...primaryIds, ...assignedCompanyIds, ...teamCompanyIds]));
+    const empCompanyIds = employee.companyId ? [employee.companyId] : [];
+    const allIds = Array.from(new Set([...empCompanyIds, ...primaryIds, ...assignedCompanyIds, ...teamCompanyIds]));
     if (allIds.length === 0) {
       return tenantCompanies.filter(c => c.isPrimary);
     }
