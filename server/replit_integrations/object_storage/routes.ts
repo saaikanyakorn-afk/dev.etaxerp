@@ -42,6 +42,34 @@ function detectContentType(fileName: string, metaPath?: string): string {
   return MIME_MAP[path.extname(fileName).toLowerCase()] || "application/octet-stream";
 }
 
+const EXT_FROM_MIME: Record<string, string> = {
+  "image/png": ".png", "image/jpeg": ".jpg", "image/gif": ".gif",
+  "image/webp": ".webp", "image/svg+xml": ".svg", "application/pdf": ".pdf",
+  "image/x-icon": ".ico",
+};
+
+export function saveBufferLocally(buffer: Buffer, contentType: string, originalName?: string): { objectPath: string } {
+  ensureUploadDir();
+  const fileId = randomUUID();
+  const ext = EXT_FROM_MIME[contentType] || (originalName ? path.extname(originalName).toLowerCase() : "") || "";
+  const safeName = fileId + ext;
+  fs.writeFileSync(path.join(LOCAL_UPLOAD_DIR, safeName), buffer);
+  fs.writeFileSync(path.join(LOCAL_UPLOAD_DIR, fileId + ".meta.json"), JSON.stringify({
+    originalName: originalName || safeName,
+    contentType,
+    size: buffer.length,
+    uploadedAt: new Date().toISOString(),
+  }));
+  return { objectPath: `/api/local-file/${safeName}` };
+}
+
+export function getLocalFilePath(fileId: string): string | null {
+  ensureUploadDir();
+  const candidates = fs.readdirSync(LOCAL_UPLOAD_DIR).filter(f => f.startsWith(fileId) && !f.endsWith(".meta.json"));
+  if (candidates.length === 0) return null;
+  return path.join(LOCAL_UPLOAD_DIR, candidates[0]);
+}
+
 export function registerObjectStorageRoutes(app: Express): void {
   ensureUploadDir();
   console.log(`[Upload] Local disk storage — ${LOCAL_UPLOAD_DIR}`);

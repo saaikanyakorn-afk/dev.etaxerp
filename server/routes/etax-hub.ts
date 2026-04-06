@@ -4,7 +4,7 @@ import { workBoards, workBoardGroups, workBoardColumns, workBoardItems, workBoar
 import { eq, and, or, desc, asc, sql, inArray, isNull } from "drizzle-orm";
 import { requireAuth, requireModule } from "../route-middleware";
 import crypto from "crypto";
-import { ObjectStorageService } from "../replit_integrations/object_storage/objectStorage";
+import { saveBufferLocally } from "../replit_integrations/object_storage/routes";
 import multer from "multer";
 import { decodeMulterFilename } from "../utils/safe-filename";
 
@@ -2536,8 +2536,6 @@ export function registerEtaxHubRoutes(app: Express) {
   // ============ Staff Upload (Authenticated) ============
 
   const uploadClient = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
-  const objectStorage = new ObjectStorageService();
-
   app.post("/api/client-upload-links/:id/staff-upload", requireAuth, uploadClient.array("files", 10), async (req, res) => {
     try {
       const user = req.user as any;
@@ -2550,18 +2548,7 @@ export function registerEtaxHubRoutes(app: Express) {
 
       const savedFiles = [];
       for (const file of files) {
-        const uploadURL = await objectStorage.getObjectEntityUploadURL();
-        const objectPath = objectStorage.normalizeObjectEntityPath(uploadURL);
-
-        const uploadRes = await fetch(uploadURL, {
-          method: "PUT",
-          body: file.buffer,
-          headers: { "Content-Type": file.mimetype || "application/octet-stream" },
-        });
-        if (!uploadRes.ok) {
-          console.error("Object storage upload failed:", uploadRes.status);
-          continue;
-        }
+        const { objectPath } = saveBufferLocally(file.buffer, file.mimetype || "application/octet-stream", file.originalname);
 
         const fileName = decodeMulterFilename(file.originalname);
 
@@ -2624,18 +2611,7 @@ export function registerEtaxHubRoutes(app: Express) {
 
       const savedFiles = [];
       for (const file of files) {
-        const uploadURL = await objectStorage.getObjectEntityUploadURL();
-        const objectPath = objectStorage.normalizeObjectEntityPath(uploadURL);
-
-        const uploadRes = await fetch(uploadURL, {
-          method: "PUT",
-          body: file.buffer,
-          headers: { "Content-Type": file.mimetype || "application/octet-stream" },
-        });
-        if (!uploadRes.ok) {
-          console.error("Object storage upload failed:", uploadRes.status);
-          continue;
-        }
+        const { objectPath } = saveBufferLocally(file.buffer, file.mimetype || "application/octet-stream", file.originalname);
 
         const fileName = decodeMulterFilename(file.originalname);
 
@@ -2738,18 +2714,7 @@ export function registerEtaxHubRoutes(app: Express) {
       const savedFiles = [];
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
-        const uploadURL = await objectStorage.getObjectEntityUploadURL();
-        const objectPath = objectStorage.normalizeObjectEntityPath(uploadURL);
-
-        const uploadRes = await fetch(uploadURL, {
-          method: "PUT",
-          body: file.buffer,
-          headers: { "Content-Type": file.mimetype || "application/octet-stream" },
-        });
-        if (!uploadRes.ok) {
-          console.error("Object storage upload failed:", uploadRes.status);
-          continue;
-        }
+        const { objectPath } = saveBufferLocally(file.buffer, file.mimetype || "application/octet-stream", file.originalname);
 
         const fileName = decodeMulterFilename(file.originalname);
 
