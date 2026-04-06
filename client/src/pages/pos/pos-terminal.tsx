@@ -318,14 +318,15 @@ export default function PosTerminal() {
     }
 
     const isFullTiv = !!txData.transaction?.isFullTaxInvoice || wantFullTaxInvoice;
+    const br = activeSession?.storeId ? (branchesData || []).find((b: any) => b.id === activeSession.storeId) : null;
     return {
       companyName: selectedCompany?.name || "",
       companyNameEn: selectedCompany?.nameEn || undefined,
-      companyAddress: selectedCompany?.address || undefined,
-      companyTaxId: selectedCompany?.taxId || undefined,
-      companyPhone: selectedCompany?.phone || undefined,
+      companyAddress: br?.address || selectedCompany?.address || undefined,
+      companyTaxId: br?.taxId || selectedCompany?.taxId || undefined,
+      companyPhone: br?.phone || selectedCompany?.phone || undefined,
       companyLogoUrl: logoDataUrl,
-      companyBranch: (selectedCompany as any)?.branch || activeSession?.branchName || "สำนักงานใหญ่",
+      companyBranch: br?.name || activeSession?.branchName || (selectedCompany as any)?.branch || "สำนักงานใหญ่",
       companyBranchId: (selectedCompany as any)?.sellerBranchId || "00000",
       headerText: docSettings?.posReceiptHeaderText || undefined,
       footerText: docSettings?.posReceiptFooterText || undefined,

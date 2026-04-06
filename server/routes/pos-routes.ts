@@ -601,7 +601,13 @@ export function registerPosRoutes(app: Express) {
       let sessionBranch: any = null;
       if ((doc as any).posSessionId) {
         const [sess] = await posDb.select().from(posSessions).where(eq(posSessions.id, (doc as any).posSessionId));
-        if (sess) sessionBranch = { branchName: sess.branchName, terminalName: sess.terminalName };
+        if (sess) {
+          sessionBranch = { branchName: sess.branchName, terminalName: sess.terminalName, storeId: sess.storeId };
+          if (sess.storeId) {
+            const [br] = await db.select().from(branches).where(eq(branches.id, sess.storeId));
+            if (br) sessionBranch.branch = br;
+          }
+        }
       }
       res.json({ doc: { ...doc, items }, company: comp || null, docSettings: docSettings || null, session: sessionBranch });
     } catch (err: any) { res.status(500).json({ message: err.message }); }
