@@ -44,6 +44,24 @@ const DOC_TYPE_LABELS: Record<string, string> = {
   purchase_invoice: "ซื้อสินค้า",
 };
 
+const DOC_TYPE_LIST_ROUTES: Record<string, string> = {
+  invoice: "/sales/invoices",
+  tax_invoice: "/sales/tax-invoices",
+  receipt: "/sales/receipts",
+  expense: "/purchases/expense",
+  purchase_invoice: "/purchases/purchase-invoices",
+  quotation: "/sales/quotations",
+  sales_order: "/sales/orders",
+  credit_note: "/sales/credit-notes",
+  purchase_order: "/purchases/purchase-orders",
+  purchase_request: "/purchases/purchase-requests",
+  debit_note: "/purchases/debit-notes",
+  payroll: "/hr/payroll",
+  wht_cert: "/purchases/wht",
+  petty_cash_txn: "/petty-cash",
+  pos_session: "/pos",
+};
+
 export default function Journal() {
   const [, navigate] = useLocation();
   const { selectedCompany } = useCompany();
@@ -341,9 +359,23 @@ export default function Journal() {
                           </TableCell>
                           <TableCell className="text-sm py-2.5">{formatDate(entry.entryDate, dateEra, dateFmt)}</TableCell>
                           <TableCell className="py-2.5">
-                            <span className="text-sm font-medium" style={{ color: themeColors.primary }} data-testid={`link-ref-${entry.id}`}>
-                              {entry.reference || "-"}
-                            </span>
+                            {entry.sourceDocType && DOC_TYPE_LIST_ROUTES[entry.sourceDocType] ? (
+                              <span
+                                className="text-sm font-medium cursor-pointer hover:underline"
+                                style={{ color: themeColors.primary }}
+                                data-testid={`link-ref-${entry.id}`}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  navigate(`${DOC_TYPE_LIST_ROUTES[entry.sourceDocType]}?companyId=${companyId}`);
+                                }}
+                              >
+                                {entry.reference || "-"}
+                              </span>
+                            ) : (
+                              <span className="text-sm font-medium" style={{ color: themeColors.primary }} data-testid={`link-ref-${entry.id}`}>
+                                {entry.reference || "-"}
+                              </span>
+                            )}
                           </TableCell>
                           <TableCell className="text-sm py-2.5 max-w-[400px]">
                             <span className="line-clamp-1">{entry.description || "-"}</span>
