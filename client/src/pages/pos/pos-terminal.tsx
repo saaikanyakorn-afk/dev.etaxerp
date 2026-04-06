@@ -119,17 +119,9 @@ export default function PosTerminal() {
   const { data: activeSession, isLoading: sessionLoading } = useQuery({
     queryKey: ["/api/pos/sessions/active", selectedCompanyId],
     queryFn: async () => {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 12000);
-      try {
-        const r = await fetch(`/api/pos/sessions/active?companyId=${selectedCompanyId}`, { credentials: "include", signal: controller.signal });
-        clearTimeout(timeout);
-        if (!r.ok) return null;
-        return r.json();
-      } catch {
-        clearTimeout(timeout);
-        return null;
-      }
+      const r = await fetch(`/api/pos/sessions/active?companyId=${selectedCompanyId}`, { credentials: "include" });
+      if (!r.ok) return null;
+      return r.json();
     },
     enabled: !!selectedCompanyId,
     refetchInterval: 30000,
@@ -228,27 +220,17 @@ export default function PosTerminal() {
 
   const openSessionMutation = useMutation({
     mutationFn: async (data: any) => {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 15000);
-      try {
-        const r = await fetch("/api/pos/sessions", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify(data),
-          signal: controller.signal,
-        });
-        clearTimeout(timeout);
-        if (!r.ok) {
-          const body = await r.json().catch(() => ({ message: "เกิดข้อผิดพลาด กรุณาลองใหม่" }));
-          throw new Error(body.message || "เปิดกะไม่สำเร็จ");
-        }
-        return r.json();
-      } catch (err: any) {
-        clearTimeout(timeout);
-        if (err.name === "AbortError") throw new Error("เซิร์ฟเวอร์ไม่ตอบสนอง กรุณาลองใหม่อีกครั้ง");
-        throw err;
+      const r = await fetch("/api/pos/sessions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(data),
+      });
+      if (!r.ok) {
+        const body = await r.json().catch(() => ({ message: "เกิดข้อผิดพลาด กรุณาลองใหม่" }));
+        throw new Error(body.message || "เปิดกะไม่สำเร็จ");
       }
+      return r.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/pos/sessions/active"] });
@@ -261,27 +243,17 @@ export default function PosTerminal() {
 
   const closeSessionMutation = useMutation({
     mutationFn: async (data: any) => {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 15000);
-      try {
-        const r = await fetch(`/api/pos/sessions/${activeSession?.id}/close`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify(data),
-          signal: controller.signal,
-        });
-        clearTimeout(timeout);
-        if (!r.ok) {
-          const body = await r.json().catch(() => ({ message: "เกิดข้อผิดพลาด" }));
-          throw new Error(body.message || "ปิดกะไม่สำเร็จ");
-        }
-        return r.json();
-      } catch (err: any) {
-        clearTimeout(timeout);
-        if (err.name === "AbortError") throw new Error("เซิร์ฟเวอร์ไม่ตอบสนอง กรุณาลองใหม่อีกครั้ง");
-        throw err;
+      const r = await fetch(`/api/pos/sessions/${activeSession?.id}/close`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(data),
+      });
+      if (!r.ok) {
+        const body = await r.json().catch(() => ({ message: "เกิดข้อผิดพลาด" }));
+        throw new Error(body.message || "ปิดกะไม่สำเร็จ");
       }
+      return r.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/pos/sessions/active"] });
