@@ -17,6 +17,13 @@ function getEcomDbUrl(): { url: string; label: string } {
   if (prodUrl) {
     return { url: prodUrl, label: "E-Commerce (Shared Production DB)" };
   }
+  try {
+    const { getActiveDbInfo } = require("./db");
+    const mainInfo = getActiveDbInfo();
+    if (mainInfo?.url) {
+      return { url: mainInfo.url, label: "E-Commerce (Shared DB)" };
+    }
+  } catch {}
   if (process.env.DATABASE_URL) {
     return { url: process.env.DATABASE_URL, label: "E-Commerce (Shared Dev DB)" };
   }
