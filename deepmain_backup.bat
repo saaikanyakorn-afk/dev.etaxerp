@@ -36,7 +36,7 @@ if %ERRORLEVEL% NEQ 0 (
     echo.
     echo [ERROR] backup ไม่สำเร็จ! กรุณาตรวจสอบ:
     echo   1. pg_dump ติดตั้งแล้วหรือไม่ ^(อยู่ใน PostgreSQL bin folder^)
-    echo   2. deep-main เปิดอยู่หรือไม่ ^(online 8:00-23:59 เวลาไทย^)
+    echo   2. deep-main เปิดอยู่หรือไม่
     echo   3. firewall / internet connection
     set PGPASSWORD=
     pause
