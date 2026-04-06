@@ -2687,6 +2687,7 @@ export default function AllServers() {
     localIps: { iface: string; ip: string; mac: string; family: string; internal: boolean }[];
     matchedMachineId: number | null;
     matchedMachineName: string | null;
+    matchMethod: string | null;
     isCloud: boolean;
   }
 
@@ -3028,6 +3029,8 @@ export default function AllServers() {
               </div>
               <div className="text-[10px] text-gray-400 font-mono mt-0.5">
                 {serverIdentity.localIps.filter(i => !i.internal).map(i => i.ip).join(", ") || "no external IPs"}
+                {serverIdentity.matchMethod && <span className="ml-2 text-green-500">(ตรวจพบโดย: {serverIdentity.matchMethod})</span>}
+                {!serverIdentity.matchedMachineId && <span className="ml-2 text-red-400">(ไม่พบเครื่องนี้ในระบบ)</span>}
               </div>
             </div>
             <div className="text-[10px] text-amber-600 flex items-center gap-1 shrink-0">
