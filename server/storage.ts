@@ -465,6 +465,18 @@ export class DatabaseStorage implements IStorage {
       return db.select().from(companies).where(and(eq(companies.active, true), inArray(companies.id, allowedIds)));
     }
 
+    const tenantConditions: any[] = [eq(companies.active, true)];
+    if (tenantId) {
+      tenantConditions.push(eq(companies.tenantId, tenantId));
+    }
+    const tenantCompanies = await db.select().from(companies).where(and(...tenantConditions));
+    const primaryCompany = tenantCompanies.find(c => c.isPrimary);
+    const isPrimaryEmployee = employee.companyId && primaryCompany && employee.companyId === primaryCompany.id;
+
+    if (employee.companyId && !isPrimaryEmployee) {
+      return db.select().from(companies).where(and(eq(companies.active, true), eq(companies.id, employee.companyId)));
+    }
+
     const assignedClients = await db.select().from(firmClients).where(eq(firmClients.assignedTo, employee.id));
     const assignedCompanyIds = assignedClients.map(c => c.companyId).filter((id): id is number => id !== null);
     const teamClients = await db.select({ firmClientId: firmClientTeam.firmClientId })
@@ -476,14 +488,8 @@ export class DatabaseStorage implements IStorage {
         .from(firmClients).where(inArray(firmClients.id, teamClientIds));
       teamCompanyIds = teamFirmClients.map(c => c.companyId).filter((id): id is number => id !== null);
     }
-    const tenantConditions: any[] = [eq(companies.active, true)];
-    if (tenantId) {
-      tenantConditions.push(eq(companies.tenantId, tenantId));
-    }
-    const tenantCompanies = await db.select().from(companies).where(and(...tenantConditions));
-    const primaryIds = tenantCompanies.filter(c => c.isPrimary).map(c => c.id);
-    const empCompanyIds = employee.companyId ? [employee.companyId] : [];
-    const allIds = Array.from(new Set([...empCompanyIds, ...primaryIds, ...assignedCompanyIds, ...teamCompanyIds]));
+    const primaryIds = primaryCompany ? [primaryCompany.id] : [];
+    const allIds = Array.from(new Set([...primaryIds, ...assignedCompanyIds, ...teamCompanyIds]));
     if (allIds.length === 0) {
       return tenantCompanies.filter(c => c.isPrimary);
     }
