@@ -315,7 +315,7 @@ export default function GeneralLedger() {
                         }}
                         data-testid={`option-account-${a.code}`}
                       >
-                        <span className="font-mono text-xs text-muted-foreground w-[50px] flex-shrink-0">{a.code}</span>
+                        <span className="text-xs text-muted-foreground w-[50px] flex-shrink-0 tabular-nums">{a.code}</span>
                         <span className="truncate">{acctName(a) || "-"}</span>
                       </div>
                     ))}

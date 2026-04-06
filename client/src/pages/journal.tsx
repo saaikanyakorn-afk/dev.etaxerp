@@ -429,7 +429,7 @@ export default function Journal() {
                                         {entryLines.map((line: any, idx: number) => (
                                           <tr key={line.id || idx} className="border-b border-dashed last:border-0">
                                             <td className="py-1.5 px-2 text-xs text-muted-foreground">{idx + 1}</td>
-                                            <td className="py-1.5 px-2 font-mono text-xs">{line.accountCode || "-"}</td>
+                                            <td className="py-1.5 px-2 text-xs tabular-nums">{line.accountCode || "-"}</td>
                                             <td className="py-1.5 px-2">{line.description || line.accountName || "-"}</td>
                                             <td className="py-1.5 px-2 text-right font-medium tabular-nums">{fmt(line.debit)}</td>
                                             <td className="py-1.5 px-2 text-right font-medium tabular-nums">{fmt(line.credit)}</td>
