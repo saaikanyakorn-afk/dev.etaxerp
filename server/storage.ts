@@ -423,12 +423,12 @@ export class DatabaseStorage implements IStorage {
   async getCompaniesForUser(userId: number, tenantId?: number, role?: string): Promise<Company[]> {
     const employee = await this.getEmployeeByUserId(userId);
     if (!employee) {
+      const user0 = await db.select().from(users).where(eq(users.id, userId));
+      const allowedIds = user0[0]?.allowedCompanyIds;
+      if (allowedIds && allowedIds.length > 0) {
+        return db.select().from(companies).where(and(eq(companies.active, true), inArray(companies.id, allowedIds)));
+      }
       if (role === "client") {
-        const user = await db.select().from(users).where(eq(users.id, userId));
-        const allowedIds = user[0]?.allowedCompanyIds;
-        if (allowedIds && allowedIds.length > 0) {
-          return db.select().from(companies).where(and(eq(companies.active, true), inArray(companies.id, allowedIds)));
-        }
         return [];
       }
       if (tenantId) {
