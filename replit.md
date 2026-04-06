@@ -32,7 +32,7 @@ Kai tracks all files cherry-picked to production. This is the single source of t
 | server/routes/expense-routes.ts | Error logging + fallback message | Deployed 2026-04-06 | fd3f574 |
 | server/route-helpers.ts | checkDocumentLimit try-catch (fix ECONNREFUSED) | Deployed 2026-04-06 | 6f5c366 |
 | client/src/pages/purchases/wht-cert-list.tsx | Fix dateFormat → dateFmt (50ทวิ page crash) | Deployed 2026-04-06 | 08f1bde |
-| server/routes/expense-routes.ts | Remove auto journal from WHT cert (50ทวิ = doc only) | Ready | 8ac7213 |
+| server/routes/expense-routes.ts | Remove auto journal from WHT cert (50ทวิ = doc only) | Deployed 2026-04-06 | 8ac7213 |
 | server/replit_integrations/object_storage/routes.ts | Fix logo lost on pull (UPLOAD_DIR) | Ready | 102ddaf |
 | deepmain_schema_sync.sql | Add tax_invoices.customer_branch_id | Ready | a6a5853 |
 
