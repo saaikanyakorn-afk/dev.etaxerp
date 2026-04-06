@@ -17,6 +17,13 @@ function getPosDbUrl(): { url: string; label: string } {
   if (prodUrl) {
     return { url: prodUrl, label: "POS (Shared Production DB)" };
   }
+  try {
+    const { getActiveDbInfo } = require("./db");
+    const mainInfo = getActiveDbInfo();
+    if (mainInfo?.url) {
+      return { url: mainInfo.url, label: "POS (Shared DB)" };
+    }
+  } catch {}
   if (process.env.DATABASE_URL) {
     return { url: process.env.DATABASE_URL, label: "POS (Shared Dev DB)" };
   }
