@@ -644,9 +644,19 @@ export function registerExpenseRoutes(app: Express) {
       { const ac = await checkDocOwnership(existing.companyId, req.user); if (!ac.allowed) return res.status(403).json({ message: ac.message }); }
       await db.transaction(async (tx) => {
         await deleteJournalEntriesForDoc(tx, "expense", existing.id);
+        const linkedWhts = await tx.select({ id: withholdingTaxCerts.id }).from(withholdingTaxCerts).where(and(eq(withholdingTaxCerts.sourceDocType, "expense"), eq(withholdingTaxCerts.sourceDocId, existing.id)));
+        for (const w of linkedWhts) {
+          await deleteJournalEntriesForDoc(tx, "wht_cert", w.id);
+          await tx.delete(whtCertItems).where(eq(whtCertItems.whtCertId, w.id));
+        }
+        if (linkedWhts.length > 0) {
+          await tx.delete(withholdingTaxCerts).where(and(eq(withholdingTaxCerts.sourceDocType, "expense"), eq(withholdingTaxCerts.sourceDocId, existing.id)));
+        }
         await tx.delete(expenseItems).where(eq(expenseItems.expenseId, existing.id));
         await tx.delete(expenses).where(eq(expenses.id, existing.id));
       });
+      const user = req.user as any;
+      logActivity({ companyId: existing.companyId, userId: user.id, userName: user.username, action: "delete", entityType: "expense", entityId: String(existing.id), entityName: existing.expNo }).catch(() => {});
       res.json({ success: true });
     } catch (err: any) {
       console.error("[EXP DELETE ERROR]", err);
