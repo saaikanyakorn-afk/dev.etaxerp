@@ -373,7 +373,7 @@ export default function WhtCertList() {
                                 <button className="text-[var(--theme-primary)] hover:underline cursor-pointer font-medium" onClick={() => navigate(`/purchases/wht/edit/${doc.id}`)}>{doc.certNo}</button>
                                 <div className="text-xs text-muted-foreground">{FORM_TYPE_MAP[doc.formType] || doc.formType}</div>
                               </TableCell>
-                              <TableCell className="text-sm">{formatDate(doc.certDate, dateEra, dateFormat)}</TableCell>
+                              <TableCell className="text-sm">{formatDate(doc.certDate, dateEra, dateFmt)}</TableCell>
                               <TableCell className="text-sm">
                                 <div>{doc.payeeName}</div>
                                 {doc.payeeTaxId && <div className="text-xs text-muted-foreground">{doc.payeeTaxId}</div>}
@@ -773,7 +773,7 @@ export default function WhtCertList() {
                               <TableRow key={cert.id} data-testid={`row-wht-${cert.id}`}>
                                 <TableCell className="text-xs text-center text-muted-foreground">{idx + 1}</TableCell>
                                 <TableCell className="text-sm font-medium">{cert.certNo}</TableCell>
-                                <TableCell className="text-sm">{formatDate(cert.paidDate, dateEra, dateFormat)}</TableCell>
+                                <TableCell className="text-sm">{formatDate(cert.paidDate, dateEra, dateFmt)}</TableCell>
                                 <TableCell>
                                   <Badge variant="outline" className={cert.formType === "pnd53" ? "border-[#03c9d7] text-[#03c9d7]" : "border-[var(--theme-primary)] text-[var(--theme-primary)]"}>
                                     {FORM_TYPE_MAP[cert.formType] || cert.formType}
