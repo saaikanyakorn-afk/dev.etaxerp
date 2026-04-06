@@ -4,7 +4,14 @@ import { randomUUID } from "crypto";
 import * as fs from "fs";
 import * as path from "path";
 
-const LOCAL_UPLOAD_DIR = path.join(process.cwd(), "uploads");
+const LOCAL_UPLOAD_DIR = resolveUploadDir();
+
+function resolveUploadDir(): string {
+  if (process.env.UPLOAD_DIR) {
+    return process.env.UPLOAD_DIR;
+  }
+  return path.join(process.cwd(), "uploads");
+}
 
 function ensureUploadDir(): void {
   if (!fs.existsSync(LOCAL_UPLOAD_DIR)) {
