@@ -225,12 +225,18 @@ export default function PosTerminal() {
         credentials: "include",
         body: JSON.stringify(data),
       });
-      if (!r.ok) throw new Error((await r.json()).message);
+      if (!r.ok) {
+        const body = await r.json().catch(() => ({ message: "เกิดข้อผิดพลาด กรุณาลองใหม่" }));
+        throw new Error(body.message || "เปิดกะไม่สำเร็จ");
+      }
       return r.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/pos/sessions/active"] });
       setShowOpenSession(false);
+    },
+    onError: (err: any) => {
+      alert(err.message || "เปิดกะไม่สำเร็จ กรุณาลองใหม่");
     },
   });
 
