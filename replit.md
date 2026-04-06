@@ -46,6 +46,9 @@ Kai tracks all files cherry-picked to production. This is the single source of t
 - Production is NOT a debugging tool. Only cherry-pick solutions, never test code.
 - Kai must NEVER send wrong commands for production. Verify process names, paths, and syntax before sending.
 
+## Waiting List
+1. **Replit.app deploy broken** — DB connection timeout to deep-main from Replit cloud. Fix: change `DB_PROD_URL` in config to `etax-develop` (already exists: 295 tables, 72MB, 24 users, 448 companies). Won't fix network instability but separates from production data. Pending พี่ช้าง's go-ahead.
+
 ## Code vs Data Separation (CRITICAL)
 - **Code** and **Data (DB structure)** are separate concerns — always treat them independently.
 - **Dev DB (Neon/US):** Schema changes happen here during development. No users on this DB.
