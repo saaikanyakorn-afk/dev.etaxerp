@@ -1083,12 +1083,32 @@ function NicSection({ machineId, allNics, allMachines, allRouters }: { machineId
   const otherNics = allNics.filter(n => n.machineId !== machineId);
   const { data: allNicIps = [] } = useQuery<NicIpRecord[]>({ queryKey: ["/api/platform/all-nic-ips"] });
 
-  const lanPeers = new Map<number, { machineName: string; viaIp: string; peerIp: string }>();
+  const getAllIpsForNic = (nic: NicRecord): { ip: string; mask: string }[] => {
+    const ips: { ip: string; mask: string }[] = [{ ip: nic.ipAddress, mask: nic.subnetMask }];
+    const extras = allNicIps.filter(x => x.nicId === nic.id);
+    for (const extra of extras) {
+      ips.push({ ip: extra.ipAddress, mask: extra.subnetMask });
+    }
+    return ips;
+  };
+
+  const lanPeers = new Map<number, { machineName: string; viaIp: string; peerIp: string; viaAdditionalIp: boolean }>();
   for (const myNic of myNics) {
+    const myIps = getAllIpsForNic(myNic);
     for (const otherNic of otherNics) {
-      if (!lanPeers.has(otherNic.machineId) && sameSubnet(myNic.ipAddress, otherNic.ipAddress, myNic.subnetMask, otherNic.subnetMask)) {
-        const peer = allMachines.find(m => m.id === otherNic.machineId);
-        if (peer) lanPeers.set(otherNic.machineId, { machineName: peer.localName, viaIp: myNic.ipAddress, peerIp: otherNic.ipAddress });
+      if (lanPeers.has(otherNic.machineId)) continue;
+      const otherIps = getAllIpsForNic(otherNic);
+      let found = false;
+      for (const myIpEntry of myIps) {
+        for (const otherIpEntry of otherIps) {
+          if (sameSubnet(myIpEntry.ip, otherIpEntry.ip, myIpEntry.mask, otherIpEntry.mask)) {
+            const peer = allMachines.find(m => m.id === otherNic.machineId);
+            const isAdditional = myIpEntry.ip !== myNic.ipAddress || otherIpEntry.ip !== otherNic.ipAddress;
+            if (peer) lanPeers.set(otherNic.machineId, { machineName: peer.localName, viaIp: myIpEntry.ip, peerIp: otherIpEntry.ip, viaAdditionalIp: isAdditional });
+            found = true; break;
+          }
+        }
+        if (found) break;
       }
     }
   }
@@ -1248,13 +1268,18 @@ function NicSection({ machineId, allNics, allMachines, allRouters }: { machineId
       {lanPeers.size > 0 && (
         <div className="p-2 bg-green-50/50 border border-green-200 rounded-lg">
           <h5 className="text-[10px] font-semibold text-green-700 mb-1 flex items-center gap-1"><Wifi className="h-3 w-3" /> LAN Connectivity (คำนวณจาก subnet)</h5>
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex flex-wrap gap-1.5 mb-1.5">
             {Array.from(lanPeers.entries()).map(([peerId, info]) => (
               <Badge key={peerId} variant="outline" className="bg-green-100 text-green-800 border-green-300 text-[10px] px-1.5 py-0.5">
                 {info.machineName}
                 <span className="font-mono ml-1 text-green-600">{info.peerIp}</span>
+                {info.viaAdditionalIp && <span className="text-[8px] text-green-500 ml-0.5">(additional IP)</span>}
               </Badge>
             ))}
+          </div>
+          <div className="flex items-start gap-1 p-1.5 bg-amber-50 border border-amber-200 rounded text-[10px] text-amber-700">
+            <AlertTriangle className="h-3 w-3 shrink-0 mt-0.5" />
+            <span>คำนวณจากข้อมูล IP ที่บันทึกไว้เท่านั้น <strong>ไม่การันตี</strong>ว่าเชื่อมต่อได้จริง — หากต้องการผลที่ถูกต้อง ให้เปิดหน้านี้จาก<strong>เครื่องนั้น</strong>โดยตรง แล้วใช้ Test DB Connection</span>
           </div>
         </div>
       )}
@@ -2656,6 +2681,19 @@ export default function AllServers() {
     queryKey: ["/api/platform/locations"],
   });
 
+  interface ServerIdentity {
+    machineName: string;
+    hostname: string;
+    localIps: { iface: string; ip: string; mac: string; family: string; internal: boolean }[];
+    matchedMachineId: number | null;
+    matchedMachineName: string | null;
+    isCloud: boolean;
+  }
+
+  const { data: serverIdentity } = useQuery<ServerIdentity>({
+    queryKey: ["/api/platform/server-identity"],
+  });
+
   const [editingRouter, setEditingRouter] = useState<RouterRecord | null | undefined>(undefined);
   const [expandedRouterId, setExpandedRouterId] = useState<number | null>(null);
   const [editingDomain, setEditingDomain] = useState<PlatformDomainRecord | null | undefined>(undefined);
@@ -2971,6 +3009,33 @@ export default function AllServers() {
             </Button>
           </div>
         </div>
+
+        {serverIdentity && (
+          <div className={`mb-4 p-3 rounded-lg border flex items-center gap-3 ${serverIdentity.isCloud ? "bg-purple-50 border-purple-200" : serverIdentity.matchedMachineId ? "bg-blue-50 border-blue-200" : "bg-gray-50 border-gray-200"}`} data-testid="server-identity-banner">
+            <Monitor className={`h-4 w-4 shrink-0 ${serverIdentity.isCloud ? "text-purple-600" : "text-blue-600"}`} />
+            <div className="flex-1 min-w-0">
+              <div className="text-xs font-medium">
+                <span className="text-gray-500">กำลังดูจากเครื่อง:</span>{" "}
+                <span className={`font-bold ${serverIdentity.isCloud ? "text-purple-700" : "text-blue-700"}`}>
+                  {serverIdentity.matchedMachineName || serverIdentity.machineName}
+                </span>
+                {serverIdentity.isCloud && <Badge className="ml-1.5 bg-purple-600 text-white text-[9px] px-1 py-0">Cloud</Badge>}
+                {serverIdentity.matchedMachineId && (
+                  <Badge variant="outline" className="ml-1.5 text-[9px] px-1 py-0 bg-blue-100 text-blue-700 border-blue-300">
+                    Machine #{serverIdentity.matchedMachineId}
+                  </Badge>
+                )}
+              </div>
+              <div className="text-[10px] text-gray-400 font-mono mt-0.5">
+                {serverIdentity.localIps.filter(i => !i.internal).map(i => i.ip).join(", ") || "no external IPs"}
+              </div>
+            </div>
+            <div className="text-[10px] text-amber-600 flex items-center gap-1 shrink-0">
+              <AlertTriangle className="h-3 w-3" />
+              <span>LAN connectivity แสดงจากข้อมูลที่บันทึกไว้ — ต้องดูจากเครื่องนั้นจึงจะทดสอบจริงได้</span>
+            </div>
+          </div>
+        )}
 
         {showPasswordPrompt && (
           <div className="mb-6 p-4 bg-amber-50 border border-amber-300 rounded-lg">

@@ -2850,6 +2850,58 @@ app.delete("/api/platform/port-forwards/:id", requireAuth, requireSuperAdmin, as
   } catch (err: any) { res.status(500).json({ message: err.message }); }
 });
 
+app.get("/api/platform/server-identity", requireAuth, requireSuperAdmin, async (_req, res) => {
+  try {
+    const machineName = process.env.MACHINE_NAME || os.hostname();
+    const nets = os.networkInterfaces();
+    const localIps: { iface: string; ip: string; mac: string; family: string; internal: boolean }[] = [];
+    for (const [name, ifaces] of Object.entries(nets)) {
+      if (!ifaces) continue;
+      for (const iface of ifaces) {
+        if (iface.family === "IPv4") {
+          localIps.push({ iface: name, ip: iface.address, mac: iface.mac, family: iface.family, internal: iface.internal });
+        }
+      }
+    }
+
+    const { machines: machinesTable, machineNics, nicIpAddresses } = await import("@shared/schema");
+    let matchedMachine: any = null;
+
+    if (process.env.MACHINE_NAME) {
+      const byName = await db.select().from(machinesTable);
+      matchedMachine = byName.find(m =>
+        m.localName === process.env.MACHINE_NAME ||
+        m.windowsName === process.env.MACHINE_NAME ||
+        m.encHostname === process.env.MACHINE_NAME
+      );
+    }
+
+    if (!matchedMachine) {
+      const externalIps = localIps.filter(i => !i.internal).map(i => i.ip);
+      if (externalIps.length > 0) {
+        const allNics = await db.select().from(machineNics);
+        const allNicIps = await db.select().from(nicIpAddresses);
+        for (const nic of allNics) {
+          const nicIps = [nic.ipAddress, ...allNicIps.filter(ip => ip.nicId === nic.id).map(ip => ip.ipAddress)];
+          if (nicIps.some(ip => externalIps.includes(ip))) {
+            const [machine] = await db.select().from(machinesTable).where(eq(machinesTable.id, nic.machineId));
+            if (machine) { matchedMachine = machine; break; }
+          }
+        }
+      }
+    }
+
+    res.json({
+      machineName,
+      hostname: os.hostname(),
+      localIps,
+      matchedMachineId: matchedMachine?.id || null,
+      matchedMachineName: matchedMachine?.localName || null,
+      isCloud: !!(process.env.REPL_ID || process.env.REPL_SLUG),
+    });
+  } catch (err: any) { res.status(500).json({ message: err.message }); }
+});
+
 app.post("/api/platform/verify-infra-password", requireAuth, requireSuperAdmin, async (req, res) => {
   try {
     const { password } = req.body;
