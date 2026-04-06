@@ -151,14 +151,15 @@ export default function PosReceipt() {
     }));
     const showLogo = docSettings ? docSettings.posReceiptShowLogo !== false : company?.showLogo !== false;
     const isFullTiv = !!data.isFullTaxInvoice || !!(data.customerTaxId && data.customerName);
+    const br = session?.branch;
     return {
       companyName: company?.name || "",
       companyNameEn: company?.nameEn || undefined,
-      companyAddress: company?.address || undefined,
-      companyTaxId: company?.taxId || undefined,
-      companyPhone: company?.phone || undefined,
+      companyAddress: br?.address || company?.address || undefined,
+      companyTaxId: br?.taxId || company?.taxId || undefined,
+      companyPhone: br?.phone || company?.phone || undefined,
       companyLogoUrl: showLogo && logoBase64 ? logoBase64 : undefined,
-      companyBranch: company?.branch || session?.branchName || "สำนักงานใหญ่",
+      companyBranch: br?.name || session?.branchName || company?.branch || "สำนักงานใหญ่",
       companyBranchId: company?.sellerBranchId || "00000",
       headerText: docSettings?.posReceiptHeaderText || undefined,
       footerText: docSettings?.posReceiptFooterText || undefined,
