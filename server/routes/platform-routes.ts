@@ -16,6 +16,27 @@ import { platformCloneProgress, setPlatformCloneProgress, cloneLockState, cloneS
 import { isMaintenanceMode, getMaintenanceStatus, activateNow, liftMaintenance, setCloneInProgress, isCloneInProgress, getCloneSessionUserId, freezeTimer, unfreezeTimer, destroyScheduleAfterClone, hasCompletedMaintenanceToday, getScheduleHistory, initMaintenanceOnStartup, getActiveSchedule, getPendingSchedule, createSchedule, rescheduleSchedule, cancelSchedule, setOnEnableCallback } from "../maintenance";
 import { recordCloneHistory } from "../services/clone-history-central";
 
+function resolveDbCredentials(machine: any): { port: number; dbName: string; dbUser: string; dbPassword: string; source: string } {
+  if (machine.encContent && machine.encHostname && machine.encMacAddress && machine.encConfigDbPort) {
+    try {
+      const { decryptEncContent } = require("../utils/machine-crypto");
+      const payload = decryptEncContent(machine.encContent, machine.encHostname, machine.encMacAddress, machine.encConfigDbPort);
+      const mb = payload.mainDb;
+      const mbPort = mb ? parseInt(mb.port, 10) : NaN;
+      if (mb && mb.user && mb.password && mb.database && mb.port && !isNaN(mbPort) && mbPort > 0 && mbPort <= 65535) {
+        return { port: mbPort, dbName: mb.database, dbUser: mb.user, dbPassword: mb.password, source: "encrypted" };
+      }
+    } catch {}
+  }
+  return {
+    port: parseInt(machine.dbPort || "5432", 10),
+    dbName: machine.dbName || "postgres",
+    dbUser: machine.dbUser || "postgres",
+    dbPassword: machine.dbPassword || "",
+    source: "plaintext",
+  };
+}
+
 export function registerPlatformRoutes(app: Express) {
 // ========== Platform (Super Admin) Routes ==========
 
@@ -2204,10 +2225,11 @@ app.post("/api/platform/machines/:id/test-db", requireAuth, requireSuperAdmin, a
     const [machine] = await db.select().from(machinesTable).where(eq(machinesTable.id, id));
     if (!machine) return res.status(404).json({ message: "ไม่พบเครื่องนี้" });
 
-    const port = parseInt(machine.dbPort || "5432", 10);
-    const dbName = machine.dbName || "postgres";
-    const dbUser = machine.dbUser || "postgres";
-    const dbPassword = machine.dbPassword || "";
+    const creds = resolveDbCredentials(machine);
+    const port = creds.port;
+    const dbName = creds.dbName;
+    const dbUser = creds.dbUser;
+    const dbPassword = creds.dbPassword;
 
     const isValidHost = (v: string | null | undefined): v is string => {
       if (!v || !v.trim()) return false;
@@ -2312,10 +2334,11 @@ app.post("/api/platform/machines/benchmark-all", requireAuth, requireSuperAdmin,
     const results: any[] = [];
 
     await Promise.all(allMachines.map(async (m) => {
-      const port = parseInt(m.dbPort || "5432", 10);
-      const dbName = m.dbName || "postgres";
-      const dbUser = m.dbUser || "postgres";
-      const dbPassword = m.dbPassword || "";
+      const creds = resolveDbCredentials(m);
+      const port = creds.port;
+      const dbName = creds.dbName;
+      const dbUser = creds.dbUser;
+      const dbPassword = creds.dbPassword;
       if (!dbUser || !dbPassword) {
         results.push({ machineId: m.id, machineName: m.localName, role: m.role, incomplete: true });
         return;
@@ -2381,10 +2404,11 @@ app.post("/api/platform/machines/:id/benchmark-query", requireAuth, requireSuper
     if (!machine) return res.status(404).json({ message: "ไม่พบเครื่องนี้" });
 
     const host = machine.domainName || machine.fqdn || machine.wanIp || machine.lanIp;
-    const port = parseInt(machine.dbPort || "5432", 10);
-    const dbName = machine.dbName || "postgres";
-    const dbUser = machine.dbUser || "postgres";
-    const dbPassword = machine.dbPassword || "";
+    const creds = resolveDbCredentials(machine);
+    const port = creds.port;
+    const dbName = creds.dbName;
+    const dbUser = creds.dbUser;
+    const dbPassword = creds.dbPassword;
 
     if (!host || !dbUser || !dbPassword) {
       return res.json({ success: false, error: "ข้อมูล DB ไม่ครบ" });
