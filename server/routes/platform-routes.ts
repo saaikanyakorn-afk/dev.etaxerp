@@ -2568,6 +2568,34 @@ app.post("/api/platform/machines/test-decrypt", requireAuth, requireSuperAdmin, 
   }
 });
 
+app.get("/api/platform/db-health-events", requireAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const { getConfigDbUrl } = await import("../config-bootstrap");
+    const configUrl = getConfigDbUrl();
+    if (!configUrl) return res.json({ available: false, events: [], message: "Config DB not configured" });
+
+    const pg = await import("pg");
+    const checkPool = new pg.default.Pool({ connectionString: configUrl, max: 1, connectionTimeoutMillis: 3000 });
+    try {
+      const tableCheck = await checkPool.query("SELECT to_regclass('public.db_health_events') AS tbl");
+      if (!tableCheck.rows[0]?.tbl) {
+        await checkPool.end();
+        return res.json({ available: false, events: [], message: "db_health_events table not found" });
+      }
+      const limit = Math.min(Number(req.query.limit) || 100, 500);
+      const result = await checkPool.query(
+        "SELECT id, event_type, event_time, consecutive_failures, cumulative_failures, down_seconds, recovery_method, error_message, database_label, notes FROM db_health_events ORDER BY event_time DESC LIMIT $1",
+        [limit]
+      );
+      await checkPool.end();
+      res.json({ available: true, events: result.rows });
+    } catch (err: any) {
+      await checkPool.end().catch(() => {});
+      res.json({ available: false, events: [], message: err.message });
+    }
+  } catch (err: any) { res.status(500).json({ message: err.message }); }
+});
+
 app.get("/api/platform/clone-history-target", requireAuth, requireSuperAdmin, async (_req, res) => {
   try {
     const { getTargetMachineInfo } = await import("../services/clone-history-central");

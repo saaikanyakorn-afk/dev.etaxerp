@@ -6,16 +6,64 @@ import * as path from "path";
 import { getConfig, isBootstrapped } from "./config-bootstrap";
 
 let _downSince: number | null = null;
+let _healthLogAvailable: boolean | null = null;
 
-function appendDbHealthLog(event: string, details: Record<string, any> = {}): void {
+async function appendDbHealthLog(
+  eventType: string,
+  details: {
+    consecutiveFailures?: number;
+    cumulativeFailures?: number;
+    downSeconds?: number;
+    recoveryMethod?: string;
+    errorMessage?: string;
+    databaseLabel?: string;
+    notes?: string;
+  } = {}
+): Promise<void> {
   try {
+    const configUrl = getConfigDbUrl();
+    if (!configUrl) return;
+
+    if (_healthLogAvailable === null) {
+      const checkPool = new pg.Pool({ connectionString: configUrl, max: 1, connectionTimeoutMillis: 3000 });
+      try {
+        const check = await checkPool.query("SELECT to_regclass('public.db_health_events') AS tbl");
+        _healthLogAvailable = !!check.rows[0]?.tbl;
+        if (!_healthLogAvailable) {
+          console.log("[DB Health] db_health_events table not found in config DB — logging to file only");
+        }
+      } catch { _healthLogAvailable = false; }
+      finally { await checkPool.end().catch(() => {}); }
+    }
+
+    if (_healthLogAvailable) {
+      const logPool = new pg.Pool({ connectionString: configUrl, max: 1, connectionTimeoutMillis: 3000 });
+      try {
+        await logPool.query(
+          `INSERT INTO db_health_events (event_type, consecutive_failures, cumulative_failures, down_seconds, recovery_method, error_message, database_label, notes) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+          [
+            eventType,
+            details.consecutiveFailures || 0,
+            details.cumulativeFailures || 0,
+            details.downSeconds || 0,
+            details.recoveryMethod || null,
+            details.errorMessage ? details.errorMessage.slice(0, 500) : null,
+            details.databaseLabel || null,
+            details.notes || null,
+          ]
+        );
+      } catch (dbErr: any) {
+        console.warn(`[DB Health] Failed to write to config DB: ${dbErr.message}`);
+      } finally { await logPool.end().catch(() => {}); }
+    }
+
     const logDir = path.join(process.cwd(), "logs");
     if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true });
     const logFile = path.join(logDir, "db-health.log");
     const timestamp = new Date().toLocaleString("th-TH", { timeZone: "Asia/Bangkok" });
-    const parts = [`[${timestamp}] ${event}`];
+    const parts = [`[${timestamp}] ${eventType}`];
     for (const [k, v] of Object.entries(details)) {
-      parts.push(`${k}=${v}`);
+      if (v !== undefined && v !== null) parts.push(`${k}=${v}`);
     }
     fs.appendFileSync(logFile, parts.join(" | ") + "\n");
   } catch {}
@@ -119,18 +167,18 @@ if (isProduction) {
         const downSec = _downSince ? Math.round((Date.now() - _downSince) / 1000) : 0;
         console.log(`[DB Pool] Connection recovered after ${consecutiveFailures} failures`);
         appendDbHealthLog("RECOVERED", {
-          consecutive_failures: consecutiveFailures,
-          cumulative_failures: cumulativeFailures,
-          down_seconds: downSec,
-          database: activeDb.label,
-        });
+          consecutiveFailures,
+          cumulativeFailures,
+          downSeconds: downSec,
+          databaseLabel: activeDb.label,
+        }).catch(() => {});
       }
       if (_recoveryMode) {
         const downSec = _downSince ? Math.round((Date.now() - _downSince) / 1000) : 0;
         _recoveryMode = false;
         _downSince = null;
         console.log("[DB Pool] ✓ Auto-recovered from Recovery Mode — database is reachable again");
-        appendDbHealthLog("RECOVERY_MODE_EXIT", { down_seconds: downSec, method: "auto" });
+        appendDbHealthLog("RECOVERY_MODE_EXIT", { downSeconds: downSec, recoveryMethod: "auto" }).catch(() => {});
       }
       consecutiveFailures = 0;
       cumulativeFailures = 0;
@@ -139,24 +187,24 @@ if (isProduction) {
       cumulativeFailures++;
       if (consecutiveFailures === 1) {
         _downSince = Date.now();
-        appendDbHealthLog("FIRST_FAILURE", { error: err.message, database: activeDb.label });
+        appendDbHealthLog("FIRST_FAILURE", { errorMessage: err.message, databaseLabel: activeDb.label }).catch(() => {});
       }
       console.error(`[DB Pool] Keepalive failed (${consecutiveFailures}x, ${cumulativeFailures} cumulative): ${err.message}`);
       if (!_recoveryMode && consecutiveFailures >= 2) {
         _recoveryMode = true;
         console.warn("[DB Pool] ⚠ Entering Recovery Mode — database unreachable");
         appendDbHealthLog("RECOVERY_MODE_ENTER", {
-          consecutive_failures: consecutiveFailures,
-          error: err.message,
-          database: activeDb.label,
-        });
+          consecutiveFailures,
+          errorMessage: err.message,
+          databaseLabel: activeDb.label,
+        }).catch(() => {});
       }
       if (cumulativeFailures >= 60) {
         const downSec = _downSince ? Math.round((Date.now() - _downSince) / 1000) : 0;
-        appendDbHealthLog("FORCE_RESTART", {
-          cumulative_failures: cumulativeFailures,
-          down_seconds: downSec,
-          database: activeDb.label,
+        await appendDbHealthLog("FORCE_RESTART", {
+          cumulativeFailures,
+          downSeconds: downSec,
+          databaseLabel: activeDb.label,
         });
         console.error("[DB Pool] 60 cumulative failures — forcing server restart");
         process.exit(1);
@@ -178,33 +226,33 @@ if (isProduction) {
           });
           _pool.on("error", (e) => console.error("[DB Pool] Error on idle client:", e.message));
           _db = drizzle(_pool, { schema });
-          appendDbHealthLog("POOL_RECYCLED", { attempt: consecutiveFailures });
+          appendDbHealthLog("POOL_RECYCLED", { consecutiveFailures }).catch(() => {});
           try {
             const verifyClient = await _pool.connect();
             await verifyClient.query("SELECT 1");
             verifyClient.release();
             const downSec = _downSince ? Math.round((Date.now() - _downSince) / 1000) : 0;
             appendDbHealthLog("POOL_VERIFY_OK", {
-              consecutive_failures: consecutiveFailures,
-              down_seconds: downSec,
-            });
+              consecutiveFailures,
+              downSeconds: downSec,
+            }).catch(() => {});
             consecutiveFailures = 0;
             cumulativeFailures = 0;
             if (_recoveryMode) {
               _recoveryMode = false;
               _downSince = null;
               console.log("[DB Pool] ✓ New pool verified — auto-recovered from Recovery Mode");
-              appendDbHealthLog("RECOVERY_MODE_EXIT", { down_seconds: downSec, method: "recycle" });
+              appendDbHealthLog("RECOVERY_MODE_EXIT", { downSeconds: downSec, recoveryMethod: "recycle" }).catch(() => {});
             } else {
               console.log("[DB Pool] ✓ New pool verified — connection restored");
             }
           } catch (verifyErr: any) {
-            appendDbHealthLog("POOL_VERIFY_FAIL", { error: verifyErr.message });
+            appendDbHealthLog("POOL_VERIFY_FAIL", { errorMessage: verifyErr.message }).catch(() => {});
             console.warn(`[DB Pool] New pool verify failed: ${verifyErr.message} — will retry next cycle`);
           }
           setTimeout(async () => { try { await oldPool.end(); } catch {} }, 5000);
         } catch (recycleErr: any) {
-          appendDbHealthLog("POOL_RECYCLE_FAIL", { error: recycleErr.message });
+          appendDbHealthLog("POOL_RECYCLE_FAIL", { errorMessage: recycleErr.message }).catch(() => {});
           console.error("[DB Pool] Recycle failed:", recycleErr.message);
         }
       }
