@@ -395,6 +395,12 @@ export function registerPosRoutes(app: Express) {
         return res.status(403).json({ message: "ไม่มีสิทธิ์เข้าถึง" });
       }
 
+      let sessionBranch: any = null;
+      if (session.storeId) {
+        const [br] = await db.select().from(branches).where(eq(branches.id, session.storeId));
+        if (br) sessionBranch = br;
+      }
+
       const startTime = Date.now();
 
       let subtotal = 0;
@@ -471,6 +477,9 @@ export function registerPosRoutes(app: Express) {
           customerBranchId: fullTaxInvoice ? (taxBranchId || null) : null,
           contactPhone: fullTaxInvoice ? (taxPhone || null) : null,
           contactEmail: fullTaxInvoice ? (taxEmail || null) : null,
+          branch: sessionBranch?.name || session.branchName || null,
+          sellerBranchId: sessionBranch?.code || company?.sellerBranchId || "00000",
+          posSessionId: session.id,
           subtotal: String(baseSubtotal.toFixed(2)),
           discountAmount: String(totalDiscount),
           vatAmount: String(vatAmount.toFixed(2)),
