@@ -5,45 +5,20 @@ import * as fs from "fs";
 import * as path from "path";
 import { getConfig, isBootstrapped } from "./config-bootstrap";
 
-let _lastAlertSentAt = 0;
-const ALERT_COOLDOWN_MS = 15 * 60 * 1000;
+let _downSince: number | null = null;
 
-async function sendDbDownAlert(consecutiveFails: number, lastError: string): Promise<void> {
-  const now = Date.now();
-  if (now - _lastAlertSentAt < ALERT_COOLDOWN_MS) return;
-
-  const apiKey = process.env.RESEND_API_KEY;
-  const fromEmail = process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev";
-  const toEmail = getConfig("SYSADMIN_EMAIL") || process.env.SYSADMIN_EMAIL;
-
-  if (!apiKey || !toEmail) {
-    console.warn(`[DB Alert] Cannot send email — ${!apiKey ? "RESEND_API_KEY" : "SYSADMIN_EMAIL"} not configured`);
-    return;
-  }
-
+function appendDbHealthLog(event: string, details: Record<string, any> = {}): void {
   try {
-    const { Resend } = await import("resend");
-    const resend = new Resend(apiKey);
+    const logDir = path.join(process.cwd(), "logs");
+    if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true });
+    const logFile = path.join(logDir, "db-health.log");
     const timestamp = new Date().toLocaleString("th-TH", { timeZone: "Asia/Bangkok" });
-    await resend.emails.send({
-      from: fromEmail,
-      to: toEmail,
-      subject: `⚠ E-Tax Center — ฐานข้อมูลหลักเข้าไม่ได้ (${consecutiveFails} failures)`,
-      html: `
-        <h2>แจ้งเตือน: ฐานข้อมูลหลักเข้าไม่ได้</h2>
-        <p><strong>เวลา:</strong> ${timestamp}</p>
-        <p><strong>Connection failures:</strong> ${consecutiveFails} ครั้งติดต่อกัน</p>
-        <p><strong>Database:</strong> ${activeDb.label}</p>
-        <p><strong>Error:</strong> ${lastError}</p>
-        <p>ระบบพยายาม recycle connection pool อัตโนมัติอยู่ — หากฐานข้อมูลกลับมาจะ auto-recover</p>
-        <p>หากไม่กลับมาภายใน 10 นาที ระบบจะ restart ตัวเอง</p>
-      `,
-    });
-    _lastAlertSentAt = now;
-    console.log(`[DB Alert] ✓ Email sent to ${toEmail}`);
-  } catch (emailErr: any) {
-    console.error(`[DB Alert] Failed to send email: ${emailErr.message}`);
-  }
+    const parts = [`[${timestamp}] ${event}`];
+    for (const [k, v] of Object.entries(details)) {
+      parts.push(`${k}=${v}`);
+    }
+    fs.appendFileSync(logFile, parts.join(" | ") + "\n");
+  } catch {}
 }
 
 function appendLanLog(message: string) {
@@ -141,26 +116,48 @@ if (isProduction) {
       await client.query("SELECT 1");
       client.release();
       if (consecutiveFailures > 0) {
+        const downSec = _downSince ? Math.round((Date.now() - _downSince) / 1000) : 0;
         console.log(`[DB Pool] Connection recovered after ${consecutiveFailures} failures`);
+        appendDbHealthLog("RECOVERED", {
+          consecutive_failures: consecutiveFailures,
+          cumulative_failures: cumulativeFailures,
+          down_seconds: downSec,
+          database: activeDb.label,
+        });
       }
       if (_recoveryMode) {
+        const downSec = _downSince ? Math.round((Date.now() - _downSince) / 1000) : 0;
         _recoveryMode = false;
+        _downSince = null;
         console.log("[DB Pool] ✓ Auto-recovered from Recovery Mode — database is reachable again");
+        appendDbHealthLog("RECOVERY_MODE_EXIT", { down_seconds: downSec, method: "auto" });
       }
       consecutiveFailures = 0;
       cumulativeFailures = 0;
     } catch (err: any) {
       consecutiveFailures++;
       cumulativeFailures++;
+      if (consecutiveFailures === 1) {
+        _downSince = Date.now();
+        appendDbHealthLog("FIRST_FAILURE", { error: err.message, database: activeDb.label });
+      }
       console.error(`[DB Pool] Keepalive failed (${consecutiveFailures}x, ${cumulativeFailures} cumulative): ${err.message}`);
       if (!_recoveryMode && consecutiveFailures >= 2) {
         _recoveryMode = true;
         console.warn("[DB Pool] ⚠ Entering Recovery Mode — database unreachable");
-      }
-      if (consecutiveFailures === 6) {
-        sendDbDownAlert(consecutiveFailures, err.message).catch(() => {});
+        appendDbHealthLog("RECOVERY_MODE_ENTER", {
+          consecutive_failures: consecutiveFailures,
+          error: err.message,
+          database: activeDb.label,
+        });
       }
       if (cumulativeFailures >= 60) {
+        const downSec = _downSince ? Math.round((Date.now() - _downSince) / 1000) : 0;
+        appendDbHealthLog("FORCE_RESTART", {
+          cumulative_failures: cumulativeFailures,
+          down_seconds: downSec,
+          database: activeDb.label,
+        });
         console.error("[DB Pool] 60 cumulative failures — forcing server restart");
         process.exit(1);
       }
@@ -181,24 +178,33 @@ if (isProduction) {
           });
           _pool.on("error", (e) => console.error("[DB Pool] Error on idle client:", e.message));
           _db = drizzle(_pool, { schema });
-          console.log("[DB Pool] Pool recycled — verifying new connection...");
+          appendDbHealthLog("POOL_RECYCLED", { attempt: consecutiveFailures });
           try {
             const verifyClient = await _pool.connect();
             await verifyClient.query("SELECT 1");
             verifyClient.release();
+            const downSec = _downSince ? Math.round((Date.now() - _downSince) / 1000) : 0;
+            appendDbHealthLog("POOL_VERIFY_OK", {
+              consecutive_failures: consecutiveFailures,
+              down_seconds: downSec,
+            });
             consecutiveFailures = 0;
             cumulativeFailures = 0;
             if (_recoveryMode) {
               _recoveryMode = false;
+              _downSince = null;
               console.log("[DB Pool] ✓ New pool verified — auto-recovered from Recovery Mode");
+              appendDbHealthLog("RECOVERY_MODE_EXIT", { down_seconds: downSec, method: "recycle" });
             } else {
               console.log("[DB Pool] ✓ New pool verified — connection restored");
             }
           } catch (verifyErr: any) {
+            appendDbHealthLog("POOL_VERIFY_FAIL", { error: verifyErr.message });
             console.warn(`[DB Pool] New pool verify failed: ${verifyErr.message} — will retry next cycle`);
           }
           setTimeout(async () => { try { await oldPool.end(); } catch {} }, 5000);
         } catch (recycleErr: any) {
+          appendDbHealthLog("POOL_RECYCLE_FAIL", { error: recycleErr.message });
           console.error("[DB Pool] Recycle failed:", recycleErr.message);
         }
       }
