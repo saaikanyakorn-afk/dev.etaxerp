@@ -102,18 +102,26 @@ if (isProduction) {
       if (consecutiveFailures > 0) {
         console.log(`[DB Pool] Connection recovered after ${consecutiveFailures} failures`);
       }
+      if (_recoveryMode) {
+        _recoveryMode = false;
+        console.log("[DB Pool] ✓ Auto-recovered from Recovery Mode — database is reachable again");
+      }
       consecutiveFailures = 0;
       cumulativeFailures = 0;
     } catch (err: any) {
       consecutiveFailures++;
       cumulativeFailures++;
       console.error(`[DB Pool] Keepalive failed (${consecutiveFailures}x, ${cumulativeFailures} cumulative): ${err.message}`);
-      if (cumulativeFailures >= 20) {
-        console.error("[DB Pool] 20 consecutive failures — forcing server restart");
+      if (!_recoveryMode && consecutiveFailures >= 2) {
+        _recoveryMode = true;
+        console.warn("[DB Pool] ⚠ Entering Recovery Mode — database unreachable");
+      }
+      if (cumulativeFailures >= 60) {
+        console.error("[DB Pool] 60 cumulative failures — forcing server restart");
         process.exit(1);
       }
-      if (consecutiveFailures >= 3) {
-        console.warn("[DB Pool] Multiple keepalive failures — recycling pool...");
+      if (consecutiveFailures >= 2) {
+        console.warn(`[DB Pool] ${consecutiveFailures} consecutive failures — recycling pool...`);
         try {
           const oldPool = _pool;
           _pool = new pg.Pool({
@@ -129,15 +137,29 @@ if (isProduction) {
           });
           _pool.on("error", (e) => console.error("[DB Pool] Error on idle client:", e.message));
           _db = drizzle(_pool, { schema });
-          consecutiveFailures = 0;
-          console.log("[DB Pool] Pool recycled successfully");
+          console.log("[DB Pool] Pool recycled — verifying new connection...");
+          try {
+            const verifyClient = await _pool.connect();
+            await verifyClient.query("SELECT 1");
+            verifyClient.release();
+            consecutiveFailures = 0;
+            cumulativeFailures = 0;
+            if (_recoveryMode) {
+              _recoveryMode = false;
+              console.log("[DB Pool] ✓ New pool verified — auto-recovered from Recovery Mode");
+            } else {
+              console.log("[DB Pool] ✓ New pool verified — connection restored");
+            }
+          } catch (verifyErr: any) {
+            console.warn(`[DB Pool] New pool verify failed: ${verifyErr.message} — will retry next cycle`);
+          }
           setTimeout(async () => { try { await oldPool.end(); } catch {} }, 5000);
         } catch (recycleErr: any) {
           console.error("[DB Pool] Recycle failed:", recycleErr.message);
         }
       }
     }
-  }, 15000);
+  }, 10000);
 }
 let _db: NodePgDatabase<typeof schema> = drizzle(_pool, { schema });
 
