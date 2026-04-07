@@ -5,6 +5,47 @@ import * as fs from "fs";
 import * as path from "path";
 import { getConfig, isBootstrapped } from "./config-bootstrap";
 
+let _lastAlertSentAt = 0;
+const ALERT_COOLDOWN_MS = 15 * 60 * 1000;
+
+async function sendDbDownAlert(consecutiveFails: number, lastError: string): Promise<void> {
+  const now = Date.now();
+  if (now - _lastAlertSentAt < ALERT_COOLDOWN_MS) return;
+
+  const apiKey = process.env.RESEND_API_KEY;
+  const fromEmail = process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev";
+  const toEmail = getConfig("SYSADMIN_EMAIL") || process.env.SYSADMIN_EMAIL;
+
+  if (!apiKey || !toEmail) {
+    console.warn(`[DB Alert] Cannot send email — ${!apiKey ? "RESEND_API_KEY" : "SYSADMIN_EMAIL"} not configured`);
+    return;
+  }
+
+  try {
+    const { Resend } = await import("resend");
+    const resend = new Resend(apiKey);
+    const timestamp = new Date().toLocaleString("th-TH", { timeZone: "Asia/Bangkok" });
+    await resend.emails.send({
+      from: fromEmail,
+      to: toEmail,
+      subject: `⚠ E-Tax Center — ฐานข้อมูลหลักเข้าไม่ได้ (${consecutiveFails} failures)`,
+      html: `
+        <h2>แจ้งเตือน: ฐานข้อมูลหลักเข้าไม่ได้</h2>
+        <p><strong>เวลา:</strong> ${timestamp}</p>
+        <p><strong>Connection failures:</strong> ${consecutiveFails} ครั้งติดต่อกัน</p>
+        <p><strong>Database:</strong> ${activeDb.label}</p>
+        <p><strong>Error:</strong> ${lastError}</p>
+        <p>ระบบพยายาม recycle connection pool อัตโนมัติอยู่ — หากฐานข้อมูลกลับมาจะ auto-recover</p>
+        <p>หากไม่กลับมาภายใน 10 นาที ระบบจะ restart ตัวเอง</p>
+      `,
+    });
+    _lastAlertSentAt = now;
+    console.log(`[DB Alert] ✓ Email sent to ${toEmail}`);
+  } catch (emailErr: any) {
+    console.error(`[DB Alert] Failed to send email: ${emailErr.message}`);
+  }
+}
+
 function appendLanLog(message: string) {
   try {
     const logDir = path.join(process.cwd(), "logs");
@@ -115,6 +156,9 @@ if (isProduction) {
       if (!_recoveryMode && consecutiveFailures >= 2) {
         _recoveryMode = true;
         console.warn("[DB Pool] ⚠ Entering Recovery Mode — database unreachable");
+      }
+      if (consecutiveFailures === 6) {
+        sendDbDownAlert(consecutiveFailures, err.message).catch(() => {});
       }
       if (cumulativeFailures >= 60) {
         console.error("[DB Pool] 60 cumulative failures — forcing server restart");
