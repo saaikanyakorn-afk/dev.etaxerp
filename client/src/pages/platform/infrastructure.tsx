@@ -2323,6 +2323,108 @@ function WhatIfBenchmark({ machines }: { machines: MachineRecord[] }) {
   );
 }
 
+interface DbHealthEvent {
+  id: number;
+  event_type: string;
+  event_time: string;
+  consecutive_failures: number;
+  cumulative_failures: number;
+  down_seconds: number;
+  recovery_method: string | null;
+  error_message: string | null;
+  database_label: string | null;
+  notes: string | null;
+}
+
+function DbHealthLog() {
+  const { data, isLoading } = useQuery<{ available: boolean; events: DbHealthEvent[]; message?: string }>({
+    queryKey: ["/api/platform/db-health-events"],
+  });
+  const [showAll, setShowAll] = useState(false);
+
+  const eventBadge = (type: string) => {
+    const map: Record<string, { color: string; label: string }> = {
+      FIRST_FAILURE: { color: "bg-yellow-100 text-yellow-800", label: "Fail เริ่มต้น" },
+      RECOVERY_MODE_ENTER: { color: "bg-red-100 text-red-800", label: "เข้า Recovery" },
+      POOL_RECYCLED: { color: "bg-blue-100 text-blue-800", label: "Recycle Pool" },
+      POOL_VERIFY_OK: { color: "bg-green-100 text-green-800", label: "Verify OK" },
+      POOL_VERIFY_FAIL: { color: "bg-orange-100 text-orange-800", label: "Verify Fail" },
+      RECOVERED: { color: "bg-emerald-100 text-emerald-800", label: "กลับมาปกติ" },
+      RECOVERY_MODE_EXIT: { color: "bg-emerald-100 text-emerald-800", label: "ออก Recovery" },
+      FORCE_RESTART: { color: "bg-red-200 text-red-900", label: "Force Restart" },
+    };
+    const m = map[type] || { color: "bg-gray-100 text-gray-700", label: type };
+    return <Badge className={`${m.color} text-[10px] px-1.5 py-0`}>{m.label}</Badge>;
+  };
+
+  const formatTime = (t: string) => {
+    try {
+      return new Date(t).toLocaleString("th-TH", { timeZone: "Asia/Bangkok", hour12: false });
+    } catch { return t; }
+  };
+
+  const events = data?.events || [];
+  const visible = showAll ? events : events.slice(0, 20);
+
+  return (
+    <Card className="border-2 border-blue-200 bg-blue-50/30" data-testid="card-db-health-log">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base flex items-center gap-2">
+          <Database className="h-5 w-5 text-blue-600" />
+          DB Connection Health Log
+        </CardTitle>
+        <p className="text-xs text-gray-500">
+          บันทึกเหตุการณ์ connection ของเครื่องนี้ — เก็บใน config DB ของ server
+        </p>
+      </CardHeader>
+      <CardContent>
+        {isLoading ? (
+          <div className="flex items-center gap-2 text-sm text-gray-500 py-4">
+            <Loader2 className="h-4 w-4 animate-spin" /> กำลังโหลด...
+          </div>
+        ) : !data?.available ? (
+          <div className="text-center py-6 text-gray-400 border rounded-lg border-dashed">
+            <AlertTriangle className="h-8 w-8 mx-auto mb-2 opacity-30" />
+            <p className="text-sm">ยังไม่มี db_health_events table</p>
+            <p className="text-xs mt-1">{data?.message || "สร้าง table ผ่าน Encryption Config setup"}</p>
+          </div>
+        ) : events.length === 0 ? (
+          <div className="text-center py-6 text-gray-400 border rounded-lg border-dashed">
+            <CheckCircle2 className="h-8 w-8 mx-auto mb-2 opacity-30 text-green-400" />
+            <p className="text-sm">ไม่มีเหตุการณ์ — connection ปกติ</p>
+          </div>
+        ) : (
+          <div className="space-y-1">
+            <div className="grid grid-cols-[140px_110px_80px_80px_80px_1fr] gap-1 text-[10px] font-semibold text-gray-500 border-b pb-1 mb-1">
+              <span>เวลา</span>
+              <span>เหตุการณ์</span>
+              <span>Fails</span>
+              <span>Cumul.</span>
+              <span>Down (s)</span>
+              <span>Error</span>
+            </div>
+            {visible.map(ev => (
+              <div key={ev.id} className="grid grid-cols-[140px_110px_80px_80px_80px_1fr] gap-1 text-[11px] py-0.5 border-b border-gray-100 items-center" data-testid={`health-event-${ev.id}`}>
+                <span className="font-mono text-gray-600 text-[10px]">{formatTime(ev.event_time)}</span>
+                {eventBadge(ev.event_type)}
+                <span className="font-mono">{ev.consecutive_failures || "—"}</span>
+                <span className="font-mono">{ev.cumulative_failures || "—"}</span>
+                <span className="font-mono">{ev.down_seconds || "—"}</span>
+                <span className="text-[10px] text-gray-500 truncate" title={ev.error_message || ""}>{ev.error_message || ev.recovery_method || "—"}</span>
+              </div>
+            ))}
+            {events.length > 20 && (
+              <button className="text-xs text-blue-500 hover:text-blue-700 mt-2" onClick={() => setShowAll(!showAll)} data-testid="btn-show-all-health">
+                {showAll ? "แสดงน้อยลง" : `แสดงทั้งหมด (${events.length} รายการ)`}
+              </button>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 function EncryptionKeyGenerator({ machines, onRefresh }: { machines: MachineRecord[]; onRefresh: () => void }) {
   const { toast } = useToast();
   const [selectedMachineId, setSelectedMachineId] = useState<string>("");
@@ -2456,6 +2558,20 @@ CREATE TABLE IF NOT EXISTS system_config (
   is_secret BOOLEAN DEFAULT false,
   updated_at TIMESTAMP DEFAULT NOW()
 );
+
+CREATE TABLE IF NOT EXISTS db_health_events (
+  id SERIAL PRIMARY KEY,
+  event_type VARCHAR(30) NOT NULL,
+  event_time TIMESTAMP NOT NULL DEFAULT NOW(),
+  consecutive_failures INTEGER DEFAULT 0,
+  cumulative_failures INTEGER DEFAULT 0,
+  down_seconds INTEGER DEFAULT 0,
+  recovery_method VARCHAR(20),
+  error_message TEXT,
+  database_label VARCHAR(100),
+  notes TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_db_health_event_time ON db_health_events(event_time DESC);
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO ${d.configDbUser};
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO ${d.configDbUser};`;
@@ -3253,6 +3369,8 @@ export default function AllServers() {
             <CloneHistoryTargetCard machines={machines} />
 
             <WhatIfBenchmark machines={machines} />
+
+            <DbHealthLog />
 
             <EncryptionKeyGenerator machines={machines} onRefresh={() => queryClient.invalidateQueries({ queryKey: ["/api/platform/machines"] })} />
           </div>
