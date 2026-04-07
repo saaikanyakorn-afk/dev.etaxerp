@@ -50,6 +50,8 @@ interface MachineRecord {
   targetDbMachineId: number | null;
   routerId: number | null;
   internetType: string;
+  sysadminEmail: string | null;
+  sysadminLineId: string | null;
   physicalLocation: string | null;
   locationId: number | null;
   createdAt?: string;
@@ -1706,6 +1708,18 @@ function MachineCard({ machine, onEdit, expanded, onToggle, onToggleOfficial, al
                 </div>
               ) : null;
             })()}
+            {machine.sysadminEmail && (
+              <div>
+                <span className="text-gray-400 text-xs block">Sysadmin Email</span>
+                <span className="text-xs font-mono">{machine.sysadminEmail}</span>
+              </div>
+            )}
+            {machine.sysadminLineId && (
+              <div>
+                <span className="text-gray-400 text-xs block">Sysadmin LINE</span>
+                <span className="text-xs font-mono truncate">{machine.sysadminLineId}</span>
+              </div>
+            )}
           </div>
 
           {(machine.machineModel || machine.cpuModel || machine.ramSize) && (
@@ -1791,6 +1805,8 @@ function EditMachineDialog({
     dbPassword: machine?.dbPassword || "",
     notes: machine?.notes || "",
     envContent: machine?.envContent || "",
+    sysadminEmail: machine?.sysadminEmail || "",
+    sysadminLineId: machine?.sysadminLineId || "",
     physicalLocation: machine?.physicalLocation || "",
     locationId: machine?.locationId ? String(machine.locationId) : "",
   });
@@ -1954,6 +1970,25 @@ function EditMachineDialog({
                 data-testid="textarea-env-content"
               />
               <p className="text-xs text-gray-400 mt-1">ใส่เฉพาะ non-secret variables (ห้ามใส่ password / connection string)</p>
+            </div>
+          )}
+
+          {(form.serverType === "app" || form.serverType === "app_database") && (
+            <div className="border-t pt-4">
+              <h3 className="text-sm font-semibold mb-3 flex items-center gap-1">
+                <AlertTriangle className="h-4 w-4 text-amber-500" /> Sysadmin Alert (แจ้งเตือนเมื่อ DB ล่ม)
+              </h3>
+              <p className="text-xs text-gray-400 mb-3">ระบบจะแจ้งเตือน sysadmin ของเครื่องนี้เมื่อ DB connection ล่มนานเกิน 1 นาที (เครื่องละ 1 คน)</p>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-sm font-medium">Sysadmin Email</Label>
+                  <Input value={form.sysadminEmail} onChange={e => setForm({ ...form, sysadminEmail: e.target.value })} placeholder="admin@example.com" data-testid="input-sysadmin-email" />
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Sysadmin LINE ID (userId)</Label>
+                  <Input className="font-mono" value={form.sysadminLineId} onChange={e => setForm({ ...form, sysadminLineId: e.target.value })} placeholder="U1234567890abcdef..." data-testid="input-sysadmin-line-id" />
+                </div>
+              </div>
             </div>
           )}
 

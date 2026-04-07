@@ -62,6 +62,8 @@ export const machines = pgTable("machines", {
   targetDbMachineId: integer("target_db_machine_id"),
   routerId: integer("router_id"),
   internetType: text("internet_type").notNull().default("dynamic"),
+  sysadminEmail: text("sysadmin_email"),
+  sysadminLineId: text("sysadmin_line_id"),
   physicalLocation: text("physical_location"),
   locationId: integer("location_id"),
   createdAt: timestamp("created_at").defaultNow(),

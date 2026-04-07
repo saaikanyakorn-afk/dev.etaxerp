@@ -79,6 +79,69 @@ function appendLanLog(message: string) {
   } catch {}
 }
 
+let _lastAlertSent = 0;
+async function sendSysadminAlert(eventType: string, errorMessage: string, databaseLabel: string): Promise<void> {
+  try {
+    const now = Date.now();
+    if (now - _lastAlertSent < 300_000) return;
+    _lastAlertSent = now;
+
+    const configUrl = getConfigDbUrl();
+    if (!configUrl) return;
+
+    const alertPool = new pg.Pool({ connectionString: configUrl, max: 1, connectionTimeoutMillis: 3000 });
+    try {
+      const machineName = process.env.MACHINE_NAME || "";
+      let sysadminEmail: string | null = null;
+      let sysadminLineId: string | null = null;
+      if (machineName) {
+        const machineRes = await alertPool.query(
+          `SELECT sysadmin_email, sysadmin_line_id FROM machines WHERE fqdn = $1 OR domain_name = $1 OR local_name = $1 LIMIT 1`,
+          [machineName]
+        );
+        if (machineRes.rows[0]) {
+          sysadminEmail = machineRes.rows[0].sysadmin_email;
+          sysadminLineId = machineRes.rows[0].sysadmin_line_id;
+        }
+      }
+      if (!sysadminEmail && !sysadminLineId) return;
+
+      const timestamp = new Date().toLocaleString("th-TH", { timeZone: "Asia/Bangkok" });
+      const subject = `⚠ DB Alert: ${eventType} — ${machineName || "unknown"}`;
+      const body = `เวลา: ${timestamp}\nเครื่อง: ${machineName || "unknown"}\nDB: ${databaseLabel}\nเหตุการณ์: ${eventType}\nError: ${errorMessage}`;
+
+      if (sysadminEmail) {
+        const resendKey = process.env.RESEND_API_KEY;
+        const fromEmail = process.env.RESEND_FROM_EMAIL || "noreply@etax.app";
+        if (resendKey) {
+          const emailRes = await fetch("https://api.resend.com/emails", {
+            method: "POST",
+            headers: { "Authorization": `Bearer ${resendKey}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ from: fromEmail, to: [sysadminEmail], subject, text: body }),
+          });
+          if (emailRes.ok) console.log(`[DB Health] Alert email sent to ${sysadminEmail}`);
+          else console.warn(`[DB Health] Email failed: ${emailRes.status}`);
+        }
+      }
+
+      if (sysadminLineId) {
+        const lineToken = process.env.LINE_CHANNEL_ACCESS_TOKEN;
+        if (lineToken) {
+          const lineRes = await fetch("https://api.line.me/v2/bot/message/push", {
+            method: "POST",
+            headers: { "Authorization": `Bearer ${lineToken}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ to: sysadminLineId, messages: [{ type: "text", text: `${subject}\n\n${body}` }] }),
+          });
+          if (lineRes.ok) console.log(`[DB Health] LINE alert sent to ${sysadminLineId}`);
+          else console.warn(`[DB Health] LINE failed: ${lineRes.status}`);
+        }
+      }
+    } finally { await alertPool.end().catch(() => {}); }
+  } catch (alertErr: any) {
+    console.warn(`[DB Health] Alert send failed: ${alertErr.message}`);
+  }
+}
+
 async function probeLanConnection(lanUrl: string, timeoutMs: number = 5000): Promise<boolean> {
   const client = new pg.Client({
     connectionString: lanUrl,
@@ -198,6 +261,7 @@ if (isProduction) {
           errorMessage: err.message,
           databaseLabel: activeDb.label,
         }).catch(() => {});
+        sendSysadminAlert("RECOVERY_MODE_ENTER", err.message, activeDb.label).catch(() => {});
       }
       if (cumulativeFailures >= 60) {
         const downSec = _downSince ? Math.round((Date.now() - _downSince) / 1000) : 0;
@@ -207,6 +271,7 @@ if (isProduction) {
           databaseLabel: activeDb.label,
         });
         console.error("[DB Pool] 60 cumulative failures — forcing server restart");
+        await sendSysadminAlert("FORCE_RESTART", `${cumulativeFailures} cumulative failures — server restarting`, activeDb.label).catch(() => {});
         process.exit(1);
       }
       if (consecutiveFailures >= 2) {
