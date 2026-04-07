@@ -103,6 +103,12 @@ export function registerPosRoutes(app: Express) {
       }
       if (session.status !== "open") return res.status(400).json({ message: "กะนี้ถูกปิดแล้ว" });
 
+      let closeBranch: any = null;
+      if (session.storeId) {
+        const [br] = await db.select().from(branches).where(eq(branches.id, session.storeId));
+        if (br) closeBranch = br;
+      }
+
       const txns = await posDb.select().from(posTransactions)
         .where(and(eq(posTransactions.sessionId, sessionId), eq(posTransactions.status, "completed")));
 
@@ -192,6 +198,9 @@ export function registerPosRoutes(app: Express) {
               taxInvoiceNo: summaryTivNo,
               taxInvoiceDate: today,
               customerName: summaryDesc,
+              branch: closeBranch?.name || session.branchName || null,
+              sellerBranchId: closeBranch?.code || company?.sellerBranchId || "00000",
+              posSessionId: sessionId,
               subtotal: String(summaryBaseSubtotal.toFixed(2)),
               discountAmount: String(totalDiscount.toFixed(2)),
               vatAmount: String(totalVat.toFixed(2)),
@@ -201,7 +210,6 @@ export function registerPosRoutes(app: Express) {
               priceMode: "included",
               docPrefix: "POSS",
               isSummaryInvoice: true,
-              posSessionId: sessionId,
               notes: `รวมใบกำกับอย่างย่อ ${abbrevCount} ใบ จากกะ ${sessionLabel}`,
               createdBy: user.id,
             }).returning();
@@ -395,6 +403,12 @@ export function registerPosRoutes(app: Express) {
         return res.status(403).json({ message: "ไม่มีสิทธิ์เข้าถึง" });
       }
 
+      let sessionBranch: any = null;
+      if (session.storeId) {
+        const [br] = await db.select().from(branches).where(eq(branches.id, session.storeId));
+        if (br) sessionBranch = br;
+      }
+
       const startTime = Date.now();
 
       let subtotal = 0;
@@ -471,6 +485,9 @@ export function registerPosRoutes(app: Express) {
           customerBranchId: fullTaxInvoice ? (taxBranchId || null) : null,
           contactPhone: fullTaxInvoice ? (taxPhone || null) : null,
           contactEmail: fullTaxInvoice ? (taxEmail || null) : null,
+          branch: sessionBranch?.name || session.branchName || null,
+          sellerBranchId: sessionBranch?.code || company?.sellerBranchId || "00000",
+          posSessionId: session.id,
           subtotal: String(baseSubtotal.toFixed(2)),
           discountAmount: String(totalDiscount),
           vatAmount: String(vatAmount.toFixed(2)),
