@@ -80,63 +80,76 @@ function appendLanLog(message: string) {
 }
 
 let _lastAlertSent = 0;
+let _cachedSysadminEmail: string | null = null;
+let _cachedSysadminLineId: string | null = null;
+let _sysadminCacheLoaded = false;
+
+async function loadSysadminCache(): Promise<void> {
+  if (_sysadminCacheLoaded) return;
+  try {
+    const configUrl = getConfigDbUrl();
+    if (!configUrl) return;
+    const machineName = process.env.MACHINE_NAME || "";
+    if (!machineName) return;
+    const cachePool = new pg.Pool({ connectionString: configUrl, max: 1, connectionTimeoutMillis: 3000 });
+    try {
+      const res = await cachePool.query(
+        `SELECT sysadmin_email, sysadmin_line_id FROM machines WHERE fqdn = $1 OR domain_name = $1 OR local_name = $1 LIMIT 1`,
+        [machineName]
+      );
+      if (res.rows[0]) {
+        _cachedSysadminEmail = res.rows[0].sysadmin_email || null;
+        _cachedSysadminLineId = res.rows[0].sysadmin_line_id || null;
+      }
+      _sysadminCacheLoaded = true;
+      if (_cachedSysadminEmail || _cachedSysadminLineId) {
+        console.log(`[DB Health] Sysadmin alert cached: email=${_cachedSysadminEmail || "—"}, line=${_cachedSysadminLineId ? "set" : "—"}`);
+      }
+    } finally { await cachePool.end().catch(() => {}); }
+  } catch (err: any) {
+    console.warn(`[DB Health] Failed to cache sysadmin info: ${err.message}`);
+  }
+}
+
 async function sendSysadminAlert(eventType: string, errorMessage: string, databaseLabel: string): Promise<void> {
   try {
     const now = Date.now();
     if (now - _lastAlertSent < 300_000) return;
+
+    if (!_cachedSysadminEmail && !_cachedSysadminLineId) return;
     _lastAlertSent = now;
 
-    const configUrl = getConfigDbUrl();
-    if (!configUrl) return;
+    const machineName = process.env.MACHINE_NAME || "unknown";
+    const timestamp = new Date().toLocaleString("th-TH", { timeZone: "Asia/Bangkok" });
+    const subject = `⚠ DB Alert: ${eventType} — ${machineName}`;
+    const body = `เวลา: ${timestamp}\nเครื่อง: ${machineName}\nDB: ${databaseLabel}\nเหตุการณ์: ${eventType}\nError: ${errorMessage}`;
 
-    const alertPool = new pg.Pool({ connectionString: configUrl, max: 1, connectionTimeoutMillis: 3000 });
-    try {
-      const machineName = process.env.MACHINE_NAME || "";
-      let sysadminEmail: string | null = null;
-      let sysadminLineId: string | null = null;
-      if (machineName) {
-        const machineRes = await alertPool.query(
-          `SELECT sysadmin_email, sysadmin_line_id FROM machines WHERE fqdn = $1 OR domain_name = $1 OR local_name = $1 LIMIT 1`,
-          [machineName]
-        );
-        if (machineRes.rows[0]) {
-          sysadminEmail = machineRes.rows[0].sysadmin_email;
-          sysadminLineId = machineRes.rows[0].sysadmin_line_id;
-        }
+    if (_cachedSysadminEmail) {
+      const resendKey = process.env.RESEND_API_KEY;
+      const fromEmail = process.env.RESEND_FROM_EMAIL || "noreply@etax.app";
+      if (resendKey) {
+        const emailRes = await fetch("https://api.resend.com/emails", {
+          method: "POST",
+          headers: { "Authorization": `Bearer ${resendKey}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ from: fromEmail, to: [_cachedSysadminEmail], subject, text: body }),
+        });
+        if (emailRes.ok) console.log(`[DB Health] Alert email sent to ${_cachedSysadminEmail}`);
+        else console.warn(`[DB Health] Email failed: ${emailRes.status}`);
       }
-      if (!sysadminEmail && !sysadminLineId) return;
+    }
 
-      const timestamp = new Date().toLocaleString("th-TH", { timeZone: "Asia/Bangkok" });
-      const subject = `⚠ DB Alert: ${eventType} — ${machineName || "unknown"}`;
-      const body = `เวลา: ${timestamp}\nเครื่อง: ${machineName || "unknown"}\nDB: ${databaseLabel}\nเหตุการณ์: ${eventType}\nError: ${errorMessage}`;
-
-      if (sysadminEmail) {
-        const resendKey = process.env.RESEND_API_KEY;
-        const fromEmail = process.env.RESEND_FROM_EMAIL || "noreply@etax.app";
-        if (resendKey) {
-          const emailRes = await fetch("https://api.resend.com/emails", {
-            method: "POST",
-            headers: { "Authorization": `Bearer ${resendKey}`, "Content-Type": "application/json" },
-            body: JSON.stringify({ from: fromEmail, to: [sysadminEmail], subject, text: body }),
-          });
-          if (emailRes.ok) console.log(`[DB Health] Alert email sent to ${sysadminEmail}`);
-          else console.warn(`[DB Health] Email failed: ${emailRes.status}`);
-        }
+    if (_cachedSysadminLineId) {
+      const lineToken = process.env.LINE_CHANNEL_ACCESS_TOKEN;
+      if (lineToken) {
+        const lineRes = await fetch("https://api.line.me/v2/bot/message/push", {
+          method: "POST",
+          headers: { "Authorization": `Bearer ${lineToken}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ to: _cachedSysadminLineId, messages: [{ type: "text", text: `${subject}\n\n${body}` }] }),
+        });
+        if (lineRes.ok) console.log(`[DB Health] LINE alert sent to ${_cachedSysadminLineId}`);
+        else console.warn(`[DB Health] LINE failed: ${lineRes.status}`);
       }
-
-      if (sysadminLineId) {
-        const lineToken = process.env.LINE_CHANNEL_ACCESS_TOKEN;
-        if (lineToken) {
-          const lineRes = await fetch("https://api.line.me/v2/bot/message/push", {
-            method: "POST",
-            headers: { "Authorization": `Bearer ${lineToken}`, "Content-Type": "application/json" },
-            body: JSON.stringify({ to: sysadminLineId, messages: [{ type: "text", text: `${subject}\n\n${body}` }] }),
-          });
-          if (lineRes.ok) console.log(`[DB Health] LINE alert sent to ${sysadminLineId}`);
-          else console.warn(`[DB Health] LINE failed: ${lineRes.status}`);
-        }
-      }
-    } finally { await alertPool.end().catch(() => {}); }
+    }
   } catch (alertErr: any) {
     console.warn(`[DB Health] Alert send failed: ${alertErr.message}`);
   }
@@ -219,6 +232,7 @@ _pool.on("error", (err) => {
 });
 
 if (isProduction) {
+  loadSysadminCache().catch(() => {});
   let consecutiveFailures = 0;
   let cumulativeFailures = 0;
   setInterval(async () => {
