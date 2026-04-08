@@ -291,13 +291,14 @@ export function registerHrRoutes(app: Express) {
     const XLSX = await import("xlsx");
     const wb = XLSX.utils.book_new();
     const headers = [
-      ["รหัสพนักงาน*", "คำนำหน้า", "ชื่อ", "นามสกุล", "ชื่อ-นามสกุล(เต็ม)*", "เลขบัตรประชาชน", "เลขผู้เสียภาษี", "ที่อยู่", "ตำแหน่ง", "แผนก", "เงินเดือน", "วันเริ่มงาน(YYYY-MM-DD)", "โทรศัพท์", "อีเมล", "ประเภทเงินได้(1หรือ2)"],
+      ["รหัสพนักงาน*", "คำนำหน้า", "ชื่อ", "นามสกุล", "ชื่อ-นามสกุล(เต็ม)*", "ชื่อเล่น", "เลขบัตรประชาชน", "เลขผู้เสียภาษี", "วันเกิด(YYYY-MM-DD)", "ที่อยู่", "ตำแหน่ง", "แผนก", "เงินเดือน", "วันเริ่มงาน(YYYY-MM-DD)", "โทรศัพท์", "อีเมล", "ประเภทเงินได้(1หรือ2)", "ธนาคาร", "เลขที่บัญชีธนาคาร", "LINE User ID"],
     ];
     const ws = XLSX.utils.aoa_to_sheet(headers);
     ws["!cols"] = [
       { wch: 15 }, { wch: 10 }, { wch: 15 }, { wch: 15 }, { wch: 25 },
-      { wch: 18 }, { wch: 18 }, { wch: 30 }, { wch: 15 }, { wch: 15 },
-      { wch: 12 }, { wch: 18 }, { wch: 15 }, { wch: 20 }, { wch: 22 },
+      { wch: 12 }, { wch: 18 }, { wch: 18 }, { wch: 18 }, { wch: 30 },
+      { wch: 15 }, { wch: 15 }, { wch: 12 }, { wch: 18 }, { wch: 15 },
+      { wch: 20 }, { wch: 22 }, { wch: 20 }, { wch: 20 }, { wch: 25 },
     ];
     XLSX.utils.book_append_sheet(wb, ws, "ทะเบียนพนักงาน");
     const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
@@ -334,6 +335,11 @@ export function registerHrRoutes(app: Express) {
         ["phone", ["โทรศัพท์", "phone", "tel", "mobile", "เบอร์โทร"]],
         ["email", ["อีเมล", "email", "e-mail"]],
         ["incomeType", ["ประเภทเงินได้", "income_type", "incometype", "เงินได้"]],
+        ["nickname", ["ชื่อเล่น", "nickname", "nick"]],
+        ["birthDate", ["วันเกิด", "birth_date", "birthdate", "วันเดือนปีเกิด", "birthday"]],
+        ["bankName", ["ธนาคาร", "bank_name", "bankname", "bank"]],
+        ["bankAccountNumber", ["เลขที่บัญชีธนาคาร", "bank_account", "bankaccount", "เลขบัญชี", "bank_account_number"]],
+        ["lineUserId", ["lineuserid", "line_user_id", "lineuid", "line"]],
       ];
 
       for (const [field, aliases] of mappings) {
@@ -400,6 +406,26 @@ export function registerHrRoutes(app: Express) {
             }
           }
 
+          const birthDateRaw = get("birthDate");
+          let parsedBirthDate: string | null = null;
+          if (birthDateRaw) {
+            if (/^\d{4}-\d{2}-\d{2}$/.test(birthDateRaw)) {
+              parsedBirthDate = birthDateRaw;
+            } else if (/^\d{2}\/\d{2}\/\d{4}$/.test(birthDateRaw)) {
+              const [d, m, y] = birthDateRaw.split("/");
+              let yr = parseInt(y);
+              if (yr > 2500) yr -= 543;
+              parsedBirthDate = `${yr}-${m}-${d}`;
+            } else {
+              const dateNum = Number(birthDateRaw);
+              if (!isNaN(dateNum) && dateNum > 30000) {
+                const excelEpoch = new Date(1899, 11, 30);
+                const jsDate = new Date(excelEpoch.getTime() + dateNum * 86400000);
+                parsedBirthDate = jsDate.toISOString().split("T")[0];
+              }
+            }
+          }
+
           const deptName = get("department")?.trim() || null;
           if (deptName) {
             const companyIds = (req as any).companyIds || [];
@@ -431,6 +457,11 @@ export function registerHrRoutes(app: Express) {
             phone: get("phone") || null,
             email: get("email") || null,
             incomeType: ["1", "2"].includes(get("incomeType") || "") ? get("incomeType") : "1",
+            nickname: get("nickname") || null,
+            dateOfBirth: parsedBirthDate,
+            bankName: get("bankName") || null,
+            bankAccountNumber: get("bankAccountNumber") || null,
+            lineUserId: get("lineUserId") || null,
             active: true,
             tenantId: importUser.tenantId || null,
             companyId: req.body?.companyId ? Number(req.body.companyId) : null,
