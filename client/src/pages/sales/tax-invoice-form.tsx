@@ -1348,14 +1348,14 @@ export default function TaxInvoiceForm() {
               <table className="w-full text-sm" style={{tableLayout:"fixed", minWidth:"720px"}}>
                 <colgroup>
                   <col style={{width:"3%"}} />
-                  <col style={{width:"12%"}} />
+                  <col style={{width:"14%"}} />
                   <col style={{width:"auto"}} />
                   <col style={{width:"7%"}} />
-                  <col style={{width:"12%"}} />
-                  <col style={{width:"10%"}} />
+                  <col style={{width:"11%"}} />
+                  <col style={{width:"9%"}} />
                   <col style={{width:"5%"}} />
                   <col style={{width:"11%"}} />
-                  <col style={{width:"6%"}} />
+                  <col style={{width:"5%"}} />
                 </colgroup>
                 <thead>
                   <tr className="bg-[var(--theme-primary)]">
@@ -1417,7 +1417,7 @@ export default function TaxInvoiceForm() {
                             );
                             if (filtered.length === 0) return null;
                             return (
-                              <div className="absolute z-50 top-full left-0 mt-1 bg-white border rounded-md shadow-lg max-h-48 overflow-y-auto" style={{width:"280px", maxWidth:"280px"}}>
+                              <div className="absolute z-50 top-full left-0 mt-1 bg-white border rounded-md shadow-lg max-h-48 overflow-y-auto w-full min-w-[200px]">
                                 {filtered.map(p => (
                                   <button
                                     key={p.id}
