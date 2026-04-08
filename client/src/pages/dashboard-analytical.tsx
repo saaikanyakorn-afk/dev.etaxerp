@@ -67,6 +67,9 @@ export default function DashboardAnalytical() {
       if (!r.ok) return {};
       return r.json();
     },
+    enabled: !!selectedCompany?.id,
+    refetchOnMount: "always",
+    staleTime: 0,
   });
 
   const revenueThisMonth = stats?.revenueThisMonth || 0;
@@ -341,9 +344,11 @@ export default function DashboardAnalytical() {
                 };
                 const chartData = monthlyPL.map((item: any, i: number) => {
                   const monthNum = item.month?.split("-")[1] || "";
+                  const rev = Math.abs(item.revenue || 0);
+                  const exp = Math.abs(item.expense || 0);
                   return {
                     name: monthNames[monthNum] || item.month,
-                    value: Math.abs(item.expense || 0),
+                    value: rev + exp > 0 ? rev + exp : 0,
                     revenue: item.revenue || 0,
                     expense: item.expense || 0,
                     profit: item.profit || 0,
