@@ -87,7 +87,7 @@ app.post("/api/users", requireAuth, requireAdmin, async (req, res) => {
         return res.status(403).json({ message: `แพ็คเกจ ${limitCheck.planName} รองรับผู้ใช้สูงสุด ${limitCheck.limit} คน (ใช้แล้ว ${limitCheck.current} คน) กรุณาอัพเกรดแพ็คเกจ` });
       }
     }
-    const { hashPassword } = await import("./auth");
+    const { hashPassword } = await import("../auth");
     const parsed = insertUserSchema.parse(req.body);
     const existing = await storage.getUserByUsername(parsed.username);
     if (existing) {
@@ -148,7 +148,7 @@ app.patch("/api/users/:id", requireAuth, requireAdmin, async (req, res) => {
     if (req.body.fullName) updateData.fullName = req.body.fullName;
     if (req.body.email !== undefined) updateData.email = req.body.email;
     if (req.body.password) {
-      const { hashPassword } = await import("./auth");
+      const { hashPassword } = await import("../auth");
       updateData.password = await hashPassword(req.body.password);
     }
     if (req.body.lineId !== undefined) updateData.lineId = req.body.lineId;
