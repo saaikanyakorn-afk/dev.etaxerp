@@ -51,7 +51,8 @@ app.get("/api/users", requireAuth, requireAdmin, async (req, res) => {
     }
 
     const filtered = usersWithEmp.filter((u: any) =>
-      u.role === "admin" || linkedUserIds.has(u.id) || assignedUserIds.has(u.id)
+      u.role === "admin" || linkedUserIds.has(u.id) || assignedUserIds.has(u.id) ||
+      (Array.isArray(u.allowedCompanyIds) && u.allowedCompanyIds.includes(filterCompanyId))
     );
     return res.json(filtered);
   }
