@@ -466,7 +466,19 @@ export default function EmployeeList() {
             <h1 className="text-2xl font-bold" data-testid="text-page-title">ทะเบียนพนักงาน</h1>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={() => window.open(`/api/employees/export-excel?companyId=${companyId}`, "_blank")} className="rounded-full border-[var(--theme-primary)] text-[var(--theme-primary)] hover:bg-[var(--theme-primary)]/10" data-testid="button-export-excel">
+            <Button variant="outline" onClick={async () => {
+              try {
+                const res = await fetch(`/api/employees/export-excel?companyId=${companyId}`, { credentials: "include" });
+                if (!res.ok) throw new Error("Export failed");
+                const blob = await res.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = `employees_${companyId}.xlsx`;
+                a.click();
+                URL.revokeObjectURL(url);
+              } catch { alert("ส่งออกไม่สำเร็จ กรุณาลองใหม่"); }
+            }} className="rounded-full border-[var(--theme-primary)] text-[var(--theme-primary)] hover:bg-[var(--theme-primary)]/10" data-testid="button-export-excel">
               <Download className="mr-2 h-4 w-4" /> ส่งออก Excel
             </Button>
             <Button variant="outline" onClick={() => { setImportOpen(true); setImportResult(null); }} className="rounded-full border-[#05b187] text-[#05b187] hover:bg-[#05b187]/10" data-testid="button-import-excel">
