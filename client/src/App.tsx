@@ -519,7 +519,7 @@ function HomeRedirect() {
       } else if (user && (user as any).role === "employee") {
         navigate("/ess", { replace: true });
       } else {
-        navigate(user ? "/module-select" : "/landing", { replace: true });
+        navigate(user ? "/dashboard" : "/landing", { replace: true });
       }
     }
   }, [user, loading, navigate]);
