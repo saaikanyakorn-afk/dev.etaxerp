@@ -50,7 +50,7 @@ export default function UserManagement() {
   const [editOpen, setEditOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<any>(null);
   const [form, setForm] = useState<UserForm>(emptyForm);
-  const [editForm, setEditForm] = useState<{ fullName: string; role: string; email: string; password: string; employeeId: string; lineId: string }>({ fullName: "", role: "", email: "", password: "", employeeId: "", lineId: "" });
+  const [editForm, setEditForm] = useState<{ username: string; fullName: string; role: string; email: string; password: string; employeeId: string; lineId: string }>({ username: "", fullName: "", role: "", email: "", password: "", employeeId: "", lineId: "" });
   const [subPermUser, setSubPermUser] = useState<any>(null);
   const [subPermOpen, setSubPermOpen] = useState(false);
   const [resetPwUser, setResetPwUser] = useState<any>(null);
@@ -269,6 +269,7 @@ export default function UserManagement() {
     e.preventDefault();
     if (!editingUser) return;
     const data: any = {};
+    if (editForm.username && editForm.username !== editingUser.username) data.username = editForm.username;
     if (editForm.fullName) data.fullName = editForm.fullName;
     if (editForm.role) data.role = editForm.role;
     if (editForm.email !== undefined) data.email = editForm.email;
@@ -311,7 +312,7 @@ export default function UserManagement() {
 
   const openEdit = (u: any) => {
     setEditingUser(u);
-    setEditForm({ fullName: u.fullName, role: u.role, email: u.email || "", password: "", employeeId: u.linkedEmployee?.employeeId?.toString() || "", lineId: u.lineId || "" });
+    setEditForm({ username: u.username, fullName: u.fullName, role: u.role, email: u.email || "", password: "", employeeId: u.linkedEmployee?.employeeId?.toString() || "", lineId: u.lineId || "" });
     setAllowedCompanyIds(u.allowedCompanyIds || []);
     setEditOpen(true);
   };
@@ -768,6 +769,10 @@ export default function UserManagement() {
               <DialogTitle>แก้ไขผู้ใช้: {editingUser?.username}</DialogTitle>
             </DialogHeader>
             <form onSubmit={handleEdit} className="space-y-4">
+              <div>
+                <Label>ชื่อผู้ใช้ (Username)</Label>
+                <Input data-testid="input-edit-username" value={editForm.username} onChange={e => setEditForm({...editForm, username: e.target.value})} />
+              </div>
               <div>
                 <Label>ชื่อ-นามสกุล</Label>
                 <Input data-testid="input-edit-fullname" value={editForm.fullName} onChange={e => setEditForm({...editForm, fullName: e.target.value})} />
