@@ -144,6 +144,13 @@ app.patch("/api/users/:id", requireAuth, requireAdmin, async (req, res) => {
       }
     }
     const updateData: any = {};
+    if (req.body.username) {
+      const existingUser = await storage.getUserByUsername(req.body.username);
+      if (existingUser && existingUser.id !== userId) {
+        return res.status(400).json({ message: "ชื่อผู้ใช้นี้มีอยู่แล้ว" });
+      }
+      updateData.username = req.body.username;
+    }
     if (req.body.role) updateData.role = req.body.role;
     if (req.body.active !== undefined) updateData.active = req.body.active;
     if (req.body.fullName) updateData.fullName = req.body.fullName;
