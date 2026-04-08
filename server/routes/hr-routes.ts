@@ -173,7 +173,13 @@ export function registerHrRoutes(app: Express) {
   app.get("/api/employees", requireAuth, requireModule("hr"), async (req, res) => {
     const user = req.user as any;
     const tenantId = user.tenantId;
-    const companyId = req.query.companyId ? Number(req.query.companyId) : undefined;
+    let companyId = req.query.companyId ? Number(req.query.companyId) : undefined;
+    if (!companyId && !isPrivilegedRole(user.role)) {
+      const myEmpRecord = await storage.getEmployeeByUserId(user.id);
+      if (myEmpRecord?.companyId) {
+        companyId = myEmpRecord.companyId;
+      }
+    }
     if (!companyId && !tenantId) return res.json([]);
     const allEmployees = await storage.getEmployees(tenantId, companyId);
     const sampleIds = allEmployees.slice(0, 5).map((e: any) => `${e.employeeCode}(cid=${e.companyId})`).join(", ");
