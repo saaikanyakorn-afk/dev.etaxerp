@@ -467,14 +467,20 @@ export function registerHrRoutes(app: Express) {
             companyId: req.body?.companyId ? Number(req.body.companyId) : null,
           };
 
-          const existingConditions = [eq(employees.employeeCode, employeeCode)];
-          if (empData.companyId) existingConditions.push(eq(employees.companyId, empData.companyId));
-          else if (importUser.tenantId) existingConditions.push(eq(employees.tenantId, importUser.tenantId));
-          const existing = await db.select().from(employees).where(and(...existingConditions)).limit(1);
+          if (!empData.companyId) {
+            results.errors.push(`แถว ${rowNum}: ไม่ระบุบริษัท`);
+            continue;
+          }
+          const existing = await db.select().from(employees).where(and(eq(employees.employeeCode, employeeCode), eq(employees.companyId, empData.companyId))).limit(1);
           if (existing.length > 0) {
             await db.update(employees).set(empData).where(eq(employees.id, existing[0].id));
             results.updated++;
           } else {
+            const codeConflict = await db.select({ id: employees.id, companyId: employees.companyId }).from(employees).where(eq(employees.employeeCode, employeeCode)).limit(1);
+            if (codeConflict.length > 0) {
+              results.errors.push(`แถว ${rowNum}: รหัส ${employeeCode} ซ้ำกับพนักงานบริษัทอื่น (companyId=${codeConflict[0].companyId}) — ข้ามการนำเข้า`);
+              continue;
+            }
             await db.insert(employees).values(empData);
             results.created++;
           }
