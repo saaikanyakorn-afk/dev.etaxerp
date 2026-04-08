@@ -1064,7 +1064,7 @@ app.put("/api/firm-clients/:id/team", requireAuth, requireModule("firm-mgmt"), a
   }
 });
 
-app.get("/api/firm-clients/import/template", requireAuth, requireModule("firm-mgmt"), async (_req, res) => {
+app.get("/api/firm-clients/import/template", async (_req, res) => {
   const wb = XLSX.utils.book_new();
   const headers = [
     "ชื่อบริษัท (ไทย)*", "ชื่อบริษัท (อังกฤษ)", "ชื่อบริษัท (จีน)",
