@@ -387,9 +387,9 @@ export default function TrialBalance() {
             </div>
           </TableCell>
           <TableCell className="text-sm py-2.5 text-right font-bold tabular-nums border-r border-slate-200 text-slate-600">{fmt(t.openingDebit)}</TableCell>
-          <TableCell className="text-sm py-2.5 text-right font-bold tabular-nums border-r border-slate-300 text-slate-600">{fmt(t.openingCredit)}</TableCell>
+          <TableCell className="text-sm py-2.5 text-right font-bold tabular-nums border-r-2 border-slate-400 text-slate-600">{fmt(t.openingCredit)}</TableCell>
           <TableCell className="text-sm py-2.5 text-right font-bold tabular-nums border-r border-slate-200 text-slate-700">{fmt(t.movementDebit)}</TableCell>
-          <TableCell className="text-sm py-2.5 text-right font-bold tabular-nums border-r border-slate-300 text-slate-700">{fmt(t.movementCredit)}</TableCell>
+          <TableCell className="text-sm py-2.5 text-right font-bold tabular-nums border-r-2 border-slate-400 text-slate-700">{fmt(t.movementCredit)}</TableCell>
           <TableCell className="text-sm py-2.5 text-right font-bold tabular-nums border-r border-slate-200 text-slate-900">{fmt(t.closingDebit)}</TableCell>
           <TableCell className="text-sm py-2.5 text-right font-bold tabular-nums text-slate-900">{fmt(t.closingCredit)}</TableCell>
         </TableRow>
@@ -413,9 +413,9 @@ export default function TrialBalance() {
                   {row.accountCode} : {row.accountNameTh || row.accountName}
                 </TableCell>
                 <TableCell className="text-sm py-2 text-right tabular-nums border-r border-slate-200 text-slate-600">{fmt(row.openingDebit)}</TableCell>
-                <TableCell className="text-sm py-2 text-right tabular-nums border-r border-slate-300 text-slate-600">{fmt(row.openingCredit)}</TableCell>
+                <TableCell className="text-sm py-2 text-right tabular-nums border-r-2 border-slate-400 text-slate-600">{fmt(row.openingCredit)}</TableCell>
                 <TableCell className="text-sm py-2 text-right tabular-nums border-r border-slate-200 text-slate-700">{fmt(row.movementDebit)}</TableCell>
-                <TableCell className="text-sm py-2 text-right tabular-nums border-r border-slate-300 text-slate-700">{fmt(row.movementCredit)}</TableCell>
+                <TableCell className="text-sm py-2 text-right tabular-nums border-r-2 border-slate-400 text-slate-700">{fmt(row.movementCredit)}</TableCell>
                 <TableCell className="text-sm py-2 text-right font-medium tabular-nums border-r border-slate-200 text-slate-900">{fmt(row.closingDebit)}</TableCell>
                 <TableCell className="text-sm py-2 text-right font-medium tabular-nums text-slate-900">{fmt(row.closingCredit)}</TableCell>
               </TableRow>
@@ -431,15 +431,15 @@ export default function TrialBalance() {
       <TableHeader>
         <TableRow className="hover:bg-transparent border-b border-white/20" style={{ background: "var(--theme-table-header)" }}>
           <TableHead rowSpan={2} className="text-sm font-bold text-white border-r border-white/20 align-middle text-center w-[280px]">รหัสบัญชี - ชื่อบัญชี</TableHead>
-          <TableHead colSpan={2} className="text-sm font-bold text-white border-r border-white/20 text-center py-2 border-b border-white/20" style={{ background: "var(--theme-table-header-dark)" }}>ยอดยกมา</TableHead>
-          <TableHead colSpan={2} className="text-sm font-bold text-white border-r border-white/20 text-center py-2 border-b border-white/20" style={{ background: "var(--theme-table-header-darker)" }}>เปลี่ยนแปลง</TableHead>
+          <TableHead colSpan={2} className="text-sm font-bold text-white border-r-2 border-white/40 text-center py-2 border-b border-white/20" style={{ background: "var(--theme-table-header-dark)" }}>ยอดยกมา</TableHead>
+          <TableHead colSpan={2} className="text-sm font-bold text-white border-r-2 border-white/40 text-center py-2 border-b border-white/20" style={{ background: "var(--theme-table-header-darker)" }}>เปลี่ยนแปลง</TableHead>
           <TableHead colSpan={2} className="text-sm font-bold text-white text-center py-2 border-b border-white/20" style={{ background: "var(--theme-primary-hover)" }}>ยอดยกไป</TableHead>
         </TableRow>
         <TableRow className="hover:bg-transparent" style={{ background: "var(--theme-table-header)" }}>
           <TableHead className="text-xs font-bold text-white border-r border-white/20 text-center py-2 w-[100px]">เดบิต</TableHead>
-          <TableHead className="text-xs font-bold text-white border-r border-white/20 text-center py-2 w-[100px]">เครดิต</TableHead>
+          <TableHead className="text-xs font-bold text-white border-r-2 border-white/40 text-center py-2 w-[100px]">เครดิต</TableHead>
           <TableHead className="text-xs font-bold text-white border-r border-white/20 text-center py-2 w-[100px]">เดบิต</TableHead>
-          <TableHead className="text-xs font-bold text-white border-r border-white/20 text-center py-2 w-[100px]">เครดิต</TableHead>
+          <TableHead className="text-xs font-bold text-white border-r-2 border-white/40 text-center py-2 w-[100px]">เครดิต</TableHead>
           <TableHead className="text-xs font-bold text-white border-r border-white/20 text-center py-2 w-[100px]">เดบิต</TableHead>
           <TableHead className="text-xs font-bold text-white text-center py-2 w-[100px]">เครดิต</TableHead>
         </TableRow>
@@ -459,9 +459,9 @@ export default function TrialBalance() {
               <TableRow className="bg-slate-200 font-bold border-t-2 border-slate-400 hover:bg-slate-200" data-testid="row-totals">
                 <TableCell className="text-sm py-3 text-center font-bold text-slate-800 border-r border-slate-300">รวมทั้งสิ้น</TableCell>
                 <TableCell className="text-sm py-3 text-right tabular-nums font-bold border-r border-slate-300 text-slate-700">{fmt(totals.openingDebit)}</TableCell>
-                <TableCell className="text-sm py-3 text-right tabular-nums font-bold border-r border-slate-400 text-slate-700">{fmt(totals.openingCredit)}</TableCell>
+                <TableCell className="text-sm py-3 text-right tabular-nums font-bold border-r-2 border-slate-500 text-slate-700">{fmt(totals.openingCredit)}</TableCell>
                 <TableCell className="text-sm py-3 text-right tabular-nums font-bold border-r border-slate-300 text-slate-800">{fmt(totals.movementDebit)}</TableCell>
-                <TableCell className="text-sm py-3 text-right tabular-nums font-bold border-r border-slate-400 text-slate-800">{fmt(totals.movementCredit)}</TableCell>
+                <TableCell className="text-sm py-3 text-right tabular-nums font-bold border-r-2 border-slate-500 text-slate-800">{fmt(totals.movementCredit)}</TableCell>
                 <TableCell className="text-sm py-3 text-right tabular-nums font-bold border-r border-slate-300 text-blue-800">{fmt(totals.closingDebit)}</TableCell>
                 <TableCell className="text-sm py-3 text-right tabular-nums font-bold text-blue-800">{fmt(totals.closingCredit)}</TableCell>
               </TableRow>
@@ -478,15 +478,15 @@ export default function TrialBalance() {
         <TableRow className="hover:bg-transparent border-b border-white/20" style={{ background: "var(--theme-table-header)" }}>
           <TableHead rowSpan={2} className="text-sm font-bold text-white border-r border-white/20 align-middle text-center w-[100px]">รหัสบัญชี</TableHead>
           <TableHead rowSpan={2} className="text-sm font-bold text-white border-r border-white/20 align-middle text-center min-w-[180px]">ชื่อบัญชี</TableHead>
-          <TableHead colSpan={2} className="text-sm font-bold text-white border-r border-white/20 text-center py-2 border-b border-white/20" style={{ background: "var(--theme-table-header-dark)" }}>ยอดยกมา</TableHead>
-          <TableHead colSpan={2} className="text-sm font-bold text-white border-r border-white/20 text-center py-2 border-b border-white/20" style={{ background: "var(--theme-table-header-darker)" }}>เปลี่ยนแปลง</TableHead>
+          <TableHead colSpan={2} className="text-sm font-bold text-white border-r-2 border-white/40 text-center py-2 border-b border-white/20" style={{ background: "var(--theme-table-header-dark)" }}>ยอดยกมา</TableHead>
+          <TableHead colSpan={2} className="text-sm font-bold text-white border-r-2 border-white/40 text-center py-2 border-b border-white/20" style={{ background: "var(--theme-table-header-darker)" }}>เปลี่ยนแปลง</TableHead>
           <TableHead colSpan={2} className="text-sm font-bold text-white text-center py-2 border-b border-white/20" style={{ background: "var(--theme-primary-hover)" }}>ยอดยกไป</TableHead>
         </TableRow>
         <TableRow className="hover:bg-transparent" style={{ background: "var(--theme-table-header)" }}>
           <TableHead className="text-xs font-bold text-white border-r border-white/20 text-center py-2">เดบิต</TableHead>
-          <TableHead className="text-xs font-bold text-white border-r border-white/20 text-center py-2">เครดิต</TableHead>
+          <TableHead className="text-xs font-bold text-white border-r-2 border-white/40 text-center py-2">เครดิต</TableHead>
           <TableHead className="text-xs font-bold text-white border-r border-white/20 text-center py-2">เดบิต</TableHead>
-          <TableHead className="text-xs font-bold text-white border-r border-white/20 text-center py-2">เครดิต</TableHead>
+          <TableHead className="text-xs font-bold text-white border-r-2 border-white/40 text-center py-2">เครดิต</TableHead>
           <TableHead className="text-xs font-bold text-white border-r border-white/20 text-center py-2">เดบิต</TableHead>
           <TableHead className="text-xs font-bold text-white text-center py-2">เครดิต</TableHead>
         </TableRow>
@@ -519,9 +519,9 @@ export default function TrialBalance() {
                     <TableCell className="text-sm tabular-nums py-2.5 text-center border-r border-slate-200 font-medium text-slate-700 group-hover:text-blue-600">{row.accountCode}</TableCell>
                     <TableCell className="text-sm py-2.5 border-r border-slate-200 text-slate-800 group-hover:text-blue-600">{row.accountNameTh || row.accountName}</TableCell>
                     <TableCell className="text-sm py-2.5 text-right font-medium tabular-nums border-r border-slate-200 text-slate-600">{fmt(row.openingDebit)}</TableCell>
-                    <TableCell className="text-sm py-2.5 text-right font-medium tabular-nums border-r border-slate-300 text-slate-600">{fmt(row.openingCredit)}</TableCell>
+                    <TableCell className="text-sm py-2.5 text-right font-medium tabular-nums border-r-2 border-slate-400 text-slate-600">{fmt(row.openingCredit)}</TableCell>
                     <TableCell className="text-sm py-2.5 text-right font-medium tabular-nums border-r border-slate-200 text-slate-700">{fmt(row.movementDebit)}</TableCell>
-                    <TableCell className="text-sm py-2.5 text-right font-medium tabular-nums border-r border-slate-300 text-slate-700">{fmt(row.movementCredit)}</TableCell>
+                    <TableCell className="text-sm py-2.5 text-right font-medium tabular-nums border-r-2 border-slate-400 text-slate-700">{fmt(row.movementCredit)}</TableCell>
                     <TableCell className="text-sm py-2.5 text-right font-bold tabular-nums border-r border-slate-200 text-slate-900">{fmt(row.closingDebit)}</TableCell>
                     <TableCell className="text-sm py-2.5 text-right font-bold tabular-nums text-slate-900">{fmt(row.closingCredit)}</TableCell>
                   </TableRow>
@@ -530,9 +530,9 @@ export default function TrialBalance() {
                   <TableCell className="text-sm py-2.5 text-center border-r border-slate-200"></TableCell>
                   <TableCell className="text-sm py-2.5 border-r border-slate-200 font-bold text-slate-800">Total</TableCell>
                   <TableCell className="text-sm py-2.5 text-right font-bold tabular-nums border-r border-slate-200 border-t border-slate-300 text-slate-700">{fmt(group.totals.openingDebit)}</TableCell>
-                  <TableCell className="text-sm py-2.5 text-right font-bold tabular-nums border-r border-slate-300 border-t border-slate-300 text-slate-700">{fmt(group.totals.openingCredit)}</TableCell>
+                  <TableCell className="text-sm py-2.5 text-right font-bold tabular-nums border-r-2 border-slate-400 border-t border-slate-300 text-slate-700">{fmt(group.totals.openingCredit)}</TableCell>
                   <TableCell className="text-sm py-2.5 text-right font-bold tabular-nums border-r border-slate-200 border-t border-slate-300 text-slate-800">{fmt(group.totals.movementDebit)}</TableCell>
-                  <TableCell className="text-sm py-2.5 text-right font-bold tabular-nums border-r border-slate-300 border-t border-slate-300 text-slate-800">{fmt(group.totals.movementCredit)}</TableCell>
+                  <TableCell className="text-sm py-2.5 text-right font-bold tabular-nums border-r-2 border-slate-400 border-t border-slate-300 text-slate-800">{fmt(group.totals.movementCredit)}</TableCell>
                   <TableCell className="text-sm py-2.5 text-right font-bold tabular-nums border-r border-slate-200 border-t border-slate-300 text-slate-900">{fmt(group.totals.closingDebit)}</TableCell>
                   <TableCell className="text-sm py-2.5 text-right font-bold tabular-nums border-t border-slate-300 text-slate-900">{fmt(group.totals.closingCredit)}</TableCell>
                 </TableRow>
@@ -542,9 +542,9 @@ export default function TrialBalance() {
               <TableRow className="bg-slate-200 font-bold border-t-2 border-slate-400 hover:bg-slate-200" data-testid="row-totals">
                 <TableCell colSpan={2} className="text-sm py-3 text-center font-bold text-slate-800 border-r border-slate-300">รวมทั้งสิ้น</TableCell>
                 <TableCell className="text-sm py-3 text-right tabular-nums font-bold border-r border-slate-300 text-slate-700">{fmt(totals.openingDebit)}</TableCell>
-                <TableCell className="text-sm py-3 text-right tabular-nums font-bold border-r border-slate-400 text-slate-700">{fmt(totals.openingCredit)}</TableCell>
+                <TableCell className="text-sm py-3 text-right tabular-nums font-bold border-r-2 border-slate-500 text-slate-700">{fmt(totals.openingCredit)}</TableCell>
                 <TableCell className="text-sm py-3 text-right tabular-nums font-bold border-r border-slate-300 text-slate-800">{fmt(totals.movementDebit)}</TableCell>
-                <TableCell className="text-sm py-3 text-right tabular-nums font-bold border-r border-slate-400 text-slate-800">{fmt(totals.movementCredit)}</TableCell>
+                <TableCell className="text-sm py-3 text-right tabular-nums font-bold border-r-2 border-slate-500 text-slate-800">{fmt(totals.movementCredit)}</TableCell>
                 <TableCell className="text-sm py-3 text-right tabular-nums font-bold border-r border-slate-300 text-blue-800">{fmt(totals.closingDebit)}</TableCell>
                 <TableCell className="text-sm py-3 text-right tabular-nums font-bold text-blue-800">{fmt(totals.closingCredit)}</TableCell>
               </TableRow>
