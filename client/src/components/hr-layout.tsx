@@ -1,8 +1,8 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/lib/auth";
 import { useCompany } from "@/lib/company-context";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { SubscriptionNavButton } from "@/components/layout";
 import { cn } from "@/lib/utils";
 import {
@@ -33,6 +33,7 @@ import {
   Upload,
   Brain,
   Shield,
+  Smile,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -42,13 +43,38 @@ import {
 } from "@/components/ui/popover";
 import { Input } from "@/components/ui/input";
 
-type NavChild = { label: string; href: string; icon?: any };
+type NavChild = { label: string; href: string; icon?: any; subKey?: string };
 
 type NavItem = {
   label: string;
   icon: any;
   href: string;
   children?: NavChild[];
+  subKey?: string;
+};
+
+const HREF_TO_SUB_KEY: Record<string, string> = {
+  "/hr/dashboard": "dashboard/hrm",
+  "/hr/employees": "hr/employees",
+  "/hr/certificates": "hr/certificates",
+  "/hr/attendance": "hr/attendance",
+  "/hr/attendance-report": "hr/attendance-report",
+  "/hr/leave": "hr/leave",
+  "/hr/ot": "hr/ot",
+  "/hr/work-schedule": "hr/work-schedule",
+  "/hr/shift-settings": "hr/work-schedule",
+  "/hr/shift-schedule": "hr/work-schedule",
+  "/hr/holidays": "hr/holidays",
+  "/hr/leave-policy": "hr/holidays",
+  "/hr/payslip": "hr/payslip",
+  "/hr/payroll-tax": "hr/payroll-tax",
+  "/hr/wht-import": "hr/payroll-tax",
+  "/hr/commission-rules": "hr/commission-rules",
+  "/hr/commission": "hr/commission",
+  "/hr/performance": "hr/performance",
+  "/hr/scanner-mapping": "hr/employees",
+  "/hr/scanner-import": "hr/employees",
+  "/ess": "hr/ess",
 };
 
 const HR_NAV: NavItem[] = [
@@ -56,6 +82,12 @@ const HR_NAV: NavItem[] = [
     label: "ภาพรวม", icon: LayoutDashboard, href: "/hr/dashboard",
     children: [
       { label: "แดชบอร์ด HR", href: "/hr/dashboard", icon: LayoutDashboard },
+    ],
+  },
+  {
+    label: "บริการตนเอง (ESS)", icon: Smile, href: "/ess", subKey: "hr/ess",
+    children: [
+      { label: "ข้อมูลของฉัน", href: "/ess", icon: Smile, subKey: "hr/ess" },
     ],
   },
   {
@@ -127,6 +159,40 @@ export default function HRLayout({ children }: { children: React.ReactNode }) {
 
   const { companies, selectedCompanyId, selectedCompany, setSelectedCompanyId, isAccountingFirm } = useCompany();
 
+  const { data: myPermissions } = useQuery<{ modules: string[]; subModules: string[] }>({
+    queryKey: ["/api/permissions/me", user?.id, selectedCompanyId],
+    queryFn: async () => {
+      const params = selectedCompanyId ? `?companyId=${selectedCompanyId}` : "";
+      const r = await fetch(`/api/permissions/me${params}`, { credentials: "include" });
+      if (!r.ok) return { modules: [], subModules: [] };
+      const data = await r.json();
+      return Array.isArray(data) ? { modules: data, subModules: [] } : data;
+    },
+    enabled: !!user,
+    staleTime: 60_000,
+  });
+
+  const filteredNav = useMemo(() => {
+    if (!myPermissions || myPermissions.subModules.length === 0) return HR_NAV;
+    const allowed = new Set(myPermissions.subModules);
+
+    return HR_NAV
+      .map(item => {
+        const filteredChildren = item.children?.filter(child => {
+          const subKey = child.subKey || HREF_TO_SUB_KEY[child.href];
+          if (!subKey) return true;
+          return allowed.has(subKey);
+        });
+        return { ...item, children: filteredChildren };
+      })
+      .filter(item => {
+        const itemSubKey = item.subKey || HREF_TO_SUB_KEY[item.href];
+        if (itemSubKey && !allowed.has(itemSubKey)) return false;
+        if (item.children && item.children.length === 0) return false;
+        return true;
+      });
+  }, [myPermissions]);
+
   const setPrimaryMutation = useMutation({
     mutationFn: async (companyId: number) => {
       const r = await fetch(`/api/companies/${companyId}/set-primary`, { method: "POST", credentials: "include" });
@@ -153,7 +219,7 @@ export default function HRLayout({ children }: { children: React.ReactNode }) {
   }, [location]);
 
   useEffect(() => {
-    const parentWithActiveChild = HR_NAV.find(
+    const parentWithActiveChild = filteredNav.find(
       item => item.children?.some(child => location === child.href || (child.href !== "/" && location.startsWith(child.href + "/")))
     );
     if (parentWithActiveChild && !openMenus.includes(parentWithActiveChild.label)) {
@@ -293,7 +359,7 @@ export default function HRLayout({ children }: { children: React.ReactNode }) {
         </div>
 
         <nav ref={sidebarNavRef} className="flex-1 overflow-y-auto px-2 space-y-0.5 pb-4 min-h-0">
-          {HR_NAV.map((item) => {
+          {filteredNav.map((item) => {
             const isActive = location === item.href;
 
             if (item.children) {
