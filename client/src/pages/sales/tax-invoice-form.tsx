@@ -1417,7 +1417,7 @@ export default function TaxInvoiceForm() {
                             );
                             if (filtered.length === 0) return null;
                             return (
-                              <div className="absolute z-50 top-full left-0 mt-1 bg-white border rounded-md shadow-lg max-h-48 overflow-y-auto" style={{minWidth:"280px"}}>
+                              <div className="absolute z-50 top-full left-0 mt-1 bg-white border rounded-md shadow-lg max-h-48 overflow-y-auto" style={{width:"280px", maxWidth:"280px"}}>
                                 {filtered.map(p => (
                                   <button
                                     key={p.id}
