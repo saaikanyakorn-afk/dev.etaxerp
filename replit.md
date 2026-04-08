@@ -57,6 +57,40 @@ Kai tracks all files cherry-picked to production. This is the single source of t
 ## Waiting List
 1. **Replit.app deploy broken** — DB connection timeout to deep-main from Replit cloud. Fix: change `DB_PROD_URL` in config to `etax-develop` (already exists: 295 tables, 72MB, 24 users, 448 companies). Won't fix network instability but separates from production data. Pending พี่ช้าง's go-ahead.
 
+## MANDATORY RULES — VIOLATIONS WILL BREAK PRODUCTION
+
+### Rule 1: Database Structure Changes (ZERO TOLERANCE)
+**BEFORE adding/removing/changing ANY column in `shared/schema.ts`:**
+1. STOP. Tell พี่ช้าง: "ฟีเจอร์นี้ต้องเพิ่ม/แก้คอลัมน์ [ชื่อ] ในตาราง [ชื่อ]"
+2. WAIT for พี่ช้าง's approval before touching schema.ts
+3. Production DB change method: Put `ALTER TABLE ... IF NOT EXISTS` inside the CODE FILE that needs the column (not schema.ts, not a separate migration)
+4. The ALTER TABLE line runs on server start — `IF NOT EXISTS` makes it safe to run repeatedly
+5. Track the ALTER TABLE line in **Pending ALTER TABLE Cleanup** below
+6. NEXT TIME Kai touches that file → MUST remove the ALTER TABLE line
+
+**NEVER:**
+- Add columns to schema.ts without telling พี่ช้าง first
+- Suggest running ALTER TABLE on production directly
+- Push code that uses a new column without the ALTER TABLE guard in the same file
+- Assume Replit db:push applies to production — it NEVER does
+
+### Rule 2: Cherry-Pick Push Process
+1. พี่ทราย tests → confirms working
+2. พี่ช้าง approves → gives explicit "push ได้"
+3. Kai pushes SINGLE FILE via GitHub API
+4. พี่ช้าง cherry-picks on production
+5. **If the file contains ALTER TABLE** → Kai must warn พี่ช้าง: "ไฟล์นี้มี ALTER TABLE จะเพิ่มคอลัมน์ [ชื่อ] ตอน server start"
+
+### Rule 3: No Excuses
+- "I forgot" is not acceptable
+- These rules are loaded into memory every session — there is no forgetting
+- If Kai violates these rules, the production database may be destroyed
+
+### Pending ALTER TABLE Cleanup
+| File | ALTER TABLE Line | Column Added | Remove When |
+|---|---|---|---|
+| server/routes/sales-docs-routes.ts | PENDING — not yet added | sales_orders.quotation_id | Next time file is touched after confirmed working |
+
 ## Code vs Data Separation (CRITICAL)
 - **Code** and **Data (DB structure)** are separate concerns — always treat them independently.
 - **Dev DB (Neon/US):** Schema changes happen here during development. No users on this DB.
