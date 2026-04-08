@@ -1051,7 +1051,7 @@ export default function QuotationForm() {
                         </div>
                       </td>
                       <td className="px-1 pt-1.5">
-                        <textarea className="w-full min-w-0 text-xs border border-dashed rounded px-2 py-1.5 resize-y min-h-[28px] focus:outline-none focus:ring-1 focus:ring-sky-400 bg-transparent" rows={1} placeholder="พิมพ์ชื่อสินค้า/บริการ" value={item.productName} onChange={e => updateItem(idx, "productName", e.target.value)} />
+                        <textarea className="w-full min-w-0 text-xs border border-dashed rounded px-2 py-1.5 resize-y min-h-[32px] focus:outline-none focus:ring-1 focus:ring-sky-400 bg-transparent" rows={2} placeholder="พิมพ์ชื่อสินค้า/บริการ" value={item.productName} onChange={e => updateItem(idx, "productName", e.target.value)} />
                       </td>
                       <td className="px-1 pt-1.5">
                         <Input data-testid={`input-qty-${idx}`} inputMode="decimal" className="h-9 text-sm text-center border-dashed w-full min-w-0 px-1" value={item.qty} onChange={e => { const v = e.target.value; if (/^\d*\.?\d*$/.test(v)) updateItem(idx, "qty", v); }} />
