@@ -302,6 +302,7 @@ async function _createAutoJournalEntryInner(params: AutoJournalParams): Promise<
   const accountMap = new Map(allAccounts.map(a => [a.code, a]));
 
   const isStandaloneTaxInvoice = documentType === "tax_invoice" && !linkedInvoiceId;
+  const isStandaloneReceipt = documentType === "receipt" && !linkedInvoiceId;
   const isServiceType = businessType === "service" || businessType === "accounting" || businessType === "accounting_firm" || businessType === "mixed";
   const formulaBusinessType = overrideBusinessType || ((businessType === "accounting" || businessType === "accounting_firm") ? "service" : businessType);
 
@@ -317,22 +318,33 @@ async function _createAutoJournalEntryInner(params: AutoJournalParams): Promise<
   let formulaLines: { accountCode: string; accountName: string; direction: string; sortOrder: number }[] = [];
   let noJournalEntry = false;
 
-  if (isStandaloneTaxInvoice && isServiceType && dbFormulas.length === 0) {
+  if ((isStandaloneTaxInvoice || isStandaloneReceipt) && dbFormulas.length === 0) {
     const resolveFirst = (...codes: string[]) => codes.find(c => accountMap.has(c)) || codes[0];
-    const arCode = resolveFirst("1201000");
-    const revenueCode = resolveFirst("4100100");
+    const revenueMap: Record<string, { code: string; name: string }> = {
+      service: { code: "4100100", name: "รายได้จากการให้บริการ" },
+      accounting: { code: "4100100", name: "รายได้จากการให้บริการ" },
+      accounting_firm: { code: "4100100", name: "รายได้จากการให้บริการ" },
+      trading: { code: "4001000", name: "รายได้จากการขายสินค้า" },
+      ecommerce: { code: "4011000", name: "รายได้จากการขายออนไลน์" },
+      online_shop: { code: "4011000", name: "รายได้จากการขายออนไลน์" },
+      mixed: { code: "4100100", name: "รายได้" },
+    };
+    const revInfo = revenueMap[businessType] || revenueMap.mixed;
+    const revenueCode = resolveFirst(revInfo.code, "4100100");
+    const revenueName = revInfo.name;
     const vatCode = resolveFirst("2341000");
     const cashCode = resolveFirst("1001000");
-    if (isCreditPayment) {
+    if (isStandaloneTaxInvoice && isCreditPayment) {
+      const arCode = resolveFirst("1201000");
       formulaLines = [
         { accountCode: arCode, accountName: "ลูกหนี้การค้า", direction: "debit", sortOrder: 1 },
-        { accountCode: revenueCode, accountName: "รายได้จากการให้บริการ", direction: "credit", sortOrder: 2 },
+        { accountCode: revenueCode, accountName: revenueName, direction: "credit", sortOrder: 2 },
         { accountCode: vatCode, accountName: "ภาษีขาย", direction: "credit", sortOrder: 3 },
       ];
     } else {
       formulaLines = [
         { accountCode: cashCode, accountName: "เงินสด/เงินฝากธนาคาร", direction: "debit", sortOrder: 1 },
-        { accountCode: revenueCode, accountName: "รายได้จากการให้บริการ", direction: "credit", sortOrder: 2 },
+        { accountCode: revenueCode, accountName: revenueName, direction: "credit", sortOrder: 2 },
         { accountCode: vatCode, accountName: "ภาษีขาย", direction: "credit", sortOrder: 3 },
       ];
     }
