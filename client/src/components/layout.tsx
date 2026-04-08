@@ -483,7 +483,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               <span className="truncate font-medium">{selectedCompany?.name || "บริษัทของฉัน"}</span>
             </div>
           ) : (
-          <Popover open={companyPopoverOpen} onOpenChange={(open) => { setCompanyPopoverOpen(open); if (!open) { setCompanySearch(""); setShowAllCompanies(false); } }}>
+          <Popover open={companyPopoverOpen} onOpenChange={(open) => { setCompanyPopoverOpen(open); if (!open) { setCompanySearch(""); setShowAllCompanies(true); } }}>
             <PopoverTrigger asChild>
               <Button 
                 variant="outline" 
