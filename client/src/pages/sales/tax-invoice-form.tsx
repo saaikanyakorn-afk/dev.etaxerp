@@ -967,6 +967,7 @@ export default function TaxInvoiceForm() {
       customerId: newContact ? newContact.id : (form.customerId ? Number(form.customerId) : null),
       customerCode: newContact ? newContact.code : (form.customerCode || ""),
       companyId,
+      quotationId: fromQuotationId ? Number(fromQuotationId) : (form as any).quotationId || null,
       invoiceId: fromInvoiceId ? Number(fromInvoiceId) : (form as any).invoiceId || null,
       priceMode,
       docPrefix: form.docPrefix,
@@ -1724,7 +1725,7 @@ export default function TaxInvoiceForm() {
               </Button>
             </div>
 
-            {isSaved && form.status === "issued" && (
+            {isSaved && (
               <div className="border-t pt-4">
                 <div className="text-xs font-semibold text-slate-600 mb-2 flex items-center gap-1.5">
                   <Link2 className="h-3.5 w-3.5" />

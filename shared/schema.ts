@@ -1682,6 +1682,7 @@ export const taxInvoices = pgTable("tax_invoices", {
   project: text("project"),
   docPrefix: text("doc_prefix").default("TIV"),
   refDoc: text("ref_doc"),
+  quotationId: integer("quotation_id"),
   invoiceId: integer("invoice_id"),
   currencyCode: text("currency_code").default("THB"),
   exchangeRate: decimal("exchange_rate", { precision: 15, scale: 6 }).default("1"),

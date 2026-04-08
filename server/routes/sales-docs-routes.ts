@@ -1733,6 +1733,7 @@ app.post("/api/tax-invoices", requireAuth, requireAnyModule("sales", "ecommerce"
         project: body.project || null,
         docPrefix: body.docPrefix || "TIV",
         refDoc: body.refDoc || null,
+        quotationId: body.quotationId ? Number(body.quotationId) : null,
         invoiceId: body.invoiceId ? Number(body.invoiceId) : null,
         notes: body.notes || null,
         internalNotes: body.internalNotes || null,
@@ -1813,10 +1814,10 @@ app.patch("/api/tax-invoices/:id", requireAuth, requireAnyModule("sales", "ecomm
       "creditDays", "subtotal", "discountAmount", "vatAmount", "totalAmount", "withholdingTax",
       "status", "priceMode", "paymentTerms", "attachedUrl",
       "salesperson", "department", "project", "docPrefix", "refDoc",
-      "invoiceId", "notes", "internalNotes", "originalTaxInvoiceNo", "isDebitNote", "isCreditNote",
+      "quotationId", "invoiceId", "notes", "internalNotes", "originalTaxInvoiceNo", "isDebitNote", "isCreditNote",
       "currencyCode", "exchangeRate", "paymentMethod"
     ];
-    const integerFields = ["customerId", "creditDays", "invoiceId"];
+    const integerFields = ["customerId", "creditDays", "quotationId", "invoiceId"];
     for (const field of allowedFields) {
       if (body[field] !== undefined) {
         if (integerFields.includes(field)) {
@@ -2666,6 +2667,18 @@ app.get("/api/related-documents/:docType/:docId", requireAuth, async (req, res) 
         const rcs = await db.select().from(receipts).where(and(eq(receipts.invoiceId, iv.id), eq(receipts.companyId, companyId)));
         for (const rc of rcs) addUnique({ type: "receipt", id: rc.id, docNo: rc.receiptNo, date: rc.receiptDate, status: rc.status, totalAmount: rc.totalAmount });
       }
+      if (qo.quotationNo) {
+        const invsByRef = await db.select().from(invoices).where(and(eq(invoices.refDoc, qo.quotationNo), eq(invoices.companyId, companyId)));
+        for (const iv of invsByRef) {
+          addUnique({ type: "invoice", id: iv.id, docNo: iv.invoiceNo, date: iv.invoiceDate, status: iv.status, totalAmount: iv.totalAmount });
+        }
+        const txsByRef = await db.select().from(taxInvoices).where(and(eq(taxInvoices.refDoc, qo.quotationNo), eq(taxInvoices.companyId, companyId)));
+        for (const tx of txsByRef) addUnique({ type: "tax_invoice", id: tx.id, docNo: tx.taxInvoiceNo, date: tx.taxInvoiceDate, status: tx.status, totalAmount: tx.totalAmount });
+        const rcsByRef = await db.select().from(receipts).where(and(eq(receipts.refDoc, qo.quotationNo), eq(receipts.companyId, companyId)));
+        for (const rc of rcsByRef) addUnique({ type: "receipt", id: rc.id, docNo: rc.receiptNo, date: rc.receiptDate, status: rc.status, totalAmount: rc.totalAmount });
+      }
+      const txsByQo = await db.select().from(taxInvoices).where(and(eq(taxInvoices.quotationId, id), eq(taxInvoices.companyId, companyId)));
+      for (const tx of txsByQo) addUnique({ type: "tax_invoice", id: tx.id, docNo: tx.taxInvoiceNo, date: tx.taxInvoiceDate, status: tx.status, totalAmount: tx.totalAmount });
 
     } else if (docType === "sales_order") {
       const [so] = await db.select().from(salesOrders).where(and(eq(salesOrders.id, id), eq(salesOrders.companyId, companyId)));
@@ -2735,6 +2748,10 @@ app.get("/api/related-documents/:docType/:docId", requireAuth, async (req, res) 
         const key = `${doc.type}-${doc.id}`;
         if (!seenIds.has(key)) { seenIds.add(key); related.push(doc); }
       };
+      if (tx.quotationId) {
+        const [qo] = await db.select().from(quotations).where(and(eq(quotations.id, tx.quotationId), eq(quotations.companyId, companyId)));
+        if (qo) addUnique({ type: "quotation", id: qo.id, docNo: qo.quotationNo, date: qo.quotationDate, status: qo.status, totalAmount: qo.totalAmount });
+      }
       if (tx.invoiceId) {
         const [iv] = await db.select().from(invoices).where(and(eq(invoices.id, tx.invoiceId), eq(invoices.companyId, companyId)));
         if (iv) {

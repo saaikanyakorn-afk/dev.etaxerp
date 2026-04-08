@@ -1224,7 +1224,7 @@ export default function QuotationForm() {
               </Button>
             </div>
 
-            {isSaved && form.status === "approved" && (
+            {isSaved && (
               <div className="border-t pt-4">
                 <div className="text-xs font-semibold text-slate-600 mb-2 flex items-center gap-1.5">
                   <Link2 className="h-3.5 w-3.5" />
@@ -1260,6 +1260,16 @@ export default function QuotationForm() {
                   >
                     <Receipt className="h-3.5 w-3.5" />
                     ออกใบกำกับภาษี
+                  </Button>
+                  <Button
+                    data-testid="button-create-rc"
+                    variant="outline"
+                    size="sm"
+                    className="h-8 gap-1.5 border-cyan-300 bg-cyan-50 hover:bg-cyan-100 text-cyan-700"
+                    onClick={() => navigate(`/sales/receipt/new?fromQuotation=${savedId || editingId}`)}
+                  >
+                    <FileOutput className="h-3.5 w-3.5" />
+                    ออกใบเสร็จรับเงิน
                   </Button>
                 </div>
               </div>

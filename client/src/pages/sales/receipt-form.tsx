@@ -219,6 +219,7 @@ export default function ReceiptForm() {
   const receiptSearchParams = isNew ? new URLSearchParams(searchString) : null;
   const fromInvoiceId = receiptSearchParams?.get("fromInvoice") || null;
   const fromTaxInvoiceId = receiptSearchParams?.get("fromTaxInvoice") || null;
+  const fromQuotationId = receiptSearchParams?.get("fromQuotation") || null;
   const copyFromId = receiptSearchParams?.get("copyFrom") || null;
 
   useEffect(() => {
@@ -259,6 +260,58 @@ export default function ReceiptForm() {
             if (inv.discountType === "percent") setDiscountMode("percent");
             if (inv.items && inv.items.length > 0) {
               setItems(inv.items.map((it: any) => ({
+                productId: it.productId,
+                productCode: it.productCode || "",
+                productName: it.productName || "",
+                description: it.description || "",
+                qty: cleanDecimal(it.qty, "1"),
+                unit: it.unit || "ชิ้น",
+                unitPrice: cleanDecimal(it.unitPrice, "0"),
+                discount: it.discountType === "percent" ? `${cleanDecimal(it.discount, "0")}%` : cleanDecimal(it.discount, "0"),
+                total: cleanDecimal(it.total, "0"),
+                vatType: it.vatType || "vat7",
+              })));
+            }
+          }
+        } catch {}
+        setLoaded(true);
+      })();
+    } else if (isNew && fromQuotationId) {
+      (async () => {
+        try {
+          const res = await fetch(`/api/quotations/${fromQuotationId}`, { credentials: "include" });
+          if (res.ok) {
+            const qo = await res.json();
+            setPriceMode(qo.priceMode || "excluded");
+            setForm(prev => ({
+              ...prev,
+              receiptNo: "",
+              receiptDate: toLocalDateStr(new Date()),
+              paymentDate: toLocalDateStr(new Date()),
+              customerId: qo.customerId || undefined,
+              customerCode: qo.customerCode || "",
+              customerName: qo.customerName || "",
+              customerAddress: qo.customerAddress || "",
+              customerTaxId: qo.customerTaxId || "",
+              branch: qo.branch || "",
+              contactPerson: qo.contactPerson || "",
+              contactPhone: qo.contactPhone || "",
+              contactEmail: qo.contactEmail || "",
+              creditDays: qo.creditDays ? String(qo.creditDays) : "",
+              salesperson: qo.salesperson || "",
+              department: qo.department || "",
+              project: qo.project || "",
+              refDoc: qo.quotationNo || "",
+              withholdingTax: String(qo.withholdingTax || "0"),
+              discountBeforeVat: qo.discountType === "percent" ? `${cleanDecimal(qo.discountAmount, "0")}%` : cleanDecimal(qo.discountAmount, "0"),
+              paymentTerms: qo.paymentTerms || "",
+              notes: qo.notes || "",
+              currencyCode: qo.currencyCode || "THB",
+              exchangeRate: String(qo.exchangeRate || "1"),
+            }));
+            if (qo.discountType === "percent") setDiscountMode("percent");
+            if (qo.items && qo.items.length > 0) {
+              setItems(qo.items.map((it: any) => ({
                 productId: it.productId,
                 productCode: it.productCode || "",
                 productName: it.productName || "",
