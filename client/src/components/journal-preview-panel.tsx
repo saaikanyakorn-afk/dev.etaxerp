@@ -430,7 +430,7 @@ export default function JournalPreviewPanel({
                         </>
                       ) : (
                         <>
-                          <TableCell className="text-xs font-mono py-1.5">{line.accountCode}</TableCell>
+                          <TableCell className="text-xs py-1.5" style={{ fontVariantNumeric: "tabular-nums" }}>{line.accountCode}</TableCell>
                           <TableCell className="text-xs py-1.5">{line.accountName}</TableCell>
                           <TableCell className="text-xs text-right py-1.5" style={{ fontVariantNumeric: "tabular-nums" }}>
                             {parseFloat(line.debit) > 0 ? fmt(line.debit) : "-"}
