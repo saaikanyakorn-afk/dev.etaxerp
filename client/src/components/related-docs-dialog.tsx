@@ -15,11 +15,11 @@ interface RelatedDoc {
 }
 
 const docTypeConfig: Record<string, { label: string; icon: any; color: string; listPath: string; searchParam: string }> = {
-  quotation: { label: "ใบเสนอราคา", icon: ClipboardList, color: "#fec90f", listPath: "/sales/quotes", searchParam: "quotationNo" },
-  sales_order: { label: "ใบสั่งขาย", icon: ShoppingCart, color: "#fb9678", listPath: "/sales/orders", searchParam: "orderNo" },
-  invoice: { label: "ใบแจ้งหนี้", icon: FileText, color: "#05b187", listPath: "/sales/invoices", searchParam: "invoiceNo" },
-  tax_invoice: { label: "ใบกำกับภาษี", icon: FileCheck, color: "var(--theme-primary)", listPath: "/sales/tax-invoices", searchParam: "taxInvoiceNo" },
-  receipt: { label: "ใบเสร็จรับเงิน", icon: Receipt, color: "#03c9d7", listPath: "/sales/receipts", searchParam: "receiptNo" },
+  quotation: { label: "ใบเสนอราคา", icon: ClipboardList, color: "#fec90f", listPath: "/sales/quote", searchParam: "quotationNo" },
+  sales_order: { label: "ใบสั่งขาย", icon: ShoppingCart, color: "#fb9678", listPath: "/sales/order", searchParam: "orderNo" },
+  invoice: { label: "ใบแจ้งหนี้", icon: FileText, color: "#05b187", listPath: "/sales/invoice", searchParam: "invoiceNo" },
+  tax_invoice: { label: "ใบกำกับภาษี", icon: FileCheck, color: "var(--theme-primary)", listPath: "/sales/tax-invoice", searchParam: "taxInvoiceNo" },
+  receipt: { label: "ใบเสร็จรับเงิน", icon: Receipt, color: "#03c9d7", listPath: "/sales/receipt", searchParam: "receiptNo" },
   journal: { label: "บันทึกบัญชี", icon: BookOpen, color: "#fb9678", listPath: "/journal", searchParam: "reference" },
   purchase_request: { label: "ใบขอซื้อ", icon: ShoppingBag, color: "#fb9678", listPath: "/purchases/pr", searchParam: "prNo" },
   bid_comparison: { label: "เปรียบเทียบราคา", icon: Scale, color: "#fec90f", listPath: "/purchases/bid", searchParam: "bidNo" },
@@ -51,20 +51,6 @@ function fmt(val: string | number | null | undefined): string {
   return n.toLocaleString("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-const editPaths: Record<string, string> = {
-  quotation: "/sales/quote/edit",
-  sales_order: "/sales/order/edit",
-  invoice: "/sales/invoice/edit",
-  tax_invoice: "/sales/tax-invoice/edit",
-  receipt: "/sales/receipt/edit",
-  journal: "/journal/edit",
-  purchase_request: "/purchases/pr/edit",
-  bid_comparison: "/purchases/bid/edit",
-  purchase_order: "/purchases/po/edit",
-  purchase_invoice: "/purchases/ap/edit",
-  expense: "/purchases/exp/edit",
-  billing_note: "/finance/billing-note/edit",
-};
 
 export default function RelatedDocsDialog({
   open,
@@ -138,8 +124,7 @@ export default function RelatedDocsDialog({
                   data-testid={`related-link-${doc.type}-${doc.id}`}
                   onClick={() => {
                     onOpenChange(false);
-                    const path = editPaths[doc.type];
-                    if (path) navigate(`${path}/${doc.id}`);
+                    navigate(`${config.listPath}?companyId=${companyId}&search=${encodeURIComponent(doc.docNo)}`);
                   }}
                   className="w-full flex items-center justify-between rounded-lg border border-gray-100 bg-gray-50 px-3 py-2.5 hover:bg-gray-100 hover:border-gray-200 transition-colors text-left group"
                 >
