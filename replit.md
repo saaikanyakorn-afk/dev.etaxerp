@@ -93,7 +93,7 @@ Kai tracks all files cherry-picked to production. This is the single source of t
 ### Pending ALTER TABLE Cleanup
 | File | ALTER TABLE Line | Column Added | Status |
 |---|---|---|---|
-| server/routes/sales-docs-routes.ts | `ALTER TABLE sales_orders ADD COLUMN IF NOT EXISTS quotation_id INTEGER REFERENCES quotations(id)` | sales_orders.quotation_id | IN CODE — waiting for พี่ทราย to run once, then remove and push clean |
+| server/routes/sales-docs-routes.ts | (REMOVED) | sales_orders.quotation_id | DONE — column added, ALTER TABLE removed from code, clean push pending |
 
 ## Code vs Data Separation (CRITICAL)
 - **Code** and **Data (DB structure)** are separate concerns — always treat them independently.
