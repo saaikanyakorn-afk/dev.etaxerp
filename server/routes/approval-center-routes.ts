@@ -82,9 +82,7 @@ app.get("/api/approval-center", requireAuth, async (req, res) => {
         const leaveConditions = [
           eq(leaveRequests.status, "pending"),
         ];
-        if (isTenantApprover) {
-          leaveConditions.push(eq(employees.tenantId, tenantId));
-        } else if (isCompanyApprover) {
+        if (isTenantApprover || isCompanyApprover) {
           leaveConditions.push(eq(employees.companyId, companyId));
         } else if (user.employeeId) {
           leaveConditions.push(eq(leaveRequests.employeeId, user.employeeId));
@@ -119,9 +117,7 @@ app.get("/api/approval-center", requireAuth, async (req, res) => {
         const otConditions = [
           eq(otRecords.status, "pending"),
         ];
-        if (isTenantApprover) {
-          otConditions.push(eq(employees.tenantId, tenantId));
-        } else if (isCompanyApprover) {
+        if (isTenantApprover || isCompanyApprover) {
           otConditions.push(eq(employees.companyId, companyId));
         } else if (user.employeeId) {
           otConditions.push(eq(otRecords.employeeId, user.employeeId));
