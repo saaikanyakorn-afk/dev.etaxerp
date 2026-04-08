@@ -497,7 +497,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 <ChevronDown className="h-4 w-4 opacity-50" />
               </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-64 p-0 bg-sidebar border-sidebar-border" align="start">
+            <PopoverContent className="w-64 p-0 bg-sidebar border-sidebar-border z-[70]" align="start">
               <div className="p-2 border-b border-sidebar-border">
                 <div className="relative">
                   <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-sidebar-foreground/50" />
