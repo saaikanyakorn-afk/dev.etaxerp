@@ -1353,7 +1353,7 @@ export default function InvoiceForm() {
               </Button>
             </div>
 
-            {isSaved && form.status === "approved" && (
+            {isSaved && (
               <div className="border-t pt-4">
                 <div className="text-xs font-semibold text-slate-600 mb-2 flex items-center gap-1.5">
                   <Link2 className="h-3.5 w-3.5" />
