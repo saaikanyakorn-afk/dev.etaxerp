@@ -318,7 +318,7 @@ async function _createAutoJournalEntryInner(params: AutoJournalParams): Promise<
   let formulaLines: { accountCode: string; accountName: string; direction: string; sortOrder: number }[] = [];
   let noJournalEntry = false;
 
-  if ((isStandaloneTaxInvoice || isStandaloneReceipt) && dbFormulas.length === 0) {
+  if (isStandaloneTaxInvoice || isStandaloneReceipt) {
     const resolveFirst = (...codes: string[]) => codes.find(c => accountMap.has(c)) || codes[0];
     const revenueMap: Record<string, { code: string; name: string }> = {
       service: { code: "4100100", name: "รายได้จากการให้บริการ" },
