@@ -1123,18 +1123,20 @@ app.post("/api/journal-preview", requireAuth, async (req, res) => {
         { accountCode: rf("1431000"), accountName: "ภาษีซื้อ", direction: "debit", sortOrder: 2 },
         { accountCode: rf("1001000"), accountName: "เงินสด/เงินฝากธนาคาร", direction: "credit", sortOrder: 3 },
       ];
-    } else if (isStandaloneTaxInvoice && isServiceType && dbFormulas.length === 0) {
-      formulaName = isCreditPayment ? "ใบกำกับภาษี (บริการ — ขายเชื่อ)" : "ใบกำกับภาษี (บริการ — รับชำระทันที)";
+    } else if (isStandaloneTaxInvoice) {
+      const revCode = isServiceType ? rf("4100100") : (businessType === "ecommerce" || businessType === "online_shop") ? rf("4011000") : rf("4001000");
+      const revName = isServiceType ? "รายได้จากการให้บริการ" : "รายได้จากการขายสินค้า";
+      formulaName = isCreditPayment ? "ใบกำกับภาษี (ขายเชื่อ)" : "ใบกำกับภาษี (รับชำระทันที)";
       if (isCreditPayment) {
         formulaLines = [
           { accountCode: rf("1201000"), accountName: "ลูกหนี้การค้า", direction: "debit", sortOrder: 1 },
-          { accountCode: rf("4100100"), accountName: "รายได้จากการให้บริการ", direction: "credit", sortOrder: 2 },
+          { accountCode: revCode, accountName: revName, direction: "credit", sortOrder: 2 },
           { accountCode: rf("2341000"), accountName: "ภาษีขาย", direction: "credit", sortOrder: 3 },
         ];
       } else {
         formulaLines = [
           { accountCode: rf("1001000"), accountName: "เงินสด/เงินฝากธนาคาร", direction: "debit", sortOrder: 1 },
-          { accountCode: rf("4100100"), accountName: "รายได้จากการให้บริการ", direction: "credit", sortOrder: 2 },
+          { accountCode: revCode, accountName: revName, direction: "credit", sortOrder: 2 },
           { accountCode: rf("2341000"), accountName: "ภาษีขาย", direction: "credit", sortOrder: 3 },
         ];
       }
