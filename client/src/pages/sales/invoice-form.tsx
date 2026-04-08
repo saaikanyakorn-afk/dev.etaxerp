@@ -1137,8 +1137,8 @@ export default function InvoiceForm() {
                       <td className="px-1 pt-1.5">
                         <div className="relative">
                           <textarea
-                            className="w-full min-w-0 text-xs border border-dashed rounded px-2 py-1.5 resize-y min-h-[28px] focus:outline-none focus:ring-1 focus:ring-sky-400 bg-transparent"
-                            rows={1}
+                            className="w-full min-w-0 text-xs border border-dashed rounded px-2 py-1.5 resize-y min-h-[32px] focus:outline-none focus:ring-1 focus:ring-sky-400 bg-transparent"
+                            rows={2}
                             placeholder="พิมพ์ชื่อสินค้า/บริการ"
                             value={productNameSearches[idx] !== undefined ? productNameSearches[idx] : (item.productName || "")}
                             onChange={e => {
