@@ -13,6 +13,7 @@ import path from "path";
 import { parse as csvParse } from "csv-parse/sync";
 
 export function registerSalesDocsRoutes(app: Express) {
+db.execute(sql`ALTER TABLE sales_orders ADD COLUMN IF NOT EXISTS quotation_id INTEGER REFERENCES quotations(id)`).catch(() => {});
 // ========== Sales Orders ==========
 app.get("/api/sales-orders", requireAuth, requireAnyModule("sales", "ecommerce"), async (req, res) => {
   try {

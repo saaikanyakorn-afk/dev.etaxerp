@@ -63,14 +63,18 @@ Kai tracks all files cherry-picked to production. This is the single source of t
 **BEFORE adding/removing/changing ANY column in `shared/schema.ts`:**
 1. STOP. Tell พี่ช้าง: "ฟีเจอร์นี้ต้องเพิ่ม/แก้คอลัมน์ [ชื่อ] ในตาราง [ชื่อ]"
 2. WAIT for พี่ช้าง's approval before touching schema.ts
-3. Production DB change method: Put `ALTER TABLE ... IF NOT EXISTS` inside the CODE FILE that needs the column (not schema.ts, not a separate migration)
-4. The ALTER TABLE line runs on server start — `IF NOT EXISTS` makes it safe to run repeatedly
-5. Track the ALTER TABLE line in **Pending ALTER TABLE Cleanup** below
-6. NEXT TIME Kai touches that file → MUST remove the ALTER TABLE line
+
+**Production DB change process (cherry-pick only):**
+1. Put `ALTER TABLE ... IF NOT EXISTS` inside the CODE FILE that needs the column
+2. Push the file with ALTER TABLE to production
+3. Tell พี่ทราย to run it ONCE (access the page/API that triggers the code)
+4. After confirmed working → REMOVE the ALTER TABLE line from the code
+5. Push the CLEAN code (no ALTER TABLE) along with other fixes
+6. Track in **Pending ALTER TABLE Cleanup** below until step 4-5 are done
 
 **NEVER:**
 - Add columns to schema.ts without telling พี่ช้าง first
-- Suggest running ALTER TABLE on production directly
+- Suggest running ALTER TABLE on production directly (always embed in code)
 - Push code that uses a new column without the ALTER TABLE guard in the same file
 - Assume Replit db:push applies to production — it NEVER does
 
@@ -79,7 +83,7 @@ Kai tracks all files cherry-picked to production. This is the single source of t
 2. พี่ช้าง approves → gives explicit "push ได้"
 3. Kai pushes SINGLE FILE via GitHub API
 4. พี่ช้าง cherry-picks on production
-5. **If the file contains ALTER TABLE** → Kai must warn พี่ช้าง: "ไฟล์นี้มี ALTER TABLE จะเพิ่มคอลัมน์ [ชื่อ] ตอน server start"
+5. **If the file contains ALTER TABLE** → Kai must warn พี่ช้าง: "ไฟล์นี้มี ALTER TABLE จะเพิ่มคอลัมน์ [ชื่อ] ตอน server start — พี่ทรายต้องรันครั้งเดียว แล้ว Kai จะลบ ALTER TABLE แล้ว push โค้ดสะอาดตามมา"
 
 ### Rule 3: No Excuses
 - "I forgot" is not acceptable
@@ -87,9 +91,9 @@ Kai tracks all files cherry-picked to production. This is the single source of t
 - If Kai violates these rules, the production database may be destroyed
 
 ### Pending ALTER TABLE Cleanup
-| File | ALTER TABLE Line | Column Added | Remove When |
+| File | ALTER TABLE Line | Column Added | Status |
 |---|---|---|---|
-| server/routes/sales-docs-routes.ts | PENDING — not yet added | sales_orders.quotation_id | Next time file is touched after confirmed working |
+| server/routes/sales-docs-routes.ts | `ALTER TABLE sales_orders ADD COLUMN IF NOT EXISTS quotation_id INTEGER REFERENCES quotations(id)` | sales_orders.quotation_id | IN CODE — waiting for พี่ทราย to run once, then remove and push clean |
 
 ## Code vs Data Separation (CRITICAL)
 - **Code** and **Data (DB structure)** are separate concerns — always treat them independently.
