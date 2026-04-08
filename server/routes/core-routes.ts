@@ -385,7 +385,6 @@ app.get("/api/companies", requireAuth, async (req, res) => {
       const result = await db.select().from(companies)
         .where(and(...conditions, or(eq(companies.isPrimary, true), fcIds.length > 0 ? inArray(companies.id, fcIds) : sql`false`)))
         .orderBy(desc(companies.isPrimary), companies.name);
-      console.log(`[companies] user=${user.username} role=${user.role} tenant=${user.tenantId} accounting_firm=true fcIds=${fcIds.length} result=${result.length}`);
       res.json(result);
     } else {
       const result = await db.select().from(companies)
