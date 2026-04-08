@@ -287,7 +287,7 @@ export function registerHrRoutes(app: Express) {
     }
   });
 
-  app.get("/api/employees/template-excel", requireAuth, requireModule("hr"), async (_req, res) => {
+  app.get("/api/employees/template-excel", async (_req, res) => {
     const XLSX = await import("xlsx");
     const wb = XLSX.utils.book_new();
     const headers = [

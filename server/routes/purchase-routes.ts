@@ -1,4 +1,5 @@
 import type { Express } from "express";
+import * as XLSX from "xlsx";
 import { db } from "../db";
 import { storage } from "../storage";
 import { eq, and, desc, or, sql, count, not, ilike } from "drizzle-orm";
@@ -2580,7 +2581,7 @@ export function registerPurchaseRoutes(app: Express) {
 
   // ============ Purchase Invoice Import ============
 
-  app.get("/api/purchase-invoices/import/template", requireAuth, requireModule("purchases"), (_req, res) => {
+  app.get("/api/purchase-invoices/import/template", (_req, res) => {
     const headers = [
       "เลขที่เอกสาร", "วันที่เอกสาร", "วันครบกำหนด", "ชื่อผู้จำหน่าย", "เลขประจำตัวผู้เสียภาษี",
       "ที่อยู่ผู้จำหน่าย", "สาขา", "เลขที่ใบกำกับภาษี", "รหัสสินค้า", "ชื่อสินค้า",

@@ -423,7 +423,7 @@ app.get("/api/contacts/next-code", requireAuth, requireModule("contacts"), async
 });
 
 // ==================== Contact Import ====================
-app.get("/api/contacts/import/template", requireAuth, (_req, res) => {
+app.get("/api/contacts/import/template", (_req, res) => {
   const headers = ["รหัสคู่ค้า", "ชื่อคู่ค้า", "ชื่ออังกฤษ", "ชื่อจีน", "ประเภท", "เลขภาษี", "สาขา", "ที่อยู่", "โทรศัพท์", "อีเมล", "ผู้ติดต่อ", "เครดิต", "หมายเหตุ"];
   const sample = ["C001", "บริษัท ตัวอย่าง จำกัด", "Example Co., Ltd.", "", "ลูกค้า", "1234567890123", "สำนักงานใหญ่", "123 ถนนสุขุมวิท", "02-123-4567", "info@example.com", "คุณสมชาย", 30, ""];
   const wb = XLSX.utils.book_new();

@@ -1155,7 +1155,7 @@ app.get("/api/share/invoice/:token", async (req, res) => {
 
 // ========== Invoice Import Routes ==========
 
-app.get("/api/invoices/import/template", requireAuth, requireAnyModule("sales", "ecommerce"), (_req, res) => {
+app.get("/api/invoices/import/template", (_req, res) => {
   const headers = [
     "เลขที่เอกสาร", "วันที่เอกสาร", "วันครบกำหนด", "รหัสลูกค้า", "ชื่อลูกค้า",
     "เลขประจำตัวผู้เสียภาษี", "ที่อยู่ลูกค้า", "สาขา", "ผู้ติดต่อ", "โทรศัพท์",

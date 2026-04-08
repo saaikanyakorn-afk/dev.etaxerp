@@ -17,7 +17,7 @@ const upload = multer({ storage: multer.memoryStorage() });
 
 export function registerProductsRoutes(app: Express) {
 // ==================== Product Import/Export ====================
-app.get("/api/products/import/template", requireAuth, (_req, res) => {
+app.get("/api/products/import/template", (_req, res) => {
   const headers = ["รหัสสินค้า", "ชื่อสินค้า", "ชื่ออังกฤษ", "ชื่อจีน", "หมวดหมู่", "รายละเอียด", "หน่วย", "ราคาขาย", "ต้นทุน", "รวมVAT", "รหัสบัญชี"];
   const sample = ["P001", "สินค้าตัวอย่าง", "Sample Product", "", "สินค้า", "รายละเอียดสินค้า", "ชิ้น", 100, 70, "ไม่รวม", "4001000"];
   const wb = XLSX.utils.book_new();

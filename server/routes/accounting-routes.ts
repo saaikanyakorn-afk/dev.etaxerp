@@ -16,7 +16,7 @@ import { updatePeriodBalanceForEntry } from "./period-balances";
 
 export function registerAccountingRoutes(app: Express) {
 // ==================== Chart of Accounts Import/Export ====================
-app.get("/api/accounts/import/template", requireAuth, (_req, res) => {
+app.get("/api/accounts/import/template", (_req, res) => {
   const headers = ["รหัสบัญชี", "ชื่อบัญชี (English)", "ชื่อบัญชี (ไทย)", "ประเภท", "Parent Code"];
   const typeInfo = "asset=สินทรัพย์, liability=หนี้สิน, equity=ส่วนของเจ้าของ, revenue=รายได้, expense=ค่าใช้จ่าย";
   const samples = [

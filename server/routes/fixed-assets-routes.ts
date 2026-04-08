@@ -126,9 +126,9 @@ export function registerFixedAssetsRoutes(app: Express) {
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
-  app.get("/api/fixed-assets/import/template", requireAuth, async (req, res) => {
+  app.get("/api/fixed-assets/import/template", async (req, res) => {
     try {
-      const companyId = Number(req.query.companyId) || (req.user as any)?.companyId;
+      const companyId = Number(req.query.companyId) || (req.user as any)?.companyId || 0;
       const cats = companyId ? await getCompanyCategories(companyId) : DEFAULT_ASSET_CATEGORIES;
       const headers = ["รหัสสินทรัพย์", "ชื่อสินทรัพย์", "รายละเอียด", "หมวดหมู่", "วันที่ซื้อ", "วันเริ่มคิดค่าเสื่อม", "ราคาทุน", "มูลค่าซาก", "อายุการใช้งาน(เดือน)", "สถานที่", "แผนก", "ผู้จำหน่าย", "เลขที่ใบแจ้งหนี้", "หมายเหตุ"];
       const sample = ["FA-0001", "เครื่องคอมพิวเตอร์", "Dell OptiPlex", "อุปกรณ์คอมพิวเตอร์", "01/01/2026", "01/01/2026", "35000", "1000", "36", "สำนักงานใหญ่", "บัญชี", "บจ. คอมพิวเตอร์ จำกัด", "INV-001", ""];

@@ -690,7 +690,7 @@ export function registerExpenseRoutes(app: Express) {
   });
 
   // ============= EXPENSE IMPORT =============
-  app.get("/api/expenses/import/template", requireAuth, requireModule("purchases"), (_req, res) => {
+  app.get("/api/expenses/import/template", (_req, res) => {
     const headers = [
       "เลขที่เอกสาร", "วันที่เอกสาร", "วันครบกำหนด", "ชื่อผู้จำหน่าย", "เลขประจำตัวผู้เสียภาษี",
       "ที่อยู่ผู้จำหน่าย", "สาขา", "เลขที่ใบกำกับภาษี", "รหัสบัญชี", "ชื่อบัญชี",
