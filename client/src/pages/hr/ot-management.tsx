@@ -71,7 +71,8 @@ export default function OTManagement() {
     queryFn: async () => {
       const r = await fetch(`/api/employees?status=active&companyId=${companyId}`, { credentials: "include" });
       if (!r.ok) return [];
-      return r.json();
+      const data = await r.json();
+      return Array.isArray(data) ? data : (data.data || []);
     },
     enabled: !!user && !!companyId,
   });

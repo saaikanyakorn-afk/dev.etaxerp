@@ -72,8 +72,8 @@ export function tenantGuard(req: Request, res: Response, next: NextFunction) {
       }
     }
 
-    const NON_ADMIN_ROLES = ["client", "employee", "accountant"];
-    if (NON_ADMIN_ROLES.includes(user.role)) {
+    const RESTRICTED_ROLES = ["client", "employee", "accountant", "manager"];
+    if (RESTRICTED_ROLES.includes(user.role)) {
       const allowedIds = await getUserAllowedCompanyIds(user.id);
       if (allowedIds && allowedIds.length > 0) {
         if (!allowedIds.includes(companyId)) {
@@ -105,8 +105,8 @@ export async function checkDocOwnership(
     }
   }
 
-  const NON_ADMIN_ROLES2 = ["client", "employee", "accountant"];
-  if (NON_ADMIN_ROLES2.includes(user.role)) {
+  const RESTRICTED_ROLES2 = ["client", "employee", "accountant", "manager"];
+  if (RESTRICTED_ROLES2.includes(user.role)) {
     const allowedIds = await getUserAllowedCompanyIds(user.id);
     if (allowedIds && allowedIds.length > 0) {
       if (!allowedIds.includes(docCompanyId)) {

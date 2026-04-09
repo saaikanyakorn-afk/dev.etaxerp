@@ -383,7 +383,11 @@ app.get("/api/companies", requireAuth, async (req, res) => {
     conditions.push(eq(companies.tenantId, user.tenantId));
   }
 
-  if (user.role === "superadmin" || user.role === "admin" || user.role === "manager") {
+  const { getUserAllowedCompanyIds } = await import("../route-middleware");
+  const userAllowedIds = await getUserAllowedCompanyIds(user.id);
+  const hasAllowedRestriction = userAllowedIds && userAllowedIds.length > 0;
+
+  if ((user.role === "superadmin" || user.role === "admin" || user.role === "manager") && !hasAllowedRestriction) {
     if (isAccountingFirm) {
       const activeFcCompanyIds = await db.select({ companyId: firmClients.companyId })
         .from(firmClients)
