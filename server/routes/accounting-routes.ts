@@ -3,7 +3,7 @@ import { db } from "../db";
 import { storage } from "../storage";
 import { eq, desc, and, or, gte, lte, count , sql } from "drizzle-orm";
 import { accounts, companies, accountingFormulas, accountingFormulaLines, journalEntries, users, journalLines, pettyCashFunds, pettyCashTransactions, invoices, taxInvoices, receipts, expenses, expenseItems, withholdingTaxCerts, paymentMethods } from "@shared/schema";
-import { requireAuth, requireAdmin, requireModule, requireAnyModule, checkDocOwnership } from "../route-middleware";
+import { requireAuth, requireAdmin, requireRole, requireModule, requireAnyModule, checkDocOwnership } from "../route-middleware";
 import { getNextJournalEntryNo, resolvePaymentMethodAccountCode, logActivity, checkClosedPeriod } from "../route-helpers";
 import { parsePagination, paginatedResponse } from "./pagination";
 import multer from "multer";
@@ -646,7 +646,7 @@ app.get("/api/accounting-formulas/:id", requireAuth, requireModule("accounting")
   res.json({ ...formula, lines });
 });
 
-app.post("/api/accounting-formulas", requireAuth, requireAdmin, async (req, res) => {
+app.post("/api/accounting-formulas", requireAuth, requireRole("admin", "super_admin", "manager"), async (req, res) => {
   try {
     const { lines, ...formulaData } = req.body;
     const formula = await storage.createAccountingFormula(formulaData);
@@ -660,7 +660,7 @@ app.post("/api/accounting-formulas", requireAuth, requireAdmin, async (req, res)
   }
 });
 
-app.put("/api/accounting-formulas/:id", requireAuth, requireAdmin, async (req, res) => {
+app.put("/api/accounting-formulas/:id", requireAuth, requireRole("admin", "super_admin", "manager"), async (req, res) => {
   try {
     const id = Number(req.params.id);
     const { lines, ...formulaData } = req.body;
@@ -676,12 +676,12 @@ app.put("/api/accounting-formulas/:id", requireAuth, requireAdmin, async (req, r
   }
 });
 
-app.delete("/api/accounting-formulas/:id", requireAuth, requireAdmin, async (req, res) => {
+app.delete("/api/accounting-formulas/:id", requireAuth, requireRole("admin", "super_admin", "manager"), async (req, res) => {
   await storage.deleteAccountingFormula(Number(req.params.id));
   res.json({ message: "ลบสูตรบัญชีสำเร็จ" });
 });
 
-app.post("/api/accounting-formulas/seed", requireAuth, requireAdmin, async (req, res) => {
+app.post("/api/accounting-formulas/seed", requireAuth, requireRole("admin", "super_admin", "manager"), async (req, res) => {
   try {
     const { companyId, businessType } = req.body;
     if (!companyId || !businessType) {

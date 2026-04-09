@@ -3,7 +3,7 @@ import { db } from "../db";
 import { storage } from "../storage";
 import { eq } from "drizzle-orm";
 import { generalSettings, documentSettings } from "@shared/schema";
-import { requireAuth, requireAdmin } from "../route-middleware";
+import { requireAuth, requireAdmin, requireRole } from "../route-middleware";
 import { z } from "zod";
 
 export function registerDocSettingsRoutes(app: Express) {
@@ -126,7 +126,7 @@ app.get("/api/document-settings/:companyId", requireAuth, async (req, res) => {
   }
 });
 
-app.put("/api/document-settings/:companyId", requireAuth, requireAdmin, async (req, res) => {
+app.put("/api/document-settings/:companyId", requireAuth, requireRole("admin", "super_admin", "manager"), async (req, res) => {
   try {
     const companyId = Number(req.params.companyId);
     const user = req.user as any;

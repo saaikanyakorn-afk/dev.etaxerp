@@ -2,7 +2,7 @@ import type { Express, Request, Response } from "express";
 import { db } from "../db";
 import { eq, and } from "drizzle-orm";
 import { customFormTemplates } from "@shared/schema";
-import { requireAuth, requireAdmin } from "../route-middleware";
+import { requireAuth, requireAdmin, requireRole } from "../route-middleware";
 import { z } from "zod";
 
 const formFieldSchema = z.object({
@@ -98,7 +98,7 @@ export function registerCustomFormRoutes(app: Express) {
     }
   });
 
-  app.post("/api/custom-form-templates", requireAuth, requireAdmin, async (req: Request, res: Response) => {
+  app.post("/api/custom-form-templates", requireAuth, requireRole("admin", "super_admin", "manager"), async (req: Request, res: Response) => {
     try {
       const parsed = createSchema.parse(req.body);
       if (parsed.isDefault) {
@@ -134,7 +134,7 @@ export function registerCustomFormRoutes(app: Express) {
     }
   });
 
-  app.put("/api/custom-form-templates/:id", requireAuth, requireAdmin, async (req: Request, res: Response) => {
+  app.put("/api/custom-form-templates/:id", requireAuth, requireRole("admin", "super_admin", "manager"), async (req: Request, res: Response) => {
     try {
       const id = Number(req.params.id);
       const { row, ok } = await verifyOwnership(id, req);
@@ -174,7 +174,7 @@ export function registerCustomFormRoutes(app: Express) {
     }
   });
 
-  app.delete("/api/custom-form-templates/:id", requireAuth, requireAdmin, async (req: Request, res: Response) => {
+  app.delete("/api/custom-form-templates/:id", requireAuth, requireRole("admin", "super_admin", "manager"), async (req: Request, res: Response) => {
     try {
       const id = Number(req.params.id);
       const { row, ok } = await verifyOwnership(id, req);
