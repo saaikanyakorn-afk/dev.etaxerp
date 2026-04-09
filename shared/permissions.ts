@@ -38,7 +38,7 @@ export const PERMISSION_MODULES: PermissionModule[] = [
   { key: "job-costing", label: "ต้นทุนงานก่อสร้าง", description: "บัญชีต้นทุนงาน, กำไรขาดทุนแต่ละโปรเจค, ต้นทุนต่อยูนิต", allowedRoles: ["admin", "manager", "accountant"] },
   { key: "crm", label: "CRM ลูกค้า", description: "จัดการลูกค้า, ต้นทุนโฆษณา & ROAS", allowedRoles: ["admin", "manager", "accountant"] },
   { key: "tax-tools", label: "Tax Tools", description: "นำเข้า 50 ทวิ, สร้างงบการเงิน, ดึงใบเสร็จราชการ", allowedRoles: ["admin", "manager", "accountant"] },
-  { key: "settings", label: "ตั้งค่า", description: "กำหนดสิทธิ์ผู้ใช้งาน, ตั้งค่าระบบ", allowedRoles: ["admin"] },
+  { key: "settings", label: "ตั้งค่า", description: "กำหนดสิทธิ์ผู้ใช้งาน, ตั้งค่าระบบ", allowedRoles: ["admin", "manager"] },
   { key: "client-portal", label: "ดูข้อมูลบริษัท (ลูกค้า)", description: "ดูรายงาน, ใบแจ้งหนี้ของบริษัทตนเอง", allowedRoles: ["client"] },
 ];
 
