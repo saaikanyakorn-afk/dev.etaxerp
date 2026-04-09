@@ -268,11 +268,11 @@ app.get("/api/permissions/me", requireAuth, async (req, res) => {
     allowedModules = allowedModules.filter(m => !FIRM_ONLY_MODULES.includes(m));
   }
 
-  const isRestrictedManager = user.role === "manager" && Array.isArray(user.allowedCompanyIds) && user.allowedCompanyIds.length > 0;
-  if (isRestrictedManager) {
-    const RESTRICTED_MANAGER_HIDDEN = ["firm-mgmt", "etax-hub", "settings"];
-    allowedModules = allowedModules.filter(m => !RESTRICTED_MANAGER_HIDDEN.includes(m));
-  } else if (!isPrimary && user.role !== "admin") {
+  if (user.role === "manager") {
+    allowedModules = allowedModules.filter(m => !["firm-mgmt", "etax-hub", "settings"].includes(m));
+  }
+
+  if (!isPrimary && user.role !== "admin") {
     const isAccountingFirm = tenantType === "accounting_firm";
     const accountantExceptions = isAccountingFirm && (user.role === "accountant") ? ["hr", "firm-mgmt"] : [];
     const managerExceptions = isAccountingFirm && (user.role === "manager") ? ["hr"] : [];
