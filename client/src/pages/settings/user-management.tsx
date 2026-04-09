@@ -10,10 +10,10 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Shield, UserPlus, Pencil, UserCheck, UserX, Users, Lock, ChevronRight, Settings2, KeyRound, Eye, EyeOff, ShoppingCart, ExternalLink, LogOut } from "lucide-react";
+import { Shield, UserPlus, Pencil, UserCheck, UserX, Users, Lock, ChevronRight, Settings2, KeyRound, Eye, EyeOff, ShoppingCart, ExternalLink } from "lucide-react";
 import { Link } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useCompany } from "@/lib/company-context";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
@@ -186,6 +186,12 @@ export default function UserManagement() {
   const saveSubPermsMutation = useMutation({
     mutationFn: async () => {
       if (!subPermUser) throw new Error("No user selected");
+      await fetch(`/api/users/${subPermUser.id}/lock`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ durationMs: 30 * 1000 }),
+        credentials: "include",
+      }).catch(() => {});
       const newPerms = Array.from(localSubPerms.entries()).map(([subModuleKey, allowed]) => ({ subModuleKey, allowed }));
       const r = await fetch(`/api/permissions/users/${subPermUser.id}/submodules`, {
         method: "PUT",
@@ -194,9 +200,13 @@ export default function UserManagement() {
         credentials: "include",
       });
       if (!r.ok) { const d = await r.json(); throw new Error(d.message); }
+      await fetch(`/api/users/${subPermUser.id}/unlock`, { method: "POST", credentials: "include" }).catch(() => {});
       return r.json();
     },
     onSuccess: () => {
+      if (lockTimerRef.current) clearInterval(lockTimerRef.current);
+      setLockState(null);
+      setLockCountdown(0);
       refetchSubPerms();
       queryClient.invalidateQueries({ queryKey: ["/api/permissions/me"] });
       setSubPermDirty(false);
@@ -270,21 +280,98 @@ export default function UserManagement() {
     },
   });
 
-  const kickUserMutation = useMutation({
-    mutationFn: (userId: number) => fetch(`/api/users/${userId}/kick`, {
-      method: "POST",
-      credentials: "include",
-    }).then(r => {
-      if (!r.ok) return r.json().then(d => { throw new Error(d.message); });
-      return r.json();
-    }),
-    onSuccess: (data: any) => {
-      toast({ title: `${data.message}`, variant: "success" as any });
-    },
-    onError: (err: any) => {
-      toast({ title: "ไม่สำเร็จ", description: err.message, variant: "destructive" });
-    },
-  });
+  const [lockState, setLockState] = useState<{ locked: boolean; expiresAt: number; userId: number } | null>(null);
+  const [lockCountdown, setLockCountdown] = useState(0);
+  const lockTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [showOnlineWarning, setShowOnlineWarning] = useState(false);
+  const [pendingOnlineUser, setPendingOnlineUser] = useState<any>(null);
+
+  const localSubPermsRef = useRef(localSubPerms);
+  localSubPermsRef.current = localSubPerms;
+  const subPermUserRef = useRef(subPermUser);
+  subPermUserRef.current = subPermUser;
+
+  const handleLockTimeout = async () => {
+    const user = subPermUserRef.current;
+    if (!user) return;
+    try {
+      const newPerms = Array.from(localSubPermsRef.current.entries()).map(([subModuleKey, allowed]) => ({ subModuleKey, allowed }));
+      await fetch(`/api/permissions/users/${user.id}/submodules`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ permissions: newPerms }),
+        credentials: "include",
+      });
+      await fetch(`/api/users/${user.id}/unlock`, { method: "POST", credentials: "include" });
+      refetchSubPerms();
+      queryClient.invalidateQueries({ queryKey: ["/api/permissions/me"] });
+      toast({ title: "หมดเวลาแล้ว — บันทึกค่าล่าสุดให้อัตโนมัติ", variant: "default" });
+    } catch {}
+    setLockState(null);
+    setSubPermDirty(false);
+  };
+
+  const handleLockTimeoutRef = useRef(handleLockTimeout);
+  handleLockTimeoutRef.current = handleLockTimeout;
+
+  const startCountdown = (expiresAt: number) => {
+    if (lockTimerRef.current) clearInterval(lockTimerRef.current);
+    const updateCountdown = () => {
+      const remain = Math.max(0, Math.ceil((expiresAt - Date.now()) / 1000));
+      setLockCountdown(remain);
+      if (remain <= 0) {
+        if (lockTimerRef.current) clearInterval(lockTimerRef.current);
+        handleLockTimeoutRef.current();
+      }
+    };
+    updateCountdown();
+    lockTimerRef.current = setInterval(updateCountdown, 1000);
+  };
+
+  const checkAndOpenSubPerms = async (u: any) => {
+    try {
+      const r = await fetch(`/api/users/${u.id}/session-status`, { credentials: "include" });
+      const data = await r.json();
+      if (data.online) {
+        setPendingOnlineUser(u);
+        setShowOnlineWarning(true);
+        return;
+      }
+    } catch {}
+    openSubPerms(u);
+  };
+
+  const confirmLockAndOpen = async () => {
+    if (!pendingOnlineUser) return;
+    const u = pendingOnlineUser;
+    setShowOnlineWarning(false);
+    setPendingOnlineUser(null);
+    try {
+      const r = await fetch(`/api/users/${u.id}/lock`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ durationMs: 5 * 60 * 1000 }),
+        credentials: "include",
+      });
+      const data = await r.json();
+      if (data.locked) {
+        setLockState({ locked: true, expiresAt: data.expiresAt, userId: u.id });
+        startCountdown(data.expiresAt);
+      }
+    } catch {}
+    openSubPerms(u);
+  };
+
+  const cancelOnlineWarning = () => {
+    setShowOnlineWarning(false);
+    setPendingOnlineUser(null);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (lockTimerRef.current) clearInterval(lockTimerRef.current);
+    };
+  }, []);
 
   const handleAdd = (e: React.FormEvent) => {
     e.preventDefault();
@@ -625,19 +712,6 @@ export default function UserManagement() {
                                 >
                                   {u.active ? <><UserX className="h-3.5 w-3.5 mr-1" /> ระงับ</> : <><UserCheck className="h-3.5 w-3.5 mr-1" /> เปิดใช้</>}
                                 </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-8 text-amber-600 hover:text-amber-800"
-                                  onClick={() => {
-                                    if (confirm(`บังคับ "${u.fullName}" ออกจากระบบ?`)) {
-                                      kickUserMutation.mutate(u.id);
-                                    }
-                                  }}
-                                  data-testid={`button-kick-user-${u.id}`}
-                                >
-                                  <LogOut className="h-3.5 w-3.5 mr-1" /> Kick
-                                </Button>
                               </>
                             )}
                           </div>
@@ -779,7 +853,7 @@ export default function UserManagement() {
                     <div
                       key={u.id}
                       className="border rounded-lg p-4 hover:border-[var(--theme-primary)]/30 hover:bg-[#eef4ff]/30 transition-colors cursor-pointer group"
-                      onClick={() => openSubPerms(u)}
+                      onClick={() => checkAndOpenSubPerms(u)}
                       data-testid={`card-subperm-user-${u.id}`}
                     >
                       <div className="flex items-center justify-between">
@@ -908,9 +982,50 @@ export default function UserManagement() {
           </DialogContent>
         </Dialog>
 
+        <Dialog open={showOnlineWarning} onOpenChange={(open) => { if (!open) cancelOnlineWarning(); }}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-amber-600">
+                <Lock className="h-5 w-5" />
+                ผู้ใช้กำลังออนไลน์อยู่
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3 py-2">
+              <p className="text-sm text-gray-700">
+                <strong>{pendingOnlineUser?.fullName}</strong> กำลังใช้งานระบบอยู่ในขณะนี้
+              </p>
+              <p className="text-sm text-gray-700">
+                ถ้าดำเนินการตอนนี้ ผู้ใช้จะถูกบังคับออกจากระบบและไม่สามารถ login กลับมาได้จนกว่าคุณจะเสร็จสิ้น (จำกัดเวลา 5 นาที)
+              </p>
+              <p className="text-sm text-amber-600 font-medium">
+                ต้องการเปลี่ยนสิทธิ์ตอนนี้หรือไม่?
+              </p>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={cancelOnlineWarning} data-testid="button-cancel-lock">
+                ไม่ ไว้ทีหลัง
+              </Button>
+              <Button
+                onClick={confirmLockAndOpen}
+                className="text-white hover:opacity-90"
+                style={{ background: "#fb9678" }}
+                data-testid="button-confirm-lock"
+              >
+                ใช่ ดำเนินการเลย
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
         <Dialog open={subPermOpen} onOpenChange={(open) => {
           if (!open && subPermDirty) {
             if (!confirm("คุณมีการเปลี่ยนแปลงที่ยังไม่ได้บันทึก ต้องการปิดหน้าต่างนี้หรือไม่?")) return;
+          }
+          if (!open && lockState && subPermUser) {
+            fetch(`/api/users/${subPermUser.id}/unlock`, { method: "POST", credentials: "include" }).catch(() => {});
+            if (lockTimerRef.current) clearInterval(lockTimerRef.current);
+            setLockState(null);
+            setLockCountdown(0);
           }
           setSubPermOpen(open);
           if (!open) { setSubPermUser(null); setSubPermDirty(false); }
@@ -928,6 +1043,20 @@ export default function UserManagement() {
                 เปิด/ปิด เมนูย่อยที่ผู้ใช้สามารถเข้าถึงได้ — กดปุ่ม "บันทึก" เพื่อยืนยันการเปลี่ยนแปลง
               </p>
             </DialogHeader>
+
+            {lockState && lockCountdown > 0 && (
+              <div className="flex items-center gap-3 px-4 py-3 rounded-lg border border-amber-200 bg-amber-50">
+                <Lock className="h-5 w-5 text-amber-600 flex-shrink-0" />
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-amber-800">
+                    ผู้ใช้ถูก lock ชั่วคราว — เหลือเวลา {Math.floor(lockCountdown / 60)}:{String(lockCountdown % 60).padStart(2, "0")} นาที
+                  </p>
+                  <p className="text-xs text-amber-600">
+                    กรุณาตั้งค่าให้เสร็จและกดบันทึกก่อนหมดเวลา หากหมดเวลาระบบจะบันทึกค่าล่าสุดให้อัตโนมัติ
+                  </p>
+                </div>
+              </div>
+            )}
 
             {subPermUser && (
               <div className="space-y-4 mt-2">
