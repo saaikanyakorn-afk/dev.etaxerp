@@ -156,8 +156,6 @@ export function requireModule(moduleKey: string) {
     const user = req.user as any;
     if (!user) return res.status(401).json({ message: "กรุณาเข้าสู่ระบบ" });
 
-    if (user.role === "client_external" && moduleKey === "etax-hub") return next();
-
     const { PRIMARY_ONLY_MODULES, FIRM_ONLY_MODULES, hasPermission } = await import("@shared/permissions");
 
     let tenantType = "accounting_firm";
@@ -179,29 +177,47 @@ export function requireModule(moduleKey: string) {
       }
     }
 
-    if (user.role === "admin") return next();
+    switch (user.role) {
+      case "admin":
+      case "super_admin":
+        return next();
 
-    if (PRIMARY_ONLY_MODULES.includes(moduleKey)) {
-      const managerHrException = user.role === "manager" && moduleKey === "hr";
-      if (!managerHrException) {
-        const companyId = req.query.companyId ? Number(req.query.companyId) : null;
-        if (companyId) {
-          const company = await storage.getCompany(companyId);
-          if (!company?.isPrimary) {
-            return res.status(403).json({ message: "ไม่มีสิทธิ์เข้าถึงส่วนนี้ในบริษัทลูกค้า" });
+      case "client_external":
+        if (moduleKey === "etax-hub") return next();
+        return res.status(403).json({ message: "ไม่มีสิทธิ์เข้าถึงส่วนนี้" });
+
+      case "manager":
+      case "accountant":
+      case "employee":
+      case "cashier":
+      case "client": {
+        if (PRIMARY_ONLY_MODULES.includes(moduleKey)) {
+          const managerHrException = user.role === "manager" && moduleKey === "hr";
+          const managerSettingsException = user.role === "manager" && moduleKey === "settings";
+          if (!managerHrException && !managerSettingsException) {
+            const companyId = req.query.companyId ? Number(req.query.companyId) : null;
+            if (companyId) {
+              const company = await storage.getCompany(companyId);
+              if (!company?.isPrimary) {
+                return res.status(403).json({ message: "ไม่มีสิทธิ์เข้าถึงส่วนนี้ในบริษัทลูกค้า" });
+              }
+            }
           }
         }
-      }
-    }
 
-    const perms = await storage.getRolePermissionsByRole(user.role);
-    if (perms.length === 0) {
-      if (hasPermission(user.role, moduleKey)) return next();
-      return res.status(403).json({ message: "ไม่มีสิทธิ์เข้าถึงส่วนนี้" });
+        const perms = await storage.getRolePermissionsByRole(user.role);
+        if (perms.length === 0) {
+          if (hasPermission(user.role, moduleKey)) return next();
+          return res.status(403).json({ message: "ไม่มีสิทธิ์เข้าถึงส่วนนี้" });
+        }
+        const perm = perms.find(p => p.moduleKey === moduleKey);
+        if (perm && perm.allowed) return next();
+        return res.status(403).json({ message: "ไม่มีสิทธิ์เข้าถึงส่วนนี้" });
+      }
+
+      default:
+        return res.status(403).json({ message: "ไม่มีสิทธิ์เข้าถึงส่วนนี้" });
     }
-    const perm = perms.find(p => p.moduleKey === moduleKey);
-    if (perm && perm.allowed) return next();
-    return res.status(403).json({ message: "ไม่มีสิทธิ์เข้าถึงส่วนนี้" });
   };
 }
 
@@ -209,19 +225,33 @@ export function requireAnyModule(...moduleKeys: string[]) {
   return async (req: Request, res: Response, next: NextFunction) => {
     const user = req.user as any;
     if (!user) return res.status(401).json({ message: "กรุณาเข้าสู่ระบบ" });
-    if (user.role === "admin") return next();
 
-    const { hasPermission } = await import("@shared/permissions");
-    const perms = await storage.getRolePermissionsByRole(user.role);
+    switch (user.role) {
+      case "admin":
+      case "super_admin":
+        return next();
 
-    for (const moduleKey of moduleKeys) {
-      if (perms.length === 0) {
-        if (hasPermission(user.role, moduleKey)) return next();
-      } else {
-        const perm = perms.find(p => p.moduleKey === moduleKey);
-        if (perm && perm.allowed) return next();
+      case "manager":
+      case "accountant":
+      case "employee":
+      case "cashier":
+      case "client":
+      case "client_external": {
+        const { hasPermission } = await import("@shared/permissions");
+        const perms = await storage.getRolePermissionsByRole(user.role);
+        for (const moduleKey of moduleKeys) {
+          if (perms.length === 0) {
+            if (hasPermission(user.role, moduleKey)) return next();
+          } else {
+            const perm = perms.find(p => p.moduleKey === moduleKey);
+            if (perm && perm.allowed) return next();
+          }
+        }
+        return res.status(403).json({ message: "ไม่มีสิทธิ์เข้าถึงส่วนนี้" });
       }
+
+      default:
+        return res.status(403).json({ message: "ไม่มีสิทธิ์เข้าถึงส่วนนี้" });
     }
-    return res.status(403).json({ message: "ไม่มีสิทธิ์เข้าถึงส่วนนี้" });
   };
 }
