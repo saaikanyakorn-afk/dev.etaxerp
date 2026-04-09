@@ -134,6 +134,7 @@ export default function UserManagement() {
   const [localSubPerms, setLocalSubPerms] = useState<Map<string, boolean>>(new Map());
   const [subPermDirty, setSubPermDirty] = useState(false);
 
+  const userSubPermsJson = JSON.stringify(userSubPerms);
   useEffect(() => {
     if (subPermUser && userSubPerms.length > 0) {
       const map = new Map<string, boolean>();
@@ -144,7 +145,7 @@ export default function UserManagement() {
       setLocalSubPerms(new Map());
       setSubPermDirty(false);
     }
-  }, [subPermUser?.id, userSubPerms]);
+  }, [subPermUser?.id, userSubPermsJson]);
 
   const isSubModuleAllowed = (subKey: string): boolean => {
     if (!subPermUser) return true;
