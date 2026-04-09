@@ -36,7 +36,7 @@ export const PERMISSION_MODULES: PermissionModule[] = [
   { key: "etax-hub", label: "E-Tax Hub", description: "จัดการงานลูกค้า, มอบหมายงาน, แชร์เอกสาร (Monday.com style)", allowedRoles: ["admin", "manager", "accountant"] },
   { key: "gas-station", label: "ปั๊มน้ำมัน", description: "บัญชีปั๊มน้ำมัน, ยอดขายรายวัน, สต็อก, มิเตอร์, Oil Loss/Gain, ภาษีท้องถิ่น", allowedRoles: ["admin", "manager", "accountant"] },
   { key: "job-costing", label: "ต้นทุนงานก่อสร้าง", description: "บัญชีต้นทุนงาน, กำไรขาดทุนแต่ละโปรเจค, ต้นทุนต่อยูนิต", allowedRoles: ["admin", "manager", "accountant"] },
-  { key: "settings", label: "ตั้งค่า", description: "กำหนดสิทธิ์ผู้ใช้งาน, ตั้งค่าระบบ", allowedRoles: ["admin", "manager"] },
+  { key: "settings", label: "ตั้งค่า", description: "กำหนดสิทธิ์ผู้ใช้งาน, ตั้งค่าระบบ", allowedRoles: ["admin"] },
   { key: "client-portal", label: "ดูข้อมูลบริษัท (ลูกค้า)", description: "ดูรายงาน, ใบแจ้งหนี้ของบริษัทตนเอง", allowedRoles: ["client"] },
 ];
 
