@@ -1793,6 +1793,8 @@ function EditMachineDialog({
 }) {
   const isNew = !machine;
   const [showDbPassword, setShowDbPassword] = useState(false);
+  const originalAppPort = machine?.appPort || "5000";
+  const [portChangeDialog, setPortChangeDialog] = useState<{ show: boolean; tested: boolean | null; testing: boolean; results: any[] }>({ show: false, tested: null, testing: false, results: [] });
   const [form, setForm] = useState({
     localName: machine?.localName || "",
     windowsName: machine?.windowsName || "",
