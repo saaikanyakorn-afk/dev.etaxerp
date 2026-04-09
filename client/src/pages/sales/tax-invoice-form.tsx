@@ -1344,7 +1344,7 @@ export default function TaxInvoiceForm() {
               </table>
             </div>
 
-            <div className="border rounded overflow-x-auto -mx-2 sm:mx-0 doc-items-table">
+            <div className="border rounded overflow-visible -mx-2 sm:mx-0 doc-items-table">
               <table className="w-full text-sm" style={{tableLayout:"fixed", minWidth:"720px"}}>
                 <colgroup>
                   <col style={{width:"3%"}} />

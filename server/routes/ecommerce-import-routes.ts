@@ -27,8 +27,9 @@ app.post("/api/grab/connect", requireAuth, requireModule("ecommerce"), async (re
     if (!companyId || !clientId || !clientSecret || !merchantId || !shopName) {
       return res.status(400).json({ message: "กรุณากรอกข้อมูลให้ครบ" });
     }
-    const userCompanies = await storage.getUserCompanies(user.id);
-    if (!userCompanies.some((uc: any) => uc.companyId === Number(companyId))) {
+    const { getUserAllowedCompanyIds } = await import("../route-middleware");
+    const allowedIds = await getUserAllowedCompanyIds(user.id);
+    if (allowedIds && !allowedIds.includes(Number(companyId))) {
       return res.status(403).json({ message: "ไม่มีสิทธิ์เข้าถึงกิจการนี้" });
     }
 
@@ -85,8 +86,9 @@ app.post("/api/grab/sync-orders", requireAuth, requireModule("ecommerce"), async
     const { connectionId, companyId } = req.body;
     if (!connectionId || !companyId) return res.status(400).json({ message: "connectionId and companyId required" });
 
-    const userCompanies = await storage.getUserCompanies(user.id);
-    if (!userCompanies.some((uc: any) => uc.companyId === Number(companyId))) {
+    const { getUserAllowedCompanyIds } = await import("../route-middleware");
+    const allowedIds = await getUserAllowedCompanyIds(user.id);
+    if (allowedIds && !allowedIds.includes(Number(companyId))) {
       return res.status(403).json({ message: "ไม่มีสิทธิ์เข้าถึงกิจการนี้" });
     }
 
