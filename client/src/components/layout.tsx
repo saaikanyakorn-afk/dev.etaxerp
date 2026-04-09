@@ -342,7 +342,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   const PRIMARY_COMPANY_HIDDEN_MENUS = ["/hr/commission-rules", "/hr/commission"];
 
-  const MANAGER_HIDDEN_MODULES = ["firm-mgmt", "etax-hub", "settings"];
+  const MANAGER_HIDDEN_MODULES = ["firm-mgmt", "etax-hub"];
 
   const { coreNavItems: filteredNavItems, addonNavItems, activeAddonModule } = useMemo(() => {
     if (!user || !myPermissions || myPermissions.modules.length === 0) return { coreNavItems: [], addonNavItems: [], activeAddonModule: null as any };

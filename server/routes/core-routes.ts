@@ -269,7 +269,7 @@ app.get("/api/permissions/me", requireAuth, async (req, res) => {
   }
 
   if (user.role === "manager") {
-    allowedModules = allowedModules.filter(m => !["firm-mgmt", "etax-hub", "settings"].includes(m));
+    allowedModules = allowedModules.filter(m => !["firm-mgmt", "etax-hub"].includes(m));
   }
 
   if (!isPrimary && user.role !== "admin") {
