@@ -1187,9 +1187,14 @@ async function runMigrationsInBackground() {
       host: isReplit ? "0.0.0.0" : "localhost",
       ...(isReplit ? { reusePort: true } : {}),
     },
-    () => {
+    async () => {
       log(`serving on port ${port}`);
       runMigrationsInBackground();
+      try {
+        const { storage } = await import("./storage");
+        await storage.initDefaultPermissions();
+        log("[PERM-RESET] role_permissions synced to PERMISSION_MODULES definitions");
+      } catch (e: any) { log("[PERM-RESET] error: " + e.message); }
       const isReplitProduction = isReplit && process.env.NODE_ENV === "production";
       if (isReplitProduction) {
         log("Background schedulers DISABLED (Replit production → TH database over ocean). Re-enable when server moves to Thailand.");
