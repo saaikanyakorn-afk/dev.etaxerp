@@ -215,8 +215,11 @@ export function requireModule(moduleKey: string) {
         return res.status(403).json({ message: "ไม่มีสิทธิ์เข้าถึงส่วนนี้" });
       }
 
-      default:
-        return res.status(403).json({ message: "ไม่มีสิทธิ์เข้าถึงส่วนนี้" });
+      default: {
+        const errMsg = `[requireModule] Unhandled role "${user.role}" for userId=${user.id}, module="${moduleKey}", path=${req.path}`;
+        console.error(errMsg);
+        return res.status(403).json({ message: "ไม่มีสิทธิ์เข้าถึง — role ไม่รู้จัก", debug: errMsg });
+      }
     }
   };
 }
@@ -250,8 +253,11 @@ export function requireAnyModule(...moduleKeys: string[]) {
         return res.status(403).json({ message: "ไม่มีสิทธิ์เข้าถึงส่วนนี้" });
       }
 
-      default:
-        return res.status(403).json({ message: "ไม่มีสิทธิ์เข้าถึงส่วนนี้" });
+      default: {
+        const errMsg = `[requireAnyModule] Unhandled role "${user.role}" for userId=${user.id}, modules=[${moduleKeys.join(",")}], path=${req.path}`;
+        console.error(errMsg);
+        return res.status(403).json({ message: "ไม่มีสิทธิ์เข้าถึง — role ไม่รู้จัก", debug: errMsg });
+      }
     }
   };
 }
