@@ -257,7 +257,7 @@ app.get("/api/permissions/me", requireAuth, async (req, res) => {
     allowedModules = PERMISSION_MODULES.map(m => m.key);
   } else {
     let perms = await storage.getRolePermissionsByRole(user.role);
-    if (perms.length < PERMISSION_MODULES.length) {
+    if (perms.length === 0) {
       await storage.initDefaultPermissions();
       perms = await storage.getRolePermissionsByRole(user.role);
     }
