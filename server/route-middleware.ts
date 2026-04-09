@@ -72,8 +72,8 @@ export function tenantGuard(req: Request, res: Response, next: NextFunction) {
       }
     }
 
-    const NON_ADMIN_ROLES = ["client", "employee", "accountant"];
-    if (NON_ADMIN_ROLES.includes(user.role)) {
+    const RESTRICTED_ROLES = ["client", "employee", "accountant", "manager"];
+    if (RESTRICTED_ROLES.includes(user.role)) {
       const allowedIds = await getUserAllowedCompanyIds(user.id);
       if (allowedIds && allowedIds.length > 0) {
         if (!allowedIds.includes(companyId)) {
@@ -105,8 +105,8 @@ export async function checkDocOwnership(
     }
   }
 
-  const NON_ADMIN_ROLES2 = ["client", "employee", "accountant"];
-  if (NON_ADMIN_ROLES2.includes(user.role)) {
+  const RESTRICTED_ROLES2 = ["client", "employee", "accountant", "manager"];
+  if (RESTRICTED_ROLES2.includes(user.role)) {
     const allowedIds = await getUserAllowedCompanyIds(user.id);
     if (allowedIds && allowedIds.length > 0) {
       if (!allowedIds.includes(docCompanyId)) {
@@ -181,12 +181,15 @@ export function requireModule(moduleKey: string) {
 
     if (user.role === "admin") return next();
 
-    if (PRIMARY_ONLY_MODULES.includes(moduleKey) && user.role !== "manager") {
-      const companyId = req.query.companyId ? Number(req.query.companyId) : null;
-      if (companyId) {
-        const company = await storage.getCompany(companyId);
-        if (!company?.isPrimary) {
-          return res.status(403).json({ message: "ไม่มีสิทธิ์เข้าถึงส่วนนี้ในบริษัทลูกค้า" });
+    if (PRIMARY_ONLY_MODULES.includes(moduleKey)) {
+      const managerHrException = user.role === "manager" && moduleKey === "hr";
+      if (!managerHrException) {
+        const companyId = req.query.companyId ? Number(req.query.companyId) : null;
+        if (companyId) {
+          const company = await storage.getCompany(companyId);
+          if (!company?.isPrimary) {
+            return res.status(403).json({ message: "ไม่มีสิทธิ์เข้าถึงส่วนนี้ในบริษัทลูกค้า" });
+          }
         }
       }
     }

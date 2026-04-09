@@ -7,7 +7,7 @@ export const ROLE_LABELS: Record<Role, string> = {
   accountant: "นักบัญชี",
   employee: "พนักงาน",
   cashier: "แคชเชียร์",
-  client: "ลูกค้า",
+  client: "Guest",
 };
 
 export interface PermissionModule {
@@ -167,7 +167,7 @@ export function canAccessRoute(role: string, path: string): boolean {
   return hasPermission(role, moduleKey);
 }
 
-export const PRIMARY_ONLY_MODULES = ["hr", "firm-mgmt", "settings"];
+export const PRIMARY_ONLY_MODULES = ["hr", "firm-mgmt", "etax-hub", "settings"];
 export const FIRM_ONLY_MODULES = ["firm-mgmt"];
 
 export const CONFIDENTIAL_SUB_MODULES = [

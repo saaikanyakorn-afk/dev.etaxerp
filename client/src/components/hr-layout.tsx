@@ -173,7 +173,8 @@ export default function HRLayout({ children }: { children: React.ReactNode }) {
   });
 
   const filteredNav = useMemo(() => {
-    if (!myPermissions || myPermissions.subModules.length === 0) return HR_NAV;
+    if (!myPermissions) return HR_NAV;
+    if (myPermissions.subModules.length === 0) return [];
     const allowed = new Set(myPermissions.subModules);
 
     return HR_NAV

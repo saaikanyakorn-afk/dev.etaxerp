@@ -163,7 +163,7 @@ app.patch("/api/users/:id", requireAuth, requireAdmin, async (req, res) => {
     if (req.body.allowedCompanyIds !== undefined) updateData.allowedCompanyIds = req.body.allowedCompanyIds;
     const user = await storage.updateUser(userId, updateData);
     if (req.body.allowedCompanyIds !== undefined) {
-      const { invalidateUserAllowedCache } = await import("./route-middleware");
+      const { invalidateUserAllowedCache } = await import("../route-middleware");
       invalidateUserAllowedCache(userId);
     }
     if (!user) return res.status(404).json({ message: "ไม่พบผู้ใช้" });
@@ -236,11 +236,12 @@ app.get("/api/permissions/me", requireAuth, async (req, res) => {
     allowedModules = allowedModules.filter(m => !FIRM_ONLY_MODULES.includes(m));
   }
 
-  if (!isPrimary && user.role !== "admin" && user.role !== "manager") {
+  if (!isPrimary && user.role !== "admin") {
     const isAccountingFirm = tenantType === "accounting_firm";
     const accountantExceptions = isAccountingFirm && (user.role === "accountant") ? ["hr", "firm-mgmt"] : [];
+    const managerExceptions = isAccountingFirm && (user.role === "manager") ? ["hr"] : [];
     allowedModules = allowedModules.filter(m =>
-      !PRIMARY_ONLY_MODULES.includes(m) || accountantExceptions.includes(m)
+      !PRIMARY_ONLY_MODULES.includes(m) || accountantExceptions.includes(m) || managerExceptions.includes(m)
     );
   }
 
@@ -383,7 +384,11 @@ app.get("/api/companies", requireAuth, async (req, res) => {
     conditions.push(eq(companies.tenantId, user.tenantId));
   }
 
-  if (user.role === "superadmin" || user.role === "admin" || user.role === "manager") {
+  const { getUserAllowedCompanyIds } = await import("../route-middleware");
+  const userAllowedIds = await getUserAllowedCompanyIds(user.id);
+  const hasAllowedRestriction = userAllowedIds && userAllowedIds.length > 0;
+
+  if ((user.role === "superadmin" || user.role === "admin" || user.role === "manager") && !hasAllowedRestriction) {
     if (isAccountingFirm) {
       const activeFcCompanyIds = await db.select({ companyId: firmClients.companyId })
         .from(firmClients)
