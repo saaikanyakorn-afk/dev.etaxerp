@@ -414,6 +414,15 @@ app.get("/api/permissions/me", requireAuth, async (req, res) => {
         .filter(s => allowedModules.includes(s.parentModule) && !roleDeniedSubKeys.has(s.key) && !deniedKeys.has(s.key))
         .map(s => s.key);
     }
+  } else if (user.role === "employee" || user.role === "cashier") {
+    if (userSubPerms.length === 0) {
+      allowedSubModules = [];
+    } else {
+      const allowedKeys = new Set(userSubPerms.filter(p => p.allowed).map(p => p.subModuleKey));
+      allowedSubModules = SUB_MODULES
+        .filter(s => allowedModules.includes(s.parentModule) && !roleDeniedSubKeys.has(s.key) && allowedKeys.has(s.key))
+        .map(s => s.key);
+    }
   } else {
     const isAccountantAtFirm = tenantType === "accounting_firm" && user.role === "accountant";
     const skipConfidentialForClientHr = isAccountantAtFirm && !isPrimary;
