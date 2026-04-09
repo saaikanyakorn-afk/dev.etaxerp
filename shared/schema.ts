@@ -44,6 +44,7 @@ export const machines = pgTable("machines", {
   cpuModel: text("cpu_model"),
   ramSize: text("ram_size"),
   machineModel: text("machine_model"),
+  appPort: text("app_port").notNull().default("5000"),
   dbPort: text("db_port").notNull().default("5432"),
   dbName: text("db_name").notNull(),
   dbUser: text("db_user").notNull(),
