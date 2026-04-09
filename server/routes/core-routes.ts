@@ -23,7 +23,27 @@ app.get("/api/users", requireAuth, async (req, res) => {
   }
   const currentUser = req.user as any;
   const tenantId = currentUser.tenantId;
-  const filterCompanyId = req.query.companyId ? Number(req.query.companyId) : null;
+  let filterCompanyId = req.query.companyId ? Number(req.query.companyId) : null;
+
+  const { getUserAllowedCompanyIds } = await import("../route-middleware");
+  const userAllowedIds = await getUserAllowedCompanyIds(currentUser.id);
+  const hasAllowedRestriction = userAllowedIds && userAllowedIds.length > 0;
+
+  if (!filterCompanyId && hasAllowedRestriction && currentUser.role !== "admin" && currentUser.role !== "super_admin") {
+    filterCompanyId = userAllowedIds![0];
+  }
+
+  let scopedCompanyIds: number[] = [];
+  if (filterCompanyId) {
+    if (hasAllowedRestriction && !userAllowedIds!.includes(filterCompanyId) && currentUser.role !== "admin" && currentUser.role !== "super_admin") {
+      return res.json([]);
+    }
+    scopedCompanyIds = [filterCompanyId];
+  } else if (hasAllowedRestriction) {
+    scopedCompanyIds = userAllowedIds!;
+  } else if (tenantId) {
+    scopedCompanyIds = (await db.select({ id: companies.id }).from(companies).where(eq(companies.tenantId, tenantId))).map(c => c.id);
+  }
 
   let allUsers: any[];
   if (tenantId) {
@@ -33,13 +53,8 @@ app.get("/api/users", requireAuth, async (req, res) => {
   }
   const safeUsers = allUsers.map(({ password, ...u }: any) => u);
 
-  const empQueryCompanyIds = filterCompanyId
-    ? [filterCompanyId]
-    : tenantId
-      ? (await db.select({ id: companies.id }).from(companies).where(eq(companies.tenantId, tenantId))).map(c => c.id)
-      : [];
-  const empConditions = empQueryCompanyIds.length > 0
-    ? and(sql`${employees.userId} IS NOT NULL`, inArray(employees.companyId, empQueryCompanyIds))
+  const empConditions = scopedCompanyIds.length > 0
+    ? and(sql`${employees.userId} IS NOT NULL`, inArray(employees.companyId, scopedCompanyIds))
     : sql`${employees.userId} IS NOT NULL`;
   const empLinks = await db.select({ userId: employees.userId, empId: employees.id, empName: employees.fullName }).from(employees).where(empConditions!);
   const empMap = new Map(empLinks.map(e => [e.userId, { employeeId: e.empId, employeeName: e.empName }]));
@@ -48,29 +63,33 @@ app.get("/api/users", requireAuth, async (req, res) => {
   const ownerId = await getTenantOwnerAdminId(tenantId);
   const usersWithOwner = usersWithEmp.map((u: any) => ({ ...u, isOwner: u.id === ownerId }));
 
-  if (filterCompanyId) {
+  if (filterCompanyId || (hasAllowedRestriction && currentUser.role !== "admin" && currentUser.role !== "super_admin")) {
     const linkedUserIds = new Set(empLinks.map(e => e.userId));
     const allEmpLinkConditions = [sql`${employees.userId} IS NOT NULL`];
     if (tenantId) allEmpLinkConditions.push(eq(employees.tenantId, tenantId));
     const allEmpLinks = await db.select({ userId: employees.userId }).from(employees).where(and(...allEmpLinkConditions));
     const allLinkedUserIds = new Set(allEmpLinks.map(e => e.userId));
 
-    const assignedEmpIds = await db.select({ assignedTo: firmClients.assignedTo })
-      .from(firmClients)
-      .where(and(eq(firmClients.companyId, filterCompanyId), sql`${firmClients.assignedTo} IS NOT NULL`));
-    const assignedEmpIdSet = new Set(assignedEmpIds.map(a => a.assignedTo));
+    const targetCompanyId = filterCompanyId || (scopedCompanyIds.length > 0 ? scopedCompanyIds[0] : null);
     let assignedUserIds = new Set<number>();
-    if (assignedEmpIdSet.size > 0) {
-      const assignedEmps = await db.select({ userId: employees.userId })
-        .from(employees)
-        .where(and(sql`${employees.userId} IS NOT NULL`, inArray(employees.id, [...assignedEmpIdSet])));
-      assignedUserIds = new Set(assignedEmps.map(e => e.userId!));
+    if (targetCompanyId) {
+      const assignedEmpIds = await db.select({ assignedTo: firmClients.assignedTo })
+        .from(firmClients)
+        .where(and(eq(firmClients.companyId, targetCompanyId), sql`${firmClients.assignedTo} IS NOT NULL`));
+      const assignedEmpIdSet = new Set(assignedEmpIds.map(a => a.assignedTo));
+      if (assignedEmpIdSet.size > 0) {
+        const assignedEmps = await db.select({ userId: employees.userId })
+          .from(employees)
+          .where(and(sql`${employees.userId} IS NOT NULL`, inArray(employees.id, [...assignedEmpIdSet])));
+        assignedUserIds = new Set(assignedEmps.map(e => e.userId!));
+      }
     }
 
+    const scopedSet = new Set(scopedCompanyIds);
     const filtered = usersWithOwner.filter((u: any) =>
-      u.role === "admin" || linkedUserIds.has(u.id) || assignedUserIds.has(u.id) ||
-      (Array.isArray(u.allowedCompanyIds) && u.allowedCompanyIds.includes(filterCompanyId)) ||
-      (!Array.isArray(u.allowedCompanyIds) && u.role === "manager")
+      (currentUser.role === "admin" && u.role === "admin") ||
+      linkedUserIds.has(u.id) || assignedUserIds.has(u.id) ||
+      (Array.isArray(u.allowedCompanyIds) && u.allowedCompanyIds.some((id: number) => scopedSet.has(id)))
     );
     return res.json(filtered);
   }
