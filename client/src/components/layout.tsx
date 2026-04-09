@@ -305,11 +305,15 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     staleTime: 600000,
   });
 
-  const permCacheKey = `perm_cache_${user?.id}_${selectedCompanyId || "all"}`;
+  const PERM_CACHE_V = 2;
+  const permCacheKey = `perm_v${PERM_CACHE_V}_${user?.id}_${selectedCompanyId || "all"}`;
   const getCachedPerms = (): { modules: string[]; subModules: string[] } | undefined => {
     try {
       const raw = localStorage.getItem(permCacheKey);
-      if (raw) return JSON.parse(raw);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && Array.isArray(parsed.modules) && Array.isArray(parsed.subModules)) return parsed;
+      }
     } catch {}
     return undefined;
   };
@@ -321,13 +325,16 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       const r = await fetch(`/api/permissions/me${params}`, { credentials: "include" });
       if (!r.ok) return { modules: [], subModules: [] };
       const data = await r.json();
-      const result = Array.isArray(data) ? { modules: data, subModules: [] } : data;
+      const result = Array.isArray(data)
+        ? { modules: data, subModules: [] }
+        : { modules: Array.isArray(data.modules) ? data.modules : [], subModules: Array.isArray(data.subModules) ? data.subModules : [] };
       try { localStorage.setItem(permCacheKey, JSON.stringify(result)); } catch {}
       return result;
     },
     enabled: !!user,
-    staleTime: 5 * 60 * 1000,
-    initialData: getCachedPerms(),
+    staleTime: 30 * 1000,
+    refetchOnMount: "always" as const,
+    placeholderData: getCachedPerms(),
   });
 
   useEffect(() => {
@@ -357,7 +364,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         const filteredChildren = item.children.filter(child => {
           if (hiddenMenusByBiz.includes(child.href)) return false;
           if (isPrimaryCompany && PRIMARY_COMPANY_HIDDEN_MENUS.includes(child.href)) return false;
-          if (myPermissions.subModules.length > 0) {
+          if (myPermissions.subModules && myPermissions.subModules.length > 0) {
             const subMod = SUB_MODULES.find(s => s.href === child.href);
             if (subMod && !myPermissions.subModules.includes(subMod.key)) return false;
           }

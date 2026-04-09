@@ -287,10 +287,12 @@ app.get("/api/permissions/me", requireAuth, async (req, res) => {
   );
 
   let allowedSubModules: string[] = [];
+  let userSubPerms: any[] = [];
+  try { userSubPerms = user.role !== "admin" ? await storage.getUserSubPermissions(user.id) : []; } catch (e) { console.error("getUserSubPermissions error:", e); }
+
   if (user.role === "admin") {
     allowedSubModules = SUB_MODULES.filter(s => allowedModules.includes(s.parentModule)).map(s => s.key);
   } else if (user.role === "manager") {
-    const userSubPerms = await storage.getUserSubPermissions(user.id);
     if (userSubPerms.length === 0) {
       allowedSubModules = SUB_MODULES
         .filter(s => allowedModules.includes(s.parentModule) && !roleDeniedSubKeys.has(s.key))
@@ -304,7 +306,6 @@ app.get("/api/permissions/me", requireAuth, async (req, res) => {
   } else {
     const isAccountantAtFirm = tenantType === "accounting_firm" && user.role === "accountant";
     const skipConfidentialForClientHr = isAccountantAtFirm && !isPrimary;
-    const userSubPerms = await storage.getUserSubPermissions(user.id);
     if (userSubPerms.length === 0) {
       allowedSubModules = SUB_MODULES
         .filter(s => {
