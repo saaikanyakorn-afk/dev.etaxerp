@@ -525,7 +525,7 @@ app.get("/api/permissions/me", requireAuth, async (req, res) => {
   res.json({ modules: allowedModules, subModules: allowedSubModules });
 });
 
-app.put("/api/permissions", requireAuth, requireAdmin, async (req, res) => {
+app.put("/api/permissions", requireAuth, requireRole("admin", "super_admin", "manager"), async (req, res) => {
   try {
     const { role, moduleKey, allowed } = req.body;
     if (!role || !moduleKey || typeof allowed !== "boolean") {
