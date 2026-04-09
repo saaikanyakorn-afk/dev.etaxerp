@@ -305,6 +305,22 @@ export const SUB_MODULES: SubModule[] = [
 
   { key: "ecommerce/live-selling", label: "ไลฟ์ขายของ", parentModule: "ecommerce", href: "/ecommerce/live-selling" },
 
+  { key: "pos/terminal", label: "เปิดหน้าจอขาย", parentModule: "pos", href: "/pos/terminal" },
+  { key: "pos/dashboard", label: "แดชบอร์ดยอดขาย", parentModule: "pos", href: "/pos/dashboard" },
+  { key: "pos/sales", label: "รายการขาย", parentModule: "pos", href: "/pos/sales" },
+  { key: "pos/sessions", label: "ประวัติกะขาย", parentModule: "pos", href: "/pos/sessions" },
+  { key: "pos/loyalty", label: "สมาชิก / Loyalty", parentModule: "pos", href: "/pos/loyalty" },
+
+  { key: "gas-station/dashboard", label: "ภาพรวม", parentModule: "gas-station", href: "/gas-station/dashboard" },
+  { key: "gas-station/setup", label: "ตั้งค่า", parentModule: "gas-station", href: "/gas-station/setup" },
+  { key: "gas-station/daily-sales", label: "ยอดขายรายวัน", parentModule: "gas-station", href: "/gas-station/daily-sales" },
+  { key: "gas-station/fuel-stock", label: "สต็อกน้ำมัน", parentModule: "gas-station", href: "/gas-station/fuel-stock" },
+  { key: "gas-station/oil-loss-gain", label: "Oil Loss/Gain", parentModule: "gas-station", href: "/gas-station/oil-loss-gain" },
+  { key: "gas-station/local-tax", label: "ภาษีท้องถิ่น", parentModule: "gas-station", href: "/gas-station/local-tax" },
+  { key: "gas-station/reports", label: "รายงาน", parentModule: "gas-station", href: "/gas-station/reports" },
+
+  { key: "job-costing/projects", label: "โปรเจคทั้งหมด", parentModule: "job-costing", href: "/job-costing" },
+
   { key: "settings/users", label: "กำหนดสิทธิ์ผู้ใช้งาน", parentModule: "settings", href: "/settings/users" },
   { key: "settings/profile", label: "โปรไฟล์ / ลายเซ็น", parentModule: "settings", href: "/settings/profile" },
   { key: "settings/company-info", label: "ข้อมูลบริษัท", parentModule: "settings", href: "/settings/company-info" },
