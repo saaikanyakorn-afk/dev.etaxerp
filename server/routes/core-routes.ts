@@ -3,7 +3,7 @@ import { db } from "../db";
 import { storage } from "../storage";
 import { eq, desc, and, or, isNull, inArray , sql } from "drizzle-orm";
 import { users, companies, employees, firmClients, permissions, tenants, accounts, tenantSubscriptions, subscriptionPlans, insertUserSchema } from "@shared/schema";
-import { requireAuth, requireAdmin } from "../route-middleware";
+import { requireAuth, requireAdmin, requireRole } from "../route-middleware";
 import { hashPassword } from "../auth";
 import { z } from "zod";
 
@@ -541,13 +541,13 @@ app.put("/api/permissions", requireAuth, requireAdmin, async (req, res) => {
   }
 });
 
-app.get("/api/permissions/users/:id/submodules", requireAuth, requireAdmin, async (req, res) => {
+app.get("/api/permissions/users/:id/submodules", requireAuth, requireRole("admin", "super_admin", "manager"), async (req, res) => {
   const userId = Number(req.params.id);
   const perms = await storage.getUserSubPermissions(userId);
   res.json(perms);
 });
 
-app.put("/api/permissions/users/:id/submodules", requireAuth, requireAdmin, async (req, res) => {
+app.put("/api/permissions/users/:id/submodules", requireAuth, requireRole("admin", "super_admin", "manager"), async (req, res) => {
   try {
     const currentUser = req.user as any;
     const userId = Number(req.params.id);
