@@ -668,9 +668,16 @@ export default function UserManagement() {
                           )}
                         </TableCell>
                         <TableCell className="text-center">
-                          <Badge variant="outline" className={ROLE_COLORS[u.role] || "bg-slate-100"}>
-                            {ROLE_LABELS[u.role as Role] || u.role}
-                          </Badge>
+                          <div className="flex items-center justify-center gap-1">
+                            <Badge variant="outline" className={ROLE_COLORS[u.role] || "bg-slate-100"}>
+                              {ROLE_LABELS[u.role as Role] || u.role}
+                            </Badge>
+                            {u.isOwner && (
+                              <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-300 text-[10px]">
+                                Owner
+                              </Badge>
+                            )}
+                          </div>
                         </TableCell>
                         <TableCell className="text-center">
                           <Badge variant={u.active ? "default" : "secondary"} className={u.active ? "bg-[#05b187]" : "bg-slate-400"}>
@@ -689,7 +696,7 @@ export default function UserManagement() {
                             >
                               <Pencil className="h-3.5 w-3.5 mr-1" /> แก้ไข
                             </Button>
-                            {u.id !== currentUser?.id && (
+                            {u.id !== currentUser?.id && !u.isOwner && (
                               <>
                                 <Button
                                   variant="ghost"
@@ -848,7 +855,7 @@ export default function UserManagement() {
               </CardHeader>
               <CardContent>
                 <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-                  {users.filter((u: any) => u.id !== currentUser?.id).map((u: any) => (
+                  {users.filter((u: any) => u.id !== currentUser?.id && !u.isOwner).map((u: any) => (
                     <div
                       key={u.id}
                       className="border rounded-lg p-4 hover:border-[var(--theme-primary)]/30 hover:bg-[#eef4ff]/30 transition-colors cursor-pointer group"
@@ -869,7 +876,7 @@ export default function UserManagement() {
                       </div>
                     </div>
                   ))}
-                  {users.filter((u: any) => u.id !== currentUser?.id).length === 0 && (
+                  {users.filter((u: any) => u.id !== currentUser?.id && !u.isOwner).length === 0 && (
                     <div className="col-span-full text-center py-8 text-muted-foreground">
                       ไม่มีผู้ใช้อื่นในระบบ
                     </div>
