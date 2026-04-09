@@ -2153,34 +2153,6 @@ app.patch("/api/platform/machines/:id", requireAuth, requireSuperAdmin, async (r
   } catch (err: any) { res.status(400).json({ message: err.message }); }
 });
 
-app.post("/api/platform/probe-app-port", requireAuth, requireSuperAdmin, async (req, res) => {
-  try {
-    const { machineId, port } = req.body;
-    if (!machineId || !port) return res.status(400).json({ message: "ต้องระบุ machineId และ port" });
-    const { machines: machinesTable } = await import("@shared/schema");
-    const [machine] = await db.select().from(machinesTable).where(eq(machinesTable.id, Number(machineId)));
-    if (!machine) return res.status(404).json({ message: "ไม่พบเครื่องนี้" });
-    const hosts = [machine.domainName, machine.fqdn, machine.lanIp].filter(Boolean) as string[];
-    if (hosts.length === 0) return res.json({ reachable: false, error: "ไม่มี hostname/IP ที่จะทดสอบ", hosts: [] });
-    const results: { host: string; reachable: boolean; responseTime?: number; error?: string }[] = [];
-    for (const host of hosts) {
-      const url = `http://${host}:${port}/api/health`;
-      const start = Date.now();
-      try {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 5000);
-        const resp = await fetch(url, { signal: controller.signal });
-        clearTimeout(timeout);
-        results.push({ host, reachable: resp.ok || resp.status < 500, responseTime: Date.now() - start });
-      } catch (e: any) {
-        results.push({ host, reachable: false, error: e.code || e.message || "timeout" });
-      }
-    }
-    const anyReachable = results.some(r => r.reachable);
-    res.json({ reachable: anyReachable, results });
-  } catch (err: any) { res.status(500).json({ message: err.message }); }
-});
-
 app.get("/api/platform/machines/:id/nics", requireAuth, requireSuperAdmin, async (req, res) => {
   try {
     const { machineNics } = await import("@shared/schema");
