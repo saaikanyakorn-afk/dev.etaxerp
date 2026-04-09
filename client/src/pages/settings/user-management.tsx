@@ -13,7 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Shield, UserPlus, Pencil, UserCheck, UserX, Users, Lock, ChevronRight, Settings2, KeyRound, Eye, EyeOff, ShoppingCart, ExternalLink } from "lucide-react";
 import { Link } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useCompany } from "@/lib/company-context";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
@@ -131,13 +131,35 @@ export default function UserManagement() {
     return false;
   };
 
+  const [localSubPerms, setLocalSubPerms] = useState<Map<string, boolean>>(new Map());
+  const [subPermDirty, setSubPermDirty] = useState(false);
+
+  useEffect(() => {
+    if (subPermUser && userSubPerms.length > 0) {
+      const map = new Map<string, boolean>();
+      for (const p of userSubPerms) { map.set(p.subModuleKey, p.allowed); }
+      setLocalSubPerms(map);
+      setSubPermDirty(false);
+    } else if (subPermUser) {
+      setLocalSubPerms(new Map());
+      setSubPermDirty(false);
+    }
+  }, [subPermUser?.id, userSubPerms]);
+
   const isSubModuleAllowed = (subKey: string): boolean => {
     if (!subPermUser) return true;
     if (subPermUser.role === "admin") return true;
-    if (userSubPerms.length === 0) return true;
-    const perm = userSubPerms.find((p: any) => p.subModuleKey === subKey);
-    if (!perm) return true;
-    return perm.allowed;
+    if (localSubPerms.has(subKey)) return localSubPerms.get(subKey)!;
+    return true;
+  };
+
+  const toggleLocalSubPerm = (subKey: string, allowed: boolean) => {
+    setLocalSubPerms(prev => {
+      const next = new Map(prev);
+      next.set(subKey, allowed);
+      return next;
+    });
+    setSubPermDirty(true);
   };
 
   const togglePermMutation = useMutation({
@@ -161,47 +183,23 @@ export default function UserManagement() {
     },
   });
 
-  const subPermQueueRef = useRef<Map<string, boolean>>(new Map());
-  const subPermTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const flushSubPermQueue = async () => {
-    if (!subPermUser || subPermQueueRef.current.size === 0) return;
-    const pendingChanges = new Map(subPermQueueRef.current);
-    subPermQueueRef.current.clear();
-
-    const latestPermsRes = await fetch(`/api/permissions/users/${subPermUser.id}/submodules`, { credentials: "include" });
-    const latestPerms: any[] = latestPermsRes.ok ? await latestPermsRes.json() : [];
-
-    const mergedMap = new Map<string, boolean>();
-    for (const p of latestPerms) { mergedMap.set(p.subModuleKey, p.allowed); }
-    for (const [key, val] of pendingChanges) { mergedMap.set(key, val); }
-
-    const newPerms = Array.from(mergedMap.entries()).map(([subModuleKey, allowed]) => ({ subModuleKey, allowed }));
-    const r = await fetch(`/api/permissions/users/${subPermUser.id}/submodules`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ permissions: newPerms }),
-      credentials: "include",
-    });
-    if (!r.ok) { const d = await r.json(); throw new Error(d.message); }
-    return r.json();
-  };
-
-  const toggleSubPermMutation = useMutation({
-    mutationFn: async ({ subModuleKey, allowed }: { subModuleKey: string; allowed: boolean }) => {
+  const saveSubPermsMutation = useMutation({
+    mutationFn: async () => {
       if (!subPermUser) throw new Error("No user selected");
-      subPermQueueRef.current.set(subModuleKey, allowed);
-      if (subPermTimerRef.current) clearTimeout(subPermTimerRef.current);
-      return new Promise<any>((resolve, reject) => {
-        subPermTimerRef.current = setTimeout(async () => {
-          try { const result = await flushSubPermQueue(); resolve(result); }
-          catch (e) { reject(e); }
-        }, 500);
+      const newPerms = Array.from(localSubPerms.entries()).map(([subModuleKey, allowed]) => ({ subModuleKey, allowed }));
+      const r = await fetch(`/api/permissions/users/${subPermUser.id}/submodules`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ permissions: newPerms }),
+        credentials: "include",
       });
+      if (!r.ok) { const d = await r.json(); throw new Error(d.message); }
+      return r.json();
     },
     onSuccess: () => {
       refetchSubPerms();
       queryClient.invalidateQueries({ queryKey: ["/api/permissions/me"] });
+      setSubPermDirty(false);
       toast({ title: "บันทึกสิทธิ์เมนูย่อยสำเร็จ", variant: "success" as any });
     },
     onError: (err: any) => {
@@ -881,7 +879,13 @@ export default function UserManagement() {
           </DialogContent>
         </Dialog>
 
-        <Dialog open={subPermOpen} onOpenChange={(open) => { setSubPermOpen(open); if (!open) setSubPermUser(null); }}>
+        <Dialog open={subPermOpen} onOpenChange={(open) => {
+          if (!open && subPermDirty) {
+            if (!confirm("คุณมีการเปลี่ยนแปลงที่ยังไม่ได้บันทึก ต้องการปิดหน้าต่างนี้หรือไม่?")) return;
+          }
+          setSubPermOpen(open);
+          if (!open) { setSubPermUser(null); setSubPermDirty(false); }
+        }}>
           <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
@@ -892,7 +896,7 @@ export default function UserManagement() {
                 </Badge>
               </DialogTitle>
               <p className="text-sm text-muted-foreground">
-                เปิด/ปิด เมนูย่อยที่ผู้ใช้สามารถเข้าถึงได้ (เฉพาะโมดูลที่ระดับสิทธิ์ของผู้ใช้อนุญาต)
+                เปิด/ปิด เมนูย่อยที่ผู้ใช้สามารถเข้าถึงได้ — กดปุ่ม "บันทึก" เพื่อยืนยันการเปลี่ยนแปลง
               </p>
             </DialogHeader>
 
@@ -918,7 +922,7 @@ export default function UserManagement() {
                               <Switch
                                 checked={allowed}
                                 onCheckedChange={(checked) => {
-                                  toggleSubPermMutation.mutate({ subModuleKey: sub.key, allowed: checked });
+                                  toggleLocalSubPerm(sub.key, checked);
                                 }}
                                 data-testid={`switch-subperm-${sub.key}`}
                                 className="data-[state=checked]:bg-[#05b187]"
@@ -930,6 +934,22 @@ export default function UserManagement() {
                     </div>
                   );
                 })}
+
+                <div className="flex items-center justify-between pt-3 border-t">
+                  {subPermDirty && (
+                    <span className="text-sm text-amber-600 font-medium">* มีการเปลี่ยนแปลงที่ยังไม่ได้บันทึก</span>
+                  )}
+                  {!subPermDirty && <span />}
+                  <Button
+                    onClick={() => saveSubPermsMutation.mutate()}
+                    disabled={!subPermDirty || saveSubPermsMutation.isPending}
+                    className="text-white hover:opacity-90"
+                    style={{ background: subPermDirty ? "#05b187" : "#ccc" }}
+                    data-testid="button-save-subperms"
+                  >
+                    {saveSubPermsMutation.isPending ? "กำลังบันทึก..." : "บันทึก"}
+                  </Button>
+                </div>
               </div>
             )}
           </DialogContent>
