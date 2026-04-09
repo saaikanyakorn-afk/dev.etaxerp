@@ -1453,12 +1453,16 @@ export class DatabaseStorage implements IStorage {
   }
 
   async bulkSetUserSubPermissions(userId: number, permissions: { subModuleKey: string; allowed: boolean }[]): Promise<void> {
-    await db.delete(userSubPermissions).where(eq(userSubPermissions.userId, userId));
-    if (permissions.length > 0) {
-      await db.insert(userSubPermissions).values(
-        permissions.map(p => ({ userId, subModuleKey: p.subModuleKey, allowed: p.allowed }))
-      );
-    }
+    const deduped = new Map<string, boolean>();
+    for (const p of permissions) { deduped.set(p.subModuleKey, p.allowed); }
+    const uniquePerms = Array.from(deduped.entries()).map(([subModuleKey, allowed]) => ({ userId, subModuleKey, allowed }));
+
+    await db.transaction(async (tx) => {
+      await tx.delete(userSubPermissions).where(eq(userSubPermissions.userId, userId));
+      if (uniquePerms.length > 0) {
+        await tx.insert(userSubPermissions).values(uniquePerms);
+      }
+    });
   }
 
   async getTenants(): Promise<Tenant[]> {
