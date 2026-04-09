@@ -332,7 +332,7 @@ export const employees = pgTable("employees", {
   userId: integer("user_id").references(() => users.id),
   tenantId: integer("tenant_id").references(() => tenants.id),
   companyId: integer("company_id").references(() => companies.id),
-  employeeCode: text("employee_code").notNull().unique(),
+  employeeCode: text("employee_code").notNull(),
   fullName: text("full_name").notNull(),
   titlePrefix: text("title_prefix"),
   firstName: text("first_name"),

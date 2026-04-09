@@ -823,6 +823,24 @@ async function runMigrationsInBackground() {
       console.warn("Permission sync skip:", e.message?.slice(0, 80));
     }
     try {
+      const { sql: rawSql2 } = await import("drizzle-orm");
+      await db.execute(rawSql2`
+        ALTER TABLE employees DROP CONSTRAINT IF EXISTS employees_employee_code_unique
+      `);
+      await db.execute(rawSql2`
+        DO $$ BEGIN
+          IF NOT EXISTS (
+            SELECT 1 FROM pg_indexes WHERE indexname = 'employees_company_code_unique'
+          ) THEN
+            CREATE UNIQUE INDEX employees_company_code_unique ON employees (company_id, employee_code);
+          END IF;
+        END $$
+      `);
+      console.log("[startup] employee_code unique constraint changed to per-company");
+    } catch (e: any) {
+      console.warn("Employee constraint migration skip:", e.message?.slice(0, 80));
+    }
+    try {
       const missingResult = await db.execute(sql.raw(`
         SELECT t.id FROM tenants t 
         LEFT JOIN tenant_subscriptions ts ON ts.tenant_id = t.id 
