@@ -1092,7 +1092,14 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 <div className="flex-1 p-4 md:p-5 overflow-y-auto" style={{ maxHeight: "480px" }}>
                   {(() => {
                     const mods = myPermissions?.modules || [];
+                    const subs = myPermissions?.subModules || [];
                     const hasModule = (m: string) => mods.includes(m);
+                    const hasSubAccess = (href: string) => {
+                      if (!subs.length) return true;
+                      const subMod = SUB_MODULES.find(s => s.href === href);
+                      if (!subMod) return true;
+                      return subs.includes(subMod.key);
+                    };
                     const coreApps: { icon: any; label: string; desc: string; href: string; iconBg: string; iconColor: string; newTab?: boolean; module?: string }[] = [
                       { icon: ClipboardList, label: "สถานะงาน", desc: "ติดตามงานของทีม", href: "/firm-mgmt/workflow", iconBg: "bg-cyan-100", iconColor: "text-cyan-700", newTab: true, module: "firm-mgmt" },
                       { icon: MessageCircle, label: "แชทภายใน", desc: "สนทนาภายในองค์กร", href: "/office/chat", iconBg: "bg-pink-100", iconColor: "text-pink-600" },
@@ -1118,7 +1125,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                     ];
                     const renderAppButton = (app: typeof coreApps[0], isAddon = false) => {
                       const IconComp = app.icon;
-                      const allowed = !app.module || hasModule(app.module);
+                      const allowed = (!app.module || hasModule(app.module)) && hasSubAccess(app.href);
                       return (
                         <button
                           key={app.href}
@@ -1174,6 +1181,13 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                   <div className="grid grid-cols-2 md:grid-cols-1 gap-0">
                     {(() => {
                       const mods = myPermissions?.modules || [];
+                      const subs = myPermissions?.subModules || [];
+                      const hasSubAccess2 = (href: string) => {
+                        if (!subs.length) return true;
+                        const subMod = SUB_MODULES.find(s => s.href === href);
+                        if (!subMod) return true;
+                        return subs.includes(subMod.key);
+                      };
                       const links = [
                         { label: "ลูกค้าสำนักงาน", href: "/firm-mgmt/dashboard", module: "firm-mgmt" },
                         { label: "รับลูกค้าใหม่", href: "/settings/firm-link", module: "firm-mgmt" },
@@ -1187,7 +1201,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                         { label: "ตั้งค่าระบบ", href: "/settings/general", module: "settings" },
                       ];
                       return links.map((link) => {
-                        const allowed = mods.includes(link.module);
+                        const allowed = mods.includes(link.module) && hasSubAccess2(link.href);
                         return (
                           <button
                             key={link.href}
