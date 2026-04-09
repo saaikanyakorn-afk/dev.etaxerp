@@ -1420,12 +1420,15 @@ export class DatabaseStorage implements IStorage {
 
     for (const mod of PERMISSION_MODULES) {
       for (const role of allRoles) {
+        const shouldAllow = mod.allowedRoles.includes(role as any);
         const [rec] = await db.select().from(rolePermissions)
           .where(and(eq(rolePermissions.role, role), eq(rolePermissions.moduleKey, mod.key)));
-        if (!rec) {
-          const shouldAllow = mod.allowedRoles.includes(role as any);
+        if (rec && rec.allowed !== shouldAllow) {
+          await db.update(rolePermissions)
+            .set({ allowed: shouldAllow })
+            .where(and(eq(rolePermissions.role, role), eq(rolePermissions.moduleKey, mod.key)));
+        } else if (!rec) {
           await db.insert(rolePermissions).values({ role, moduleKey: mod.key, allowed: shouldAllow });
-          console.log(`[storage.ts initDefaultPermissions] INSERT missing: role=${role}, module=${mod.key}, allowed=${shouldAllow}`);
         }
       }
     }
