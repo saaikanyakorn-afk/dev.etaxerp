@@ -346,7 +346,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         const filteredChildren = item.children.filter(child => {
           if (hiddenMenusByBiz.includes(child.href)) return false;
           if (isPrimaryCompany && PRIMARY_COMPANY_HIDDEN_MENUS.includes(child.href)) return false;
-          if (myPermissions.subModules && myPermissions.subModules.length > 0) {
+          if (myPermissions.subModules) {
             const subMod = SUB_MODULES.find(s => s.href === child.href);
             if (subMod && !myPermissions.subModules.includes(subMod.key)) return false;
           }
@@ -989,48 +989,56 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 <span className="text-sm font-semibold hidden lg:inline">POS</span>
               </button>
             )}
-            <button
-              onClick={() => setLocation("/hr/attendance")}
-              className="flex h-10 w-10 sm:w-auto sm:px-3 rounded-full items-center justify-center sm:justify-start gap-0 sm:gap-2 transition-all hover:shadow-md"
-              style={{
-                background: "#fec90f",
-                color: "#fff",
-              }}
-              data-testid="btn-checkin-shortcut"
-              title="เช็คอิน / เช็คเอาท์"
-            >
-              <Clock className="h-4 w-4" />
-              <span className="text-sm font-semibold hidden lg:inline">เช็คอิน</span>
-            </button>
-            <button
-              onClick={() => setLocation("/firm-mgmt/documents")}
-              className="relative h-10 w-10 rounded-full flex items-center justify-center transition-colors hover:bg-[var(--theme-primary-light)]"
-              style={{ color: "var(--theme-primary)" }}
-              data-testid="btn-client-uploads"
-              title="เอกสารลูกค้า"
-            >
-              <Inbox className="h-5 w-5" />
-              {(clientUploadData?.totalUnread ?? 0) > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] rounded-full bg-[#03c9d7] text-white text-[10px] font-bold flex items-center justify-center px-1 animate-pulse" data-testid="badge-client-upload-count">
-                  {(clientUploadData?.totalUnread ?? 0) > 99 ? "99+" : clientUploadData?.totalUnread}
-                </span>
-              )}
-            </button>
-            <button
-              onClick={() => setLocation("/approval-center")}
-              className="relative h-10 w-10 rounded-full flex items-center justify-center transition-colors hover:bg-[var(--theme-primary-light)]"
-              style={{ color: "var(--theme-primary)" }}
-              data-testid="btn-approval-center"
-              title="ศูนย์อนุมัติ"
-            >
-              <ClipboardCheck className="h-5 w-5" />
-              {(approvalData?.totalPending ?? 0) > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center px-1 animate-pulse" data-testid="badge-approval-count">
-                  {(approvalData?.totalPending ?? 0) > 99 ? "99+" : approvalData?.totalPending}
-                </span>
-              )}
-            </button>
-            <SubscriptionNavButton />
+            {myPermissions?.modules?.includes("hr") && (
+              <button
+                onClick={() => setLocation("/hr/attendance")}
+                className="flex h-10 w-10 sm:w-auto sm:px-3 rounded-full items-center justify-center sm:justify-start gap-0 sm:gap-2 transition-all hover:shadow-md"
+                style={{
+                  background: "#fec90f",
+                  color: "#fff",
+                }}
+                data-testid="btn-checkin-shortcut"
+                title="เช็คอิน / เช็คเอาท์"
+              >
+                <Clock className="h-4 w-4" />
+                <span className="text-sm font-semibold hidden lg:inline">เช็คอิน</span>
+              </button>
+            )}
+            {myPermissions?.modules?.includes("firm-mgmt") && (
+              <button
+                onClick={() => setLocation("/firm-mgmt/documents")}
+                className="relative h-10 w-10 rounded-full flex items-center justify-center transition-colors hover:bg-[var(--theme-primary-light)]"
+                style={{ color: "var(--theme-primary)" }}
+                data-testid="btn-client-uploads"
+                title="เอกสารลูกค้า"
+              >
+                <Inbox className="h-5 w-5" />
+                {(clientUploadData?.totalUnread ?? 0) > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] rounded-full bg-[#03c9d7] text-white text-[10px] font-bold flex items-center justify-center px-1 animate-pulse" data-testid="badge-client-upload-count">
+                    {(clientUploadData?.totalUnread ?? 0) > 99 ? "99+" : clientUploadData?.totalUnread}
+                  </span>
+                )}
+              </button>
+            )}
+            {(user?.role === "admin" || user?.role === "manager" || user?.role === "super_admin") && (
+              <button
+                onClick={() => setLocation("/approval-center")}
+                className="relative h-10 w-10 rounded-full flex items-center justify-center transition-colors hover:bg-[var(--theme-primary-light)]"
+                style={{ color: "var(--theme-primary)" }}
+                data-testid="btn-approval-center"
+                title="ศูนย์อนุมัติ"
+              >
+                <ClipboardCheck className="h-5 w-5" />
+                {(approvalData?.totalPending ?? 0) > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center px-1 animate-pulse" data-testid="badge-approval-count">
+                    {(approvalData?.totalPending ?? 0) > 99 ? "99+" : approvalData?.totalPending}
+                  </span>
+                )}
+              </button>
+            )}
+            {(user?.role === "admin" || user?.role === "manager" || user?.role === "super_admin") && (
+              <SubscriptionNavButton />
+            )}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button
@@ -1095,7 +1103,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                     const subs = myPermissions?.subModules || [];
                     const hasModule = (m: string) => mods.includes(m);
                     const hasSubAccess = (href: string, moduleKey?: string) => {
-                      if (!subs.length) return true;
                       const subMod = SUB_MODULES.find(s => s.href === href);
                       if (subMod) return subs.includes(subMod.key);
                       if (moduleKey) {
