@@ -996,6 +996,25 @@ async function runMigrationsInBackground() {
       await repairPettyCashData();
     } catch (e: any) { console.warn("[petty-cash-repair] skip:", e.message?.slice(0, 200)); }
 
+    try {
+      const { SUB_MODULES } = await import("../shared/permissions");
+      const validKeys = SUB_MODULES.map(s => s.key);
+      const delOrphan = await db.execute(sql.raw(`
+        DELETE FROM user_sub_permissions 
+        WHERE sub_module_key NOT IN (${validKeys.map(k => `'${k}'`).join(",")})
+      `));
+      const orphanCount = (delOrphan as any).rowCount || 0;
+      await db.execute(sql.raw(`
+        SELECT setval(
+          pg_get_serial_sequence('user_sub_permissions', 'id'),
+          GREATEST(COALESCE((SELECT MAX(id) FROM user_sub_permissions), 0) + 1, 1),
+          false
+        )
+      `));
+      if (orphanCount > 0) log(`[sub-perms] Cleaned ${orphanCount} orphan keys, sequence reset`);
+      else log(`[sub-perms] Sequence synced OK`);
+    } catch (e: any) { console.warn("[sub-perms-fix] skip:", e.message?.slice(0, 200)); }
+
     migrationReady = true;
     log("Background migrations complete - API ready");
 
