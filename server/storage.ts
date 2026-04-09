@@ -1460,6 +1460,7 @@ export class DatabaseStorage implements IStorage {
     await db.transaction(async (tx) => {
       await tx.delete(userSubPermissions).where(eq(userSubPermissions.userId, userId));
       if (uniquePerms.length > 0) {
+        await tx.execute(sql`SELECT setval(pg_get_serial_sequence('user_sub_permissions', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM user_sub_permissions), 0) + 1, 1), false)`);
         await tx.insert(userSubPermissions).values(uniquePerms);
       }
     });
