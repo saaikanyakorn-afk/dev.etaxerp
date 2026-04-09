@@ -6,7 +6,7 @@ import { eq, and, asc, desc, sql, inArray, between, gte, lte, ne } from "drizzle
 import ExcelJS from "exceljs";
 import { employees, departments, branches, companies, holidays, workSchedules, workLocations, otSettings, payrollRecords, attendanceRecords, otRecords, accounts, journalEntries, insertEmployeeSchema, insertOtSchema, insertLeaveSchema, insertWorkLocationSchema, commissionRules, commissionRecords, taxInvoices, invoices, firmClients, firmClientTeam, workStatusRows, leaveRequests, evaluationResults, taskAssignees, users, shifts, employeeShiftAssignments, leavePolicies, leaveBalances, insertLeavePolicySchema, notifications, scannerEmployeeMappings, scannerImportLogs, autoOtConfig } from "@shared/schema";
 import { requireAuth, requireModule, requireRole, checkDocOwnership } from "../route-middleware";
-import { haversineDistance, getNextJournalEntryNo, isViewingOwnCompany, isPrivilegedRole, logActivity, withDbRetry, isDbConnectionError, verifyCompanyAccess } from "../route-helpers";
+import { haversineDistance, getNextJournalEntryNo, isViewingOwnCompany, isPrivilegedRole, isFullAccessRole, logActivity, withDbRetry, isDbConnectionError, verifyCompanyAccess } from "../route-helpers";
 import multer from "multer";
 import { decodeMulterFilename } from "../utils/safe-filename";
 
@@ -160,7 +160,17 @@ export function registerHrRoutes(app: Express) {
   app.get("/api/employee-names", requireAuth, async (req, res) => {
     try {
       const user = req.user as any;
-      const companyId = req.query.companyId ? Number(req.query.companyId) : undefined;
+      let companyId = req.query.companyId ? Number(req.query.companyId) : undefined;
+      if (companyId && user.tenantId && !(await verifyCompanyAccess(companyId, user.tenantId))) {
+        return res.json([]);
+      }
+      if (companyId && !isFullAccessRole(user.role)) {
+        const { getUserAllowedCompanyIds } = await import("../route-middleware");
+        const allowedIds = await getUserAllowedCompanyIds(user.id);
+        if (allowedIds && allowedIds.length > 0 && !allowedIds.includes(companyId)) {
+          return res.json([]);
+        }
+      }
       const allEmployees = await storage.getEmployees(user.tenantId, companyId);
       const names = allEmployees
         .filter((e: any) => e.employmentStatus !== "resigned")
@@ -177,7 +187,14 @@ export function registerHrRoutes(app: Express) {
     if (companyId && tenantId && !(await verifyCompanyAccess(companyId, tenantId))) {
       return res.json([]);
     }
-    if (!companyId && !isPrivilegedRole(user.role)) {
+    if (companyId && !isFullAccessRole(user.role)) {
+      const { getUserAllowedCompanyIds } = await import("../route-middleware");
+      const allowedIds = await getUserAllowedCompanyIds(user.id);
+      if (allowedIds && allowedIds.length > 0 && !allowedIds.includes(companyId)) {
+        return res.json([]);
+      }
+    }
+    if (!companyId && !isFullAccessRole(user.role)) {
       const myEmpRecord = await storage.getEmployeeByUserId(user.id);
       if (myEmpRecord?.companyId) {
         companyId = myEmpRecord.companyId;
