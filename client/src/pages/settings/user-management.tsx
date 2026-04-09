@@ -623,6 +623,26 @@ export default function UserManagement() {
                 <p className="text-sm text-muted-foreground mt-1">
                   กดเปิด/ปิด เพื่อกำหนดสิทธิ์ว่าแต่ละระดับสามารถเข้าถึงเมนูใดได้บ้าง (ผู้ดูแลระบบเข้าถึงได้ทุกเมนูเสมอ)
                 </p>
+                <Button
+                  variant="outline"
+                  className="mt-2 border-red-400 text-red-600 hover:bg-red-50"
+                  data-testid="btn-reset-permissions"
+                  onClick={async () => {
+                    if (!confirm("รีเซ็ตสิทธิ์ทุก role กลับค่าเริ่มต้นตามระบบ?")) return;
+                    try {
+                      const r = await fetch("/api/permissions/reset-defaults", { method: "POST", credentials: "include" });
+                      const d = await r.json();
+                      if (!r.ok) throw new Error(d.message);
+                      queryClient.invalidateQueries({ queryKey: ["/api/permissions"] });
+                      queryClient.invalidateQueries({ queryKey: ["/api/permissions/me"] });
+                      toast({ title: "รีเซ็ตสิทธิ์สำเร็จ", description: d.message, variant: "success" as any });
+                    } catch (e: any) {
+                      toast({ title: "ไม่สำเร็จ", description: e.message, variant: "destructive" });
+                    }
+                  }}
+                >
+                  รีเซ็ตสิทธิ์ทุก role กลับค่าเริ่มต้น
+                </Button>
               </CardHeader>
               <CardContent className="p-0">
                 <div className="overflow-x-auto">

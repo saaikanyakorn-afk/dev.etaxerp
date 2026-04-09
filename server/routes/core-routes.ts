@@ -333,6 +333,15 @@ app.get("/api/permissions/me", requireAuth, async (req, res) => {
   res.json({ modules: allowedModules, subModules: allowedSubModules });
 });
 
+app.post("/api/permissions/reset-defaults", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    await storage.initDefaultPermissions();
+    res.json({ message: "รีเซ็ตสิทธิ์ทุก role ตาม PERMISSION_MODULES สำเร็จ" });
+  } catch (err: any) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 app.put("/api/permissions", requireAuth, requireAdmin, async (req, res) => {
   try {
     const { role, moduleKey, allowed } = req.body;
