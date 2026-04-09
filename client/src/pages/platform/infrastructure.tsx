@@ -32,7 +32,6 @@ interface MachineRecord {
   cpuModel: string | null;
   ramSize: string | null;
   machineModel: string | null;
-  appPort: string;
   dbPort: string;
   dbName: string;
   dbUser: string;
@@ -1670,12 +1669,6 @@ function MachineCard({ machine, onEdit, expanded, onToggle, onToggleOfficial, al
                 {machine.internetType === "fixed" ? "Fixed IP" : "Dynamic (DDNS)"}
               </span>
             </div>
-            {(machine.serverType === "app" || machine.serverType === "app_database") && (
-              <div>
-                <span className="text-gray-400 text-xs block">App Port</span>
-                <span className="font-mono text-xs">:{machine.appPort || "5000"}</span>
-              </div>
-            )}
             <div>
               <span className="text-gray-400 text-xs block">DB</span>
               <span className="font-mono text-xs">{machine.dbName}:{machine.dbPort}</span>
@@ -1793,8 +1786,6 @@ function EditMachineDialog({
 }) {
   const isNew = !machine;
   const [showDbPassword, setShowDbPassword] = useState(false);
-  const originalAppPort = machine?.appPort || "5000";
-  const [portChangeDialog, setPortChangeDialog] = useState<{ show: boolean; tested: boolean | null; testing: boolean; results: any[] }>({ show: false, tested: null, testing: false, results: [] });
   const [form, setForm] = useState({
     localName: machine?.localName || "",
     windowsName: machine?.windowsName || "",
@@ -1808,7 +1799,6 @@ function EditMachineDialog({
     cpuModel: machine?.cpuModel || "",
     ramSize: machine?.ramSize || "",
     machineModel: machine?.machineModel || "",
-    appPort: machine?.appPort || "5000",
     dbPort: machine?.dbPort || "5432",
     dbName: machine?.dbName || "",
     dbUser: machine?.dbUser || "",
@@ -1938,29 +1928,6 @@ function EditMachineDialog({
               </Select>
             </div>
           </div>
-
-          {(form.serverType === "app" || form.serverType === "app_database") && (
-            <div className="border-t pt-4">
-              <h3 className="text-sm font-semibold mb-3">Node.js App Port</h3>
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <Label className="text-sm font-medium">App Port *</Label>
-                  <Input value={form.appPort} onChange={e => setForm({ ...form, appPort: e.target.value })} placeholder="5000" data-testid="input-app-port" />
-                </div>
-                <div className="col-span-2 flex items-end">
-                  <div className="bg-amber-50 border border-amber-300 rounded-lg p-3 w-full">
-                    <p className="text-xs text-amber-700 font-medium flex items-center gap-1">
-                      <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0" />
-                      เปลี่ยน Port แล้วต้องแก้ Apache SSL ด้วย
-                    </p>
-                    <p className="text-[11px] text-amber-600 mt-1">
-                      Sysadmin ต้องแก้ไฟล์ Apache config (httpd-ssl.conf / sites-enabled) ให้ ProxyPass ชี้ไปที่ port ใหม่ แล้ว restart Apache ด้วยตนเอง
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
 
           <div className="border-t pt-4">
             <h3 className="text-sm font-semibold mb-3">Local Config Database (ฐานข้อมูล config บนเครื่องนี้)</h3>
