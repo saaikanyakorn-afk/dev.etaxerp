@@ -261,7 +261,14 @@ app.get("/api/permissions/me", requireAuth, async (req, res) => {
       await storage.initDefaultPermissions();
       perms = await storage.getRolePermissionsByRole(user.role);
     }
-    allowedModules = perms.filter(p => p.allowed).map(p => p.moduleKey);
+    const permMap = new Map(perms.map(p => [p.moduleKey, p.allowed]));
+    allowedModules = PERMISSION_MODULES
+      .filter(m => {
+        const dbPerm = permMap.get(m.key);
+        if (dbPerm !== undefined) return dbPerm;
+        return m.allowedRoles.includes(user.role);
+      })
+      .map(m => m.key);
   }
 
   if (tenantType === "general_business") {
@@ -275,7 +282,7 @@ app.get("/api/permissions/me", requireAuth, async (req, res) => {
   if (!isPrimary && user.role !== "admin") {
     const isAccountingFirm = tenantType === "accounting_firm";
     const accountantExceptions = isAccountingFirm && (user.role === "accountant") ? ["hr", "firm-mgmt"] : [];
-    const managerExceptions = isAccountingFirm && (user.role === "manager") ? ["hr"] : [];
+    const managerExceptions = isAccountingFirm && (user.role === "manager") ? ["hr", "settings"] : (user.role === "manager" ? ["settings"] : []);
     allowedModules = allowedModules.filter(m =>
       !PRIMARY_ONLY_MODULES.includes(m) || accountantExceptions.includes(m) || managerExceptions.includes(m)
     );
