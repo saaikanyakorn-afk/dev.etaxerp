@@ -393,9 +393,11 @@ app.get("/api/permissions/me", requireAuth, async (req, res) => {
       allowedModules = perms.filter(p => p.allowed).map(p => p.moduleKey);
       break;
     }
-    default:
-      allowedModules = [];
-      break;
+    default: {
+      const errMsg = `[permissions/me] Unhandled role "${user.role}" for userId=${user.id}, tenantId=${user.tenantId} at module resolution`;
+      console.error(errMsg);
+      return res.status(403).json({ message: "ไม่มีสิทธิ์เข้าถึง — role ไม่รู้จัก", debug: errMsg });
+    }
   }
 
   if (tenantType === "general_business") {
@@ -438,9 +440,11 @@ app.get("/api/permissions/me", requireAuth, async (req, res) => {
       case "client_external":
         allowedModules = allowedModules.filter(m => !PRIMARY_ONLY_MODULES.includes(m));
         break;
-      default:
-        allowedModules = [];
-        break;
+      default: {
+        const errMsg = `[permissions/me] Unhandled role "${user.role}" for userId=${user.id}, tenantId=${user.tenantId} at primary-company filter`;
+        console.error(errMsg);
+        return res.status(403).json({ message: "ไม่มีสิทธิ์เข้าถึง — role ไม่รู้จัก", debug: errMsg });
+      }
     }
   }
 
@@ -553,9 +557,11 @@ app.get("/api/permissions/me", requireAuth, async (req, res) => {
       }
       break;
     }
-    default:
-      allowedSubModules = [];
-      break;
+    default: {
+      const errMsg = `[permissions/me] Unhandled role "${user.role}" for userId=${user.id}, tenantId=${user.tenantId} at sub-module resolution`;
+      console.error(errMsg);
+      return res.status(403).json({ message: "ไม่มีสิทธิ์เข้าถึง — role ไม่รู้จัก", debug: errMsg });
+    }
   }
 
   switch (user.role) {
@@ -576,8 +582,11 @@ app.get("/api/permissions/me", requireAuth, async (req, res) => {
         }
       }
       break;
-    default:
-      break;
+    default: {
+      const errMsg = `[permissions/me] Unhandled role "${user.role}" for userId=${user.id}, tenantId=${user.tenantId} at HR sub-module filter`;
+      console.error(errMsg);
+      return res.status(403).json({ message: "ไม่มีสิทธิ์เข้าถึง — role ไม่รู้จัก", debug: errMsg });
+    }
   }
 
   if (user.role === "employee" && companyId) {
