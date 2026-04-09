@@ -974,7 +974,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               </button>
             </div>
 
-            {myPermissions?.modules?.includes("pos") && (
+            {myPermissions?.modules?.includes("pos") && myPermissions?.subModules?.includes("pos/sessions") && (
               <button
                 onClick={() => setLocation("/pos/terminal")}
                 className="hidden sm:flex h-10 px-3 rounded-full items-center gap-2 transition-all hover:shadow-md"
@@ -989,7 +989,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 <span className="text-sm font-semibold hidden lg:inline">POS</span>
               </button>
             )}
-            {myPermissions?.modules?.includes("hr") && (
+            {myPermissions?.modules?.includes("hr") && myPermissions?.subModules?.includes("hr/attendance") && (
               <button
                 onClick={() => setLocation("/hr/attendance")}
                 className="flex h-10 w-10 sm:w-auto sm:px-3 rounded-full items-center justify-center sm:justify-start gap-0 sm:gap-2 transition-all hover:shadow-md"
@@ -1020,7 +1020,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 )}
               </button>
             )}
-            {(user?.role === "admin" || user?.role === "manager" || user?.role === "super_admin") && (
+            {myPermissions?.modules?.includes("settings") && (
               <button
                 onClick={() => setLocation("/approval-center")}
                 className="relative h-10 w-10 rounded-full flex items-center justify-center transition-colors hover:bg-[var(--theme-primary-light)]"
@@ -1036,7 +1036,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 )}
               </button>
             )}
-            {(user?.role === "admin" || user?.role === "manager" || user?.role === "super_admin") && (
+            {myPermissions?.modules?.includes("settings") && (
               <SubscriptionNavButton />
             )}
             <DropdownMenu>
