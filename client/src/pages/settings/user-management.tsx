@@ -13,7 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Shield, UserPlus, Pencil, UserCheck, UserX, Users, Lock, ChevronRight, Settings2, KeyRound, Eye, EyeOff, ShoppingCart, ExternalLink } from "lucide-react";
 import { Link } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useCompany } from "@/lib/company-context";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
@@ -161,27 +161,43 @@ export default function UserManagement() {
     },
   });
 
+  const subPermQueueRef = useRef<Map<string, boolean>>(new Map());
+  const subPermTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const flushSubPermQueue = async () => {
+    if (!subPermUser || subPermQueueRef.current.size === 0) return;
+    const pendingChanges = new Map(subPermQueueRef.current);
+    subPermQueueRef.current.clear();
+
+    const latestPermsRes = await fetch(`/api/permissions/users/${subPermUser.id}/submodules`, { credentials: "include" });
+    const latestPerms: any[] = latestPermsRes.ok ? await latestPermsRes.json() : [];
+
+    const mergedMap = new Map<string, boolean>();
+    for (const p of latestPerms) { mergedMap.set(p.subModuleKey, p.allowed); }
+    for (const [key, val] of pendingChanges) { mergedMap.set(key, val); }
+
+    const newPerms = Array.from(mergedMap.entries()).map(([subModuleKey, allowed]) => ({ subModuleKey, allowed }));
+    const r = await fetch(`/api/permissions/users/${subPermUser.id}/submodules`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ permissions: newPerms }),
+      credentials: "include",
+    });
+    if (!r.ok) { const d = await r.json(); throw new Error(d.message); }
+    return r.json();
+  };
+
   const toggleSubPermMutation = useMutation({
     mutationFn: async ({ subModuleKey, allowed }: { subModuleKey: string; allowed: boolean }) => {
       if (!subPermUser) throw new Error("No user selected");
-      const currentPerms = [...userSubPerms];
-      const existing = currentPerms.find(p => p.subModuleKey === subModuleKey);
-      let newPerms: { subModuleKey: string; allowed: boolean }[];
-      if (existing) {
-        newPerms = currentPerms.map(p =>
-          p.subModuleKey === subModuleKey ? { subModuleKey: p.subModuleKey, allowed } : { subModuleKey: p.subModuleKey, allowed: p.allowed }
-        );
-      } else {
-        newPerms = [...currentPerms.map(p => ({ subModuleKey: p.subModuleKey, allowed: p.allowed })), { subModuleKey, allowed }];
-      }
-      const r = await fetch(`/api/permissions/users/${subPermUser.id}/submodules`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ permissions: newPerms }),
-        credentials: "include",
+      subPermQueueRef.current.set(subModuleKey, allowed);
+      if (subPermTimerRef.current) clearTimeout(subPermTimerRef.current);
+      return new Promise<any>((resolve, reject) => {
+        subPermTimerRef.current = setTimeout(async () => {
+          try { const result = await flushSubPermQueue(); resolve(result); }
+          catch (e) { reject(e); }
+        }, 500);
       });
-      if (!r.ok) { const d = await r.json(); throw new Error(d.message); }
-      return r.json();
     },
     onSuccess: () => {
       refetchSubPerms();

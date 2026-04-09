@@ -305,15 +305,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     staleTime: 600000,
   });
 
-  const permCacheKey = `perm_cache_${user?.id}_${selectedCompanyId || "all"}`;
-  const getCachedPerms = (): { modules: string[]; subModules: string[] } | undefined => {
-    try {
-      const raw = localStorage.getItem(permCacheKey);
-      if (raw) return JSON.parse(raw);
-    } catch {}
-    return undefined;
-  };
-
   const { data: myPermissions, isFetching: permFetching, isLoading: permLoading } = useQuery<{ modules: string[]; subModules: string[] }>({
     queryKey: ["/api/permissions/me", user?.id, selectedCompanyId],
     queryFn: async () => {
@@ -321,13 +312,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       const r = await fetch(`/api/permissions/me${params}`, { credentials: "include" });
       if (!r.ok) return { modules: [], subModules: [] };
       const data = await r.json();
-      const result = Array.isArray(data) ? { modules: data, subModules: [] } : data;
-      try { localStorage.setItem(permCacheKey, JSON.stringify(result)); } catch {}
-      return result;
+      if (Array.isArray(data)) return { modules: data, subModules: [] };
+      return { modules: Array.isArray(data.modules) ? data.modules : [], subModules: Array.isArray(data.subModules) ? data.subModules : [] };
     },
     enabled: !!user,
-    staleTime: 5 * 60 * 1000,
-    initialData: getCachedPerms(),
+    staleTime: 0,
   });
 
   useEffect(() => {
@@ -342,17 +331,22 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   const PRIMARY_COMPANY_HIDDEN_MENUS = ["/hr/commission-rules", "/hr/commission"];
 
+  const MANAGER_HIDDEN_MODULES = ["firm-mgmt", "etax-hub"];
+
   const { coreNavItems: filteredNavItems, addonNavItems, activeAddonModule } = useMemo(() => {
     if (!user || !myPermissions || myPermissions.modules.length === 0) return { coreNavItems: [], addonNavItems: [], activeAddonModule: null as any };
+    const effectiveModules = user.role === "manager"
+      ? myPermissions.modules.filter((m: string) => !MANAGER_HIDDEN_MODULES.includes(m))
+      : myPermissions.modules;
     const allFiltered = NAV_ITEMS.map(item => {
       const moduleKey = NAV_KEY_MAP[item.href];
-      if (moduleKey && !myPermissions.modules.includes(moduleKey)) return null;
+      if (moduleKey && !effectiveModules.includes(moduleKey)) return null;
 
       if (item.children && item.children.length > 0) {
         const filteredChildren = item.children.filter(child => {
           if (hiddenMenusByBiz.includes(child.href)) return false;
           if (isPrimaryCompany && PRIMARY_COMPANY_HIDDEN_MENUS.includes(child.href)) return false;
-          if (myPermissions.subModules.length > 0) {
+          if (myPermissions.subModules && myPermissions.subModules.length > 0) {
             const subMod = SUB_MODULES.find(s => s.href === child.href);
             if (subMod && !myPermissions.subModules.includes(subMod.key)) return false;
           }

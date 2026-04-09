@@ -56,7 +56,8 @@ app.get("/api/users", requireAuth, async (req, res) => {
 
     const filtered = usersWithEmp.filter((u: any) =>
       u.role === "admin" || linkedUserIds.has(u.id) || assignedUserIds.has(u.id) ||
-      (Array.isArray(u.allowedCompanyIds) && u.allowedCompanyIds.includes(filterCompanyId))
+      (Array.isArray(u.allowedCompanyIds) && u.allowedCompanyIds.includes(filterCompanyId)) ||
+      (!Array.isArray(u.allowedCompanyIds) && u.role === "manager")
     );
     return res.json(filtered);
   }
@@ -256,7 +257,7 @@ app.get("/api/permissions/me", requireAuth, async (req, res) => {
     allowedModules = PERMISSION_MODULES.map(m => m.key);
   } else {
     let perms = await storage.getRolePermissionsByRole(user.role);
-    if (perms.length === 0) {
+    if (perms.length < PERMISSION_MODULES.length) {
       await storage.initDefaultPermissions();
       perms = await storage.getRolePermissionsByRole(user.role);
     }
@@ -267,10 +268,14 @@ app.get("/api/permissions/me", requireAuth, async (req, res) => {
     allowedModules = allowedModules.filter(m => !FIRM_ONLY_MODULES.includes(m));
   }
 
+  if (user.role === "manager") {
+    allowedModules = allowedModules.filter(m => !["firm-mgmt", "etax-hub"].includes(m));
+  }
+
   if (!isPrimary && user.role !== "admin") {
     const isAccountingFirm = tenantType === "accounting_firm";
     const accountantExceptions = isAccountingFirm && (user.role === "accountant") ? ["hr", "firm-mgmt"] : [];
-    const managerExceptions = isAccountingFirm && (user.role === "manager") ? ["hr"] : [];
+    const managerExceptions = isAccountingFirm && (user.role === "manager") ? ["hr", "settings"] : (user.role === "manager" ? ["settings"] : []);
     allowedModules = allowedModules.filter(m =>
       !PRIMARY_ONLY_MODULES.includes(m) || accountantExceptions.includes(m) || managerExceptions.includes(m)
     );
@@ -282,10 +287,20 @@ app.get("/api/permissions/me", requireAuth, async (req, res) => {
   );
 
   let allowedSubModules: string[] = [];
+  let userSubPerms: any[] = [];
+  if (user.role !== "admin") {
+    try {
+      userSubPerms = await storage.getUserSubPermissions(user.id);
+    } catch (e: any) {
+      const errMsg = `[core-routes.ts GET /api/permissions/me] getUserSubPermissions failed for userId=${user.id}, role=${user.role}. Error: ${e?.message || e}`;
+      console.error(errMsg);
+      return res.status(500).json({ error: errMsg });
+    }
+  }
+
   if (user.role === "admin") {
     allowedSubModules = SUB_MODULES.filter(s => allowedModules.includes(s.parentModule)).map(s => s.key);
   } else if (user.role === "manager") {
-    const userSubPerms = await storage.getUserSubPermissions(user.id);
     if (userSubPerms.length === 0) {
       allowedSubModules = SUB_MODULES
         .filter(s => allowedModules.includes(s.parentModule) && !roleDeniedSubKeys.has(s.key))
@@ -299,7 +314,6 @@ app.get("/api/permissions/me", requireAuth, async (req, res) => {
   } else {
     const isAccountantAtFirm = tenantType === "accounting_firm" && user.role === "accountant";
     const skipConfidentialForClientHr = isAccountantAtFirm && !isPrimary;
-    const userSubPerms = await storage.getUserSubPermissions(user.id);
     if (userSubPerms.length === 0) {
       allowedSubModules = SUB_MODULES
         .filter(s => {
