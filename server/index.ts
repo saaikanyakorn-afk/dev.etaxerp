@@ -815,6 +815,10 @@ async function runMigrationsInBackground() {
         UPDATE role_permissions SET allowed = true 
         WHERE role = 'accountant' AND module_key = 'firm-mgmt' AND allowed = false
       `);
+      await db.execute(rawSql`
+        UPDATE role_permissions SET allowed = true 
+        WHERE role = 'manager' AND module_key = 'settings' AND allowed = false
+      `);
     } catch (e: any) {
       console.warn("Permission sync skip:", e.message?.slice(0, 80));
     }
