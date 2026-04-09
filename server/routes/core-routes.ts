@@ -236,11 +236,12 @@ app.get("/api/permissions/me", requireAuth, async (req, res) => {
     allowedModules = allowedModules.filter(m => !FIRM_ONLY_MODULES.includes(m));
   }
 
-  if (!isPrimary && user.role !== "admin" && user.role !== "manager") {
+  if (!isPrimary && user.role !== "admin") {
     const isAccountingFirm = tenantType === "accounting_firm";
     const accountantExceptions = isAccountingFirm && (user.role === "accountant") ? ["hr", "firm-mgmt"] : [];
+    const managerExceptions = isAccountingFirm && (user.role === "manager") ? ["hr"] : [];
     allowedModules = allowedModules.filter(m =>
-      !PRIMARY_ONLY_MODULES.includes(m) || accountantExceptions.includes(m)
+      !PRIMARY_ONLY_MODULES.includes(m) || accountantExceptions.includes(m) || managerExceptions.includes(m)
     );
   }
 
