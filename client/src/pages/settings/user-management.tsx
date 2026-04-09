@@ -149,7 +149,8 @@ export default function UserManagement() {
   const isSubModuleAllowed = (subKey: string): boolean => {
     if (!subPermUser) return true;
     if (localSubPerms.has(subKey)) return localSubPerms.get(subKey)!;
-    return true;
+    const defaultClosed = ["admin", "employee", "cashier"].includes(subPermUser.role);
+    return !defaultClosed;
   };
 
   const toggleLocalSubPerm = (subKey: string, allowed: boolean) => {
