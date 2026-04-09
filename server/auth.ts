@@ -279,6 +279,14 @@ export function setupAuth(app: Express) {
     passport.authenticate("local", (err: any, user: any, info: any) => {
       if (err) return next(err);
       if (!user) return res.status(401).json({ message: info?.message || "เข้าสู่ระบบไม่สำเร็จ" });
+
+      const { isUserLocked } = require("./utils/user-lock");
+      const lock = isUserLocked(user.id);
+      if (lock) {
+        const remainSec = Math.ceil((lock.expiresAt - Date.now()) / 1000);
+        return res.status(423).json({ message: `ผู้ดูแลระบบกำลังปรับสิทธิ์ของคุณ กรุณารอสักครู่ (อีกประมาณ ${remainSec} วินาที)`, locked: true, remainingSeconds: remainSec });
+      }
+
       if (isMaintenanceMode() && user.role !== "super_admin") {
         const mState = getMaintenanceState();
         return res.status(503).json({ message: mState.message, maintenance: true, scheduledEnd: mState.scheduledEnd });

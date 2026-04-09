@@ -222,7 +222,23 @@ app.patch("/api/users/:id", requireAuth, async (req, res) => {
   }
 });
 
-app.post("/api/users/:id/kick", requireAuth, async (req, res) => {
+app.get("/api/users/:id/session-status", requireAuth, async (req, res) => {
+  try {
+    const currentUser = req.user as any;
+    if (!["admin", "super_admin"].includes(currentUser.role)) {
+      return res.status(403).json({ message: "เฉพาะผู้ดูแลระบบเท่านั้น" });
+    }
+    const targetUserId = Number(req.params.id);
+    const result = await db.execute(sql`SELECT COUNT(*) as cnt FROM "session" WHERE (sess::jsonb->'passport'->>'user')::int = ${targetUserId}`);
+    const count = Number((result as any).rows?.[0]?.cnt || 0);
+    res.json({ online: count > 0, sessionCount: count });
+  } catch (err: any) {
+    console.error("[core-routes.ts GET /api/users/:id/session-status]", err);
+    res.status(500).json({ message: err.message });
+  }
+});
+
+app.post("/api/users/:id/lock", requireAuth, async (req, res) => {
   try {
     const currentUser = req.user as any;
     if (!["admin", "super_admin"].includes(currentUser.role)) {
@@ -230,22 +246,44 @@ app.post("/api/users/:id/kick", requireAuth, async (req, res) => {
     }
     const targetUserId = Number(req.params.id);
     if (targetUserId === currentUser.id) {
-      return res.status(400).json({ message: "ไม่สามารถ kick ตัวเองได้" });
+      return res.status(400).json({ message: "ไม่สามารถ lock ตัวเองได้" });
     }
     const tenantId = currentUser.tenantId;
     if (tenantId) {
       const [targetUser] = await db.select({ id: users.id, tenantId: users.tenantId }).from(users).where(eq(users.id, targetUserId)).limit(1);
       if (!targetUser || targetUser.tenantId !== tenantId) {
-        return res.status(403).json({ message: "ไม่มีสิทธิ์ kick ผู้ใช้นี้" });
+        return res.status(403).json({ message: "ไม่มีสิทธิ์ lock ผู้ใช้นี้" });
       }
     }
-    const result = await db.execute(sql`DELETE FROM "session" WHERE (sess::jsonb->'passport'->>'user')::int = ${targetUserId}`);
-    const deleted = (result as any).rowCount || 0;
+    const { lockUser } = await import("../utils/user-lock");
+    const durationMs = req.body.durationMs || 5 * 60 * 1000;
+    const sessionResult = await db.execute(sql`DELETE FROM "session" WHERE (sess::jsonb->'passport'->>'user')::int = ${targetUserId}`);
+    const sessionsDestroyed = (sessionResult as any).rowCount || 0;
+    const lock = lockUser(targetUserId, currentUser.id, currentUser.fullName || currentUser.username, durationMs);
     const [targetUser] = await db.select({ username: users.username, fullName: users.fullName }).from(users).where(eq(users.id, targetUserId)).limit(1);
-    await logActivity(db, currentUser.id, currentUser.tenantId, null, "kick_user", `Kick user: ${targetUser?.fullName || targetUserId} (${deleted} sessions destroyed)`);
-    res.json({ message: `บังคับออกจากระบบสำเร็จ (${deleted} session)`, sessionsDestroyed: deleted });
+    await logActivity(db, currentUser.id, currentUser.tenantId, null, "lock_user", `Lock user: ${targetUser?.fullName || targetUserId} for permission change (${sessionsDestroyed} sessions destroyed)`);
+    res.json({ locked: true, expiresAt: lock.expiresAt, sessionsDestroyed });
   } catch (err: any) {
-    console.error("[core-routes.ts POST /api/users/:id/kick]", err);
+    console.error("[core-routes.ts POST /api/users/:id/lock]", err);
+    res.status(500).json({ message: err.message });
+  }
+});
+
+app.post("/api/users/:id/unlock", requireAuth, async (req, res) => {
+  try {
+    const currentUser = req.user as any;
+    if (!["admin", "super_admin"].includes(currentUser.role)) {
+      return res.status(403).json({ message: "เฉพาะผู้ดูแลระบบเท่านั้น" });
+    }
+    const targetUserId = Number(req.params.id);
+    const { unlockUser } = await import("../utils/user-lock");
+    const wasLocked = unlockUser(targetUserId);
+    if (wasLocked) {
+      await logActivity(db, currentUser.id, currentUser.tenantId, null, "unlock_user", `Unlock user: userId=${targetUserId}`);
+    }
+    res.json({ unlocked: true, wasLocked });
+  } catch (err: any) {
+    console.error("[core-routes.ts POST /api/users/:id/unlock]", err);
     res.status(500).json({ message: err.message });
   }
 });
