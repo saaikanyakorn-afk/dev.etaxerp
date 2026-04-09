@@ -276,11 +276,11 @@ export function setupAuth(app: Express) {
       return res.status(500).json({ message: "ไม่สามารถตรวจสอบ reCAPTCHA ได้" });
     }
 
-    passport.authenticate("local", (err: any, user: any, info: any) => {
+    passport.authenticate("local", async (err: any, user: any, info: any) => {
       if (err) return next(err);
       if (!user) return res.status(401).json({ message: info?.message || "เข้าสู่ระบบไม่สำเร็จ" });
 
-      const { isUserLocked } = require("./utils/user-lock");
+      const { isUserLocked } = await import("./utils/user-lock");
       const lock = isUserLocked(user.id);
       if (lock) {
         const remainSec = Math.ceil((lock.expiresAt - Date.now()) / 1000);
