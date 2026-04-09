@@ -148,7 +148,6 @@ export default function UserManagement() {
 
   const isSubModuleAllowed = (subKey: string): boolean => {
     if (!subPermUser) return true;
-    if (subPermUser.role === "admin") return true;
     if (localSubPerms.has(subKey)) return localSubPerms.get(subKey)!;
     return true;
   };
@@ -849,7 +848,7 @@ export default function UserManagement() {
               </CardHeader>
               <CardContent>
                 <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-                  {users.filter(u => u.role !== "admin").map((u: any) => (
+                  {users.filter((u: any) => u.id !== currentUser?.id).map((u: any) => (
                     <div
                       key={u.id}
                       className="border rounded-lg p-4 hover:border-[var(--theme-primary)]/30 hover:bg-[#eef4ff]/30 transition-colors cursor-pointer group"
@@ -870,9 +869,9 @@ export default function UserManagement() {
                       </div>
                     </div>
                   ))}
-                  {users.filter(u => u.role !== "admin").length === 0 && (
+                  {users.filter((u: any) => u.id !== currentUser?.id).length === 0 && (
                     <div className="col-span-full text-center py-8 text-muted-foreground">
-                      ไม่มีผู้ใช้ที่สามารถกำหนดสิทธิ์เมนูย่อยได้ (ผู้ดูแลระบบเข้าถึงทุกเมนูอยู่แล้ว)
+                      ไม่มีผู้ใช้อื่นในระบบ
                     </div>
                   )}
                 </div>
