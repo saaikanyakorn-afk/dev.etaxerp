@@ -321,6 +321,11 @@ export const SUB_MODULES: SubModule[] = [
 
   { key: "job-costing/projects", label: "โปรเจคทั้งหมด", parentModule: "job-costing", href: "/job-costing" },
 
+  { key: "pos/restaurant", label: "POS ร้านอาหาร", parentModule: "pos", href: "/restaurant-pos" },
+  { key: "pos/food-delivery", label: "Food Delivery", parentModule: "pos", href: "/food-delivery/dashboard" },
+  { key: "ecommerce/delivery-hub", label: "Delivery Hub", parentModule: "ecommerce", href: "/delivery/dashboard" },
+  { key: "inventory/receiving-hub", label: "ศูนย์รับสินค้า", parentModule: "inventory", href: "/delivery-hub" },
+
   { key: "settings/users", label: "กำหนดสิทธิ์ผู้ใช้งาน", parentModule: "settings", href: "/settings/users" },
   { key: "settings/profile", label: "โปรไฟล์ / ลายเซ็น", parentModule: "settings", href: "/settings/profile" },
   { key: "settings/company-info", label: "ข้อมูลบริษัท", parentModule: "settings", href: "/settings/company-info" },
