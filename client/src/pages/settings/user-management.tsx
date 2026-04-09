@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Shield, UserPlus, Pencil, UserCheck, UserX, Users, Lock, ChevronRight, Settings2, KeyRound, Eye, EyeOff, ShoppingCart, ExternalLink } from "lucide-react";
+import { Shield, UserPlus, Pencil, UserCheck, UserX, Users, Lock, ChevronRight, Settings2, KeyRound, Eye, EyeOff, ShoppingCart, ExternalLink, LogOut } from "lucide-react";
 import { Link } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, useEffect } from "react";
@@ -264,6 +264,22 @@ export default function UserManagement() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/users"] });
       toast({ title: "อัปเดตสถานะสำเร็จ", variant: "success" as any });
+    },
+    onError: (err: any) => {
+      toast({ title: "ไม่สำเร็จ", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const kickUserMutation = useMutation({
+    mutationFn: (userId: number) => fetch(`/api/users/${userId}/kick`, {
+      method: "POST",
+      credentials: "include",
+    }).then(r => {
+      if (!r.ok) return r.json().then(d => { throw new Error(d.message); });
+      return r.json();
+    }),
+    onSuccess: (data: any) => {
+      toast({ title: `${data.message}`, variant: "success" as any });
     },
     onError: (err: any) => {
       toast({ title: "ไม่สำเร็จ", description: err.message, variant: "destructive" });
@@ -608,6 +624,19 @@ export default function UserManagement() {
                                   data-testid={`button-toggle-user-${u.id}`}
                                 >
                                   {u.active ? <><UserX className="h-3.5 w-3.5 mr-1" /> ระงับ</> : <><UserCheck className="h-3.5 w-3.5 mr-1" /> เปิดใช้</>}
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-8 text-amber-600 hover:text-amber-800"
+                                  onClick={() => {
+                                    if (confirm(`บังคับ "${u.fullName}" ออกจากระบบ?`)) {
+                                      kickUserMutation.mutate(u.id);
+                                    }
+                                  }}
+                                  data-testid={`button-kick-user-${u.id}`}
+                                >
+                                  <LogOut className="h-3.5 w-3.5 mr-1" /> Kick
                                 </Button>
                               </>
                             )}
