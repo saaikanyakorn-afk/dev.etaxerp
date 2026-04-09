@@ -163,7 +163,7 @@ app.patch("/api/users/:id", requireAuth, requireAdmin, async (req, res) => {
     if (req.body.allowedCompanyIds !== undefined) updateData.allowedCompanyIds = req.body.allowedCompanyIds;
     const user = await storage.updateUser(userId, updateData);
     if (req.body.allowedCompanyIds !== undefined) {
-      const { invalidateUserAllowedCache } = await import("./route-middleware");
+      const { invalidateUserAllowedCache } = await import("../route-middleware");
       invalidateUserAllowedCache(userId);
     }
     if (!user) return res.status(404).json({ message: "ไม่พบผู้ใช้" });
