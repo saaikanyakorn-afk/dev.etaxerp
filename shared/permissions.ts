@@ -7,7 +7,7 @@ export const ROLE_LABELS: Record<Role, string> = {
   accountant: "นักบัญชี",
   employee: "พนักงาน",
   cashier: "แคชเชียร์",
-  client: "ลูกค้า",
+  client: "ผู้เยี่ยมชม (Guest)",
 };
 
 export interface PermissionModule {
