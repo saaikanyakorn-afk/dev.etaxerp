@@ -50,7 +50,9 @@ app.get("/api/users", requireAuth, async (req, res) => {
 
   if (filterCompanyId) {
     const linkedUserIds = new Set(empLinks.map(e => e.userId));
-    const allEmpLinks = await db.select({ userId: employees.userId }).from(employees).where(sql`${employees.userId} IS NOT NULL`);
+    const allEmpLinkConditions = [sql`${employees.userId} IS NOT NULL`];
+    if (tenantId) allEmpLinkConditions.push(eq(employees.tenantId, tenantId));
+    const allEmpLinks = await db.select({ userId: employees.userId }).from(employees).where(and(...allEmpLinkConditions));
     const allLinkedUserIds = new Set(allEmpLinks.map(e => e.userId));
 
     const assignedEmpIds = await db.select({ assignedTo: firmClients.assignedTo })

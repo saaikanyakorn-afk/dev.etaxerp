@@ -543,6 +543,9 @@ export class DatabaseStorage implements IStorage {
     const conditions = [];
     if (companyId) {
       conditions.push(eq(employees.companyId, companyId));
+      if (tenantId) {
+        conditions.push(eq(employees.tenantId, tenantId));
+      }
     } else if (tenantId) {
       conditions.push(eq(employees.tenantId, tenantId));
     } else {

@@ -36,6 +36,13 @@ export async function checkClosedPeriod(companyId: number, entryDate: string): P
   return { blocked: false, message: "" };
 }
 
+export async function verifyCompanyAccess(companyId: number, tenantId: number | null | undefined): Promise<boolean> {
+  if (!tenantId) return true;
+  const [company] = await db.select({ tenantId: companies.tenantId }).from(companies).where(eq(companies.id, companyId)).limit(1);
+  if (!company) return false;
+  return company.tenantId === tenantId;
+}
+
 export function isDbConnectionError(err: any): boolean {
   const msg = (err?.message || "").toLowerCase();
   const code = (err?.code || "").toString();
