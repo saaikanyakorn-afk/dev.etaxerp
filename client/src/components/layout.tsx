@@ -1123,9 +1123,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                       { icon: HardHat, label: "ต้นทุนงาน", desc: "บริหารโปรเจค ต้นทุน", href: "/job-costing", iconBg: "bg-amber-100", iconColor: "text-amber-700", module: "job-costing" },
                       { icon: Fuel, label: "ปั๊มน้ำมัน", desc: "ยอดขาย สต็อก ภาษีท้องถิ่น", href: "/gas-station/dashboard", iconBg: "bg-emerald-100", iconColor: "text-emerald-700", module: "gas-station" },
                       { icon: Truck, label: "Delivery Hub", desc: "จัดส่งพัสดุ ติดตามสถานะ", href: "/delivery/dashboard", iconBg: "bg-sky-100", iconColor: "text-sky-700", module: "ecommerce" },
-                      { icon: ClipboardCheck, label: "ศูนย์รับสินค้า", desc: "GPS + ลายเซ็นรับ ทุกโมดูล", href: "/delivery-hub", iconBg: "bg-green-100", iconColor: "text-green-700" },
-                      { icon: UtensilsCrossed, label: "POS ร้านอาหาร", desc: "จัดการโต๊ะ ออเดอร์", href: "/restaurant-pos", iconBg: "bg-teal-100", iconColor: "text-teal-700" },
-                      { icon: UtensilsCrossed, label: "Food Delivery", desc: "บริการส่งอาหาร", href: "/food-delivery/dashboard", iconBg: "bg-emerald-100", iconColor: "text-emerald-700" },
+                      { icon: ClipboardCheck, label: "ศูนย์รับสินค้า", desc: "GPS + ลายเซ็นรับ ทุกโมดูล", href: "/delivery-hub", iconBg: "bg-green-100", iconColor: "text-green-700", module: "inventory" },
+                      { icon: UtensilsCrossed, label: "POS ร้านอาหาร", desc: "จัดการโต๊ะ ออเดอร์", href: "/restaurant-pos", iconBg: "bg-teal-100", iconColor: "text-teal-700", module: "pos" },
+                      { icon: UtensilsCrossed, label: "Food Delivery", desc: "บริการส่งอาหาร", href: "/food-delivery/dashboard", iconBg: "bg-emerald-100", iconColor: "text-emerald-700", module: "pos" },
                     ];
                     const renderAppButton = (app: typeof coreApps[0], isAddon = false) => {
                       const IconComp = app.icon;
