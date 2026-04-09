@@ -260,7 +260,7 @@ export default function UserManagement() {
     e.preventDefault();
     const { employeeId, lineId, ...rest } = form;
     const submitData: any = { ...rest, employeeId: employeeId && employeeId !== "none" ? Number(employeeId) : null, lineId: lineId || null };
-    if (form.role === "client" || form.role === "accountant" || form.role === "employee") {
+    if (form.role === "client" || form.role === "accountant" || form.role === "employee" || form.role === "manager" || form.role === "cashier") {
       submitData.allowedCompanyIds = allowedCompanyIds.length > 0 ? allowedCompanyIds : null;
     }
     addUserMutation.mutate(submitData);
@@ -277,7 +277,7 @@ export default function UserManagement() {
     if (editForm.password) data.password = editForm.password;
     data.employeeId = editForm.employeeId && editForm.employeeId !== "none" ? Number(editForm.employeeId) : null;
     if (editForm.lineId !== undefined) data.lineId = editForm.lineId || null;
-    if (editForm.role === "client" || editForm.role === "accountant" || editForm.role === "employee") {
+    if (editForm.role === "client" || editForm.role === "accountant" || editForm.role === "employee" || editForm.role === "manager" || editForm.role === "cashier") {
       data.allowedCompanyIds = allowedCompanyIds.length > 0 ? allowedCompanyIds : null;
     }
     updateUserMutation.mutate({ id: editingUser.id, data });
@@ -381,7 +381,7 @@ export default function UserManagement() {
                   <Label>สิทธิ์การใช้งาน</Label>
                   <Select value={form.role} onValueChange={v => {
                     setForm({...form, role: v});
-                    if (v === "client" && selectedCompanyId && allowedCompanyIds.length === 0) {
+                    if ((v === "client" || v === "manager" || v === "cashier") && selectedCompanyId && allowedCompanyIds.length === 0) {
                       setAllowedCompanyIds([selectedCompanyId]);
                     }
                   }}>
@@ -423,7 +423,7 @@ export default function UserManagement() {
                   />
                   <p className="text-xs text-muted-foreground mt-1">สำหรับรับแจ้งเตือนอนุมัติใบลา/OT ผ่าน LINE</p>
                 </div>
-                {(form.role === "client" || form.role === "accountant" || form.role === "employee") && (
+                {(form.role === "client" || form.role === "accountant" || form.role === "employee" || form.role === "manager" || form.role === "cashier") && (
                   <div>
                     <Label>บริษัทที่เข้าถึงได้</Label>
                     <div className="border rounded-md p-2 max-h-40 overflow-y-auto space-y-1 mt-1">
@@ -814,7 +814,7 @@ export default function UserManagement() {
                   </SelectContent>
                 </Select>
               </div>
-              {(editForm.role === "client" || editForm.role === "accountant" || editForm.role === "employee") && (
+              {(editForm.role === "client" || editForm.role === "accountant" || editForm.role === "employee" || editForm.role === "manager" || editForm.role === "cashier") && (
                 <div>
                   <Label>บริษัทที่เข้าถึงได้</Label>
                   <div className="border rounded-md p-2 max-h-40 overflow-y-auto space-y-1 mt-1">
