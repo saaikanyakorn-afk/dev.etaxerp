@@ -180,11 +180,7 @@ export async function registerRoutes(
   registerLegacyImportRoutes(app);
   registerJobCostingRoutes(app);
 
-  (async () => {
-    try {
-      await storage.initDefaultPermissions();
-    } catch (e) { console.error("[startup] initDefaultPermissions error:", (e as any).message); }
-  })();
+  
 
   registerObjectStorageRoutes(app);
   registerMiscRoutes(app);
