@@ -257,18 +257,11 @@ app.get("/api/permissions/me", requireAuth, async (req, res) => {
     allowedModules = PERMISSION_MODULES.map(m => m.key);
   } else {
     let perms = await storage.getRolePermissionsByRole(user.role);
-    if (perms.length === 0) {
+    if (perms.length < PERMISSION_MODULES.length) {
       await storage.initDefaultPermissions();
       perms = await storage.getRolePermissionsByRole(user.role);
     }
-    const permMap = new Map(perms.map(p => [p.moduleKey, p.allowed]));
-    allowedModules = PERMISSION_MODULES
-      .filter(m => {
-        const dbPerm = permMap.get(m.key);
-        if (dbPerm !== undefined) return dbPerm;
-        return m.allowedRoles.includes(user.role);
-      })
-      .map(m => m.key);
+    allowedModules = perms.filter(p => p.allowed).map(p => p.moduleKey);
   }
 
   if (tenantType === "general_business") {
@@ -295,7 +288,15 @@ app.get("/api/permissions/me", requireAuth, async (req, res) => {
 
   let allowedSubModules: string[] = [];
   let userSubPerms: any[] = [];
-  try { userSubPerms = user.role !== "admin" ? await storage.getUserSubPermissions(user.id) : []; } catch (e) { console.error("getUserSubPermissions error:", e); }
+  if (user.role !== "admin") {
+    try {
+      userSubPerms = await storage.getUserSubPermissions(user.id);
+    } catch (e: any) {
+      const errMsg = `[core-routes.ts GET /api/permissions/me] getUserSubPermissions failed for userId=${user.id}, role=${user.role}. Error: ${e?.message || e}`;
+      console.error(errMsg);
+      return res.status(500).json({ error: errMsg });
+    }
+  }
 
   if (user.role === "admin") {
     allowedSubModules = SUB_MODULES.filter(s => allowedModules.includes(s.parentModule)).map(s => s.key);
