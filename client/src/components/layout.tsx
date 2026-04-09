@@ -305,19 +305,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     staleTime: 600000,
   });
 
-  const PERM_CACHE_V = 2;
-  const permCacheKey = `perm_v${PERM_CACHE_V}_${user?.id}_${selectedCompanyId || "all"}`;
-  const getCachedPerms = (): { modules: string[]; subModules: string[] } | undefined => {
-    try {
-      const raw = localStorage.getItem(permCacheKey);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (parsed && Array.isArray(parsed.modules) && Array.isArray(parsed.subModules)) return parsed;
-      }
-    } catch {}
-    return undefined;
-  };
-
   const { data: myPermissions, isFetching: permFetching, isLoading: permLoading } = useQuery<{ modules: string[]; subModules: string[] }>({
     queryKey: ["/api/permissions/me", user?.id, selectedCompanyId],
     queryFn: async () => {
@@ -325,16 +312,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       const r = await fetch(`/api/permissions/me${params}`, { credentials: "include" });
       if (!r.ok) return { modules: [], subModules: [] };
       const data = await r.json();
-      const result = Array.isArray(data)
-        ? { modules: data, subModules: [] }
-        : { modules: Array.isArray(data.modules) ? data.modules : [], subModules: Array.isArray(data.subModules) ? data.subModules : [] };
-      try { localStorage.setItem(permCacheKey, JSON.stringify(result)); } catch {}
-      return result;
+      if (Array.isArray(data)) return { modules: data, subModules: [] };
+      return { modules: Array.isArray(data.modules) ? data.modules : [], subModules: Array.isArray(data.subModules) ? data.subModules : [] };
     },
     enabled: !!user,
-    staleTime: 30 * 1000,
-    refetchOnMount: "always" as const,
-    placeholderData: getCachedPerms(),
+    staleTime: 0,
   });
 
   useEffect(() => {
