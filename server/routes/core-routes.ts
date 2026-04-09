@@ -405,13 +405,25 @@ app.get("/api/permissions/me", requireAuth, async (req, res) => {
   }
 
   switch (user.role) {
+    case "super_admin":
+    case "admin":
+      break;
     case "manager":
       allowedModules = allowedModules.filter(m => !["firm-mgmt", "etax-hub"].includes(m));
+      break;
+    case "accountant":
+    case "employee":
+    case "cashier":
       break;
     case "client":
     case "client_external":
       allowedModules = allowedModules.filter(m => ["etax-hub", "settings"].includes(m));
       break;
+    default: {
+      const errMsg = `[permissions/me] Unhandled role "${user.role}" for userId=${user.id}, tenantId=${user.tenantId} at role-specific module filter`;
+      console.error(errMsg);
+      return res.status(403).json({ message: "ไม่มีสิทธิ์เข้าถึง — role ไม่รู้จัก", debug: errMsg });
+    }
   }
 
   if (!isPrimary) {
