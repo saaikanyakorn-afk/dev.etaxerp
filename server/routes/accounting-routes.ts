@@ -1072,9 +1072,10 @@ app.post("/api/journal-preview", requireAuth, async (req, res) => {
     }
 
     const user = req.user as any;
-    if (user.role !== "admin") {
-      const userComps = await storage.getUserCompanies(user.id);
-      if (!userComps.some((uc: any) => uc.companyId === Number(companyId))) {
+    if (user.role !== "admin" && user.role !== "super_admin") {
+      const { getUserAllowedCompanyIds } = await import("../route-middleware");
+      const allowedIds = await getUserAllowedCompanyIds(user.id);
+      if (allowedIds && !allowedIds.includes(Number(companyId))) {
         return res.status(403).json({ available: false, message: "ไม่มีสิทธิ์เข้าถึงบริษัทนี้" });
       }
     }
