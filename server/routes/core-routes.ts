@@ -374,35 +374,77 @@ app.get("/api/permissions/me", requireAuth, async (req, res) => {
   }
 
   let allowedModules: string[];
-  if (user.role === "admin") {
-    allowedModules = PERMISSION_MODULES.map(m => m.key);
-  } else {
-    let perms = await storage.getRolePermissionsByRole(user.role);
-    if (perms.length === 0) {
-      await storage.initDefaultPermissions();
-      perms = await storage.getRolePermissionsByRole(user.role);
+  switch (user.role) {
+    case "admin":
+    case "super_admin":
+      allowedModules = PERMISSION_MODULES.map(m => m.key);
+      break;
+    case "manager":
+    case "accountant":
+    case "employee":
+    case "cashier":
+    case "client":
+    case "client_external": {
+      let perms = await storage.getRolePermissionsByRole(user.role);
+      if (perms.length === 0) {
+        await storage.initDefaultPermissions();
+        perms = await storage.getRolePermissionsByRole(user.role);
+      }
+      allowedModules = perms.filter(p => p.allowed).map(p => p.moduleKey);
+      break;
     }
-    allowedModules = perms.filter(p => p.allowed).map(p => p.moduleKey);
+    default:
+      allowedModules = [];
+      break;
   }
 
   if (tenantType === "general_business") {
     allowedModules = allowedModules.filter(m => !FIRM_ONLY_MODULES.includes(m));
   }
 
-  if (user.role === "manager") {
-    allowedModules = allowedModules.filter(m => !["firm-mgmt", "etax-hub"].includes(m));
+  switch (user.role) {
+    case "manager":
+      allowedModules = allowedModules.filter(m => !["firm-mgmt", "etax-hub"].includes(m));
+      break;
+    case "client":
+    case "client_external":
+      allowedModules = allowedModules.filter(m => ["etax-hub", "settings"].includes(m));
+      break;
   }
 
-  if (!isPrimary && user.role !== "admin") {
+  if (!isPrimary) {
     const isAccountingFirm = tenantType === "accounting_firm";
-    const accountantExceptions = isAccountingFirm && (user.role === "accountant") ? ["hr", "firm-mgmt"] : [];
-    const managerExceptions = isAccountingFirm && (user.role === "manager") ? ["hr", "settings"] : (user.role === "manager" ? ["settings"] : []);
-    allowedModules = allowedModules.filter(m =>
-      !PRIMARY_ONLY_MODULES.includes(m) || accountantExceptions.includes(m) || managerExceptions.includes(m)
-    );
+    switch (user.role) {
+      case "admin":
+      case "super_admin":
+        break;
+      case "accountant": {
+        const accountantExceptions = isAccountingFirm ? ["hr", "firm-mgmt"] : [];
+        allowedModules = allowedModules.filter(m =>
+          !PRIMARY_ONLY_MODULES.includes(m) || accountantExceptions.includes(m)
+        );
+        break;
+      }
+      case "manager": {
+        const managerExceptions = isAccountingFirm ? ["hr", "settings"] : ["settings"];
+        allowedModules = allowedModules.filter(m =>
+          !PRIMARY_ONLY_MODULES.includes(m) || managerExceptions.includes(m)
+        );
+        break;
+      }
+      case "employee":
+      case "cashier":
+      case "client":
+      case "client_external":
+        allowedModules = allowedModules.filter(m => !PRIMARY_ONLY_MODULES.includes(m));
+        break;
+      default:
+        allowedModules = [];
+        break;
+    }
   }
 
-  const allRolePerms = user.role !== "admin" ? await storage.getRolePermissionsByRole(user.role) : [];
+  const allRolePerms = (user.role === "admin" || user.role === "super_admin") ? [] : await storage.getRolePermissionsByRole(user.role);
   const roleDeniedSubKeys = new Set(
     allRolePerms.filter(p => !p.allowed && SUB_MODULES.some(s => s.key === p.moduleKey)).map(p => p.moduleKey)
   );
@@ -426,76 +468,116 @@ app.get("/api/permissions/me", requireAuth, async (req, res) => {
       })()
     : user.role === "admin" && !user.tenantId;
 
-  if (user.role === "admin") {
-    if (isOwnerAdmin) {
-      allowedSubModules = SUB_MODULES.filter(s => allowedModules.includes(s.parentModule)).map(s => s.key);
-    } else if (userSubPerms.length === 0) {
+  switch (user.role) {
+    case "admin":
+    case "super_admin": {
+      if (isOwnerAdmin || user.role === "super_admin") {
+        allowedSubModules = SUB_MODULES.filter(s => allowedModules.includes(s.parentModule)).map(s => s.key);
+      } else if (userSubPerms.length === 0) {
+        allowedSubModules = [];
+      } else {
+        const allowedKeys = new Set(userSubPerms.filter(p => p.allowed).map(p => p.subModuleKey));
+        allowedSubModules = SUB_MODULES
+          .filter(s => allowedModules.includes(s.parentModule) && allowedKeys.has(s.key))
+          .map(s => s.key);
+      }
+      break;
+    }
+    case "manager": {
+      if (userSubPerms.length === 0) {
+        allowedSubModules = SUB_MODULES
+          .filter(s => allowedModules.includes(s.parentModule) && !roleDeniedSubKeys.has(s.key))
+          .map(s => s.key);
+      } else {
+        const deniedKeys = new Set(userSubPerms.filter(p => !p.allowed).map(p => p.subModuleKey));
+        allowedSubModules = SUB_MODULES
+          .filter(s => allowedModules.includes(s.parentModule) && !roleDeniedSubKeys.has(s.key) && !deniedKeys.has(s.key))
+          .map(s => s.key);
+      }
+      break;
+    }
+    case "accountant": {
+      const isAccountantAtFirm = tenantType === "accounting_firm";
+      const skipConfidentialForClientHr = isAccountantAtFirm && !isPrimary;
+      if (userSubPerms.length === 0) {
+        allowedSubModules = SUB_MODULES
+          .filter(s => {
+            if (!allowedModules.includes(s.parentModule)) return false;
+            if (roleDeniedSubKeys.has(s.key)) return false;
+            if (CONFIDENTIAL_SUB_MODULES.includes(s.key)) {
+              if (skipConfidentialForClientHr && s.parentModule === "hr") return true;
+              return false;
+            }
+            return true;
+          })
+          .map(s => s.key);
+      } else {
+        const deniedKeys = new Set(userSubPerms.filter(p => !p.allowed).map(p => p.subModuleKey));
+        const grantedKeys = new Set(userSubPerms.filter(p => p.allowed).map(p => p.subModuleKey));
+        allowedSubModules = SUB_MODULES
+          .filter(s => {
+            if (!allowedModules.includes(s.parentModule)) return false;
+            if (roleDeniedSubKeys.has(s.key)) return false;
+            if (deniedKeys.has(s.key)) return false;
+            if (CONFIDENTIAL_SUB_MODULES.includes(s.key)) {
+              if (skipConfidentialForClientHr && s.parentModule === "hr") return true;
+              return grantedKeys.has(s.key);
+            }
+            return true;
+          })
+          .map(s => s.key);
+      }
+      break;
+    }
+    case "employee":
+    case "cashier": {
+      if (userSubPerms.length === 0) {
+        allowedSubModules = [];
+      } else {
+        const allowedKeys = new Set(userSubPerms.filter(p => p.allowed).map(p => p.subModuleKey));
+        allowedSubModules = SUB_MODULES
+          .filter(s => allowedModules.includes(s.parentModule) && !roleDeniedSubKeys.has(s.key) && allowedKeys.has(s.key))
+          .map(s => s.key);
+      }
+      break;
+    }
+    case "client":
+    case "client_external": {
+      if (userSubPerms.length === 0) {
+        allowedSubModules = [];
+      } else {
+        const allowedKeys = new Set(userSubPerms.filter(p => p.allowed).map(p => p.subModuleKey));
+        allowedSubModules = SUB_MODULES
+          .filter(s => allowedModules.includes(s.parentModule) && allowedKeys.has(s.key))
+          .map(s => s.key);
+      }
+      break;
+    }
+    default:
       allowedSubModules = [];
-    } else {
-      const allowedKeys = new Set(userSubPerms.filter(p => p.allowed).map(p => p.subModuleKey));
-      allowedSubModules = SUB_MODULES
-        .filter(s => allowedModules.includes(s.parentModule) && allowedKeys.has(s.key))
-        .map(s => s.key);
-    }
-  } else if (user.role === "manager") {
-    if (userSubPerms.length === 0) {
-      allowedSubModules = SUB_MODULES
-        .filter(s => allowedModules.includes(s.parentModule) && !roleDeniedSubKeys.has(s.key))
-        .map(s => s.key);
-    } else {
-      const deniedKeys = new Set(userSubPerms.filter(p => !p.allowed).map(p => p.subModuleKey));
-      allowedSubModules = SUB_MODULES
-        .filter(s => allowedModules.includes(s.parentModule) && !roleDeniedSubKeys.has(s.key) && !deniedKeys.has(s.key))
-        .map(s => s.key);
-    }
-  } else if (user.role === "employee" || user.role === "cashier") {
-    if (userSubPerms.length === 0) {
-      allowedSubModules = [];
-    } else {
-      const allowedKeys = new Set(userSubPerms.filter(p => p.allowed).map(p => p.subModuleKey));
-      allowedSubModules = SUB_MODULES
-        .filter(s => allowedModules.includes(s.parentModule) && !roleDeniedSubKeys.has(s.key) && allowedKeys.has(s.key))
-        .map(s => s.key);
-    }
-  } else {
-    const isAccountantAtFirm = tenantType === "accounting_firm" && user.role === "accountant";
-    const skipConfidentialForClientHr = isAccountantAtFirm && !isPrimary;
-    if (userSubPerms.length === 0) {
-      allowedSubModules = SUB_MODULES
-        .filter(s => {
-          if (!allowedModules.includes(s.parentModule)) return false;
-          if (roleDeniedSubKeys.has(s.key)) return false;
-          if (CONFIDENTIAL_SUB_MODULES.includes(s.key)) {
-            if (skipConfidentialForClientHr && s.parentModule === "hr") return true;
-            return false;
-          }
-          return true;
-        })
-        .map(s => s.key);
-    } else {
-      const deniedKeys = new Set(userSubPerms.filter(p => !p.allowed).map(p => p.subModuleKey));
-      const grantedKeys = new Set(userSubPerms.filter(p => p.allowed).map(p => p.subModuleKey));
-      allowedSubModules = SUB_MODULES
-        .filter(s => {
-          if (!allowedModules.includes(s.parentModule)) return false;
-          if (roleDeniedSubKeys.has(s.key)) return false;
-          if (deniedKeys.has(s.key)) return false;
-          if (CONFIDENTIAL_SUB_MODULES.includes(s.key)) {
-            if (skipConfidentialForClientHr && s.parentModule === "hr") return true;
-            return grantedKeys.has(s.key);
-          }
-          return true;
-        })
-        .map(s => s.key);
-    }
+      break;
   }
 
-  if (user.role !== "admin" && user.role !== "manager" && tenantType === "accounting_firm") {
-    if (isPrimary) {
-      allowedSubModules = allowedSubModules.filter(k => !HR_ADMIN_SUB_MODULES.includes(k));
-    } else {
-      allowedSubModules = allowedSubModules.filter(k => !HR_PERSONAL_SUB_MODULES.includes(k));
-    }
+  switch (user.role) {
+    case "admin":
+    case "super_admin":
+    case "manager":
+      break;
+    case "accountant":
+    case "employee":
+    case "cashier":
+    case "client":
+    case "client_external":
+      if (tenantType === "accounting_firm") {
+        if (isPrimary) {
+          allowedSubModules = allowedSubModules.filter(k => !HR_ADMIN_SUB_MODULES.includes(k));
+        } else {
+          allowedSubModules = allowedSubModules.filter(k => !HR_PERSONAL_SUB_MODULES.includes(k));
+        }
+      }
+      break;
+    default:
+      break;
   }
 
   if (user.role === "employee" && companyId) {
