@@ -354,18 +354,23 @@ app.get("/api/permissions/me", requireAuth, async (req, res) => {
 
   let allowedSubModules: string[] = [];
   let userSubPerms: any[] = [];
-  if (user.role !== "admin") {
-    try {
-      userSubPerms = await storage.getUserSubPermissions(user.id);
-    } catch (e: any) {
-      const errMsg = `[core-routes.ts GET /api/permissions/me] getUserSubPermissions failed for userId=${user.id}, role=${user.role}. Error: ${e?.message || e}`;
-      console.error(errMsg);
-      return res.status(500).json({ error: errMsg });
-    }
+  try {
+    userSubPerms = await storage.getUserSubPermissions(user.id);
+  } catch (e: any) {
+    const errMsg = `[core-routes.ts GET /api/permissions/me] getUserSubPermissions failed for userId=${user.id}, role=${user.role}. Error: ${e?.message || e}`;
+    console.error(errMsg);
+    return res.status(500).json({ error: errMsg });
   }
 
   if (user.role === "admin") {
-    allowedSubModules = SUB_MODULES.filter(s => allowedModules.includes(s.parentModule)).map(s => s.key);
+    if (userSubPerms.length === 0) {
+      allowedSubModules = SUB_MODULES.filter(s => allowedModules.includes(s.parentModule)).map(s => s.key);
+    } else {
+      const deniedKeys = new Set(userSubPerms.filter(p => !p.allowed).map(p => p.subModuleKey));
+      allowedSubModules = SUB_MODULES
+        .filter(s => allowedModules.includes(s.parentModule) && !deniedKeys.has(s.key))
+        .map(s => s.key);
+    }
   } else if (user.role === "manager") {
     if (userSubPerms.length === 0) {
       allowedSubModules = SUB_MODULES
