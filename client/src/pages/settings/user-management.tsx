@@ -40,6 +40,7 @@ interface UserForm {
 const emptyForm: UserForm = { username: "", password: "", fullName: "", role: "employee", email: "", employeeId: "", lineId: "" };
 
 const ALL_ROLES: Role[] = ["admin", "manager", "accountant", "employee", "client"];
+const MANAGER_ALLOWED_ROLES: Role[] = ["employee", "cashier"];
 
 export default function UserManagement() {
   const queryClient = useQueryClient();
@@ -388,7 +389,7 @@ export default function UserManagement() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {ALL_ROLES.map(r => (
+                      {(currentUser?.role === "manager" ? MANAGER_ALLOWED_ROLES : ALL_ROLES).map(r => (
                         <SelectItem key={r} value={r}>{ROLE_LABELS[r]}</SelectItem>
                       ))}
                     </SelectContent>
@@ -788,7 +789,7 @@ export default function UserManagement() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {ALL_ROLES.map(r => (
+                    {(currentUser?.role === "manager" ? MANAGER_ALLOWED_ROLES : ALL_ROLES).map(r => (
                       <SelectItem key={r} value={r}>{ROLE_LABELS[r]}</SelectItem>
                     ))}
                   </SelectContent>
