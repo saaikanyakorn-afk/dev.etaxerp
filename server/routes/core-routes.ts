@@ -8,7 +8,11 @@ import { hashPassword } from "../auth";
 import { z } from "zod";
 
 export function registerCoreRoutes(app: Express) {
-app.get("/api/users", requireAuth, requireAdmin, async (req, res) => {
+app.get("/api/users", requireAuth, async (req, res) => {
+  const cu = req.user as any;
+  if (!cu || !["admin", "super_admin", "manager"].includes(cu.role)) {
+    return res.status(403).json({ message: "ไม่มีสิทธิ์เข้าถึง" });
+  }
   const currentUser = req.user as any;
   const tenantId = currentUser.tenantId;
   const filterCompanyId = req.query.companyId ? Number(req.query.companyId) : null;
@@ -60,7 +64,11 @@ app.get("/api/users", requireAuth, requireAdmin, async (req, res) => {
   res.json(usersWithEmp);
 });
 
-app.get("/api/users/unlinked-employees", requireAuth, requireAdmin, async (req, res) => {
+app.get("/api/users/unlinked-employees", requireAuth, async (req, res) => {
+  const cu2 = req.user as any;
+  if (!cu2 || !["admin", "super_admin", "manager"].includes(cu2.role)) {
+    return res.status(403).json({ message: "ไม่มีสิทธิ์เข้าถึง" });
+  }
   const currentUser = req.user as any;
   const tenantId = currentUser.tenantId;
   if (tenantId) {
@@ -79,9 +87,21 @@ app.get("/api/users/unlinked-employees", requireAuth, requireAdmin, async (req, 
   res.json(unlinked);
 });
 
-app.post("/api/users", requireAuth, requireAdmin, async (req, res) => {
+app.post("/api/users", requireAuth, async (req, res) => {
   try {
     const currentUser = req.user as any;
+    const isAdmin = currentUser.role === "admin" || currentUser.role === "super_admin";
+    const isManager = currentUser.role === "manager";
+    if (!isAdmin && !isManager) {
+      return res.status(403).json({ message: "ไม่มีสิทธิ์เข้าถึง" });
+    }
+    if (isManager) {
+      const newRole = req.body.role;
+      const managerAllowedRoles = ["employee", "cashier"];
+      if (!managerAllowedRoles.includes(newRole)) {
+        return res.status(403).json({ message: "ผู้จัดการสร้างได้เฉพาะบัญชี 'พนักงาน' หรือ 'แคชเชียร์' เท่านั้น" });
+      }
+    }
     if (currentUser.tenantId) {
       const limitCheck = await storage.checkTenantLimit(currentUser.tenantId, "users");
       if (!limitCheck.allowed) {
@@ -132,9 +152,20 @@ app.post("/api/users", requireAuth, requireAdmin, async (req, res) => {
   }
 });
 
-app.patch("/api/users/:id", requireAuth, requireAdmin, async (req, res) => {
+app.patch("/api/users/:id", requireAuth, async (req, res) => {
   try {
     const currentUser = req.user as any;
+    const isAdmin = currentUser.role === "admin" || currentUser.role === "super_admin";
+    const isManager = currentUser.role === "manager";
+    if (!isAdmin && !isManager) {
+      return res.status(403).json({ message: "ไม่มีสิทธิ์เข้าถึง" });
+    }
+    if (isManager && req.body.role) {
+      const managerAllowedRoles = ["employee", "cashier"];
+      if (!managerAllowedRoles.includes(req.body.role)) {
+        return res.status(403).json({ message: "ผู้จัดการแก้ไขได้เฉพาะบัญชี 'พนักงาน' หรือ 'แคชเชียร์' เท่านั้น" });
+      }
+    }
     const tenantId = currentUser.tenantId;
     const userId = Number(req.params.id);
     if (tenantId) {
