@@ -84,6 +84,10 @@ export function isPrivilegedRole(role: string): boolean {
   return ["admin", "manager", "super_admin"].includes(role);
 }
 
+export function isFullAccessRole(role: string): boolean {
+  return ["admin", "super_admin"].includes(role);
+}
+
 export function haversineDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 6371000;
   const toRad = (d: number) => d * Math.PI / 180;

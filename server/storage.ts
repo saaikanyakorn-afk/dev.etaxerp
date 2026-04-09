@@ -435,7 +435,7 @@ export class DatabaseStorage implements IStorage {
         const [tenant] = await db.select({ tenantType: tenants.tenantType }).from(tenants).where(eq(tenants.id, tenantId));
         const isAccountingFirm = tenant?.tenantType === "accounting_firm";
         const conditions: any[] = [eq(companies.active, true), eq(companies.tenantId, tenantId)];
-        if (isAccountingFirm) {
+        if (isAccountingFirm || role === "manager") {
           conditions.push(eq(companies.isPrimary, true));
         }
         return db.select().from(companies)

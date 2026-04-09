@@ -552,7 +552,7 @@ app.get("/api/companies", requireAuth, async (req, res) => {
   const userAllowedIds = await getUserAllowedCompanyIds(user.id);
   const hasAllowedRestriction = userAllowedIds && userAllowedIds.length > 0;
 
-  if ((user.role === "superadmin" || user.role === "admin" || user.role === "manager") && !hasAllowedRestriction) {
+  if ((user.role === "superadmin" || user.role === "admin") && !hasAllowedRestriction) {
     if (isAccountingFirm) {
       const activeFcCompanyIds = await db.select({ companyId: firmClients.companyId })
         .from(firmClients)
