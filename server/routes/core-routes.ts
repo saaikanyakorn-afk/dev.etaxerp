@@ -7,6 +7,14 @@ import { requireAuth, requireAdmin } from "../route-middleware";
 import { hashPassword } from "../auth";
 import { z } from "zod";
 
+async function getTenantOwnerAdminId(tenantId: number | null): Promise<number | null> {
+  if (!tenantId) return null;
+  const [firstAdmin] = await db.select({ id: users.id }).from(users)
+    .where(and(eq(users.tenantId, tenantId), eq(users.role, "admin"), eq(users.active, true)))
+    .orderBy(users.id).limit(1);
+  return firstAdmin?.id || null;
+}
+
 export function registerCoreRoutes(app: Express) {
 app.get("/api/users", requireAuth, async (req, res) => {
   const cu = req.user as any;
@@ -37,6 +45,9 @@ app.get("/api/users", requireAuth, async (req, res) => {
   const empMap = new Map(empLinks.map(e => [e.userId, { employeeId: e.empId, employeeName: e.empName }]));
   const usersWithEmp = safeUsers.map((u: any) => ({ ...u, linkedEmployee: empMap.get(u.id) || null }));
 
+  const ownerId = await getTenantOwnerAdminId(tenantId);
+  const usersWithOwner = usersWithEmp.map((u: any) => ({ ...u, isOwner: u.id === ownerId }));
+
   if (filterCompanyId) {
     const linkedUserIds = new Set(empLinks.map(e => e.userId));
     const allEmpLinks = await db.select({ userId: employees.userId }).from(employees).where(sql`${employees.userId} IS NOT NULL`);
@@ -54,7 +65,7 @@ app.get("/api/users", requireAuth, async (req, res) => {
       assignedUserIds = new Set(assignedEmps.map(e => e.userId!));
     }
 
-    const filtered = usersWithEmp.filter((u: any) =>
+    const filtered = usersWithOwner.filter((u: any) =>
       u.role === "admin" || linkedUserIds.has(u.id) || assignedUserIds.has(u.id) ||
       (Array.isArray(u.allowedCompanyIds) && u.allowedCompanyIds.includes(filterCompanyId)) ||
       (!Array.isArray(u.allowedCompanyIds) && u.role === "manager")
@@ -62,7 +73,7 @@ app.get("/api/users", requireAuth, async (req, res) => {
     return res.json(filtered);
   }
 
-  res.json(usersWithEmp);
+  res.json(usersWithOwner);
 });
 
 app.get("/api/users/unlinked-employees", requireAuth, async (req, res) => {
@@ -175,6 +186,12 @@ app.patch("/api/users/:id", requireAuth, async (req, res) => {
         return res.status(403).json({ message: "ไม่มีสิทธิ์แก้ไขผู้ใช้นี้" });
       }
     }
+    const ownerId = await getTenantOwnerAdminId(tenantId);
+    if (ownerId === userId && currentUser.id !== userId) {
+      if (req.body.role || req.body.active === false) {
+        return res.status(403).json({ message: "ไม่สามารถเปลี่ยนสิทธิ์หรือระงับเจ้าของระบบ (Owner Admin) ได้" });
+      }
+    }
     const updateData: any = {};
     if (req.body.username) {
       const existingUser = await storage.getUserByUsername(req.body.username);
@@ -254,6 +271,10 @@ app.post("/api/users/:id/lock", requireAuth, async (req, res) => {
       if (!targetUser || targetUser.tenantId !== tenantId) {
         return res.status(403).json({ message: "ไม่มีสิทธิ์ lock ผู้ใช้นี้" });
       }
+    }
+    const ownerId = await getTenantOwnerAdminId(tenantId);
+    if (ownerId === targetUserId) {
+      return res.status(403).json({ message: "ไม่สามารถ lock เจ้าของระบบ (Owner Admin) ได้" });
     }
     const { lockUser } = await import("../utils/user-lock");
     const durationMs = req.body.durationMs || 5 * 60 * 1000;
@@ -362,13 +383,24 @@ app.get("/api/permissions/me", requireAuth, async (req, res) => {
     return res.status(500).json({ error: errMsg });
   }
 
+  const isOwnerAdmin = user.role === "admin" && user.tenantId
+    ? await (async () => {
+        const [firstAdmin] = await db.select({ id: users.id }).from(users)
+          .where(and(eq(users.tenantId, user.tenantId), eq(users.role, "admin"), eq(users.active, true)))
+          .orderBy(users.id).limit(1);
+        return firstAdmin?.id === user.id;
+      })()
+    : user.role === "admin" && !user.tenantId;
+
   if (user.role === "admin") {
-    if (userSubPerms.length === 0) {
+    if (isOwnerAdmin) {
       allowedSubModules = SUB_MODULES.filter(s => allowedModules.includes(s.parentModule)).map(s => s.key);
+    } else if (userSubPerms.length === 0) {
+      allowedSubModules = [];
     } else {
-      const deniedKeys = new Set(userSubPerms.filter(p => !p.allowed).map(p => p.subModuleKey));
+      const allowedKeys = new Set(userSubPerms.filter(p => p.allowed).map(p => p.subModuleKey));
       allowedSubModules = SUB_MODULES
-        .filter(s => allowedModules.includes(s.parentModule) && !deniedKeys.has(s.key))
+        .filter(s => allowedModules.includes(s.parentModule) && allowedKeys.has(s.key))
         .map(s => s.key);
     }
   } else if (user.role === "manager") {
@@ -474,7 +506,12 @@ app.get("/api/permissions/users/:id/submodules", requireAuth, requireAdmin, asyn
 
 app.put("/api/permissions/users/:id/submodules", requireAuth, requireAdmin, async (req, res) => {
   try {
+    const currentUser = req.user as any;
     const userId = Number(req.params.id);
+    const ownerId = await getTenantOwnerAdminId(currentUser.tenantId);
+    if (ownerId === userId && currentUser.id !== userId) {
+      return res.status(403).json({ message: "ไม่สามารถเปลี่ยนสิทธิ์เมนูย่อยของเจ้าของระบบ (Owner Admin) ได้" });
+    }
     const { permissions } = req.body;
     if (!Array.isArray(permissions)) {
       return res.status(400).json({ message: "กรุณาระบุ permissions เป็น array" });
