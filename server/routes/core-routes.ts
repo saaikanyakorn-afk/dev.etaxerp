@@ -85,12 +85,25 @@ app.get("/api/users/unlinked-employees", requireAuth, async (req, res) => {
   }
   const currentUser = req.user as any;
   const tenantId = currentUser.tenantId;
+
+  const { getUserAllowedCompanyIds } = await import("../route-middleware");
+  const userAllowedIds = await getUserAllowedCompanyIds(currentUser.id);
+  const hasAllowedRestriction = userAllowedIds && userAllowedIds.length > 0;
+
   if (tenantId) {
-    const tenantCompanyIds = (await db.select({ id: companies.id }).from(companies).where(eq(companies.tenantId, tenantId))).map(c => c.id);
-    if (tenantCompanyIds.length === 0) return res.json([]);
+    let scopedCompanyIds: number[];
+    if (hasAllowedRestriction) {
+      scopedCompanyIds = userAllowedIds!;
+    } else if (currentUser.role === "admin" || currentUser.role === "super_admin") {
+      scopedCompanyIds = (await db.select({ id: companies.id }).from(companies).where(eq(companies.tenantId, tenantId))).map(c => c.id);
+    } else {
+      const emp = await storage.getEmployeeByUserId(currentUser.id);
+      scopedCompanyIds = emp?.companyId ? [emp.companyId] : [];
+    }
+    if (scopedCompanyIds.length === 0) return res.json([]);
     const unlinked = await db.select({ id: employees.id, fullName: employees.fullName })
       .from(employees)
-      .where(and(isNull(employees.userId), inArray(employees.companyId, tenantCompanyIds)))
+      .where(and(isNull(employees.userId), inArray(employees.companyId, scopedCompanyIds)))
       .orderBy(employees.fullName);
     return res.json(unlinked);
   }
