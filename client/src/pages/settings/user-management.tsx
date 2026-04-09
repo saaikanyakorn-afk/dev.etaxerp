@@ -1074,29 +1074,50 @@ export default function UserManagement() {
 
                   if (!roleHasAccess) return null;
 
+                  const moduleAllOn = subs.every(s => isSubModuleAllowed(s.key));
+                  const moduleAllOff = subs.every(s => !isSubModuleAllowed(s.key));
+                  const moduleOn = !moduleAllOff;
+
+                  const toggleModule = (on: boolean) => {
+                    for (const s of subs) {
+                      toggleLocalSubPerm(s.key, on);
+                    }
+                  };
+
                   return (
                     <div key={mod.key} className="border rounded-lg overflow-hidden">
-                      <div className="bg-gray-50 px-4 py-2.5 border-b">
+                      <div className="bg-gray-50 px-4 py-2.5 border-b flex items-center justify-between">
                         <h3 className="text-sm font-semibold text-gray-700">{mod.label}</h3>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-gray-500">{moduleOn ? "เปิด" : "ปิดทั้งหมด"}</span>
+                          <Switch
+                            checked={moduleOn}
+                            onCheckedChange={(checked) => toggleModule(checked)}
+                            data-testid={`switch-module-${mod.key}`}
+                            className={moduleAllOn ? "data-[state=checked]:bg-[#05b187]" : moduleOn ? "data-[state=checked]:bg-[#fec90f]" : ""}
+                          />
+                        </div>
                       </div>
-                      <div className="divide-y">
-                        {subs.map(sub => {
-                          const allowed = isSubModuleAllowed(sub.key);
-                          return (
-                            <div key={sub.key} className="flex items-center justify-between px-4 py-2.5 hover:bg-gray-50/50" data-testid={`row-subperm-${sub.key}`}>
-                              <span className="text-sm text-gray-700">{sub.label}</span>
-                              <Switch
-                                checked={allowed}
-                                onCheckedChange={(checked) => {
-                                  toggleLocalSubPerm(sub.key, checked);
-                                }}
-                                data-testid={`switch-subperm-${sub.key}`}
-                                className="data-[state=checked]:bg-[#05b187]"
-                              />
-                            </div>
-                          );
-                        })}
-                      </div>
+                      {moduleOn && (
+                        <div className="divide-y">
+                          {subs.map(sub => {
+                            const allowed = isSubModuleAllowed(sub.key);
+                            return (
+                              <div key={sub.key} className="flex items-center justify-between px-4 py-2.5 hover:bg-gray-50/50" data-testid={`row-subperm-${sub.key}`}>
+                                <span className="text-sm text-gray-700">{sub.label}</span>
+                                <Switch
+                                  checked={allowed}
+                                  onCheckedChange={(checked) => {
+                                    toggleLocalSubPerm(sub.key, checked);
+                                  }}
+                                  data-testid={`switch-subperm-${sub.key}`}
+                                  className="data-[state=checked]:bg-[#05b187]"
+                                />
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
