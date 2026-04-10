@@ -14,6 +14,7 @@ import { registerHrRoutes } from "./routes/hr-routes";
 import { registerPurchaseRoutes } from "./routes/purchase-routes";
 import { registerImportBatchRoutes } from "./routes/import-batch-routes";
 import { registerManufacturingRoutes } from "./routes/manufacturing-routes";
+import { registerManufacturingModuleRoutes } from "./routes/manufacturing-module-routes";
 import { registerExpenseRoutes } from "./routes/expense-routes";
 import { registerFixedAssetsRoutes } from "./routes/fixed-assets-routes";
 import { registerPosRoutes } from "./routes/pos-routes";
@@ -149,6 +150,7 @@ export async function registerRoutes(
   registerPurchaseRoutes(app);
   registerImportBatchRoutes(app);
   registerManufacturingRoutes(app);
+  registerManufacturingModuleRoutes(app);
   registerExpenseRoutes(app);
   registerFixedAssetsRoutes(app);
   registerPosRoutes(app);

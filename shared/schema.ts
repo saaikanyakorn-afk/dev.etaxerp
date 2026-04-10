@@ -896,6 +896,8 @@ export const bomHeaders = pgTable("bom_headers", {
   yieldQty: decimal("yield_qty", { precision: 15, scale: 4 }).notNull().default("1"),
   unit: text("unit").notNull().default("ชิ้น"),
   notes: text("notes"),
+  revisionNo: text("revision_no").default("00"),
+  effectiveDate: date("effective_date"),
   active: boolean("active").notNull().default(true),
   createdAt: timestamp("created_at").defaultNow(),
 });
@@ -912,6 +914,8 @@ export const bomLines = pgTable("bom_lines", {
   unit: text("unit").notNull().default("ชิ้น"),
   scrapPct: decimal("scrap_pct", { precision: 5, scale: 2 }).default("0"),
   costOverride: decimal("cost_override", { precision: 15, scale: 2 }),
+  requireSerialScan: boolean("require_serial_scan").notNull().default(false),
+  serialPrefix: text("serial_prefix"),
   notes: text("notes"),
 });
 
@@ -2625,6 +2629,7 @@ export const warehouses = pgTable("warehouses", {
   address: text("address"),
   contactName: text("contact_name"),
   contactPhone: text("contact_phone"),
+  warehouseType: text("warehouse_type").notNull().default("normal"),
   isDefault: boolean("is_default").notNull().default(false),
   active: boolean("active").notNull().default(true),
   createdAt: timestamp("created_at").defaultNow(),
@@ -6165,3 +6170,53 @@ export const tenantModuleSubscriptions = pgTable("tenant_module_subscriptions", 
 export const insertTenantModuleSubscriptionSchema = createInsertSchema(tenantModuleSubscriptions).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertTenantModuleSubscription = z.infer<typeof insertTenantModuleSubscriptionSchema>;
 export type TenantModuleSubscription = typeof tenantModuleSubscriptions.$inferSelect;
+
+export const serialNumbers = pgTable("serial_numbers", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").references(() => companies.id).notNull(),
+  productId: integer("product_id").references(() => products.id).notNull(),
+  serialNumber: text("serial_number").notNull(),
+  status: text("status").notNull().default("available"),
+  warehouseId: integer("warehouse_id").references(() => warehouses.id),
+  lotId: integer("lot_id").references(() => productLots.id),
+  notes: text("notes"),
+  createdBy: integer("created_by"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export const insertSerialNumberSchema = createInsertSchema(serialNumbers).omit({ id: true, createdAt: true });
+export type InsertSerialNumber = z.infer<typeof insertSerialNumberSchema>;
+export type SerialNumber = typeof serialNumbers.$inferSelect;
+
+export const traceabilityLogs = pgTable("traceability_logs", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").references(() => companies.id).notNull(),
+  fgSerialId: integer("fg_serial_id").references(() => serialNumbers.id).notNull(),
+  componentSerialId: integer("component_serial_id").references(() => serialNumbers.id).notNull(),
+  bomHeaderId: integer("bom_header_id").references(() => bomHeaders.id),
+  operatorEmployeeId: integer("operator_employee_id"),
+  qcEmployeeId: integer("qc_employee_id"),
+  manufacturingOrderId: integer("manufacturing_order_id").references(() => manufacturingOrders.id),
+  assembledAt: timestamp("assembled_at").defaultNow(),
+  notes: text("notes"),
+});
+export const insertTraceabilityLogSchema = createInsertSchema(traceabilityLogs).omit({ id: true, assembledAt: true });
+export type InsertTraceabilityLog = z.infer<typeof insertTraceabilityLogSchema>;
+export type TraceabilityLog = typeof traceabilityLogs.$inferSelect;
+
+export const calibrationInstruments = pgTable("calibration_instruments", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").references(() => companies.id).notNull(),
+  code: text("code").notNull(),
+  name: text("name").notNull(),
+  description: text("description"),
+  location: text("location"),
+  nextDueDate: date("next_due_date"),
+  lastCalibratedDate: date("last_calibrated_date"),
+  calibrationInterval: integer("calibration_interval").default(365),
+  status: text("status").notNull().default("active"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export const insertCalibrationInstrumentSchema = createInsertSchema(calibrationInstruments).omit({ id: true, createdAt: true });
+export type InsertCalibrationInstrument = z.infer<typeof insertCalibrationInstrumentSchema>;
+export type CalibrationInstrument = typeof calibrationInstruments.$inferSelect;

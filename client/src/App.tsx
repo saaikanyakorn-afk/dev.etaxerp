@@ -306,6 +306,12 @@ const GoodsReceivingForm = lazy(() => import("@/pages/inventory/goods-receiving-
 const ProductLotsPage = lazy(() => import("@/pages/inventory/product-lots"));
 const ManufacturingList = lazy(() => import("@/pages/inventory/manufacturing-list"));
 const ManufacturingForm = lazy(() => import("@/pages/inventory/manufacturing-form"));
+const MfgDashboard = lazy(() => import("@/pages/manufacturing/dashboard"));
+const MfgBom = lazy(() => import("@/pages/manufacturing/bom"));
+const MfgOrders = lazy(() => import("@/pages/manufacturing/orders"));
+const MfgSerialNumbers = lazy(() => import("@/pages/manufacturing/serial-numbers"));
+const MfgTraceability = lazy(() => import("@/pages/manufacturing/traceability"));
+const MfgCalibration = lazy(() => import("@/pages/manufacturing/calibration"));
 const GoodsRequisitionList = lazy(() => import("@/pages/inventory/goods-requisition-list"));
 const GoodsRequisitionForm = lazy(() => import("@/pages/inventory/goods-requisition-form"));
 const InventoryValuation = lazy(() => import("@/pages/inventory/inventory-valuation"));
@@ -738,6 +744,12 @@ function Router() {
       <Route path="/inventory/receiving/form" component={GoodsReceivingForm} />
       <Route path="/inventory/receiving/form/:id" component={GoodsReceivingForm} />
       <Route path="/inventory/lots" component={ProductLotsPage} />
+      <Route path="/manufacturing/dashboard" component={MfgDashboard} />
+      <Route path="/manufacturing/bom" component={MfgBom} />
+      <Route path="/manufacturing/orders" component={MfgOrders} />
+      <Route path="/manufacturing/serial-numbers" component={MfgSerialNumbers} />
+      <Route path="/manufacturing/traceability" component={MfgTraceability} />
+      <Route path="/manufacturing/calibration" component={MfgCalibration} />
       <Route path="/inventory/manufacturing" component={ManufacturingList} />
       <Route path="/inventory/manufacturing/form" component={ManufacturingForm} />
       <Route path="/inventory/manufacturing/form/:id" component={ManufacturingForm} />
