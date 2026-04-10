@@ -24,6 +24,7 @@ const ROLE_COLORS: Record<string, string> = {
   manager: "bg-[#eef4ff] text-[var(--theme-primary)] border-[var(--theme-primary)]/20",
   accountant: "bg-emerald-100 text-emerald-700 border-emerald-200",
   employee: "bg-slate-100 text-slate-700 border-slate-200",
+  cashier: "bg-cyan-100 text-cyan-700 border-cyan-200",
   client: "bg-amber-100 text-amber-700 border-amber-200",
 };
 
@@ -39,7 +40,7 @@ interface UserForm {
 
 const emptyForm: UserForm = { username: "", password: "", fullName: "", role: "employee", email: "", employeeId: "", lineId: "" };
 
-const ALL_ROLES: Role[] = ["admin", "manager", "accountant", "employee", "client"];
+const ALL_ROLES: Role[] = ["admin", "manager", "accountant", "employee", "cashier", "client"];
 const MANAGER_ALLOWED_ROLES: Role[] = ["employee", "cashier"];
 
 export default function UserManagement() {
