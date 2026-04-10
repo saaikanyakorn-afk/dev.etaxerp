@@ -1445,19 +1445,20 @@ export class DatabaseStorage implements IStorage {
       return;
     }
 
+    const allExisting = await db.select().from(rolePermissions);
+    const existingSet = new Set(allExisting.map(r => `${r.role}::${r.moduleKey}`));
+    const missing: InsertRolePermission[] = [];
     for (const mod of PERMISSION_MODULES) {
       for (const role of allRoles) {
-        const shouldAllow = mod.allowedRoles.includes(role as any);
-        const [rec] = await db.select().from(rolePermissions)
-          .where(and(eq(rolePermissions.role, role), eq(rolePermissions.moduleKey, mod.key)));
-        if (rec && rec.allowed !== shouldAllow) {
-          await db.update(rolePermissions)
-            .set({ allowed: shouldAllow })
-            .where(and(eq(rolePermissions.role, role), eq(rolePermissions.moduleKey, mod.key)));
-        } else if (!rec) {
-          await db.insert(rolePermissions).values({ role, moduleKey: mod.key, allowed: shouldAllow });
+        const key = `${role}::${mod.key}`;
+        if (!existingSet.has(key)) {
+          missing.push({ role, moduleKey: mod.key, allowed: mod.allowedRoles.includes(role as any) });
         }
       }
+    }
+    if (missing.length > 0) {
+      await db.insert(rolePermissions).values(missing);
+      console.log(`[initDefaultPermissions] Inserted ${missing.length} missing role_permissions rows`);
     }
   }
 

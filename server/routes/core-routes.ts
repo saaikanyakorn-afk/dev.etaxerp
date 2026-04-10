@@ -390,6 +390,14 @@ app.get("/api/permissions/me", requireAuth, async (req, res) => {
         await storage.initDefaultPermissions();
         perms = await storage.getRolePermissionsByRole(user.role);
       }
+      const { PERMISSION_MODULES } = await import("@shared/permissions");
+      const expectedModuleKeys = PERMISSION_MODULES.filter(m => m.allowedRoles.includes(user.role as any)).map(m => m.key);
+      const existingKeys = new Set(perms.map(p => p.moduleKey));
+      const missingKeys = expectedModuleKeys.filter(k => !existingKeys.has(k));
+      if (missingKeys.length > 0) {
+        await storage.initDefaultPermissions();
+        perms = await storage.getRolePermissionsByRole(user.role);
+      }
       allowedModules = perms.filter(p => p.allowed).map(p => p.moduleKey);
       break;
     }
@@ -447,7 +455,13 @@ app.get("/api/permissions/me", requireAuth, async (req, res) => {
         break;
       }
       case "employee":
-      case "cashier":
+      case "cashier": {
+        const empCashierExceptions = isAccountingFirm ? ["hr"] : [];
+        allowedModules = allowedModules.filter(m =>
+          !PRIMARY_ONLY_MODULES.includes(m) || empCashierExceptions.includes(m)
+        );
+        break;
+      }
       case "client":
       case "client_external":
         allowedModules = allowedModules.filter(m => !PRIMARY_ONLY_MODULES.includes(m));
