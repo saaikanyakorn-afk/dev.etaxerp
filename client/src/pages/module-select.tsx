@@ -66,7 +66,9 @@ export default function ModuleSelectPage() {
 
   useEffect(() => {
     if (authLoading || permLoading) return;
+    if (!permData) return;
     if (!user) { setLocation("/login"); return; }
+    console.log("[module-select] role=", (user as any).role, "modules=", modules, "subModules=", subModules);
     if ((user as any).role === "employee" || (user as any).role === "cashier") {
       if (subModules.includes("hr/attendance")) {
         setLocation("/hr/attendance");
@@ -88,7 +90,7 @@ export default function ModuleSelectPage() {
       setLocation(ownedCards[0].href);
       return;
     }
-  }, [authLoading, permLoading, user, ownedCards.length, lockedCards.length, subModules.length]);
+  }, [authLoading, permLoading, permData, user, ownedCards.length, lockedCards.length, subModules.length]);
 
   if (authLoading || permLoading) {
     return (

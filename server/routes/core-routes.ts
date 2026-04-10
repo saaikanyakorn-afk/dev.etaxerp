@@ -589,7 +589,7 @@ app.get("/api/permissions/me", requireAuth, async (req, res) => {
       if (tenantType === "accounting_firm") {
         if (isPrimary) {
           allowedSubModules = allowedSubModules.filter(k => !HR_ADMIN_SUB_MODULES.includes(k));
-        } else {
+        } else if (user.role !== "cashier" && user.role !== "employee") {
           allowedSubModules = allowedSubModules.filter(k => !HR_PERSONAL_SUB_MODULES.includes(k));
         }
       }
