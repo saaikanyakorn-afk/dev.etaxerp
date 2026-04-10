@@ -62,18 +62,33 @@ export default function ModuleSelectPage() {
   const ownedCards = visibleCards.filter(c => modules.includes(c.requiredModule));
   const lockedCards = visibleCards.filter(c => !modules.includes(c.requiredModule));
 
+  const subModules = permData?.subModules || [];
+
   useEffect(() => {
     if (authLoading || permLoading) return;
     if (!user) { setLocation("/login"); return; }
-    if ((user as any).role === "employee") { setLocation("/hr/attendance"); return; }
-    if ((user as any).role === "cashier") { setLocation("/hr/attendance"); return; }
+    if ((user as any).role === "employee" || (user as any).role === "cashier") {
+      if (subModules.includes("hr/attendance")) {
+        setLocation("/hr/attendance");
+      } else if (modules.includes("pos") && subModules.includes("pos/sessions")) {
+        setLocation("/pos/sessions");
+      } else if (subModules.includes("hr/ess")) {
+        setLocation("/ess");
+      } else if (modules.length > 0) {
+        const firstCard = visibleCards.find(c => modules.includes(c.requiredModule));
+        setLocation(firstCard?.href || "/settings/profile");
+      } else {
+        setLocation("/settings/profile");
+      }
+      return;
+    }
     if ((user as any).role === "client_external") { setLocation("/etax-hub/board"); return; }
     if ((user as any).role === "super_admin") { setLocation("/platform"); return; }
     if (ownedCards.length === 1 && lockedCards.length === 0) {
       setLocation(ownedCards[0].href);
       return;
     }
-  }, [authLoading, permLoading, user, ownedCards.length, lockedCards.length]);
+  }, [authLoading, permLoading, user, ownedCards.length, lockedCards.length, subModules.length]);
 
   if (authLoading || permLoading) {
     return (
