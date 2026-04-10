@@ -522,8 +522,8 @@ function HomeRedirect() {
         navigate("/etax-hub/board", { replace: true });
       } else if (user && (user as any).role === "super_admin") {
         navigate("/platform", { replace: true });
-      } else if (user && (user as any).role === "employee") {
-        navigate("/ess", { replace: true });
+      } else if (user && ((user as any).role === "employee" || (user as any).role === "cashier")) {
+        navigate("/module-select", { replace: true });
       } else {
         navigate(user ? "/dashboard" : "/landing", { replace: true });
       }
