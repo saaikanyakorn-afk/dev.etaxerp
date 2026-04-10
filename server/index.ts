@@ -841,19 +841,6 @@ async function runMigrationsInBackground() {
       console.warn("Employee constraint migration skip:", e.message?.slice(0, 80));
     }
     try {
-      const { sql: rawSql3 } = await import("drizzle-orm");
-      await db.execute(rawSql3`
-        CREATE TABLE IF NOT EXISTS employee_counters (
-          id SERIAL PRIMARY KEY,
-          company_id INTEGER NOT NULL UNIQUE REFERENCES companies(id),
-          prefix VARCHAR(2) NOT NULL,
-          last_number INTEGER NOT NULL DEFAULT 0
-        )
-      `);
-    } catch (e: any) {
-      console.warn("employee_counters table migration skip:", e.message?.slice(0, 80));
-    }
-    try {
       const missingResult = await db.execute(sql.raw(`
         SELECT t.id FROM tenants t 
         LEFT JOIN tenant_subscriptions ts ON ts.tenant_id = t.id 
