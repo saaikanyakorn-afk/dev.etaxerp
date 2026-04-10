@@ -68,7 +68,6 @@ export default function ModuleSelectPage() {
     if (authLoading || permLoading) return;
     if (!permData) return;
     if (!user) { setLocation("/login"); return; }
-    console.log("[module-select] role=", (user as any).role, "modules=", modules, "subModules=", subModules);
     if ((user as any).role === "employee" || (user as any).role === "cashier") {
       if (subModules.includes("hr/attendance")) {
         setLocation("/hr/attendance");
