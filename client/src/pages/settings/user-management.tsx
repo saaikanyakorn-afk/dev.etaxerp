@@ -315,6 +315,16 @@ export default function UserManagement() {
   const handleLockTimeoutRef = useRef(handleLockTimeout);
   handleLockTimeoutRef.current = handleLockTimeout;
 
+  useEffect(() => {
+    if (!subPermDirty) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [subPermDirty]);
+
   const startCountdown = (expiresAt: number) => {
     if (lockTimerRef.current) clearInterval(lockTimerRef.current);
     const updateCountdown = () => {
