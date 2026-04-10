@@ -67,7 +67,6 @@ const HREF_TO_SUB_KEY: Record<string, string> = {
   "/hr/holidays": "hr/holidays",
   "/hr/leave-policy": "hr/holidays",
   "/hr/payslip": "hr/payslip",
-  "/hr/payroll-tax": "hr/payroll-tax",
   "/hr/wht-import": "hr/payroll-tax",
   "/hr/commission-rules": "hr/commission-rules",
   "/hr/commission": "hr/commission",
