@@ -54,6 +54,7 @@ export default function DashboardAnalytical() {
 
   useEffect(() => {
     if (user?.role === "super_admin") setLocation("/platform");
+    if (user?.role === "employee" || user?.role === "cashier") setLocation("/module-select");
   }, [user, setLocation]);
 
   const { data: stats } = useQuery<any>({
