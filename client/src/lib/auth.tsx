@@ -178,10 +178,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLocation(returnTo);
     } else if (data.role === "super_admin") {
       setLocation("/platform");
-    } else if ((data.role === "employee" || data.role === "accountant") && data.tenantType === "accounting_firm") {
-      setLocation("/hr/attendance");
-    } else if (data.role === "cashier" || data.role === "employee") {
-      setLocation("/hr/attendance");
     } else {
       setLocation("/");
     }
