@@ -157,6 +157,15 @@ function toThaiDate(d: Date): { date: string; hours: number; minutes: number; se
 }
 
 export function registerHrRoutes(app: Express) {
+  db.execute(sql`
+    CREATE TABLE IF NOT EXISTS employee_counters (
+      id SERIAL PRIMARY KEY,
+      company_id INTEGER NOT NULL UNIQUE REFERENCES companies(id),
+      prefix VARCHAR(2) NOT NULL,
+      last_number INTEGER NOT NULL DEFAULT 0
+    )
+  `).catch((e: any) => console.warn("employee_counters table init:", e.message?.slice(0, 80)));
+
   app.get("/api/employee-names", requireAuth, async (req, res) => {
     try {
       const user = req.user as any;
