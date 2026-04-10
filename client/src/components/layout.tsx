@@ -65,6 +65,7 @@ import {
   DatabaseZap,
   HardHat,
   Fuel,
+  Factory,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -1133,6 +1134,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                       { icon: ClipboardCheck, label: "ศูนย์รับสินค้า", desc: "GPS + ลายเซ็นรับ ทุกโมดูล", href: "/delivery-hub", iconBg: "bg-green-100", iconColor: "text-green-700", module: "inventory" },
                       { icon: UtensilsCrossed, label: "POS ร้านอาหาร", desc: "จัดการโต๊ะ ออเดอร์", href: "/restaurant-pos", iconBg: "bg-teal-100", iconColor: "text-teal-700", module: "pos" },
                       { icon: UtensilsCrossed, label: "Food Delivery", desc: "บริการส่งอาหาร", href: "/food-delivery/dashboard", iconBg: "bg-emerald-100", iconColor: "text-emerald-700", module: "pos" },
+                      { icon: Factory, label: "ระบบผลิต", desc: "BOM Serial Traceability ISO", href: "/manufacturing/dashboard", iconBg: "bg-teal-100", iconColor: "text-teal-700", module: "manufacturing" },
                     ];
                     const renderAppButton = (app: typeof coreApps[0], isAddon = false) => {
                       const IconComp = app.icon;

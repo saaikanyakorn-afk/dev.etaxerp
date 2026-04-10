@@ -38,6 +38,7 @@ export const PERMISSION_MODULES: PermissionModule[] = [
   { key: "job-costing", label: "ต้นทุนงานก่อสร้าง", description: "บัญชีต้นทุนงาน, กำไรขาดทุนแต่ละโปรเจค, ต้นทุนต่อยูนิต", allowedRoles: ["admin", "manager", "accountant"] },
   { key: "crm", label: "CRM ลูกค้า", description: "จัดการลูกค้า, ต้นทุนโฆษณา & ROAS", allowedRoles: ["admin", "manager", "accountant"] },
   { key: "tax-tools", label: "Tax Tools", description: "นำเข้า 50 ทวิ, สร้างงบการเงิน, ดึงใบเสร็จราชการ", allowedRoles: ["admin", "manager", "accountant"] },
+  { key: "manufacturing", label: "ระบบผลิต", description: "สูตรผลิต, ใบสั่งผลิต, Traceability, สแกน Serial, เครื่องมือวัด", allowedRoles: ["admin", "manager", "accountant", "employee"] },
   { key: "settings", label: "ตั้งค่า", description: "กำหนดสิทธิ์ผู้ใช้งาน, ตั้งค่าระบบ", allowedRoles: ["admin", "manager"] },
   { key: "client-portal", label: "ดูข้อมูลบริษัท (ลูกค้า)", description: "ดูรายงาน, ใบแจ้งหนี้ของบริษัทตนเอง", allowedRoles: ["client"] },
 ];
@@ -255,7 +256,7 @@ export function canAccessRoute(role: string, path: string): boolean {
   return hasPermission(role, moduleKey);
 }
 
-export const PRIMARY_ONLY_MODULES = ["hr", "firm-mgmt", "etax-hub", "settings"];
+export const PRIMARY_ONLY_MODULES = ["hr", "firm-mgmt", "etax-hub", "settings", "manufacturing"];
 export const FIRM_ONLY_MODULES = ["firm-mgmt"];
 
 export const CONFIDENTIAL_SUB_MODULES = [
@@ -379,6 +380,13 @@ export const SUB_MODULES: SubModule[] = [
   { key: "assets/history", label: "ประวัติการลงบัญชี", parentModule: "assets", href: "/assets/history" },
 
   { key: "reports/general", label: "รายงานทั่วไป", parentModule: "reports", href: "/reports/general" },
+
+  { key: "manufacturing/dashboard", label: "ภาพรวมการผลิต", parentModule: "manufacturing", href: "/manufacturing/dashboard" },
+  { key: "manufacturing/bom", label: "สูตรการผลิต (BOM)", parentModule: "manufacturing", href: "/manufacturing/bom" },
+  { key: "manufacturing/orders", label: "ใบสั่งผลิต", parentModule: "manufacturing", href: "/manufacturing/orders" },
+  { key: "manufacturing/serial-numbers", label: "Serial Numbers", parentModule: "manufacturing", href: "/manufacturing/serial-numbers" },
+  { key: "manufacturing/traceability", label: "ตรวจสอบย้อนกลับ", parentModule: "manufacturing", href: "/manufacturing/traceability" },
+  { key: "manufacturing/calibration", label: "เครื่องมือวัด", parentModule: "manufacturing", href: "/manufacturing/calibration" },
 
   { key: "hr/ess", label: "บริการตนเอง (ESS)", parentModule: "hr", href: "/settings/profile" },
   { key: "hr/employees", label: "ทะเบียนพนักงาน", parentModule: "hr", href: "/hr/employees" },
