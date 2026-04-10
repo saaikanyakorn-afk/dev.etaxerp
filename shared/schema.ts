@@ -364,6 +364,17 @@ export const insertEmployeeSchema = createInsertSchema(employees).omit({ id: tru
 export type InsertEmployee = z.infer<typeof insertEmployeeSchema>;
 export type Employee = typeof employees.$inferSelect;
 
+export const employeeCounters = pgTable("employee_counters", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").references(() => companies.id).notNull().unique(),
+  prefix: varchar("prefix", { length: 2 }).notNull(),
+  lastNumber: integer("last_number").notNull().default(0),
+});
+
+export const insertEmployeeCounterSchema = createInsertSchema(employeeCounters).omit({ id: true });
+export type InsertEmployeeCounter = z.infer<typeof insertEmployeeCounterSchema>;
+export type EmployeeCounter = typeof employeeCounters.$inferSelect;
+
 export const attendanceRecords = pgTable("attendance_records", {
   id: serial("id").primaryKey(),
   employeeId: integer("employee_id").references(() => employees.id).notNull(),
