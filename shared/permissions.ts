@@ -259,6 +259,7 @@ export const PRIMARY_ONLY_MODULES = ["hr", "firm-mgmt", "etax-hub", "settings"];
 export const FIRM_ONLY_MODULES = ["firm-mgmt"];
 
 export const CONFIDENTIAL_SUB_MODULES = [
+  "hr/payslip",
   "hr/payroll-tax",
   "hr/certificates",
 ];
@@ -273,6 +274,7 @@ export const HR_PERSONAL_SUB_MODULES = [
 
 export const HR_ADMIN_SUB_MODULES = [
   "hr/employees",
+  "hr/payslip",
   "hr/payroll-tax",
   "hr/certificates",
   "hr/holidays",
@@ -389,6 +391,7 @@ export const SUB_MODULES: SubModule[] = [
   { key: "hr/shift-settings", label: "ตั้งค่ากะทำงาน", parentModule: "hr", href: "/hr/shift-settings" },
   { key: "hr/shift-schedule", label: "ตารางจัดกะ", parentModule: "hr", href: "/hr/shift-schedule" },
   { key: "hr/holidays", label: "ปฏิทินวันหยุด", parentModule: "hr", href: "/hr/holidays" },
+  { key: "hr/payslip", label: "คำนวณเงินเดือน", parentModule: "hr", href: "/hr/payslip" },
   { key: "hr/payroll-tax", label: "จ่ายเงินเดือน / ภาษี", parentModule: "hr", href: "/hr/payroll-tax" },
   { key: "hr/commission-rules", label: "กฎคอมมิชชั่น", parentModule: "hr", href: "/hr/commission-rules" },
   { key: "hr/commission", label: "คำนวณค่าคอมมิชชั่น", parentModule: "hr", href: "/hr/commission" },
