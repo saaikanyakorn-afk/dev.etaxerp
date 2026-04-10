@@ -17,6 +17,7 @@ import {
   type Tenant, type InsertTenant,
   type User, type InsertUser, type Company, type InsertCompany,
   type Employee, type InsertEmployee, type AttendanceRecord, type InsertAttendance,
+  employeeCounters, type EmployeeCounter, type InsertEmployeeCounter,
   type OtRecord, type InsertOt, type LeaveRequest, type InsertLeave,
   leavePolicies, leaveBalances,
   type LeavePolicy, type InsertLeavePolicy,
@@ -121,6 +122,10 @@ export interface IStorage {
   getEmployeeByUserId(userId: number): Promise<Employee | undefined>;
   createEmployee(employee: InsertEmployee): Promise<Employee>;
   updateEmployee(id: number, data: Partial<InsertEmployee>): Promise<Employee | undefined>;
+
+  getEmployeeCounter(companyId: number): Promise<EmployeeCounter | undefined>;
+  createEmployeeCounter(data: InsertEmployeeCounter): Promise<EmployeeCounter>;
+  nextEmployeeCode(companyId: number): Promise<string>;
 
   getAttendanceByEmployee(employeeId: number): Promise<AttendanceRecord[]>;
   getAttendanceByDate(employeeId: number, date: string): Promise<AttendanceRecord | undefined>;
@@ -568,6 +573,25 @@ export class DatabaseStorage implements IStorage {
   async createEmployee(employee: InsertEmployee): Promise<Employee> {
     const [created] = await db.insert(employees).values(employee).returning();
     return created;
+  }
+
+  async getEmployeeCounter(companyId: number): Promise<EmployeeCounter | undefined> {
+    const [counter] = await db.select().from(employeeCounters).where(eq(employeeCounters.companyId, companyId));
+    return counter;
+  }
+
+  async createEmployeeCounter(data: InsertEmployeeCounter): Promise<EmployeeCounter> {
+    const [created] = await db.insert(employeeCounters).values(data).returning();
+    return created;
+  }
+
+  async nextEmployeeCode(companyId: number): Promise<string> {
+    const [updated] = await db.update(employeeCounters)
+      .set({ lastNumber: sql`${employeeCounters.lastNumber} + 1` })
+      .where(eq(employeeCounters.companyId, companyId))
+      .returning();
+    if (!updated) throw new Error(`ไม่พบ employee counter สำหรับบริษัท ${companyId} — กรุณาตั้งค่า prefix ก่อน`);
+    return updated.prefix + String(updated.lastNumber).padStart(4, "0");
   }
 
   async updateEmployee(id: number, data: Partial<InsertEmployee>): Promise<Employee | undefined> {

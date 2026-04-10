@@ -231,6 +231,45 @@ export function registerHrRoutes(app: Express) {
     }
   });
 
+  app.get("/api/employee-counter/:companyId", requireAuth, requireModule("hr"), async (req, res) => {
+    try {
+      const companyId = Number(req.params.companyId);
+      const counter = await storage.getEmployeeCounter(companyId);
+      res.json(counter || null);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/employee-counter", requireAuth, requireModule("hr"), async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { companyId, prefix } = req.body;
+      if (!companyId || !prefix) return res.status(400).json({ message: "กรุณาระบุ companyId และ prefix" });
+      if (!/^[A-Za-z]{2}$/.test(prefix)) return res.status(400).json({ message: "Prefix ต้องเป็นตัวอักษร 2 ตัวเท่านั้น" });
+      if (!(await verifyCompanyAccess(companyId, user.tenantId))) {
+        return res.status(403).json({ message: "ไม่มีสิทธิ์เข้าถึงบริษัทนี้" });
+      }
+      const existing = await storage.getEmployeeCounter(companyId);
+      if (existing) return res.status(400).json({ message: "บริษัทนี้ตั้ง prefix แล้ว ไม่สามารถเปลี่ยนได้" });
+
+      const uppercasePrefix = prefix.toUpperCase();
+      const allEmps = await storage.getEmployees(undefined, companyId);
+      let maxNum = 0;
+      for (const emp of allEmps) {
+        if (emp.employeeCode && emp.employeeCode.toUpperCase().startsWith(uppercasePrefix)) {
+          const numPart = parseInt(emp.employeeCode.slice(uppercasePrefix.length), 10);
+          if (!isNaN(numPart) && numPart > maxNum) maxNum = numPart;
+        }
+      }
+
+      const counter = await storage.createEmployeeCounter({ companyId, prefix: uppercasePrefix, lastNumber: maxNum });
+      res.status(201).json(counter);
+    } catch (err: any) {
+      res.status(400).json({ message: err.message });
+    }
+  });
+
   app.post("/api/employees", requireAuth, requireModule("hr"), async (req, res) => {
     try {
       const user = req.user as any;
@@ -238,7 +277,13 @@ export function registerHrRoutes(app: Express) {
       if (companyId && !(await verifyCompanyAccess(companyId, user.tenantId))) {
         return res.status(403).json({ message: "ไม่มีสิทธิ์เข้าถึงบริษัทนี้" });
       }
-      const parsed = insertEmployeeSchema.parse({ ...req.body, tenantId: user.tenantId || null, companyId });
+
+      let employeeCode = req.body.employeeCode;
+      if (!employeeCode && companyId) {
+        employeeCode = await storage.nextEmployeeCode(companyId);
+      }
+
+      const parsed = insertEmployeeSchema.parse({ ...req.body, employeeCode, tenantId: user.tenantId || null, companyId });
       const employee = await storage.createEmployee(parsed);
       res.status(201).json(employee);
     } catch (err: any) {

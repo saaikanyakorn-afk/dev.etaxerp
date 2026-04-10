@@ -105,6 +105,17 @@ export default function EmployeeList() {
     enabled: !!user,
   });
 
+  const { data: empCounter } = useQuery<any>({
+    queryKey: ["/api/employee-counter", companyId],
+    queryFn: async () => {
+      const r = await fetch(`/api/employee-counter/${companyId}`, { credentials: "include" });
+      if (!r.ok) return null;
+      return r.json();
+    },
+    enabled: !!user && !!companyId,
+  });
+  const [prefixInput, setPrefixInput] = useState("");
+
   const { data: departmentsList = [] } = useQuery<any[]>({
     queryKey: ["/api/departments"],
     queryFn: async () => {
@@ -191,6 +202,27 @@ export default function EmployeeList() {
     }
   };
 
+  const createPrefixMutation = useMutation({
+    mutationFn: async (prefix: string) => {
+      const r = await fetch("/api/employee-counter", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ companyId, prefix }),
+        credentials: "include",
+      });
+      if (!r.ok) { const d = await r.json(); throw new Error(d.message); }
+      return r.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/employee-counter", companyId] });
+      toast({ title: "ตั้งค่า Prefix สำเร็จ" });
+      setPrefixInput("");
+    },
+    onError: (err: any) => {
+      toast({ title: "ไม่สำเร็จ", description: err.message, variant: "destructive" });
+    },
+  });
+
   const createMutation = useMutation({
     mutationFn: async (data: any) => {
       const r = await fetch("/api/employees", {
@@ -205,6 +237,7 @@ export default function EmployeeList() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/employees", companyId] });
       queryClient.invalidateQueries({ queryKey: ["/api/users/unlinked-employees"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/employee-counter", companyId] });
       toast({ title: "เพิ่มพนักงานสำเร็จ" });
       setDialogOpen(false);
       setForm(emptyForm);
@@ -370,7 +403,7 @@ export default function EmployeeList() {
 
   const handleSubmit = () => {
     const payload: any = {
-      employeeCode: form.employeeCode,
+      ...(editId ? { employeeCode: form.employeeCode } : {}),
       fullName: [form.titlePrefix, form.firstName, form.lastName].filter(Boolean).join(" ") || form.fullName,
       titlePrefix: form.titlePrefix || null,
       firstName: form.firstName || null,
@@ -684,8 +717,20 @@ export default function EmployeeList() {
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="text-xs font-medium text-muted-foreground">รหัสพนักงาน *</label>
-                  <Input value={form.employeeCode} onChange={e => setForm(f => ({ ...f, employeeCode: e.target.value }))} placeholder="EMP001" data-testid="input-employee-code" />
+                  <label className="text-xs font-medium text-muted-foreground">รหัสพนักงาน {editId ? "" : "(อัตโนมัติ)"}</label>
+                  {editId ? (
+                    <Input value={form.employeeCode} readOnly className="bg-gray-50 font-mono" data-testid="input-employee-code" />
+                  ) : empCounter ? (
+                    <Input value={`${empCounter.prefix}${String(empCounter.lastNumber + 1).padStart(4, "0")} (อัตโนมัติ)`} readOnly className="bg-gray-50 font-mono" data-testid="input-employee-code" />
+                  ) : (
+                    <div className="flex gap-2">
+                      <Input value={prefixInput} onChange={e => { const v = e.target.value.replace(/[^a-zA-Z]/g, "").slice(0, 2).toUpperCase(); setPrefixInput(v); }} placeholder="EM" maxLength={2} className="w-20 font-mono uppercase" data-testid="input-prefix" />
+                      <Button type="button" size="sm" disabled={prefixInput.length !== 2 || createPrefixMutation.isPending} onClick={() => createPrefixMutation.mutate(prefixInput)} data-testid="button-set-prefix">
+                        {createPrefixMutation.isPending ? "..." : "ตั้ง Prefix"}
+                      </Button>
+                      <span className="text-xs text-muted-foreground self-center">ตัวอักษร 2 ตัว (เปลี่ยนไม่ได้)</span>
+                    </div>
+                  )}
                 </div>
                 <div>
                   <label className="text-xs font-medium text-muted-foreground">ชื่อ-นามสกุล (สร้างอัตโนมัติจากชื่อ+นามสกุล)</label>
@@ -936,7 +981,7 @@ export default function EmployeeList() {
                 <Button variant="outline" onClick={() => setDialogOpen(false)} data-testid="button-cancel">ยกเลิก</Button>
                 <Button
                   onClick={handleSubmit}
-                  disabled={createMutation.isPending || updateMutation.isPending || !form.employeeCode || !form.firstName}
+                  disabled={createMutation.isPending || updateMutation.isPending || (!editId && !empCounter) || !form.firstName}
                   style={{ background: "#fb9678" }}
                   className="text-white hover:opacity-90"
                   data-testid="button-submit-employee"
