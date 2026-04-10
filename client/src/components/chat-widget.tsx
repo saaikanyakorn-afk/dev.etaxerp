@@ -88,7 +88,8 @@ export default function ChatWidget() {
   const pathname = window.location.pathname;
   const isPublicPage = pathname === "/" || pathname === "/landing" || pathname === "/about" || pathname === "/register" || pathname === "/login" || pathname.startsWith("/pricing") || pathname.startsWith("/ecommerce-pricing") || pathname.startsWith("/food-delivery-pricing") || pathname.startsWith("/accounting-pricing");
   const isLanding = pathname === "/" || pathname === "/landing";
-  const showButtons = isLanding ? pastHero : true;
+  const isPosTerminal = pathname === "/pos/terminal" || pathname === "/restaurant-pos";
+  const showButtons = isLanding ? pastHero : !isPosTerminal;
   const showContactIcons = isPublicPage && (!isLanding || pastHero);
   const showChatButton = !isLanding || pastHero;
 

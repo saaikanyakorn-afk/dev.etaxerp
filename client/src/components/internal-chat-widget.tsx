@@ -532,6 +532,7 @@ export default function InternalChatWidget() {
 
   if (!user || isPublicPage) return null;
   if (pathname === "/office/chat") return null;
+  if (pathname === "/pos/terminal" || pathname === "/restaurant-pos") return null;
 
   return (
     <div
