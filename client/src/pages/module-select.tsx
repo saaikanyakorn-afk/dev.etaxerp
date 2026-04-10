@@ -65,8 +65,8 @@ export default function ModuleSelectPage() {
   useEffect(() => {
     if (authLoading || permLoading) return;
     if (!user) { setLocation("/login"); return; }
-    if ((user as any).role === "employee") { setLocation("/ess"); return; }
-    if ((user as any).role === "cashier") { setLocation("/pos/sessions"); return; }
+    if ((user as any).role === "employee") { setLocation("/hr/attendance"); return; }
+    if ((user as any).role === "cashier") { setLocation("/hr/attendance"); return; }
     if ((user as any).role === "client_external") { setLocation("/etax-hub/board"); return; }
     if ((user as any).role === "super_admin") { setLocation("/platform"); return; }
     if (ownedCards.length === 1 && lockedCards.length === 0) {
