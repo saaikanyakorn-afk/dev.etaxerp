@@ -5,7 +5,7 @@ import { useLocation } from "wouter";
 import {
   Building2, Calculator, ShoppingCart, Monitor, Users,
   LayoutGrid, Fuel, BarChart3, Truck, Lock, Sparkles,
-  LogOut, Home
+  LogOut, Home, Clock
 } from "lucide-react";
 
 interface ModuleCard {
@@ -69,10 +69,14 @@ export default function ModuleSelectPage() {
     if (!permData) return;
     if (!user) { setLocation("/login"); return; }
     if ((user as any).role === "employee" || (user as any).role === "cashier") {
-      if (subModules.includes("hr/attendance")) {
-        setLocation("/hr/attendance");
-      } else if (modules.includes("pos") && subModules.includes("pos/sessions")) {
+      const hasMultipleModules = ownedCards.length > 1;
+      if (hasMultipleModules) {
+        return;
+      }
+      if (modules.includes("pos") && subModules.includes("pos/sessions")) {
         setLocation("/pos/sessions");
+      } else if (subModules.includes("hr/attendance")) {
+        setLocation("/hr/attendance");
       } else if (subModules.includes("hr/ess")) {
         setLocation("/ess");
       } else if (modules.length > 0) {
@@ -152,6 +156,19 @@ export default function ModuleSelectPage() {
             );
           })}
         </div>
+
+        {((user as any)?.role === "employee" || (user as any)?.role === "cashier") && subModules.includes("hr/attendance") && (
+          <div className="mt-6 flex justify-center">
+            <button
+              onClick={() => setLocation("/hr/attendance")}
+              className="flex items-center gap-2 px-6 py-3 text-sm font-semibold text-white bg-[#05b187] rounded-xl hover:bg-[#049e78] shadow-md hover:shadow-lg transition-all"
+              data-testid="btn-checkin-attendance"
+            >
+              <Clock className="w-5 h-5" />
+              ลงเวลาเข้างาน / เช็คอิน
+            </button>
+          </div>
+        )}
 
         <div className="flex items-center justify-center gap-3 mt-8">
           <button
