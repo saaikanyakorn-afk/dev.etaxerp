@@ -80,9 +80,14 @@ export default function ImportBatchHistory({ docType, invalidateKeys }: ImportBa
         }
       }
       setDeleteId(null);
+      let desc = `ลบ ${data.deletedDocs} รายการ`;
+      if (data.deactivated > 0) {
+        desc += ` | ยกเลิกการใช้ ${data.deactivated} รายการ (มีเอกสารอ้างอิง): ${data.deactivatedNames.join(", ")}`;
+      }
       toast({
-        title: "ลบล็อตนำเข้าสำเร็จ",
-        description: `ลบ ${data.deletedDocs} รายการ`,
+        title: "ยกเลิกการนำเข้าสำเร็จ",
+        description: desc,
+        duration: data.deactivated > 0 ? 15000 : 5000,
       });
     },
     onError: (err: any) => {

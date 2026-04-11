@@ -19,7 +19,7 @@ import { apiRequest } from "@/lib/queryClient";
 import type { Product } from "@shared/schema";
 import ImportBatchHistory from "@/components/import-batch-history";
 
-const CATEGORIES = [
+const FALLBACK_CATEGORIES = [
   { value: "product", label: "สินค้า" },
   { value: "service", label: "บริการ" },
   { value: "raw_material", label: "วัตถุดิบ" },
@@ -33,6 +33,19 @@ export default function InventoryList(props: { Wrapper?: React.ComponentType<{ c
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [, navigate] = useLocation();
+
+  const { data: dbCategories = [] } = useQuery<{ id: number; code: string; name: string; active: boolean }[]>({
+    queryKey: ["/api/product-categories", selectedCompanyId],
+    queryFn: async () => {
+      const r = await fetch(`/api/product-categories?companyId=${selectedCompanyId}`, { credentials: "include" });
+      if (!r.ok) return [];
+      return r.json();
+    },
+    enabled: !!selectedCompanyId,
+  });
+  const CATEGORIES = dbCategories.length > 0
+    ? dbCategories.filter(c => c.active).map(c => ({ value: c.code, label: c.name }))
+    : FALLBACK_CATEGORIES;
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [importDialogOpen, setImportDialogOpen] = useState(false);
@@ -50,6 +63,16 @@ export default function InventoryList(props: { Wrapper?: React.ComponentType<{ c
     queryFn: async () => {
       const r = await fetch(`/api/products?companyId=${selectedCompanyId}`, { credentials: "include" });
       if (!r.ok) return [];
+      return r.json();
+    },
+    enabled: !!selectedCompanyId,
+  });
+
+  const { data: stockByWarehouse = {} } = useQuery<Record<number, { warehouseName: string; qty: number }[]>>({
+    queryKey: ["/api/inventory/stock-by-warehouse", selectedCompanyId],
+    queryFn: async () => {
+      const r = await fetch(`/api/inventory/stock-by-warehouse?companyId=${selectedCompanyId}`, { credentials: "include" });
+      if (!r.ok) return {};
       return r.json();
     },
     enabled: !!selectedCompanyId,
@@ -207,7 +230,6 @@ export default function InventoryList(props: { Wrapper?: React.ComponentType<{ c
               { header: "รหัส", key: "code", width: "60px" },
               { header: "ชื่อสินค้า/บริการ", key: "name", width: "auto" },
               { header: "หมวดหมู่", key: "category", width: "70px", align: "center" },
-              { header: "หน่วย", key: "unit", width: "50px", align: "center" },
               { header: "ราคาขาย", key: "price", width: "80px", align: "right", format: "number" },
               { header: "ต้นทุน", key: "cost", width: "80px", align: "right", format: "number" },
               { header: "คงเหลือ", key: "quantity", width: "60px", align: "right", format: "number" },
@@ -221,7 +243,6 @@ export default function InventoryList(props: { Wrapper?: React.ComponentType<{ c
               { header: "รหัส", key: "code", width: 15 },
               { header: "ชื่อสินค้า/บริการ", key: "name", width: 35 },
               { header: "หมวดหมู่", key: "category", width: 12 },
-              { header: "หน่วย", key: "unit", width: 10 },
               { header: "ราคาขาย", key: "price", width: 12, format: "number" },
               { header: "ต้นทุน", key: "cost", width: 12, format: "number" },
               { header: "คงเหลือ", key: "quantity", width: 10, format: "number" },
@@ -419,10 +440,10 @@ export default function InventoryList(props: { Wrapper?: React.ComponentType<{ c
                   <TableHead className="w-24">รหัส</TableHead>
                   <TableHead>ชื่อสินค้า/บริการ</TableHead>
                   <TableHead className="w-28">หมวดหมู่</TableHead>
-                  <TableHead className="w-20">หน่วย</TableHead>
                   <TableHead className="text-right w-28">ราคาขาย</TableHead>
                   <TableHead className="text-right w-28">ต้นทุน</TableHead>
                   <TableHead className="text-right w-24">คงเหลือ</TableHead>
+                  <TableHead className="w-44">แยกตามคลัง</TableHead>
                   <TableHead className="w-16 text-center">VAT</TableHead>
                   <TableHead className="w-28 text-center">จัดการ</TableHead>
                 </TableRow>
@@ -448,7 +469,6 @@ export default function InventoryList(props: { Wrapper?: React.ComponentType<{ c
                       {product.description && <div className="text-xs text-muted-foreground truncate max-w-xs">{product.description}</div>}
                     </TableCell>
                     <TableCell>{categoryBadge(product.category)}</TableCell>
-                    <TableCell className="text-sm">{product.unit}</TableCell>
                     <TableCell className="text-right text-sm">
                       <div>{formatNumber(product.price)}</div>
                       {(() => {
@@ -471,6 +491,31 @@ export default function InventoryList(props: { Wrapper?: React.ComponentType<{ c
                     <TableCell className="text-right text-sm text-muted-foreground">{formatNumber(product.cost)}</TableCell>
                     <TableCell className={`text-right text-sm font-medium ${parseFloat(String(product.quantity || "0")) < 0 ? "text-red-600" : parseFloat(String(product.quantity || "0")) === 0 ? "text-muted-foreground" : "text-blue-700"}`} data-testid={`text-qty-${product.id}`}>
                       {formatNumber(parseFloat(String(product.quantity || "0")), 2)}
+                    </TableCell>
+                    <TableCell className="text-xs" data-testid={`text-warehouse-stock-${product.id}`}>
+                      {(() => {
+                        const wStocks = stockByWarehouse[product.id];
+                        if (!wStocks || wStocks.length === 0) return <span className="text-muted-foreground">-</span>;
+                        const sorted = [...wStocks].sort((a, b) => b.qty - a.qty);
+                        const show = sorted.slice(0, 2);
+                        const rest = sorted.slice(2);
+                        const allText = sorted.map(ws => `${ws.warehouseName}: ${formatNumber(ws.qty, 0)}`).join("\n");
+                        return (
+                          <div className="flex flex-wrap gap-1" title={allText}>
+                            {show.map((ws, i) => (
+                              <span key={i} className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-blue-50 text-[11px] leading-tight whitespace-nowrap">
+                                <span className="text-gray-600 max-w-[60px] truncate">{ws.warehouseName}</span>
+                                <span className="font-semibold text-blue-700 tabular-nums">{formatNumber(ws.qty, 0)}</span>
+                              </span>
+                            ))}
+                            {rest.length > 0 && (
+                              <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-gray-100 text-[11px] text-gray-500 cursor-help">
+                                +{rest.length}
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </TableCell>
                     <TableCell className="text-center">
                       {(() => {

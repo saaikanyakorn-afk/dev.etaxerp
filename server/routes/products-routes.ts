@@ -2,7 +2,7 @@ import type { Express, Request, Response } from "express";
 import { db } from "../db";
 import { storage } from "../storage";
 import { eq, desc, and, or, ilike, inArray, count, sum , sql } from "drizzle-orm";
-import { products, documentImportBatches, stockMovements, promotions, companies, productLots, goodsRequisitions, goodsRequisitionItems, journalEntries, journalLines, stockTransfers, stockTransferItems, warehouses, warehouseStockLevels, branches } from "@shared/schema";
+import { products, productBundles, productCategories, documentImportBatches, stockMovements, promotions, companies, productLots, goodsRequisitions, goodsRequisitionItems, journalEntries, journalLines, stockTransfers, stockTransferItems, warehouses, warehouseStockLevels, branches } from "@shared/schema";
 import { requireAuth, requireModule, requireAnyModule, checkDocOwnership } from "../route-middleware";
 import { getNextJournalEntryNo, logActivity, deleteStockMovementsForDoc } from "../route-helpers";
 import { parsePagination, paginatedResponse } from "./pagination";
@@ -15,14 +15,148 @@ import { parse as csvParse } from "csv-parse/sync";
 import multer from "multer";
 const upload = multer({ storage: multer.memoryStorage() });
 
+const DEFAULT_CATEGORIES = [
+  { code: "product", name: "สินค้า" },
+  { code: "service", name: "บริการ" },
+  { code: "raw_material", name: "วัตถุดิบ" },
+  { code: "consumable", name: "วัสดุสิ้นเปลือง" },
+];
+
+let _schemaReady = false;
+async function ensureProductSchema() {
+  if (_schemaReady) return;
+  try {
+    await db.execute(sql`CREATE TABLE IF NOT EXISTS product_categories (
+      id SERIAL PRIMARY KEY,
+      company_id INTEGER NOT NULL,
+      code TEXT NOT NULL,
+      name TEXT NOT NULL,
+      active BOOLEAN NOT NULL DEFAULT true
+    )`);
+    await db.execute(sql`DO $$ BEGIN
+      ALTER TABLE products ADD COLUMN IF NOT EXISTS sub_unit TEXT;
+      ALTER TABLE products ADD COLUMN IF NOT EXISTS conversion_rate TEXT DEFAULT '1';
+    EXCEPTION WHEN others THEN NULL;
+    END $$`);
+    _schemaReady = true;
+    console.log("[products] auto-created product_categories table + sub_unit/conversion_rate columns");
+  } catch (e: any) {
+    console.error("[products] schema ensure failed:", e.message);
+  }
+}
+
 export function registerProductsRoutes(app: Express) {
+
+// ==================== Product Categories ====================
+app.get("/api/product-categories", requireAuth, async (req, res) => {
+  try {
+    await ensureProductSchema();
+    const companyId = Number(req.query.companyId);
+    if (!companyId) return res.status(400).json({ message: "companyId required" });
+    let cats = await db.select().from(productCategories).where(eq(productCategories.companyId, companyId)).orderBy(productCategories.id);
+    if (cats.length === 0) {
+      const toInsert = DEFAULT_CATEGORIES.map(c => ({ companyId, code: c.code, name: c.name, active: true }));
+      cats = await db.insert(productCategories).values(toInsert).returning();
+    }
+    res.json(cats);
+  } catch (err: any) { res.status(400).json({ message: err.message }); }
+});
+
+app.post("/api/product-categories", requireAuth, async (req, res) => {
+  try {
+    const { companyId, code, name } = req.body;
+    if (!companyId || !code || !name) return res.status(400).json({ message: "กรุณาระบุ code และ name" });
+    const existing = await db.select().from(productCategories).where(and(eq(productCategories.companyId, companyId), eq(productCategories.code, code.trim())));
+    if (existing.length > 0) return res.status(409).json({ message: `รหัสหมวดหมู่ "${code}" ซ้ำ` });
+    const [created] = await db.insert(productCategories).values({ companyId, code: code.trim(), name: name.trim(), active: true }).returning();
+    res.status(201).json(created);
+  } catch (err: any) { res.status(400).json({ message: err.message }); }
+});
+
+app.patch("/api/product-categories/:id", requireAuth, async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const { name, active } = req.body;
+    const updates: any = {};
+    if (name !== undefined) updates.name = name.trim();
+    if (active !== undefined) updates.active = active;
+    const [updated] = await db.update(productCategories).set(updates).where(eq(productCategories.id, id)).returning();
+    if (!updated) return res.status(404).json({ message: "ไม่พบหมวดหมู่" });
+    res.json(updated);
+  } catch (err: any) { res.status(400).json({ message: err.message }); }
+});
+
+app.delete("/api/product-categories/:id", requireAuth, async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const [cat] = await db.select().from(productCategories).where(eq(productCategories.id, id));
+    if (!cat) return res.status(404).json({ message: "ไม่พบหมวดหมู่" });
+    const usedCount = await db.select({ c: count() }).from(products).where(and(eq(products.companyId, cat.companyId), eq(products.category, cat.code), eq(products.active, true)));
+    if (Number(usedCount[0]?.c) > 0) {
+      return res.status(400).json({ message: `หมวดหมู่นี้มีสินค้าใช้อยู่ ${usedCount[0].c} รายการ ไม่สามารถลบได้` });
+    }
+    await db.delete(productCategories).where(eq(productCategories.id, id));
+    res.json({ success: true });
+  } catch (err: any) { res.status(400).json({ message: err.message }); }
+});
+
+app.get("/api/product-categories/import/template", requireAuth, (_req, res) => {
+  const wb = XLSX.utils.book_new();
+  const data = [
+    ["รหัส", "ชื่อหมวดหมู่"],
+    ["bedding", "เครื่องนอน"],
+    ["pillow", "หมอน"],
+    ["blanket", "ผ้าห่ม"],
+    ["mattress", "ที่นอน"],
+  ];
+  const ws = XLSX.utils.aoa_to_sheet(data);
+  ws["!cols"] = [{ wch: 20 }, { wch: 30 }];
+  XLSX.utils.book_append_sheet(wb, ws, "หมวดหมู่สินค้า");
+  const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
+  res.setHeader("Content-Disposition", "attachment; filename=category_template.xlsx");
+  res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+  res.send(buf);
+});
+
+app.post("/api/product-categories/import", requireAuth, upload.single("file"), async (req, res) => {
+  try {
+    const companyId = Number(req.body.companyId);
+    if (!companyId) return res.status(400).json({ message: "companyId required" });
+    if (!req.file) return res.status(400).json({ message: "ไม่พบไฟล์" });
+    const wb = XLSX.read(req.file.buffer, { type: "buffer" });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const rows: any[] = XLSX.utils.sheet_to_json(ws, { defval: "" });
+    if (rows.length === 0) return res.status(400).json({ message: "ไฟล์ว่าง" });
+
+    const existing = await db.select().from(productCategories).where(eq(productCategories.companyId, companyId));
+    const existingCodes = new Set(existing.map(c => c.code));
+
+    let created = 0;
+    let skipped = 0;
+    const errors: string[] = [];
+
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+      const code = String(row["รหัส"] || "").trim();
+      const name = String(row["ชื่อหมวดหมู่"] || "").trim();
+      if (!code || !name) { errors.push(`แถว ${i + 2}: รหัสหรือชื่อว่าง`); continue; }
+      if (existingCodes.has(code)) { skipped++; continue; }
+      await db.insert(productCategories).values({ companyId, code, name, active: true });
+      existingCodes.add(code);
+      created++;
+    }
+
+    res.json({ created, skipped, errors, total: rows.length });
+  } catch (err: any) { res.status(400).json({ message: err.message }); }
+});
+
 // ==================== Product Import/Export ====================
 app.get("/api/products/import/template", (_req, res) => {
-  const headers = ["รหัสสินค้า", "ชื่อสินค้า", "ชื่ออังกฤษ", "ชื่อจีน", "หมวดหมู่", "รายละเอียด", "หน่วย", "ราคาขาย", "ต้นทุน", "รวมVAT", "รหัสบัญชี"];
-  const sample = ["P001", "สินค้าตัวอย่าง", "Sample Product", "", "สินค้า", "รายละเอียดสินค้า", "ชิ้น", 100, 70, "ไม่รวม", "4001000"];
+  const headers = ["รหัสสินค้า", "ชื่อสินค้า", "ชื่ออังกฤษ", "ชื่อจีน", "หมวดหมู่", "รายละเอียด", "หน่วย", "ราคาขาย", "ต้นทุน", "รวมVAT", "บาร์โค้ด", "รหัสบัญชี", "ชื่อคลัง", "จำนวนคงเหลือ"];
+  const sample = ["P001", "สินค้าตัวอย่าง", "Sample Product", "", "สินค้า", "รายละเอียดสินค้า", "ชิ้น", 100, 70, "ไม่รวม", "8851234567890", "4001000", "คลังหลัก", 50];
   const wb = XLSX.utils.book_new();
   const ws = XLSX.utils.aoa_to_sheet([headers, sample]);
-  const colWidths = [12, 30, 25, 20, 12, 30, 8, 12, 12, 10, 12];
+  const colWidths = [12, 30, 25, 20, 12, 30, 8, 12, 12, 10, 16, 12, 18, 14];
   ws["!cols"] = colWidths.map(w => ({ wch: w }));
   XLSX.utils.book_append_sheet(wb, ws, "Products");
   const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
@@ -37,17 +171,17 @@ app.get("/api/products/export", requireAuth, requireModule("inventory"), async (
     if (!companyId) return res.status(400).json({ message: "กรุณาระบุ companyId" });
     const allProducts = await storage.getProducts(companyId);
     const active = allProducts.filter(p => p.active);
-    const headers = ["รหัสสินค้า", "ชื่อสินค้า", "ชื่ออังกฤษ", "ชื่อจีน", "หมวดหมู่", "รายละเอียด", "หน่วย", "ราคาขาย", "ต้นทุน", "รวมVAT", "รหัสบัญชี"];
+    const headers = ["รหัสสินค้า", "ชื่อสินค้า", "ชื่ออังกฤษ", "ชื่อจีน", "หมวดหมู่", "รายละเอียด", "หน่วย", "ราคาขาย", "ต้นทุน", "รวมVAT", "บาร์โค้ด", "รหัสบัญชี"];
     const catLabel: Record<string, string> = { product: "สินค้า", service: "บริการ", raw_material: "วัตถุดิบ", consumable: "วัสดุสิ้นเปลือง" };
     const rows = active.map(p => [
       p.code, p.name, p.nameEn || "", p.nameZh || "",
       catLabel[p.category] || p.category,
       p.description || "", p.unit, Number(p.price) || 0, Number(p.cost) || 0,
-      p.vatIncluded ? "รวม" : "ไม่รวม", p.accountCode || ""
+      p.vatIncluded ? "รวม" : "ไม่รวม", p.barcode || "", p.accountCode || ""
     ]);
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
-    const colWidths = [12, 30, 25, 20, 12, 30, 8, 12, 12, 10, 12];
+    const colWidths = [12, 30, 25, 20, 12, 30, 8, 12, 12, 10, 16, 12];
     ws["!cols"] = colWidths.map(w => ({ wch: w }));
     XLSX.utils.book_append_sheet(wb, ws, "Products");
     const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
@@ -85,8 +219,15 @@ app.post("/api/products/import/preview", requireAuth, requireModule("inventory")
       rows = csvParse(content, { columns: true, skip_empty_lines: true, trim: true, bom: true, delimiter, relax_quotes: true, relax_column_count: true });
     } else if (ext === ".xlsx" || ext === ".xls") {
       const workbook = XLSX.read(req.file.buffer, { type: "buffer" });
-      const sheet = workbook.Sheets[workbook.SheetNames[0]];
-      rows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+      const warehouseSheetNames = ["แยกตามคลัง", "by_warehouse", "warehouse"];
+      let chosenSheet = workbook.Sheets[workbook.SheetNames[0]];
+      for (const wsName of warehouseSheetNames) {
+        if (workbook.SheetNames.includes(wsName)) {
+          chosenSheet = workbook.Sheets[wsName];
+          break;
+        }
+      }
+      rows = XLSX.utils.sheet_to_json(chosenSheet, { defval: "" });
     } else {
       return res.status(400).json({ message: "รองรับเฉพาะไฟล์ .csv, .xlsx, .xls" });
     }
@@ -97,18 +238,20 @@ app.post("/api/products/import/preview", requireAuth, requireModule("inventory")
     const headers = Object.keys(rows[0]);
 
     const FIELD_MAP: Record<string, string[]> = {
-      code: ["code", "รหัส", "รหัสสินค้า", "product_code", "item_code", "sku"],
-      name: ["name", "ชื่อ", "ชื่อสินค้า", "product_name", "item_name"],
+      code: ["code", "รหัส", "รหัสสินค้า", "product_code", "item_code", "sku", "handle"],
+      name: ["name", "ชื่อ", "ชื่อสินค้า", "product_name", "item_name", "item name"],
       nameEn: ["name_en", "nameEn", "ชื่ออังกฤษ", "english_name"],
       nameZh: ["name_zh", "nameZh", "ชื่อจีน", "chinese_name"],
-      category: ["category", "หมวดหมู่", "ประเภท", "type"],
+      category: ["category", "หมวดหมู่", "ประเภท", "type", "หมวดสินค้า"],
       description: ["description", "รายละเอียด", "desc"],
-      unit: ["unit", "หน่วย"],
-      price: ["price", "ราคา", "ราคาขาย", "selling_price", "unit_price"],
-      cost: ["cost", "ต้นทุน", "unit_cost"],
+      unit: ["unit", "หน่วย", "หน่วยนับ", "sold by weight"],
+      price: ["price", "ราคา", "ราคาขาย", "selling_price", "unit_price", "default price"],
+      cost: ["cost", "ต้นทุน", "unit_cost", "ราคาต้นทุนเฉลี่ย", "ต้นทุนเฉลี่ย", "avg_cost", "cost per item"],
       vatIncluded: ["vat", "vatIncluded", "รวมvat", "vat_included", "include_vat"],
       accountCode: ["account_code", "accountCode", "รหัสบัญชี", "gl_code"],
       barcode: ["barcode", "บาร์โค้ด", "bar_code", "ean", "ean13", "upc"],
+      warehouseName: ["warehouse", "warehouseName", "ชื่อคลัง", "คลัง", "warehouse_name"],
+      stockQty: ["stock", "stockQty", "จำนวนคงเหลือ", "จำนวนในคลัง", "qty", "quantity", "จำนวน", "stock_qty", "on_hand", "in stock"],
     };
 
     const mapField = (header: string): string | null => {
@@ -121,6 +264,24 @@ app.post("/api/products/import/preview", requireAuth, requireModule("inventory")
 
     const columnMapping: Record<string, string | null> = {};
     headers.forEach(h => { columnMapping[h] = mapField(h); });
+
+    const bundleHeaders = ["รหัสชุด", "bundle_code", "set_code"];
+    const isBundleFile = headers.some(h => bundleHeaders.some(bh => h.trim().toLowerCase() === bh.toLowerCase()));
+    if (isBundleFile) {
+      return res.status(400).json({
+        message: "ไฟล์นี้เป็นรูปแบบสินค้าจัดชุด (Bundle) กรุณาใช้ช่อง \"นำเข้าสินค้าจัดชุด\" ด้านล่างแทน",
+        isBundleFile: true
+      });
+    }
+
+    const mappedFields = Object.values(columnMapping).filter(Boolean);
+    const hasCode = mappedFields.includes("code");
+    const hasName = mappedFields.includes("name");
+    if (!hasCode && !hasName) {
+      return res.status(400).json({
+        message: `ไม่พบคอลัมน์ที่ตรงกับระบบ\nคอลัมน์ในไฟล์: ${headers.join(", ")}\nคอลัมน์ที่รองรับ: รหัสสินค้า, ชื่อสินค้า, หมวดหมู่, หน่วย, ราคาขาย, ต้นทุน, บาร์โค้ด, SKU, Handle ฯลฯ\nกรุณาใช้ Template จากปุ่ม "ดาวน์โหลด Template" หรือใช้ไฟล์ที่ระบบสร้างให้`
+      });
+    }
 
     const existingProducts = await storage.getProducts(companyId);
     const existingCodes = new Set(existingProducts.filter(p => p.active).map(p => p.code));
@@ -142,7 +303,8 @@ app.post("/api/products/import/preview", requireAuth, requireModule("inventory")
       const issues: string[] = [];
       if (!mapped.code) issues.push("ไม่มีรหัสสินค้า");
       if (!mapped.name) issues.push("ไม่มีชื่อสินค้า");
-      if (mapped.code && existingCodes.has(mapped.code)) issues.push(`รหัส "${mapped.code}" มีในระบบแล้ว`);
+      const isExistingProduct = mapped.code && existingCodes.has(mapped.code);
+      if (isExistingProduct) issues.push(`รหัส "${mapped.code}" มีในระบบแล้ว`);
 
       if (mapped.category) {
         const c = mapped.category.toLowerCase();
@@ -165,32 +327,79 @@ app.post("/api/products/import/preview", requireAuth, requireModule("inventory")
 
       if (!mapped.unit) mapped.unit = "ชิ้น";
 
+      const hasWh = Object.values(columnMapping).includes("warehouseName");
+      let status: string;
+      if (issues.length === 0) {
+        status = "ok";
+      } else if (hasWh && isExistingProduct && issues.length === 1) {
+        status = "ok";
+      } else if (issues.some(i => i.includes("มีในระบบแล้ว"))) {
+        status = "duplicate";
+      } else {
+        status = "error";
+      }
+
       return {
         row: idx + 1,
         data: mapped,
         issues,
-        status: issues.length > 0 ? (issues.some(i => i.includes("มีในระบบแล้ว")) ? "duplicate" : "error") : "ok",
+        status,
       };
     });
 
-    const seenCodes = new Set<string>();
-    preview.forEach(p => {
-      if (p.data.code && seenCodes.has(p.data.code)) {
-        p.issues.push(`รหัส "${p.data.code}" ซ้ำในไฟล์`);
-        p.status = "duplicate";
+    const hasWarehouseCol = Object.values(columnMapping).includes("warehouseName");
+
+    if (hasWarehouseCol) {
+      const seenCodeWarehouse = new Set<string>();
+      preview.forEach(p => {
+        const wh = p.data.warehouseName || "";
+        const key = `${p.data.code}::${wh}`;
+        if (p.data.code && seenCodeWarehouse.has(key)) {
+          p.issues.push(`รหัส "${p.data.code}" + คลัง "${wh}" ซ้ำในไฟล์`);
+          p.status = "duplicate";
+        }
+        if (p.data.code) seenCodeWarehouse.add(key);
+      });
+    } else {
+      const seenCodes = new Set<string>();
+      preview.forEach(p => {
+        if (p.data.code && seenCodes.has(p.data.code)) {
+          p.issues.push(`รหัส "${p.data.code}" ซ้ำในไฟล์`);
+          p.status = "duplicate";
+        }
+        if (p.data.code) seenCodes.add(p.data.code);
+      });
+    }
+
+    const companyWarehouses = await db.select().from(warehouses).where(eq(warehouses.companyId, companyId));
+    const warehouseNamesLower = new Set(companyWarehouses.map(w => w.name.trim().toLowerCase()));
+    const newWarehouseNames: string[] = [];
+    if (hasWarehouseCol) {
+      const seenNewWh = new Set<string>();
+      for (const p of preview) {
+        const wh = (p.data.warehouseName || "").trim();
+        if (wh && !warehouseNamesLower.has(wh.toLowerCase()) && !seenNewWh.has(wh.toLowerCase())) {
+          newWarehouseNames.push(wh);
+          seenNewWh.add(wh.toLowerCase());
+        }
       }
-      if (p.data.code) seenCodes.add(p.data.code);
-    });
+    }
+
+    const stockOkCount = hasWarehouseCol ? preview.filter(p => p.status !== "error" && p.data.warehouseName && Number(p.data.stockQty) > 0).length : 0;
 
     res.json({
       headers,
       columnMapping,
       totalRows: rows.length,
       preview,
+      hasWarehouseCol,
+      companyWarehouses: companyWarehouses.map(w => ({ id: w.id, name: w.name })),
+      newWarehouseNames,
       stats: {
         ok: preview.filter(p => p.status === "ok").length,
         duplicate: preview.filter(p => p.status === "duplicate").length,
         error: preview.filter(p => p.status === "error").length,
+        stockEntries: stockOkCount,
       },
     });
   } catch (err: any) {
@@ -200,7 +409,7 @@ app.post("/api/products/import/preview", requireAuth, requireModule("inventory")
 
 app.post("/api/products/import/execute", requireAuth, requireModule("inventory"), async (req, res) => {
   try {
-    const { companyId, products: productList, updateProducts } = req.body;
+    const { companyId, products: productList, updateProducts, stockEntries } = req.body;
     if (!companyId || !productList || !Array.isArray(productList)) {
       return res.status(400).json({ message: "ข้อมูลไม่ถูกต้อง" });
     }
@@ -209,23 +418,28 @@ app.post("/api/products/import/execute", requireAuth, requireModule("inventory")
     const existingCodes = new Set(existingProducts.filter(p => p.active).map(p => p.code));
     const existingCodeMap = new Map(existingProducts.filter(p => p.active).map(p => [p.code, p.id]));
 
-    const validProducts = productList
-      .filter((p: any) => p.code && p.name && !existingCodes.has(p.code))
-      .map((p: any) => ({
-        companyId,
-        code: p.code,
-        name: p.name,
-        nameEn: p.nameEn || null,
-        nameZh: p.nameZh || null,
-        category: p.category || "product",
-        description: p.description || null,
-        unit: p.unit || "ชิ้น",
-        price: String(Number(p.price) || 0),
-        cost: String(Number(p.cost) || 0),
-        vatIncluded: !!p.vatIncluded,
-        accountCode: p.accountCode || null,
-        barcode: p.barcode || null,
-      }));
+    const uniqueProducts = new Map<string, any>();
+    for (const p of productList) {
+      if (!p.code || !p.name || existingCodes.has(p.code)) continue;
+      if (!uniqueProducts.has(p.code)) {
+        uniqueProducts.set(p.code, {
+          companyId,
+          code: p.code,
+          name: p.name,
+          nameEn: p.nameEn || null,
+          nameZh: p.nameZh || null,
+          category: p.category || "product",
+          description: p.description || null,
+          unit: p.unit || "ชิ้น",
+          price: String(Number(p.price) || 0),
+          cost: String(Number(p.cost) || 0),
+          vatIncluded: !!p.vatIncluded,
+          accountCode: p.accountCode || null,
+          barcode: p.barcode || null,
+        });
+      }
+    }
+    const validProducts = Array.from(uniqueProducts.values());
 
     let updatedCount = 0;
     if (Array.isArray(updateProducts) && updateProducts.length > 0) {
@@ -250,7 +464,8 @@ app.post("/api/products/import/execute", requireAuth, requireModule("inventory")
       }
     }
 
-    if (validProducts.length === 0 && updatedCount === 0) {
+    const hasStockEntries = Array.isArray(stockEntries) && stockEntries.length > 0;
+    if (validProducts.length === 0 && updatedCount === 0 && !hasStockEntries) {
       return res.status(400).json({ message: "ไม่มีรายการที่สามารถนำเข้าได้" });
     }
 
@@ -258,6 +473,58 @@ app.post("/api/products/import/execute", requireAuth, requireModule("inventory")
     if (validProducts.length > 0) {
       created = await storage.bulkCreateProducts(validProducts);
     }
+
+    const createdCodeMap = new Map(created.map((p: any) => [p.code, p.id]));
+    const allCodeMap = new Map([...existingCodeMap, ...createdCodeMap]);
+
+    let stockSetCount = 0;
+    if (Array.isArray(stockEntries) && stockEntries.length > 0) {
+      const companyWarehouses = await db.select().from(warehouses).where(eq(warehouses.companyId, companyId));
+      const whNameMap = new Map(companyWarehouses.map(w => [w.name.trim().toLowerCase(), w.id]));
+
+      for (const entry of stockEntries) {
+        const productId = allCodeMap.get(entry.code);
+        const whKey = (entry.warehouseName || "").trim().toLowerCase();
+        let warehouseId = whNameMap.get(whKey);
+        if (!warehouseId && whKey) {
+          const whCode = String(companyWarehouses.length + 1);
+          const [newWh] = await db.insert(warehouses).values({
+            companyId,
+            code: whCode,
+            name: entry.warehouseName.trim(),
+            warehouseType: "normal",
+            isDefault: false,
+          }).returning();
+          warehouseId = newWh.id;
+          whNameMap.set(whKey, newWh.id);
+          companyWarehouses.push(newWh as any);
+        }
+        const qty = Number(entry.stockQty) || 0;
+        if (!productId || !warehouseId || qty <= 0) continue;
+
+        const existing = await db.select().from(warehouseStockLevels)
+          .where(and(
+            eq(warehouseStockLevels.companyId, companyId),
+            eq(warehouseStockLevels.productId, productId),
+            eq(warehouseStockLevels.warehouseId, warehouseId),
+          ));
+
+        if (existing.length > 0) {
+          await db.update(warehouseStockLevels)
+            .set({ quantity: String(qty) })
+            .where(eq(warehouseStockLevels.id, existing[0].id));
+        } else {
+          await db.insert(warehouseStockLevels).values({
+            companyId,
+            productId,
+            warehouseId,
+            quantity: String(qty),
+          });
+        }
+        stockSetCount++;
+      }
+    }
+
     const createdIds = created.map((p: any) => p.id).filter(Boolean);
     let batchId: number | undefined;
     if (createdIds.length > 0) {
@@ -273,7 +540,7 @@ app.post("/api/products/import/execute", requireAuth, requireModule("inventory")
       }).returning();
       batchId = batch.id;
     }
-    res.json({ imported: created.length, updated: updatedCount, total: productList.length + (updateProducts?.length || 0), skipped: productList.length - created.length, batchId });
+    res.json({ imported: created.length, updated: updatedCount, stockSet: stockSetCount, total: productList.length + (updateProducts?.length || 0), skipped: productList.length - created.length, batchId });
   } catch (err: any) {
     res.status(500).json({ message: err.message });
   }
@@ -436,6 +703,47 @@ app.delete("/api/products/:id", requireAuth, requireModule("inventory"), async (
   }
 });
 
+// ===== Bundle Components =====
+app.get("/api/products/:id/bundle-components", requireAuth, async (req, res) => {
+  try {
+    const productId = Number(req.params.id);
+    const components = await db.select({
+      id: productBundles.id,
+      bundleProductId: productBundles.bundleProductId,
+      componentProductId: productBundles.componentProductId,
+      qty: productBundles.qty,
+      slotGroup: productBundles.slotGroup,
+      isDefault: productBundles.isDefault,
+      componentCode: products.code,
+      componentName: products.name,
+    }).from(productBundles)
+      .leftJoin(products, eq(productBundles.componentProductId, products.id))
+      .where(eq(productBundles.bundleProductId, productId))
+      .orderBy(productBundles.id);
+    res.json(components);
+  } catch (err: any) { res.status(400).json({ message: err.message }); }
+});
+
+app.put("/api/products/:id/bundle-components", requireAuth, requireModule("inventory"), async (req, res) => {
+  try {
+    const productId = Number(req.params.id);
+    const { components } = req.body;
+    if (!Array.isArray(components)) return res.status(400).json({ message: "components required" });
+    await db.delete(productBundles).where(eq(productBundles.bundleProductId, productId));
+    for (const c of components) {
+      if (!c.componentProductId) continue;
+      await db.insert(productBundles).values({
+        bundleProductId: productId,
+        componentProductId: c.componentProductId,
+        qty: String(c.qty || 1),
+        slotGroup: c.slotGroup || null,
+        isDefault: c.isDefault !== false,
+      });
+    }
+    res.json({ success: true });
+  } catch (err: any) { res.status(400).json({ message: err.message }); }
+});
+
 // ===== BOM (Bill of Materials) =====
 app.get("/api/bom", requireAuth, requireModule("inventory"), async (req, res) => {
   try {
@@ -487,6 +795,248 @@ app.delete("/api/bom/:id", requireAuth, requireModule("inventory"), async (req, 
   try {
     await storage.deleteBomHeader(Number(req.params.id));
     res.json({ success: true });
+  } catch (err: any) { res.status(400).json({ message: err.message }); }
+});
+
+// ===== Bundle Import =====
+app.get("/api/bundles/import/template", (_req, res) => {
+  const wb = XLSX.utils.book_new();
+  const headers = ["รหัสชุด", "ชื่อชุด", "ราคาชุด", "หน่วย", "รหัสสินค้าในชุด", "กลุ่มตัวเลือก", "จำนวน", "ค่าเริ่มต้น"];
+  const example = [
+    ["SET-BED5", "ชุดผ้าปูที่นอน 5 ฟุต", 1990, "ชุด", "BED-PINK", "ผ้าปู", 1, "Y"],
+    ["SET-BED5", "", "", "", "BED-BLUE", "ผ้าปู", 1, ""],
+    ["SET-BED5", "", "", "", "BED-FLOWER", "ผ้าปู", 1, ""],
+    ["SET-BED5", "", "", "", "PIL-PINK", "หมอนหนุน", 2, "Y"],
+    ["SET-BED5", "", "", "", "PIL-BLUE", "หมอนหนุน", 2, ""],
+    ["SET-BED5", "", "", "", "BOL-PINK", "หมอนข้าง", 2, "Y"],
+    ["SET-BED5", "", "", "", "BOL-BLUE", "หมอนข้าง", 2, ""],
+  ];
+  const ws = XLSX.utils.aoa_to_sheet([headers, ...example]);
+  ws["!cols"] = [{ wch: 15 }, { wch: 30 }, { wch: 12 }, { wch: 10 }, { wch: 20 }, { wch: 18 }, { wch: 10 }, { wch: 12 }];
+  XLSX.utils.book_append_sheet(wb, ws, "Bundles");
+  const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
+  res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+  res.setHeader("Content-Disposition", "attachment; filename=template_bundles.xlsx");
+  res.send(buf);
+});
+
+app.post("/api/bundles/import/preview", requireAuth, requireModule("inventory"), upload.single("file"), async (req: any, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ message: "กรุณาอัปโหลดไฟล์" });
+    const companyId = Number(req.body.companyId);
+    if (!companyId) return res.status(400).json({ message: "กรุณาระบุ companyId" });
+
+    const ext = path.extname(req.file.originalname).toLowerCase();
+    let rows: any[] = [];
+    if (ext === ".xlsx" || ext === ".xls") {
+      const workbook = XLSX.read(req.file.buffer, { type: "buffer" });
+      rows = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { defval: "" });
+    } else if (ext === ".csv") {
+      let content = req.file.buffer.toString("utf-8");
+      rows = csvParse(content, { columns: true, skip_empty_lines: true, trim: true, bom: true, relax_quotes: true, relax_column_count: true });
+    } else {
+      return res.status(400).json({ message: "รองรับเฉพาะ .xlsx, .xls, .csv" });
+    }
+    if (rows.length === 0) return res.status(400).json({ message: "ไม่พบข้อมูล" });
+
+    const FIELD_MAP: Record<string, string[]> = {
+      bundleCode: ["รหัสชุด", "bundle_code", "set_code"],
+      bundleName: ["ชื่อชุด", "bundle_name", "set_name"],
+      bundlePrice: ["ราคาชุด", "bundle_price", "set_price", "price"],
+      unit: ["หน่วย", "unit"],
+      componentCode: ["รหัสสินค้าในชุด", "component_code", "item_code"],
+      slotGroup: ["กลุ่มตัวเลือก", "slot_group", "group"],
+      qty: ["จำนวน", "qty", "quantity"],
+      isDefault: ["ค่าเริ่มต้น", "is_default", "default"],
+    };
+
+    const headers = Object.keys(rows[0]);
+    const columnMapping: Record<string, string | null> = {};
+    headers.forEach(h => {
+      const hl = h.trim().toLowerCase();
+      for (const [field, aliases] of Object.entries(FIELD_MAP)) {
+        if (aliases.some(a => a.toLowerCase() === hl)) { columnMapping[h] = field; return; }
+      }
+      columnMapping[h] = null;
+    });
+
+    const existingProducts = await storage.getProducts(companyId);
+    const productCodeMap = new Map(existingProducts.filter(p => p.active).map(p => [p.code, p]));
+    const existingBundles = existingProducts.filter(p => p.active && p.productType === "bundle");
+    const existingBundleCodes = new Set(existingBundles.map(p => p.code));
+
+    interface BundleParsed {
+      bundleCode: string;
+      bundleName: string;
+      bundlePrice: string;
+      unit: string;
+      components: { componentCode: string; slotGroup: string; qty: string; isDefault: boolean; productName: string; found: boolean; row: number }[];
+      isExisting: boolean;
+      issues: string[];
+    }
+
+    const bundleMap = new Map<string, BundleParsed>();
+    let lastBundleCode = "";
+
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+      const mapped: any = {};
+      for (const [header, value] of Object.entries(row)) {
+        const field = columnMapping[header];
+        if (field) mapped[field] = String(value).trim();
+      }
+
+      const bundleCode = mapped.bundleCode || lastBundleCode;
+      if (!bundleCode) continue;
+      lastBundleCode = bundleCode;
+
+      if (!bundleMap.has(bundleCode)) {
+        bundleMap.set(bundleCode, {
+          bundleCode,
+          bundleName: mapped.bundleName || "",
+          bundlePrice: String(Number(mapped.bundlePrice) || 0),
+          unit: mapped.unit || "ชุด",
+          components: [],
+          isExisting: existingBundleCodes.has(bundleCode),
+          issues: [],
+        });
+      }
+
+      const bundle = bundleMap.get(bundleCode)!;
+      if (mapped.bundleName && !bundle.bundleName) bundle.bundleName = mapped.bundleName;
+      if (mapped.bundlePrice && bundle.bundlePrice === "0") bundle.bundlePrice = String(Number(mapped.bundlePrice) || 0);
+
+      const componentCode = mapped.componentCode;
+      if (!componentCode) continue;
+
+      const componentProduct = productCodeMap.get(componentCode);
+      const isDefStr = (mapped.isDefault || "").toLowerCase();
+      const isDefault = ["y", "yes", "true", "1", "ใช่"].includes(isDefStr);
+
+      bundle.components.push({
+        componentCode,
+        slotGroup: mapped.slotGroup || "",
+        qty: String(Number(mapped.qty) || 1),
+        isDefault,
+        productName: componentProduct?.name || "",
+        found: !!componentProduct,
+        row: i + 2,
+      });
+    }
+
+    const preview: any[] = [];
+    for (const [, bundle] of bundleMap) {
+      const issues: string[] = [];
+      if (!bundle.bundleName) issues.push("ไม่มีชื่อชุด");
+      if (bundle.components.length === 0) issues.push("ไม่มีสินค้าในชุด");
+      const missingComponents = bundle.components.filter(c => !c.found);
+      if (missingComponents.length > 0) {
+        issues.push(`ไม่พบสินค้า: ${missingComponents.map(c => c.componentCode).join(", ")}`);
+      }
+      bundle.issues = issues;
+
+      let status: string;
+      if (issues.some(i => i.includes("ไม่พบสินค้า") || i === "ไม่มีชื่อชุด" || i === "ไม่มีสินค้าในชุด")) {
+        status = "error";
+      } else if (bundle.isExisting) {
+        status = "update";
+      } else {
+        status = "ok";
+      }
+
+      preview.push({ ...bundle, status });
+    }
+
+    res.json({
+      totalRows: rows.length,
+      bundles: preview,
+      stats: {
+        ok: preview.filter(b => b.status === "ok").length,
+        update: preview.filter(b => b.status === "update").length,
+        error: preview.filter(b => b.status === "error").length,
+        totalComponents: preview.reduce((sum, b) => sum + b.components.length, 0),
+      },
+    });
+  } catch (err: any) { res.status(500).json({ message: err.message }); }
+});
+
+app.post("/api/bundles/import/execute", requireAuth, requireModule("inventory"), async (req, res) => {
+  try {
+    const { companyId, bundles } = req.body;
+    if (!companyId || !Array.isArray(bundles) || bundles.length === 0) {
+      return res.status(400).json({ message: "ข้อมูลไม่ถูกต้อง" });
+    }
+
+    const existingProducts = await storage.getProducts(companyId);
+    const productCodeMap = new Map(existingProducts.filter(p => p.active).map(p => [p.code, p]));
+
+    let createdCount = 0;
+    let updatedCount = 0;
+    let componentCount = 0;
+
+    for (const bundle of bundles) {
+      const { bundleCode, bundleName, bundlePrice, unit, components } = bundle;
+      if (!bundleCode || !bundleName || !components || components.length === 0) continue;
+
+      const validComponents = components.filter((c: any) => {
+        const prod = productCodeMap.get(c.componentCode);
+        return !!prod;
+      });
+      if (validComponents.length === 0) continue;
+
+      let existingProduct = productCodeMap.get(bundleCode);
+
+      if (existingProduct) {
+        await storage.updateProduct(existingProduct.id, {
+          name: bundleName,
+          price: String(Number(bundlePrice) || 0),
+          unit: unit || "ชุด",
+          productType: "bundle",
+        });
+
+        await db.delete(productBundles).where(eq(productBundles.bundleProductId, existingProduct.id));
+
+        for (const comp of validComponents) {
+          const compProd = productCodeMap.get(comp.componentCode)!;
+          await db.insert(productBundles).values({
+            bundleProductId: existingProduct.id,
+            componentProductId: compProd.id,
+            qty: String(Number(comp.qty) || 1),
+            slotGroup: comp.slotGroup || null,
+            isDefault: !!comp.isDefault,
+          });
+          componentCount++;
+        }
+        updatedCount++;
+      } else {
+        const created = await storage.createProduct({
+          companyId,
+          code: bundleCode,
+          name: bundleName,
+          price: String(Number(bundlePrice) || 0),
+          unit: unit || "ชุด",
+          category: "product",
+          productType: "bundle",
+        } as any);
+
+        productCodeMap.set(bundleCode, created);
+
+        for (const comp of validComponents) {
+          const compProd = productCodeMap.get(comp.componentCode)!;
+          await db.insert(productBundles).values({
+            bundleProductId: created.id,
+            componentProductId: compProd.id,
+            qty: String(Number(comp.qty) || 1),
+            slotGroup: comp.slotGroup || null,
+            isDefault: !!comp.isDefault,
+          });
+          componentCount++;
+        }
+        createdCount++;
+      }
+    }
+
+    res.json({ created: createdCount, updated: updatedCount, components: componentCount });
   } catch (err: any) { res.status(400).json({ message: err.message }); }
 });
 
@@ -1569,6 +2119,30 @@ app.delete("/api/inventory/stock-transfers/:id", requireAuth, requireModule("inv
     await db.delete(stockTransferItems).where(eq(stockTransferItems.transferId, id));
     await db.delete(stockTransfers).where(eq(stockTransfers.id, id));
     res.json({ success: true });
+  } catch (err: any) { res.status(400).json({ message: err.message }); }
+});
+
+app.get("/api/inventory/stock-by-warehouse", requireAuth, requireModule("inventory"), async (req, res) => {
+  try {
+    const companyId = Number(req.query.companyId);
+    if (!companyId) return res.status(400).json({ message: "กรุณาระบุ companyId" });
+    const levels = await db.select({
+      productId: warehouseStockLevels.productId,
+      warehouseId: warehouseStockLevels.warehouseId,
+      warehouseName: warehouses.name,
+      quantity: warehouseStockLevels.quantity,
+    }).from(warehouseStockLevels)
+      .innerJoin(warehouses, eq(warehouses.id, warehouseStockLevels.warehouseId))
+      .where(eq(warehouseStockLevels.companyId, companyId));
+
+    const result: Record<number, { warehouseName: string; qty: number }[]> = {};
+    for (const l of levels) {
+      const qty = Number(l.quantity || 0);
+      if (qty === 0) continue;
+      if (!result[l.productId]) result[l.productId] = [];
+      result[l.productId].push({ warehouseName: l.warehouseName, qty });
+    }
+    res.json(result);
   } catch (err: any) { res.status(400).json({ message: err.message }); }
 });
 

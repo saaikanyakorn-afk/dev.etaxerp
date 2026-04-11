@@ -1,6 +1,6 @@
 import type { Express } from "express";
 import { db } from "../db";
-import { eq, and, desc, inArray } from "drizzle-orm";
+import { eq, and, desc, inArray, sql } from "drizzle-orm";
 import {
   documentImportBatches,
   invoices, invoiceItems,
@@ -11,6 +11,13 @@ import {
   journalEntries, journalLines,
   stockMovements,
   companies,
+  productStock,
+  productBundles,
+  ecommerceProductMappings,
+  warehouseStockLevels,
+  productBinAssignments,
+  productLots,
+  demandForecasts,
 } from "@shared/schema";
 import { requireAuth, requireModule, requireRole } from "../route-middleware";
 import { logActivity, deleteJournalEntriesForDoc, deleteStockMovementsForDoc } from "../route-helpers";
@@ -61,6 +68,7 @@ export function registerImportBatchRoutes(app: Express) {
       const docIds: number[] = batch.createdDocIds ? JSON.parse(batch.createdDocIds) : [];
       let deletedDocs = 0;
       let deletedJournals = 0;
+      let skippedNames: string[] = [];
 
       if (docIds.length > 0) {
         await db.transaction(async (tx) => {
@@ -94,8 +102,47 @@ export function registerImportBatchRoutes(app: Express) {
             break;
           }
           case "product": {
-            const result = await tx.delete(products).where(and(eq(products.companyId, batch.companyId), inArray(products.id, docIds)));
-            deletedDocs = result.rowCount || 0;
+            const usedRows = await tx.execute(sql`
+              SELECT DISTINCT product_id FROM (
+                SELECT product_id FROM pos_transaction_items WHERE product_id = ANY(${docIds})
+                UNION ALL SELECT product_id FROM invoice_items WHERE product_id = ANY(${docIds})
+                UNION ALL SELECT product_id FROM stock_movements WHERE product_id = ANY(${docIds})
+                UNION ALL SELECT product_id FROM quotation_items WHERE product_id = ANY(${docIds})
+                UNION ALL SELECT product_id FROM sales_order_items WHERE product_id = ANY(${docIds})
+                UNION ALL SELECT product_id FROM tax_invoice_items WHERE product_id = ANY(${docIds})
+                UNION ALL SELECT product_id FROM receipt_items WHERE product_id = ANY(${docIds})
+                UNION ALL SELECT product_id FROM purchase_order_items WHERE product_id = ANY(${docIds})
+                UNION ALL SELECT product_id FROM purchase_invoice_items WHERE product_id = ANY(${docIds})
+                UNION ALL SELECT product_id FROM ecommerce_order_items WHERE product_id = ANY(${docIds})
+                UNION ALL SELECT product_id FROM goods_receiving_items WHERE product_id = ANY(${docIds})
+              ) t
+            `);
+            const usedIds = new Set((usedRows.rows as any[]).map(r => r.product_id));
+            const canDeleteIds = docIds.filter(id => !usedIds.has(id));
+            const deactivateIds = docIds.filter(id => usedIds.has(id));
+
+            if (canDeleteIds.length > 0) {
+              await tx.delete(productStock).where(inArray(productStock.productId, canDeleteIds));
+              await tx.delete(productBundles).where(inArray(productBundles.bundleProductId, canDeleteIds));
+              await tx.delete(productBundles).where(inArray(productBundles.componentProductId, canDeleteIds));
+              await tx.delete(ecommerceProductMappings).where(inArray(ecommerceProductMappings.productId, canDeleteIds));
+              await tx.delete(warehouseStockLevels).where(inArray(warehouseStockLevels.productId, canDeleteIds));
+              await tx.delete(productLots).where(inArray(productLots.productId, canDeleteIds));
+              await tx.delete(demandForecasts).where(inArray(demandForecasts.productId, canDeleteIds));
+              await tx.execute(sql`DELETE FROM product_bin_assignments WHERE product_id = ANY(${canDeleteIds})`);
+              await tx.execute(sql`DELETE FROM menu_items WHERE product_id = ANY(${canDeleteIds})`);
+              await tx.execute(sql`DELETE FROM promotion_rules WHERE buy_product_id = ANY(${canDeleteIds}) OR get_product_id = ANY(${canDeleteIds})`);
+              await tx.execute(sql`DELETE FROM product_mappings WHERE buy_product_id = ANY(${canDeleteIds}) OR sell_product_id = ANY(${canDeleteIds})`);
+              await tx.execute(sql`DELETE FROM supplier_quote_items WHERE product_id = ANY(${canDeleteIds})`);
+              await tx.delete(products).where(and(eq(products.companyId, batch.companyId), inArray(products.id, canDeleteIds)));
+            }
+            if (deactivateIds.length > 0) {
+              await tx.update(products).set({ active: false }).where(and(eq(products.companyId, batch.companyId), inArray(products.id, deactivateIds)));
+              const deactivatedProducts = await tx.select({ code: products.code, name: products.name })
+                .from(products).where(inArray(products.id, deactivateIds));
+              skippedNames = deactivatedProducts.map(p => `${p.code} ${p.name}`);
+            }
+            deletedDocs = canDeleteIds.length;
             break;
           }
           case "contact": {
@@ -120,7 +167,7 @@ export function registerImportBatchRoutes(app: Express) {
         entityName: `ล็อตนำเข้า ${batch.docType} (${deletedDocs} รายการ)`,
       });
 
-      res.json({ deletedDocs, deletedJournals, batchId });
+      res.json({ deletedDocs, deletedJournals, batchId, deactivated: skippedNames.length, deactivatedNames: skippedNames });
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 }

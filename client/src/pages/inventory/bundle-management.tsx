@@ -2,7 +2,7 @@ import Layout from "@/components/layout";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Package, Pencil, RefreshCw } from "lucide-react";
+import { Package, Pencil, RefreshCw, Upload, Plus } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useCompany } from "@/lib/company-context";
 import { useLocation } from "wouter";
@@ -56,15 +56,32 @@ export default function BundleManagement(props: { Wrapper?: React.ComponentType<
             <h1 className="text-2xl font-bold text-gray-900" data-testid="text-page-title">จัดการชุดสินค้า (Bundle)</h1>
             <p className="text-sm text-gray-500 mt-1">กำหนดสินค้าที่ประกอบอยู่ในชุดสินค้าแต่ละรายการ</p>
           </div>
-          <Button
-            variant="outline"
-            data-testid="button-recalc-bundle"
-            onClick={() => { if (confirm("คำนวณสต็อกย้อนหลังสำหรับชุดสินค้าทั้งหมด?")) recalcMutation.mutate(); }}
-            disabled={recalcMutation.isPending}
-          >
-            <RefreshCw className={`h-4 w-4 mr-1.5 ${recalcMutation.isPending ? "animate-spin" : ""}`} />
-            {recalcMutation.isPending ? "กำลังคำนวณ..." : "คำนวณสต็อกย้อนหลัง"}
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              data-testid="button-import-bundle"
+              onClick={() => navigate("/inventory/import-export")}
+            >
+              <Upload className="h-4 w-4 mr-1.5" />
+              นำเข้าชุดสินค้า
+            </Button>
+            <Button
+              data-testid="button-create-bundle"
+              onClick={() => navigate(`${basePath}/list/new?type=bundle`)}
+            >
+              <Plus className="h-4 w-4 mr-1.5" />
+              สร้างสินค้าจัดชุด
+            </Button>
+            <Button
+              variant="outline"
+              data-testid="button-recalc-bundle"
+              onClick={() => { if (confirm("คำนวณสต็อกย้อนหลังสำหรับชุดสินค้าทั้งหมด?")) recalcMutation.mutate(); }}
+              disabled={recalcMutation.isPending}
+            >
+              <RefreshCw className={`h-4 w-4 mr-1.5 ${recalcMutation.isPending ? "animate-spin" : ""}`} />
+              {recalcMutation.isPending ? "กำลังคำนวณ..." : "คำนวณสต็อกย้อนหลัง"}
+            </Button>
+          </div>
         </div>
 
         <Card>
