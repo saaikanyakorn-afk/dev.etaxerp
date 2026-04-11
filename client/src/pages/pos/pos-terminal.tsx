@@ -10,7 +10,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, Plus, Minus, Trash2, ShoppingCart, CreditCard, Banknote, QrCode, X, Receipt, LogOut, ArrowLeft, Percent, User, Pause, Play, Bluetooth, BluetoothConnected, Star, Gift, Download, Copy, Package, Check, Eye } from "lucide-react";
+import { Search, Plus, Minus, Trash2, ShoppingCart, CreditCard, Banknote, QrCode, X, Receipt, LogOut, ArrowLeft, Percent, User, Pause, Play, Bluetooth, BluetoothConnected, Star, Gift, Download, Copy, Package, Check, Eye, ScanBarcode } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
   isWebBluetoothSupported,
@@ -22,6 +22,28 @@ import {
   getSavedPrinterConfig,
   type ReceiptData,
 } from "@/lib/thermal-printer";
+
+const THAI_TO_ENG: Record<string, string> = {
+  "ๆ":"q","ไ":"w","ำ":"e","พ":"r","ะ":"t","ั":"y","ี":"u","ร":"i","น":"o","ย":"p","บ":"[","ล":"]",
+  "ฟ":"a","ห":"s","ก":"d","ด":"f","เ":"g","้":"h","่":"j","า":"k","ส":"l","ว":";","ง":"'",
+  "ผ":"z","ป":"x","แ":"c","อ":"v","ิ":"b","ื":"n","ท":"m","ม":",","ใ":".",
+  "ๅ":"1","ภ":"4","ถ":"5","ุ":"6","ึ":"7","ค":"8","ต":"9","จ":"0","ข":"-","ช":"=",
+  "๑":"1","๒":"2","๓":"3","๔":"4","๕":"5","๖":"6","๗":"7","๘":"8","๙":"9","๐":"0",
+  "ฎ":"D","ฑ":"F","ธ":"G","ํ":"H","๊":"J","ณ":"K","ฯ":"L",
+  "ฐ":"Z","ฉ":"X","ฮ":"V","ฺ":"B","์":"N","ฅ":"O",
+  "ฤ":"R","ฆ":"T","ฏ":"U","ฬ":"P",
+  "ฝ":"/","ฦ":"W","ศ":"S","ซ":"A","ฃ":"\\",
+};
+
+function thaiToEng(text: string): string {
+  const hasThaiChar = /[\u0E00-\u0E7F]/.test(text);
+  if (!hasThaiChar) return text;
+  let result = "";
+  for (const ch of text) {
+    result += THAI_TO_ENG[ch] || ch;
+  }
+  return result;
+}
 
 interface BundleSelection {
   slotGroup: string;
@@ -73,6 +95,7 @@ export default function PosTerminal() {
   const [terminalName, setTerminalName] = useState("เครื่อง 1");
   const [selectedStoreId, setSelectedStoreId] = useState<string>("hq");
   const searchRef = useRef<HTMLInputElement>(null);
+  const bundleInputRef = useRef<HTMLInputElement>(null);
 
   const [cartDiscount, setCartDiscount] = useState("0");
   const [selectedCategory, setSelectedCategory] = useState("ทั้งหมด");
@@ -112,6 +135,7 @@ export default function PosTerminal() {
   const [bundleSlots, setBundleSlots] = useState<any[]>([]);
   const [bundleSelections, setBundleSelections] = useState<Record<string, number>>({});
   const [bundleLoading, setBundleLoading] = useState(false);
+  const [bundleFilter, setBundleFilter] = useState("");
   const lastInputTime = useRef(0);
   const inputBuffer = useRef("");
   const { toast } = useToast();
@@ -463,7 +487,11 @@ export default function PosTerminal() {
 
   const makeBundleCartKey = useCallback((productId: number, selections?: BundleSelection[]) => {
     if (!selections || selections.length === 0) return String(productId);
-    const slotSig = selections.filter(s => s.slotGroup).sort((a, b) => a.slotGroup.localeCompare(b.slotGroup)).map(s => `${s.slotGroup}:${s.componentProductId}`).join("|");
+    const slotSig = selections.filter(s => s.slotGroup).sort((a, b) => {
+      const cmp = a.slotGroup.localeCompare(b.slotGroup);
+      if (cmp !== 0) return cmp;
+      return a.componentProductId - b.componentProductId;
+    }).map(s => `${s.slotGroup}:${s.componentProductId}x${s.qty}`).join("|");
     return `${productId}__${slotSig}`;
   }, []);
 
@@ -503,13 +531,7 @@ export default function PosTerminal() {
       if (!r.ok) throw new Error();
       const data = await r.json();
       setBundleSlots(data);
-      const defaults: Record<string, number> = {};
-      const slotGroups = [...new Set(data.filter((d: any) => d.slotGroup).map((d: any) => d.slotGroup))];
-      for (const sg of slotGroups) {
-        const defaultItem = data.find((d: any) => d.slotGroup === sg && d.isDefault);
-        if (defaultItem) defaults[sg as string] = defaultItem.componentProductId;
-      }
-      setBundleSelections(defaults);
+      setBundleSelections({});
     } catch {
       addToCartDirect(product);
       setBundleCustomizeProduct(null);
@@ -520,26 +542,59 @@ export default function PosTerminal() {
   const confirmBundleSelection = useCallback(() => {
     if (!bundleCustomizeProduct) return;
     const slotGroups = [...new Set(bundleSlots.filter((s: any) => s.slotGroup).map((s: any) => s.slotGroup))];
-    const missingSlots = slotGroups.filter(sg => !bundleSelections[sg as string]);
-    if (missingSlots.length > 0) {
-      toast({ title: "กรุณาเลือกสินค้าให้ครบทุกกลุ่ม", description: `ยังไม่ได้เลือก: ${missingSlots.join(", ")}`, variant: "destructive" });
-      return;
-    }
-    const selections: BundleSelection[] = [];
+
+    const allSelectionKeys: string[] = [];
     for (const sg of slotGroups) {
-      const selectedId = bundleSelections[sg as string];
-      if (selectedId) {
-        const slot = bundleSlots.find((s: any) => s.slotGroup === sg && s.componentProductId === selectedId);
-        if (slot) {
-          selections.push({
-            slotGroup: sg as string,
-            componentProductId: selectedId,
-            productName: slot.productName,
-            qty: slot.qty,
-          });
-        }
+      const slot = bundleSlots.find((s: any) => s.slotGroup === sg);
+      const qty = Number(slot?.qty) || 1;
+      if (qty > 1) {
+        for (let i = 1; i <= qty; i++) allSelectionKeys.push(`${sg}__${i}`);
+      } else {
+        allSelectionKeys.push(sg as string);
       }
     }
+
+    const missingSlots = allSelectionKeys.filter(k => !bundleSelections[k]);
+    if (missingSlots.length > 0) {
+      const missingLabels = missingSlots.map(k => {
+        const parts = k.split("__");
+        return parts.length > 1 ? `${parts[0]} (${parts[1]})` : k;
+      });
+      toast({ title: "กรุณาเลือกสินค้าให้ครบทุกช่อง", description: `ยังไม่ได้เลือก: ${missingLabels.join(", ")}`, variant: "destructive" });
+      return;
+    }
+
+    const selectionMap = new Map<string, { slotGroup: string; componentProductId: number; productName: string; qty: number }>();
+    for (const key of allSelectionKeys) {
+      const selectedId = bundleSelections[key];
+      if (!selectedId) continue;
+      const baseSg = key.split("__")[0];
+      const slot = bundleSlots.find((s: any) => s.slotGroup === baseSg && s.componentProductId === selectedId);
+      if (!slot) continue;
+      const mapKey = `${baseSg}::${selectedId}`;
+      const existing = selectionMap.get(mapKey);
+      if (existing) {
+        existing.qty += 1;
+      } else {
+        selectionMap.set(mapKey, {
+          slotGroup: baseSg,
+          componentProductId: selectedId,
+          productName: slot.productName,
+          qty: 1,
+        });
+      }
+    }
+
+    const selections: BundleSelection[] = [];
+    for (const entry of selectionMap.values()) {
+      selections.push({
+        slotGroup: entry.slotGroup,
+        componentProductId: entry.componentProductId,
+        productName: entry.productName,
+        qty: String(entry.qty),
+      });
+    }
+
     const fixedItems = bundleSlots.filter((s: any) => !s.slotGroup);
     for (const fi of fixedItems) {
       selections.push({
@@ -553,6 +608,7 @@ export default function PosTerminal() {
     setBundleCustomizeProduct(null);
     setBundleSlots([]);
     setBundleSelections({});
+    setBundleFilter("");
   }, [bundleCustomizeProduct, bundleSlots, bundleSelections, addToCartDirect, toast]);
 
   const addToCart = useCallback((product: any) => {
@@ -623,14 +679,93 @@ export default function PosTerminal() {
     setHeldOrders(prev => prev.filter(o => o.id !== orderId));
   }, []);
 
+  const scanBundleComponent = useCallback((code: string) => {
+    if (!bundleCustomizeProduct || !bundleSlots.length) return false;
+
+    let repeatCount = 1;
+    let actualCode = code;
+    const qtyMatch = code.match(/^(\d+)\s*[xX\*]\s*(.+)$/);
+    if (qtyMatch) {
+      repeatCount = Math.max(1, Math.min(parseInt(qtyMatch[1], 10), 10));
+      actualCode = qtyMatch[2];
+    }
+
+    const rl = actualCode.toLowerCase();
+    const matches = bundleSlots.filter((s: any) => s.slotGroup &&
+      (s.productCode === actualCode || s.productBarcode === actualCode ||
+       s.productCode?.toLowerCase() === rl || s.productBarcode?.toLowerCase() === rl ||
+       s.productName?.toLowerCase().includes(rl)));
+    if (matches.length === 0) {
+      toast({ title: "ไม่พบสินค้าในชุดนี้", description: `"${actualCode}" ไม่ตรงกับตัวเลือกใดในชุด`, variant: "destructive" });
+      return true;
+    }
+
+    setBundleSelections(prev => {
+      const next = { ...prev };
+      let filled = 0;
+
+      for (let r = 0; r < repeatCount; r++) {
+        let placed = false;
+        for (const match of matches) {
+          const sg = match.slotGroup;
+          const slotQty = Number(match.qty) || 1;
+          if (slotQty > 1) {
+            for (let i = 1; i <= slotQty; i++) {
+              const subKey = `${sg}__${i}`;
+              if (!next[subKey]) {
+                next[subKey] = match.componentProductId;
+                filled++;
+                placed = true;
+                break;
+              }
+            }
+          } else {
+            if (!next[sg]) {
+              next[sg] = match.componentProductId;
+              filled++;
+              placed = true;
+            }
+          }
+          if (placed) break;
+        }
+        if (!placed && r === 0) {
+          const firstMatch = matches[0];
+          const sg = firstMatch.slotGroup;
+          const slotQty = Number(firstMatch.qty) || 1;
+          if (slotQty > 1) {
+            next[`${sg}__1`] = firstMatch.componentProductId;
+          } else {
+            next[sg] = firstMatch.componentProductId;
+          }
+          filled++;
+        }
+      }
+
+      const matchName = matches[0].productName;
+      if (filled > 0) {
+        toast({ title: "เลือกแล้ว", description: `${matchName}${repeatCount > 1 ? ` x${filled} ช่อง` : ""}` });
+      }
+      return next;
+    });
+    return true;
+  }, [bundleCustomizeProduct, bundleSlots, toast]);
+
   const handleBarcodeSearch = useCallback(async (code: string) => {
     if (!code.trim() || !selectedCompanyId) return;
+    let cleaned = code.trim().replace(/^\*+|\*+$/g, "");
+    cleaned = thaiToEng(cleaned);
+    if (!cleaned) return;
+    if (bundleCustomizeProduct) {
+      scanBundleComponent(cleaned);
+      setSearchTerm("");
+      return;
+    }
     try {
-      const r = await fetch(`/api/pos/products?companyId=${selectedCompanyId}&search=${encodeURIComponent(code.trim())}`, { credentials: "include" });
-      if (!r.ok) return;
+      const r = await fetch(`/api/pos/products?companyId=${selectedCompanyId}&search=${encodeURIComponent(cleaned)}`, { credentials: "include" });
+      if (!r.ok) { setSearchTerm(""); return; }
       const results = await r.json();
       const exactMatch = results.find((p: any) =>
-        p.code === code.trim() || p.barcode === code.trim()
+        p.code === cleaned || p.barcode === cleaned
       );
       if (exactMatch) {
         addToCart(exactMatch);
@@ -638,9 +773,14 @@ export default function PosTerminal() {
         setBarcodeFlash(true);
         setTimeout(() => setBarcodeFlash(false), 300);
         if (searchRef.current) searchRef.current.focus();
+      } else {
+        setSearchTerm("");
+        toast({ title: "ไม่พบสินค้า", description: `ไม่พบสินค้ารหัส "${cleaned}"`, variant: "destructive" });
       }
-    } catch {}
-  }, [selectedCompanyId, addToCart]);
+    } catch {
+      setSearchTerm("");
+    }
+  }, [selectedCompanyId, addToCart, bundleCustomizeProduct, scanBundleComponent, toast]);
 
   const handleSearchKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === "Enter" && searchTerm.trim()) {
@@ -670,6 +810,45 @@ export default function PosTerminal() {
       searchRef.current.focus();
     }
   }, [activeSession]);
+
+  useEffect(() => {
+    if (!activeSession) return;
+    let buffer = "";
+    let lastKeyTime = 0;
+    const SCAN_THRESHOLD = 60;
+    const MIN_LENGTH = 3;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      const tag = target.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+
+      const now = Date.now();
+      if (now - lastKeyTime > SCAN_THRESHOLD * 3) {
+        buffer = "";
+      }
+      lastKeyTime = now;
+
+      if (e.key === "Enter") {
+        if (buffer.length >= MIN_LENGTH) {
+          const cleaned = buffer.replace(/^\*+|\*+$/g, "");
+          if (cleaned) {
+            e.preventDefault();
+            handleBarcodeSearch(cleaned);
+          }
+        }
+        buffer = "";
+        return;
+      }
+
+      if (e.key.length === 1) {
+        buffer += e.key;
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [activeSession, handleBarcodeSearch]);
 
   const handleCompleteSale = () => {
     if (paymentMethod === "เงินสด" && parseFloat(cashReceived || "0") < total) return;
@@ -912,7 +1091,7 @@ export default function PosTerminal() {
                         </p>
                         {item.bundleSelections && item.bundleSelections.filter(s => s.slotGroup).length > 0 && (
                           <p className="text-[10px] text-blue-500 truncate">
-                            {item.bundleSelections.filter(s => s.slotGroup).map(s => s.productName).join(", ")}
+                            {item.bundleSelections.filter(s => s.slotGroup).map(s => Number(s.qty) > 1 ? `${s.productName} x${s.qty}` : s.productName).join(", ")}
                           </p>
                         )}
                         <p className="text-xs text-gray-500">
@@ -1226,11 +1405,39 @@ export default function PosTerminal() {
             <DialogTitle className="text-xl">ชำระเงิน</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 overflow-y-auto flex-1 pr-1">
-            <div className="text-center p-4 bg-gray-50 rounded-lg">
-              <p className="text-sm text-gray-500">ยอดที่ต้องชำระ</p>
-              <p className="text-4xl font-bold text-[#fb9678]" data-testid="text-payment-total">
-                ฿{total.toLocaleString("th-TH", { minimumFractionDigits: 2 })}
-              </p>
+            <div className="p-4 bg-gray-50 rounded-lg">
+              <div className="space-y-1.5">
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500">ยอดรวมสินค้า ({cart.length} รายการ)</span>
+                  <span className="font-medium">฿{subtotal.toLocaleString("th-TH", { minimumFractionDigits: 2 })}</span>
+                </div>
+                {discountAmt > 0 && (
+                  <div className="flex justify-between text-sm text-red-500">
+                    <span>ส่วนลดท้ายบิล</span>
+                    <span>-฿{discountAmt.toLocaleString("th-TH", { minimumFractionDigits: 2 })}</span>
+                  </div>
+                )}
+                {loyaltyDiscount > 0 && (
+                  <div className="flex justify-between text-sm text-amber-600">
+                    <span><Star className="h-3 w-3 inline mr-1" />ส่วนลดแลกแต้ม</span>
+                    <span>-฿{loyaltyDiscount.toLocaleString("th-TH", { minimumFractionDigits: 2 })}</span>
+                  </div>
+                )}
+                {vatAmount > 0 && (
+                  <div className="flex justify-between text-sm text-gray-400">
+                    <span>รวม VAT 7%</span>
+                    <span>฿{vatAmount.toLocaleString("th-TH", { minimumFractionDigits: 2 })}</span>
+                  </div>
+                )}
+                <div className="border-t border-gray-200 pt-2 mt-2">
+                  <div className="flex justify-between items-baseline">
+                    <span className="text-sm font-bold text-gray-700">ยอดที่ต้องชำระ</span>
+                    <p className="text-3xl font-bold text-[#fb9678]" data-testid="text-payment-total">
+                      ฿{total.toLocaleString("th-TH", { minimumFractionDigits: 2 })}
+                    </p>
+                  </div>
+                </div>
+              </div>
             </div>
 
             {/* Customer Search */}
@@ -1378,6 +1585,38 @@ export default function PosTerminal() {
                 ) : (
                   <div>
                     <div className="relative">
+                      <ScanBarcode className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-amber-500" />
+                      <Input
+                        className="h-8 text-sm pl-8 font-mono border-amber-300 focus-visible:ring-amber-400"
+                        placeholder="สแกน QR / บาร์โค้ดสมาชิก..."
+                        autoComplete="off"
+                        data-testid="input-loyalty-scan"
+                        onKeyDown={async (e) => {
+                          if (e.key !== "Enter") return;
+                          const raw = (e.target as HTMLInputElement).value.trim().replace(/^\*|\*$/g, "");
+                          if (!raw) return;
+                          try {
+                            const r = await fetch(`/api/loyalty/members?companyId=${selectedCompanyId}&search=${encodeURIComponent(raw)}`, { credentials: "include" });
+                            if (!r.ok) throw new Error();
+                            const results = await r.json();
+                            const exact = results.find((m: any) => m.memberCode === raw || m.phone === raw);
+                            if (exact) {
+                              setSelectedLoyaltyMember(exact);
+                              toast({ title: `สมาชิก: ${exact.name}`, description: `${exact.memberCode} — ${exact.totalPoints || 0} แต้ม` });
+                            } else if (results.length > 0) {
+                              setSelectedLoyaltyMember(results[0]);
+                              toast({ title: `สมาชิก: ${results[0].name}`, description: `${results[0].memberCode} — ${results[0].totalPoints || 0} แต้ม` });
+                            } else {
+                              toast({ title: "ไม่พบสมาชิก", description: `รหัส "${raw}" ไม่มีในระบบ`, variant: "destructive" });
+                            }
+                          } catch {
+                            toast({ title: "เกิดข้อผิดพลาด", variant: "destructive" });
+                          }
+                          (e.target as HTMLInputElement).value = "";
+                        }}
+                      />
+                    </div>
+                    <div className="relative mt-1.5">
                       <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-gray-400" />
                       <Input
                         className="h-8 text-sm pl-7"
@@ -1848,97 +2087,281 @@ export default function PosTerminal() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!bundleCustomizeProduct} onOpenChange={(open) => { if (!open) { setBundleCustomizeProduct(null); setBundleSlots([]); setBundleSelections({}); } }}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+      <Dialog open={!!bundleCustomizeProduct} onOpenChange={(open) => { if (!open) { setBundleCustomizeProduct(null); setBundleSlots([]); setBundleSelections({}); setBundleFilter(""); } }}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-base">
               <Package className="h-5 w-5 text-[#fb9678]" />
               เลือกสินค้าในชุด: {bundleCustomizeProduct?.name}
             </DialogTitle>
+            <div className="flex items-center gap-2 mt-1">
+              <Badge className="bg-green-100 text-green-700 border-green-300 text-xs">ราคาชุด ฿{Number(bundleCustomizeProduct?.price || 0).toLocaleString()}</Badge>
+              <span className="text-[10px] text-slate-400">* ตัวเลือกด้านล่างไม่คิดราคาแยก — คิดเป็นราคาชุดเดียว</span>
+            </div>
+            {!bundleLoading && bundleSlots.length > 0 && (() => {
+              const fixedItems = bundleSlots.filter((s: any) => !s.slotGroup);
+              const slotGroups = [...new Set(bundleSlots.filter((s: any) => s.slotGroup).map((s: any) => s.slotGroup))] as string[];
+              const parts: string[] = [];
+              for (const fi of fixedItems) {
+                parts.push(`${fi.productName} x${fi.qty}`);
+              }
+              for (const sg of slotGroups) {
+                const slot = bundleSlots.find((s: any) => s.slotGroup === sg);
+                const qty = Number(slot?.qty) || 1;
+                parts.push(`${sg} x${qty}`);
+              }
+              const totalPieces = fixedItems.reduce((s: number, fi: any) => s + Number(fi.qty || 1), 0) +
+                slotGroups.reduce((s: number, sg: string) => {
+                  const slot = bundleSlots.find((sl: any) => sl.slotGroup === sg);
+                  return s + (Number(slot?.qty) || 1);
+                }, 0);
+              return (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-2.5 mt-2">
+                  <p className="text-xs font-bold text-blue-700 mb-1">สูตรชุด ({totalPieces} ชิ้น)</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {parts.map((p, i) => (
+                      <Badge key={i} variant="outline" className="text-[11px] border-blue-300 text-blue-600 bg-white px-2 py-0.5">{p}</Badge>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
           </DialogHeader>
           {bundleLoading ? (
             <div className="text-center py-8 text-gray-400">กำลังโหลด...</div>
           ) : (
-            <div className="space-y-4">
-              {(() => {
-                const fixedItems = bundleSlots.filter((s: any) => !s.slotGroup);
-                const slotGroups = [...new Set(bundleSlots.filter((s: any) => s.slotGroup).map((s: any) => s.slotGroup))] as string[];
-                return (
-                  <>
-                    {fixedItems.length > 0 && (
-                      <div>
-                        <p className="text-xs font-semibold text-slate-500 mb-2">สินค้าตายตัว (ไม่สามารถเปลี่ยนได้)</p>
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+              <div className="md:col-span-3 space-y-4">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                  <Input
+                    ref={bundleInputRef}
+                    className="pl-9 pr-20 h-9 text-sm"
+                    data-testid="input-bundle-barcode"
+                    placeholder="พิมพ์ชื่อ/รหัส/บาร์โค้ด เพื่อค้นหาหรือกด Enter เพื่อเลือก..."
+                    autoComplete="off"
+                    autoFocus
+                    value={bundleFilter}
+                    onChange={e => setBundleFilter(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key !== "Enter") return;
+                      e.preventDefault();
+                      const raw = bundleFilter.trim().replace(/^\*+|\*+$/g, "");
+                      if (!raw) return;
+                      const cleaned = thaiToEng(raw);
+                      scanBundleComponent(cleaned);
+                      setBundleFilter("");
+                      setTimeout(() => bundleInputRef.current?.focus(), 50);
+                    }}
+                  />
+                  {bundleFilter && (
+                    <button className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600" onClick={() => setBundleFilter("")}>
+                      <X className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
+                {(() => {
+                  const fl = bundleFilter.trim().toLowerCase();
+                  const fixedItems = bundleSlots.filter((s: any) => !s.slotGroup);
+                  const slotGroups = [...new Set(bundleSlots.filter((s: any) => s.slotGroup).map((s: any) => s.slotGroup))] as string[];
+                  return (
+                    <>
+                      {fixedItems.length > 0 && !fl && (
+                        <div>
+                          <p className="text-xs font-semibold text-slate-500 mb-2">สินค้าตายตัว (ไม่สามารถเปลี่ยนได้)</p>
+                          {fixedItems.map((fi: any) => (
+                            <div key={fi.id} className="flex items-center gap-3 p-2 bg-gray-50 rounded mb-1">
+                              <Check className="h-4 w-4 text-green-500 flex-shrink-0" />
+                              <span className="text-sm flex-1">{fi.productName}</span>
+                              <span className="text-xs text-slate-400">x{fi.qty}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {slotGroups.map(sg => {
+                        const allOptions = bundleSlots.filter((s: any) => s.slotGroup === sg);
+                        const options = fl ? allOptions.filter((opt: any) =>
+                          opt.productName?.toLowerCase().includes(fl) ||
+                          opt.productCode?.toLowerCase().includes(fl) ||
+                          opt.productBarcode?.toLowerCase().includes(fl)
+                        ) : allOptions;
+                        if (fl && options.length === 0) return null;
+                        const slotQty = Number(allOptions[0]?.qty) || 1;
+
+                        const allKeys: string[] = [];
+                        if (slotQty > 1) {
+                          for (let i = 1; i <= slotQty; i++) allKeys.push(`${sg}__${i}`);
+                        } else {
+                          allKeys.push(sg);
+                        }
+                        const emptySlots = allKeys.filter(k => !bundleSelections[k]).length;
+
+                        return (
+                          <div key={sg}>
+                            <p className="text-xs font-semibold text-blue-600 mb-2 flex items-center gap-1">
+                              <Package className="h-3.5 w-3.5" />
+                              {sg}
+                              <span className="text-slate-400 font-normal ml-1">({options.length} ตัวเลือก)</span>
+                              {slotQty > 1 && <Badge className="bg-blue-100 text-blue-700 border-blue-200 text-[10px] px-1.5 py-0">เลือก {slotQty} ชิ้น</Badge>}
+                              {emptySlots === 0 && <Badge className="bg-green-100 text-green-700 border-green-200 text-[10px] px-1.5 py-0">ครบแล้ว</Badge>}
+                            </p>
+                            <div className="grid gap-1.5">
+                              {options.map((opt: any) => {
+                                const usedCount = Object.entries(bundleSelections).filter(([k, v]) => {
+                                  const baseSg = k.includes("__") ? k.split("__")[0] : k;
+                                  return baseSg === sg && v === opt.componentProductId;
+                                }).length;
+
+                                return (
+                                  <button
+                                    key={opt.id}
+                                    data-testid={`bundle-opt-${opt.componentProductId}`}
+                                    onClick={() => {
+                                      scanBundleComponent(opt.productCode || opt.productName);
+                                      setTimeout(() => bundleInputRef.current?.focus(), 50);
+                                    }}
+                                    className={`flex items-center gap-3 p-2.5 rounded-lg border-2 transition-all text-left ${
+                                      emptySlots === 0
+                                        ? "border-gray-100 bg-gray-50 opacity-60"
+                                        : "border-gray-200 bg-white hover:border-[#fb9678] hover:bg-orange-50"
+                                    }`}
+                                  >
+                                    <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center flex-shrink-0 text-sm font-bold text-slate-500">
+                                      {usedCount > 0 ? (
+                                        <span className="text-green-600">{usedCount}</span>
+                                      ) : (
+                                        <Plus className="h-4 w-4 text-slate-400" />
+                                      )}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                      <p className="text-sm font-medium truncate">{opt.productName}</p>
+                                      <p className="text-[10px] text-slate-400">{opt.productCode}</p>
+                                    </div>
+                                    {usedCount > 0 && (
+                                      <Badge className="bg-green-100 text-green-700 border-green-200 text-[10px] px-1.5 py-0">
+                                        เลือกแล้ว{usedCount > 1 ? ` x${usedCount}` : ""}
+                                      </Badge>
+                                    )}
+                                    {opt.isDefault && usedCount === 0 && (
+                                      <Badge variant="outline" className="text-[10px] border-yellow-400 text-yellow-600 px-1.5 py-0">แนะนำ</Badge>
+                                    )}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        );
+                      })}
+                      {slotGroups.length === 0 && fixedItems.length === 0 && (
+                        <div className="text-center py-6 text-gray-400 text-sm">ชุดนี้ยังไม่ได้ตั้งค่ารายการสินค้า</div>
+                      )}
+                    </>
+                  );
+                })()}
+              </div>
+
+              <div className="md:col-span-2">
+                <div className="bg-slate-50 rounded-xl border border-slate-200 p-4 sticky top-0">
+                  <p className="text-sm font-bold text-slate-700 mb-3 flex items-center gap-2">
+                    <ShoppingCart className="h-4 w-4 text-[#fb9678]" />
+                    สรุปสินค้าในชุด
+                  </p>
+                  {(() => {
+                    const fixedItems = bundleSlots.filter((s: any) => !s.slotGroup);
+                    const slotGroups = [...new Set(bundleSlots.filter((s: any) => s.slotGroup).map((s: any) => s.slotGroup))] as string[];
+                    const allKeys: string[] = [];
+                    for (const sg of slotGroups) {
+                      const slot = bundleSlots.find((s: any) => s.slotGroup === sg);
+                      const qty = Number(slot?.qty) || 1;
+                      if (qty > 1) {
+                        for (let i = 1; i <= qty; i++) allKeys.push(`${sg}__${i}`);
+                      } else {
+                        allKeys.push(sg);
+                      }
+                    }
+                    const filled = allKeys.filter(k => !!bundleSelections[k]).length;
+                    const total = allKeys.length;
+                    const allFilled = total > 0 && filled === total;
+
+                    return (
+                      <div className="space-y-2">
                         {fixedItems.map((fi: any) => (
-                          <div key={fi.id} className="flex items-center gap-3 p-2 bg-gray-50 rounded mb-1">
+                          <div key={fi.id} className="flex items-center gap-2 p-2 bg-white rounded-lg border border-slate-100">
                             <Check className="h-4 w-4 text-green-500 flex-shrink-0" />
-                            <span className="text-sm flex-1">{fi.productName}</span>
-                            <span className="text-xs text-slate-400">x{fi.qty}</span>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-medium truncate">{fi.productName}</p>
+                              <p className="text-[10px] text-slate-400">ตายตัว</p>
+                            </div>
+                            <span className="text-xs text-slate-500">x{fi.qty}</span>
                           </div>
                         ))}
-                      </div>
-                    )}
-                    {slotGroups.map(sg => {
-                      const options = bundleSlots.filter((s: any) => s.slotGroup === sg);
-                      const selectedId = bundleSelections[sg];
-                      return (
-                        <div key={sg}>
-                          <p className="text-xs font-semibold text-blue-600 mb-2 flex items-center gap-1">
-                            <Package className="h-3.5 w-3.5" />
-                            {sg}
-                            <span className="text-slate-400 font-normal ml-1">({options.length} ตัวเลือก)</span>
-                          </p>
-                          <div className="grid gap-1.5">
-                            {options.map((opt: any) => {
-                              const isSelected = selectedId === opt.componentProductId;
-                              return (
-                                <button
-                                  key={opt.id}
-                                  data-testid={`bundle-opt-${opt.componentProductId}`}
-                                  onClick={() => setBundleSelections(prev => ({ ...prev, [sg]: opt.componentProductId }))}
-                                  className={`flex items-center gap-3 p-2.5 rounded-lg border-2 transition-all text-left ${
-                                    isSelected
-                                      ? "border-[#fb9678] bg-orange-50 shadow-sm"
-                                      : "border-gray-200 bg-white hover:border-gray-300"
-                                  }`}
-                                >
-                                  <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
-                                    isSelected ? "border-[#fb9678] bg-[#fb9678]" : "border-gray-300"
-                                  }`}>
-                                    {isSelected && <Check className="h-3 w-3 text-white" />}
-                                  </div>
-                                  <div className="flex-1 min-w-0">
-                                    <p className="text-sm font-medium truncate">{opt.productName}</p>
+                        {allKeys.map(key => {
+                          const selectedProdId = bundleSelections[key];
+                          const isMulti = key.includes("__");
+                          const sgName = isMulti ? key.split("__")[0] : key;
+                          const subIdx = isMulti ? key.split("__")[1] : null;
+                          const opt = selectedProdId ? bundleSlots.find((s: any) => s.slotGroup === sgName && s.componentProductId === selectedProdId) : null;
+
+                          return (
+                            <div key={key} className={`flex items-center gap-2 p-2 rounded-lg border ${
+                              opt ? "bg-white border-green-200" : "bg-amber-50 border-dashed border-amber-300"
+                            }`}>
+                              {opt ? (
+                                <Check className="h-4 w-4 text-green-500 flex-shrink-0" />
+                              ) : (
+                                <div className="w-4 h-4 rounded-full border-2 border-amber-400 flex-shrink-0" />
+                              )}
+                              <div className="flex-1 min-w-0">
+                                {opt ? (
+                                  <>
+                                    <p className="text-xs font-medium truncate">{opt.productName}</p>
                                     <p className="text-[10px] text-slate-400">{opt.productCode}</p>
-                                  </div>
-                                  <span className="text-xs text-slate-500">x{opt.qty}</span>
-                                  {opt.isDefault && (
-                                    <Badge variant="outline" className="text-[10px] border-yellow-400 text-yellow-600 px-1.5 py-0">แนะนำ</Badge>
-                                  )}
+                                  </>
+                                ) : (
+                                  <>
+                                    <p className="text-xs text-amber-600 font-medium">{sgName}{subIdx ? ` (${subIdx})` : ""}</p>
+                                    <p className="text-[10px] text-amber-400">ยังไม่ได้เลือก</p>
+                                  </>
+                                )}
+                              </div>
+                              {opt && (
+                                <button
+                                  className="text-slate-400 hover:text-red-500 transition-colors"
+                                  onClick={() => setBundleSelections(prev => { const next = { ...prev }; delete next[key]; return next; })}
+                                  data-testid={`bundle-remove-${key}`}
+                                >
+                                  <X className="h-3.5 w-3.5" />
                                 </button>
-                              );
-                            })}
+                              )}
+                            </div>
+                          );
+                        })}
+
+                        <div className="border-t border-slate-200 pt-3 mt-3">
+                          <div className={`text-sm font-bold flex items-center gap-2 mb-3 ${allFilled ? "text-green-600" : "text-amber-600"}`}>
+                            {allFilled ? <Check className="h-4 w-4" /> : <Package className="h-4 w-4" />}
+                            เลือกแล้ว {filled}/{total} ช่อง
+                            {allFilled && <span className="text-xs text-green-500 font-normal ml-1">ครบแล้ว!</span>}
+                          </div>
+                          <div className="flex gap-2">
+                            <Button variant="outline" size="sm" className="flex-1" onClick={() => { setBundleCustomizeProduct(null); setBundleSlots([]); setBundleSelections({}); setBundleFilter(""); }}>ยกเลิก</Button>
+                            <Button
+                              size="sm"
+                              data-testid="btn-confirm-bundle"
+                              onClick={confirmBundleSelection}
+                              className={`flex-1 ${allFilled ? "bg-green-600 hover:bg-green-700" : "bg-[#fb9678] hover:bg-[#e8856a]"}`}
+                            >
+                              <ShoppingCart className="h-4 w-4 mr-1" /> เพิ่มลงตะกร้า
+                            </Button>
                           </div>
                         </div>
-                      );
-                    })}
-                    {slotGroups.length === 0 && fixedItems.length === 0 && (
-                      <div className="text-center py-6 text-gray-400 text-sm">ชุดนี้ยังไม่ได้ตั้งค่ารายการสินค้า</div>
-                    )}
-                  </>
-                );
-              })()}
+                      </div>
+                    );
+                  })()}
+                </div>
+              </div>
             </div>
           )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => { setBundleCustomizeProduct(null); setBundleSlots([]); setBundleSelections({}); }}>ยกเลิก</Button>
-            <Button
-              data-testid="btn-confirm-bundle"
-              onClick={confirmBundleSelection}
-              className="bg-[#fb9678] hover:bg-[#e8856a]"
-            >
-              <ShoppingCart className="h-4 w-4 mr-1" /> เพิ่มลงตะกร้า
-            </Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

@@ -1,11 +1,23 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Star, CheckCircle, Gift } from "lucide-react";
+import LoyaltyMemberCard from "./loyalty-member-card";
 
 export default function LoyaltySignup() {
+  const params = new URLSearchParams(window.location.search);
+  const mode = params.get("mode");
+
+  if (mode === "card") {
+    return <LoyaltyMemberCard />;
+  }
+
+  return <LoyaltySignupForm />;
+}
+
+function LoyaltySignupForm() {
   const params = new URLSearchParams(window.location.search);
   const companyId = params.get("companyId") || params.get("c");
 
@@ -80,6 +92,7 @@ export default function LoyaltySignup() {
   }
 
   if (result && !error) {
+    const cardUrl = `${window.location.origin}/loyalty/signup?mode=card&c=${companyId}&m=${result.memberCode}`;
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-amber-50 to-orange-50 p-4">
         <Card className="p-8 text-center max-w-sm w-full shadow-xl" data-testid="loyalty-signup-success">
@@ -93,11 +106,18 @@ export default function LoyaltySignup() {
             <p className="text-3xl font-bold text-amber-600" data-testid="text-signup-member-code">{result.memberCode}</p>
             <p className="text-lg font-medium mt-1">{result.name}</p>
           </div>
-          <div className="flex items-center justify-center gap-2 text-amber-600">
+          <div className="flex items-center justify-center gap-2 text-amber-600 mb-4">
             <Star className="h-5 w-5 fill-amber-400" />
             <span className="font-medium">{result.totalPoints || 0} แต้ม</span>
           </div>
-          <p className="text-xs text-gray-400 mt-4">แจ้งรหัสสมาชิกหรือเบอร์โทรกับพนักงานตอนชำระเงิน</p>
+          <Button
+            className="w-full h-12 text-base bg-amber-500 hover:bg-amber-600"
+            onClick={() => { window.location.href = cardUrl; }}
+            data-testid="btn-open-card"
+          >
+            เปิดบัตรสมาชิก (QR Code)
+          </Button>
+          <p className="text-xs text-gray-400 mt-3">บันทึกลิงก์หรือ Bookmark หน้าบัตรสมาชิกไว้เพื่อใช้ตอนชำระเงิน</p>
         </Card>
       </div>
     );
@@ -160,6 +180,15 @@ export default function LoyaltySignup() {
                 <div className="mt-2 text-gray-600">
                   รหัสสมาชิก: <span className="font-bold text-amber-600">{result.memberCode}</span>
                   <br />แต้มสะสม: {result.totalPoints || 0} แต้ม
+                  <Button
+                    variant="link"
+                    className="text-amber-600 p-0 h-auto text-sm"
+                    onClick={() => {
+                      window.location.href = `${window.location.origin}/loyalty/signup?mode=card&c=${companyId}&m=${result.memberCode}`;
+                    }}
+                  >
+                    เปิดบัตรสมาชิก →
+                  </Button>
                 </div>
               )}
             </div>

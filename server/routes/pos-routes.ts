@@ -678,7 +678,8 @@ export function registerPosRoutes(app: Express) {
   app.get("/api/pos/products", requireAuth, requireModule("pos"), async (req, res) => {
     try {
       const companyId = Number(req.query.companyId);
-      const search = String(req.query.search || "");
+      const rawSearch = String(req.query.search || "");
+      const search = rawSearch.replace(/^\*+|\*+$/g, "").trim();
       if (!companyId) return res.status(400).json({ message: "กรุณาระบุบริษัท" });
 
       let conditions = [eq(products.companyId, companyId), eq(products.active, true)];
@@ -716,7 +717,7 @@ export function registerPosRoutes(app: Express) {
         const prodMap = new Map(prods.map(p => [p.id, p]));
         const enriched = bundles.map(b => {
           const p = prodMap.get(b.componentProductId);
-          return { ...b, productName: p?.name || `สินค้า #${b.componentProductId}`, productCode: p?.code || "" };
+          return { ...b, productName: p?.name || `สินค้า #${b.componentProductId}`, productCode: p?.code || "", productBarcode: p?.barcode || "" };
         });
         return res.json(enriched);
       }

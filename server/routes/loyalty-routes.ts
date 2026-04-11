@@ -225,6 +225,47 @@ app.post("/api/public/loyalty/signup/:companyId", async (req, res) => {
   } catch (err: any) { res.status(500).json({ message: err.message }); }
 });
 
+app.get("/api/public/loyalty/member-card/:companyId/:memberCode", async (req, res) => {
+  try {
+    const companyId = Number(req.params.companyId);
+    const memberCode = req.params.memberCode;
+    if (!companyId || !memberCode) return res.status(400).json({ message: "invalid" });
+    const [member] = await db.select().from(loyaltyMembers)
+      .where(and(eq(loyaltyMembers.companyId, companyId), eq(loyaltyMembers.memberCode, memberCode)))
+      .limit(1);
+    if (!member) return res.status(404).json({ message: "ไม่พบสมาชิก" });
+    const [program] = await db.select().from(loyaltyPrograms)
+      .where(eq(loyaltyPrograms.id, member.programId))
+      .limit(1);
+    const { companies: companiesTable } = await import("@shared/schema");
+    const [company] = await db.select({ name: companiesTable.name }).from(companiesTable).where(eq(companiesTable.id, companyId)).limit(1);
+    res.json({
+      memberCode: member.memberCode,
+      name: member.name,
+      totalPoints: member.totalPoints || 0,
+      totalSpent: member.totalSpent || "0",
+      visitCount: member.visitCount || 0,
+      companyName: company?.name || "",
+      programName: program?.name || "",
+      pointsPerSpend: program?.pointsPerSpend || "1",
+      spendAmount: program?.spendAmount || "100",
+    });
+  } catch (err: any) { res.status(500).json({ message: err.message }); }
+});
+
+app.get("/api/public/loyalty/member-by-phone/:companyId/:phone", async (req, res) => {
+  try {
+    const companyId = Number(req.params.companyId);
+    const phone = req.params.phone;
+    if (!companyId || !phone) return res.status(400).json({ message: "invalid" });
+    const [member] = await db.select().from(loyaltyMembers)
+      .where(and(eq(loyaltyMembers.companyId, companyId), eq(loyaltyMembers.phone, phone)))
+      .limit(1);
+    if (!member) return res.status(404).json({ message: "ไม่พบสมาชิก" });
+    res.json({ memberCode: member.memberCode, name: member.name });
+  } catch (err: any) { res.status(500).json({ message: err.message }); }
+});
+
 r.companyRoute("post", "/api/loyalty/adjust", async ({ companyId, user, req }) => {
   const { memberId, points, description } = req.body;
   if (!memberId || !points) badRequest("ข้อมูลไม่ครบ");
