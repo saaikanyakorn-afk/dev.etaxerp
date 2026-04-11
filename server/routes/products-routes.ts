@@ -998,6 +998,7 @@ app.post("/api/bundles/import/execute", requireAuth, requireModule("inventory"),
     let createdCount = 0;
     let updatedCount = 0;
     let componentCount = 0;
+    const existingBarcodes = new Set(existingProducts.filter(p => p.barcode).map(p => p.barcode));
 
     for (const bundle of bundles) {
       const { bundleCode, bundleName, bundlePrice, unit, components } = bundle;
@@ -1043,6 +1044,17 @@ app.post("/api/bundles/import/execute", requireAuth, requireModule("inventory"),
           category: "product",
           productType: "bundle",
         } as any);
+
+        let barcode: string;
+        do {
+          const num = Math.floor(Math.random() * 999999999999).toString().padStart(12, '0');
+          let sum = 0;
+          for (let i = 0; i < 12; i++) { sum += parseInt(num[i]) * (i % 2 === 0 ? 1 : 3); }
+          const checkDigit = (10 - (sum % 10)) % 10;
+          barcode = num + checkDigit;
+        } while (existingBarcodes.has(barcode));
+        existingBarcodes.add(barcode);
+        await storage.updateProduct(created.id, { barcode });
 
         productCodeMap.set(bundleCode, created);
 
