@@ -534,6 +534,22 @@ app.post("/api/products/import/execute", requireAuth, requireModule("inventory")
       }
     }
 
+    const existingBarcodes = new Set(existingProducts.filter(p => p.barcode).map(p => p.barcode));
+    for (const p of created) {
+      if (!p.barcode) {
+        let barcode: string;
+        do {
+          const num = Math.floor(Math.random() * 999999999999).toString().padStart(12, '0');
+          let sum = 0;
+          for (let i = 0; i < 12; i++) { sum += parseInt(num[i]) * (i % 2 === 0 ? 1 : 3); }
+          const checkDigit = (10 - (sum % 10)) % 10;
+          barcode = num + checkDigit;
+        } while (existingBarcodes.has(barcode));
+        existingBarcodes.add(barcode);
+        await storage.updateProduct(p.id, { barcode });
+      }
+    }
+
     const createdIds = created.map((p: any) => p.id).filter(Boolean);
     let batchId: number | undefined;
     if (createdIds.length > 0) {
