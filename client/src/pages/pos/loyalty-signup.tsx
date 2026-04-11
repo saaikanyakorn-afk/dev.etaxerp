@@ -1,10 +1,172 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Star, CheckCircle, Gift } from "lucide-react";
-import LoyaltyMemberCard from "./loyalty-member-card";
+import { Star, CheckCircle, Gift, CreditCard, ShoppingBag, Award } from "lucide-react";
+import QRCode from "qrcode";
+
+function QRCodeCanvas({ value, size = 200 }: { value: string; size?: number }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    if (!canvasRef.current || !value) return;
+    QRCode.toCanvas(canvasRef.current, value, {
+      width: size,
+      margin: 2,
+      color: { dark: "#000000", light: "#ffffff" },
+    });
+  }, [value, size]);
+
+  return <canvas ref={canvasRef} data-testid="qr-code-canvas" />;
+}
+
+function LoyaltyMemberCard() {
+  const params = new URLSearchParams(window.location.search);
+  const companyId = params.get("companyId") || params.get("c");
+  const memberCodeParam = params.get("m") || params.get("memberCode");
+  const phoneParam = params.get("phone") || params.get("p");
+
+  const [lookupPhone, setLookupPhone] = useState("");
+  const [resolvedCode, setResolvedCode] = useState(memberCodeParam || "");
+  const [lookupError, setLookupError] = useState("");
+  const phoneLookedUp = useRef(false);
+
+  const { data: memberData, isLoading } = useQuery({
+    queryKey: ["/api/public/loyalty/member-card", companyId, resolvedCode],
+    queryFn: async () => {
+      const r = await fetch(`/api/public/loyalty/member-card/${companyId}/${resolvedCode}`);
+      if (!r.ok) return null;
+      return r.json();
+    },
+    enabled: !!companyId && !!resolvedCode,
+    refetchInterval: 30000,
+  });
+
+  const handlePhoneLookup = async (phone?: string) => {
+    const p = (phone || phoneParam || lookupPhone).trim();
+    if (!p || !companyId) return;
+    setLookupError("");
+    try {
+      const r = await fetch(`/api/public/loyalty/member-by-phone/${companyId}/${encodeURIComponent(p)}`);
+      if (!r.ok) { setLookupError("ไม่พบสมาชิกจากเบอร์นี้"); return; }
+      const data = await r.json();
+      setResolvedCode(data.memberCode);
+    } catch { setLookupError("ไม่สามารถเชื่อมต่อได้"); }
+  };
+
+  useEffect(() => {
+    if (phoneParam && !resolvedCode && !phoneLookedUp.current) {
+      phoneLookedUp.current = true;
+      handlePhoneLookup(phoneParam);
+    }
+  }, [phoneParam, resolvedCode]);
+
+  if (!companyId) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-amber-50 p-4">
+        <p className="text-gray-500">ลิงก์ไม่ถูกต้อง</p>
+      </div>
+    );
+  }
+
+  if (!resolvedCode && !phoneParam) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-amber-50 p-4">
+        <Card className="p-6 max-w-sm w-full shadow-xl text-center">
+          <div className="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-3">
+            <CreditCard className="h-8 w-8 text-amber-500" />
+          </div>
+          <h1 className="text-xl font-bold text-gray-800 mb-1">บัตรสมาชิก</h1>
+          <p className="text-sm text-gray-500 mb-4">กรอกเบอร์โทรเพื่อเปิดบัตรสมาชิก</p>
+          <div className="space-y-3">
+            <Input
+              className="h-12 text-center text-lg"
+              placeholder="08x-xxx-xxxx"
+              type="tel"
+              value={lookupPhone}
+              onChange={e => setLookupPhone(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter") handlePhoneLookup(); }}
+              data-testid="input-card-phone"
+            />
+            {lookupError && <p className="text-sm text-red-500">{lookupError}</p>}
+            <Button
+              className="w-full h-12 text-lg bg-amber-500 hover:bg-amber-600"
+              onClick={() => handlePhoneLookup()}
+              disabled={!lookupPhone.trim()}
+              data-testid="btn-card-lookup"
+            >
+              เปิดบัตรสมาชิก
+            </Button>
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-amber-50 p-4">
+        <div className="animate-spin w-8 h-8 border-4 border-amber-400 border-t-transparent rounded-full" />
+      </div>
+    );
+  }
+
+  if (!memberData) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-amber-50 p-4">
+        <Card className="p-6 text-center max-w-sm w-full">
+          <p className="text-gray-500">ไม่พบข้อมูลสมาชิก</p>
+        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-amber-50 p-4">
+      <Card className="max-w-sm w-full shadow-2xl overflow-hidden" data-testid="loyalty-member-card">
+        <div className="bg-amber-500 p-5 text-white text-center">
+          <p className="text-sm opacity-80">{memberData.companyName}</p>
+          <h1 className="text-xl font-bold mt-1">{memberData.programName || "สะสมแต้ม"}</h1>
+        </div>
+
+        <div className="p-6 text-center">
+          <p className="text-base font-medium text-gray-700 mb-1">{memberData.name}</p>
+          <p className="text-xs text-gray-400 mb-4">รหัส: {memberData.memberCode}</p>
+
+          <div className="flex justify-center mb-4">
+            <div className="bg-white p-3 rounded-xl border-2 border-amber-200 shadow-inner">
+              <QRCodeCanvas value={memberData.memberCode} size={180} />
+            </div>
+          </div>
+          <p className="text-xs text-gray-400 mb-6">แสดง QR นี้ให้แคชเชียร์สแกนเพื่อสะสมแต้ม</p>
+
+          <div className="bg-amber-50 rounded-xl p-4 border border-amber-200 mb-4">
+            <div className="flex items-center justify-center gap-2 mb-2">
+              <Star className="h-6 w-6 fill-amber-400 text-amber-400" />
+              <span className="text-3xl font-bold text-amber-600" data-testid="text-card-points">{memberData.totalPoints}</span>
+              <span className="text-sm text-amber-600">แต้ม</span>
+            </div>
+            <p className="text-xs text-amber-500">ทุก ฿{memberData.spendAmount} ได้ {memberData.pointsPerSpend} แต้ม</p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 text-center">
+            <div className="bg-gray-50 rounded-lg p-3">
+              <ShoppingBag className="h-4 w-4 text-gray-400 mx-auto mb-1" />
+              <p className="text-lg font-bold text-gray-700" data-testid="text-card-visits">{memberData.visitCount}</p>
+              <p className="text-xs text-gray-400">ครั้งที่ซื้อ</p>
+            </div>
+            <div className="bg-gray-50 rounded-lg p-3">
+              <Award className="h-4 w-4 text-gray-400 mx-auto mb-1" />
+              <p className="text-lg font-bold text-gray-700" data-testid="text-card-spent">฿{Number(memberData.totalSpent).toLocaleString()}</p>
+              <p className="text-xs text-gray-400">ยอดซื้อสะสม</p>
+            </div>
+          </div>
+        </div>
+      </Card>
+    </div>
+  );
+}
 
 export default function LoyaltySignup() {
   const params = new URLSearchParams(window.location.search);
@@ -94,7 +256,7 @@ function LoyaltySignupForm() {
   if (result && !error) {
     const cardUrl = `${window.location.origin}/loyalty/signup?mode=card&c=${companyId}&m=${result.memberCode}`;
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-amber-50 to-orange-50 p-4">
+      <div className="min-h-screen flex items-center justify-center bg-amber-50 p-4">
         <Card className="p-8 text-center max-w-sm w-full shadow-xl" data-testid="loyalty-signup-success">
           <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
             <CheckCircle className="h-10 w-10 text-green-500" />
@@ -124,7 +286,7 @@ function LoyaltySignupForm() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-amber-50 to-orange-50 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-amber-50 p-4">
       <Card className="p-6 max-w-sm w-full shadow-xl" data-testid="loyalty-signup-form">
         <div className="text-center mb-6">
           <div className="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-3">
