@@ -2,10 +2,10 @@ import type { Express, Request, Response } from "express";
 import { db } from "../db";
 import { storage } from "../storage";
 import { eq, desc, and, inArray, count, sql, isNull } from "drizzle-orm";
-import { salesOrders, invoices, salesOrderItems, quotations, companies, documentSettings, quotationItems, users, invoiceItems, journalEntries, journalLines, accounts, products, contacts, documentImportBatches, taxInvoices, taxInvoiceItems, receipts, receiptItems, purchaseInvoices, expenses, commissionRules, commissionRecords, employees, liveCfOrders, salesCreditNotes, billingNotes, billingNoteLinkedDocs, purchaseRequests, bidComparisons, purchaseOrders } from "@shared/schema";
+import { salesOrders, invoices, salesOrderItems, quotations, companies, documentSettings, quotationItems, users, invoiceItems, journalEntries, journalLines, accounts, products, contacts, documentImportBatches, taxInvoices, taxInvoiceItems, receipts, receiptItems, purchaseInvoices, expenses, commissionRules, commissionRecords, employees, liveCfOrders, salesCreditNotes, billingNotes, billingNoteLinkedDocs, purchaseRequests, bidComparisons, purchaseOrders, productBundles } from "@shared/schema";
 import { gte, lte, or } from "drizzle-orm";
 import { requireAuth, requireRole, requireAnyModule, getCompanyTenantId, checkDocOwnership } from "../route-middleware";
-import { getNextDocNo, validateDocNo, getNextJournalEntryNo, createAutoJournalEntry, resolvePaymentMethodAccountCode, logActivity, checkDocumentLimit, deleteStockMovementsForDoc, deleteJournalEntriesForDoc, recomputePaymentStatus } from "../route-helpers";
+import { getNextDocNo, validateDocNo, getNextJournalEntryNo, createAutoJournalEntry, resolvePaymentMethodAccountCode, logActivity, checkDocumentLimit, deleteStockMovementsForDoc, deleteJournalEntriesForDoc, recomputePaymentStatus, deductStockBundleAware } from "../route-helpers";
 import { parsePagination, paginatedResponse } from "./pagination";
 import multer from "multer";
 import * as XLSX from "xlsx";
@@ -973,27 +973,12 @@ app.patch("/api/invoices/:id", requireAuth, requireAnyModule("sales", "ecommerce
         console.error(`[AutoJournal] Invoice ${updated.invoiceNo} failed:`, e.message);
       }
 
-      for (const item of savedItems) {
-        if (item.productId) {
-          const qty = parseFloat(String(item.qty || "0"));
-          if (qty > 0) {
-            const deductQty = String(-qty);
-            const unitPrice = String(item.unitPrice || "0");
-            const totalCost = String(qty * parseFloat(unitPrice));
-            try {
-              const result = await storage.adjustStock(
-                updated.companyId, item.productId, deductQty, "sale_deduct",
-                `ขายสินค้า ${updated.invoiceNo}${updated.customerName ? ` (${updated.customerName})` : ""}`,
-                "invoice", updated.id,
-                { unitCost: unitPrice, totalCost: totalCost, referenceNo: updated.invoiceNo, createdBy: user.id }
-              );
-              stockDeductions.push({ productId: item.productId, deducted: deductQty, stock: result });
-            } catch (e: any) {
-              console.error(`Stock deduction failed for product ${item.productId}:`, e.message);
-            }
-          }
-        }
-      }
+      const deductItems = savedItems
+        .filter((i: any) => i.productId && parseFloat(String(i.qty || "0")) > 0)
+        .map((i: any) => ({ productId: i.productId, qty: parseFloat(String(i.qty)), unitPrice: String(i.unitPrice || "0"), productName: i.productName || i.description }));
+      const docLabel = `ขายสินค้า ${updated.invoiceNo}${updated.customerName ? ` (${updated.customerName})` : ""}`;
+      const deductions = await deductStockBundleAware(deductItems, updated.companyId, docLabel, "invoice", updated.id, user.id);
+      stockDeductions.push(...deductions);
     }
 
     res.json({ ...updated, items: savedItems, journalResult, stockDeductions });
@@ -1977,26 +1962,11 @@ app.patch("/api/tax-invoices/:id", requireAuth, requireAnyModule("sales", "ecomm
         }
       } catch (e) {}
 
-      for (const item of savedItems) {
-        if (item.productId) {
-          const qty = parseFloat(String(item.qty || "0"));
-          if (qty > 0) {
-            const deductQty = String(-qty);
-            const unitPrice = String(item.unitPrice || "0");
-            const totalCost = String(qty * parseFloat(unitPrice));
-            try {
-              await storage.adjustStock(
-                updated.companyId, item.productId, deductQty, "sale_deduct",
-                `ขายสินค้า ${updated.taxInvoiceNo}${updated.customerName ? ` (${updated.customerName})` : ""}`,
-                "tax_invoice", updated.id,
-                { unitCost: unitPrice, totalCost: totalCost, referenceNo: updated.taxInvoiceNo, createdBy: user.id }
-              );
-            } catch (e: any) {
-              console.error(`Stock deduction failed for product ${item.productId}:`, e.message);
-            }
-          }
-        }
-      }
+      const deductItems2 = savedItems
+        .filter((i: any) => i.productId && parseFloat(String(i.qty || "0")) > 0)
+        .map((i: any) => ({ productId: i.productId, qty: parseFloat(String(i.qty)), unitPrice: String(i.unitPrice || "0"), productName: i.productName || i.description }));
+      const docLabel2 = `ขายสินค้า ${updated.taxInvoiceNo}${updated.customerName ? ` (${updated.customerName})` : ""}`;
+      await deductStockBundleAware(deductItems2, updated.companyId, docLabel2, "tax_invoice", updated.id, user.id);
     }
 
     res.json({ ...updated, items: savedItems, journalResult });

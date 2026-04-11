@@ -4,7 +4,7 @@ import { storage } from "../storage";
 import { eq, desc, and, or, ilike, inArray, count, sum , sql } from "drizzle-orm";
 import { products, productBundles, documentImportBatches, stockMovements, promotions, companies, productLots, goodsRequisitions, goodsRequisitionItems, journalEntries, journalLines, stockTransfers, stockTransferItems, warehouses, warehouseStockLevels, branches } from "@shared/schema";
 import { requireAuth, requireModule, requireAnyModule, checkDocOwnership } from "../route-middleware";
-import { getNextJournalEntryNo, logActivity, deleteStockMovementsForDoc } from "../route-helpers";
+import { getNextJournalEntryNo, logActivity, deleteStockMovementsForDoc, deductStockBundleAware } from "../route-helpers";
 import { parsePagination, paginatedResponse } from "./pagination";
 import * as XLSX from "xlsx";
 import path from "path";
@@ -1863,18 +1863,14 @@ app.post("/api/goods-requisitions/:id/approve", requireAuth, requireModule("inve
     const items = await db.select().from(goodsRequisitionItems).where(eq(goodsRequisitionItems.goodsRequisitionId, id));
     if (items.length === 0) return res.status(400).json({ message: "ไม่มีรายการสินค้า" });
 
-    for (const item of items) {
-      const qty = Math.abs(Number(item.quantity));
-      const deductQty = String(-qty);
-      const uc = String(item.unitCost || "0");
-      const tc = String(qty * Number(item.unitCost || 0));
-      await storage.adjustStock(
-        giq.companyId, item.productId, deductQty, "sale_deduct",
-        `เบิกสินค้า ${giq.giqNo}${giq.departmentName ? ` (${giq.departmentName})` : ""}${giq.requestedBy ? ` - ${giq.requestedBy}` : ""}`,
-        "goods_requisition", giq.id,
-        { unitCost: uc, totalCost: tc, referenceNo: giq.giqNo, createdBy: user?.id }
-      );
-    }
+    const giqDeductItems = items.map(item => ({
+      productId: item.productId,
+      qty: Math.abs(Number(item.quantity)),
+      unitPrice: String(item.unitCost || "0"),
+      productName: item.productName || undefined,
+    }));
+    const giqDocLabel = `เบิกสินค้า ${giq.giqNo}${giq.departmentName ? ` (${giq.departmentName})` : ""}${giq.requestedBy ? ` - ${giq.requestedBy}` : ""}`;
+    await deductStockBundleAware(giqDeductItems, giq.companyId, giqDocLabel, "goods_requisition", giq.id, user?.id);
 
     let journalEntryId: number | null = null;
     try {

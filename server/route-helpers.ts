@@ -2,7 +2,7 @@ import { db } from "./db";
 import { ecomDb } from "./ecom-db";
 import { storage } from "./storage";
 import { eq, desc, and, sql, inArray } from "drizzle-orm";
-import { documentSettings, companies, accounts, accountingFormulas, accountingFormulaLines, journalEntries, journalLines, taxInvoices, taxInvoiceItems, ecommerceOrders, paymentMethods, activityLogs, vatProductDictionary, stockMovements, productStock, closedPeriods, employees, invoices, receipts, receiptLinkedDocs, purchaseInvoices, expenses, paymentVoucherLinkedDocs } from "@shared/schema";
+import { documentSettings, companies, accounts, accountingFormulas, accountingFormulaLines, journalEntries, journalLines, taxInvoices, taxInvoiceItems, ecommerceOrders, paymentMethods, activityLogs, vatProductDictionary, stockMovements, productStock, closedPeriods, employees, invoices, receipts, receiptLinkedDocs, purchaseInvoices, expenses, paymentVoucherLinkedDocs, products, productBundles } from "@shared/schema";
 import { formatDocNumber, validateDocNumberFormat, type DocNumberFormat, type DateEra } from "@shared/document-types";
 import { DEFAULT_FORMULAS } from "@shared/accounting-formulas";
 
@@ -1183,4 +1183,72 @@ export async function deleteCompaniesCascade(companyIds: number[]): Promise<{ de
 
   console.log(`[deleteCompaniesCascade] Restored ${alteredConstraints.length} FK constraints to NO ACTION`);
   return { deleted, errors };
+}
+
+export async function deductStockBundleAware(
+  items: { productId: number | null; qty: number; unitPrice?: string; productName?: string }[],
+  companyId: number,
+  docNo: string,
+  referenceType: string,
+  referenceId: number,
+  createdBy?: number,
+  dbInstance?: any,
+): Promise<{ productId: number; deducted: string; stock: any }[]> {
+  const useDb = dbInstance || db;
+  const validItems = items.filter(i => i.productId && i.qty > 0);
+  if (validItems.length === 0) return [];
+
+  const productIds = [...new Set(validItems.map(i => Number(i.productId)))];
+  const prods = await useDb.select({ id: products.id, productType: products.productType })
+    .from(products).where(inArray(products.id, productIds));
+  const typeMap: Record<number, string> = {};
+  for (const p of prods) typeMap[p.id] = p.productType || "simple";
+
+  const bundleIds = prods.filter(p => p.productType === "bundle").map(p => p.id);
+  const compMap: Record<number, { componentProductId: number; qty: string }[]> = {};
+  if (bundleIds.length > 0) {
+    const comps = await useDb.select().from(productBundles)
+      .where(inArray(productBundles.bundleProductId, bundleIds));
+    for (const c of comps) {
+      if (!compMap[c.bundleProductId]) compMap[c.bundleProductId] = [];
+      compMap[c.bundleProductId].push({ componentProductId: c.componentProductId, qty: c.qty });
+    }
+  }
+
+  const results: { productId: number; deducted: string; stock: any }[] = [];
+  for (const item of validItems) {
+    const pid = Number(item.productId);
+    const pType = typeMap[pid] || "simple";
+
+    if (pType === "bundle" && compMap[pid]?.length > 0) {
+      for (const comp of compMap[pid]) {
+        const compQty = item.qty * parseFloat(comp.qty || "1");
+        try {
+          const stock = await storage.adjustStock(
+            companyId, comp.componentProductId, String(-compQty), "sale_deduct",
+            `${docNo} (ชุด ${item.productName || pid})`,
+            referenceType, referenceId,
+            { referenceNo: docNo, createdBy }
+          );
+          results.push({ productId: comp.componentProductId, deducted: String(-compQty), stock });
+        } catch (e: any) {
+          console.error(`Bundle stock deduction failed for component ${comp.componentProductId}:`, e.message);
+        }
+      }
+    } else {
+      try {
+        const unitPrice = item.unitPrice || "0";
+        const totalCost = String(item.qty * parseFloat(unitPrice));
+        const stock = await storage.adjustStock(
+          companyId, pid, String(-item.qty), "sale_deduct",
+          docNo, referenceType, referenceId,
+          { unitCost: unitPrice, totalCost, referenceNo: docNo, createdBy }
+        );
+        results.push({ productId: pid, deducted: String(-item.qty), stock });
+      } catch (e: any) {
+        console.error(`Stock deduction failed for product ${pid}:`, e.message);
+      }
+    }
+  }
+  return results;
 }

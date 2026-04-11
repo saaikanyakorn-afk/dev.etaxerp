@@ -5,7 +5,7 @@ import { storage } from "../storage";
 import { eq, and, desc, asc, sql, count, ilike, inArray, or, isNull } from "drizzle-orm";
 import { posSessions, posTransactions, posTransactionItems, products, productBundles, companies, taxInvoices, taxInvoiceItems, documentSettings, branches, warehouses, warehouseStockLevels, paymentMethods, users, commissionRules, commissionRecords, employees } from "@shared/schema";
 import { requireAuth, requireModule , checkDocOwnership} from "../route-middleware";
-import { getNextDocNo, createAutoJournalEntry } from "../route-helpers";
+import { getNextDocNo, createAutoJournalEntry, deductStockBundleAware } from "../route-helpers";
 import { hashPassword } from "../auth";
 import multer from "multer";
 import * as XLSX from "xlsx";
@@ -535,30 +535,27 @@ export function registerPosRoutes(app: Express) {
       setImmediate(async () => {
         const bgStart = Date.now();
         const sessionWarehouseId = session.warehouseId;
-        const stockPromises = processedItems
-          .filter(pi => pi.productId && parseFloat(String(pi.quantity || "0")) > 0)
-          .map(async (pi) => {
-            const qty = parseFloat(String(pi.quantity || "0"));
-            await storage.adjustStock(
-              Number(companyId), Number(pi.productId), String(-qty), "sale_deduct",
-              `POS ${result.transaction.transactionNo}`,
-              "tax_invoice", result.taxInvoice.id,
-              { unitCost: pi.unitPrice, totalCost: String(qty * parseFloat(pi.unitPrice)), referenceNo: result.transaction.transactionNo, createdBy: user.id }
-            ).catch(e => console.error(`POS stock deduction failed for product ${pi.productId}:`, e.message));
-            if (sessionWarehouseId) {
-              try {
-                const [wsl] = await posDb.select().from(warehouseStockLevels)
-                  .where(and(eq(warehouseStockLevels.warehouseId, sessionWarehouseId), eq(warehouseStockLevels.productId, Number(pi.productId))));
-                const currentQty = Number(wsl?.quantity || "0");
-                const newQty = Math.max(0, currentQty - qty);
-                if (wsl) {
-                  await posDb.update(warehouseStockLevels).set({ quantity: String(newQty) }).where(eq(warehouseStockLevels.id, wsl.id));
-                }
-              } catch (e: any) { console.error(`POS warehouse stock deduction failed:`, e.message); }
-            }
-          });
 
-        await Promise.all(stockPromises);
+        const posDeductItems = processedItems
+          .filter(pi => pi.productId && parseFloat(String(pi.quantity || "0")) > 0)
+          .map(pi => ({ productId: Number(pi.productId), qty: parseFloat(String(pi.quantity || "0")), unitPrice: pi.unitPrice, productName: pi.productName }));
+        const docLabel = `POS ${result.transaction.transactionNo}`;
+        const deductions = await deductStockBundleAware(posDeductItems, Number(companyId), docLabel, "tax_invoice", result.taxInvoice.id, user.id, posDb);
+
+        if (sessionWarehouseId && deductions.length > 0) {
+          for (const d of deductions) {
+            try {
+              const [wsl] = await posDb.select().from(warehouseStockLevels)
+                .where(and(eq(warehouseStockLevels.warehouseId, sessionWarehouseId), eq(warehouseStockLevels.productId, d.productId)));
+              if (wsl) {
+                const currentQty = Number(wsl.quantity || "0");
+                const deductedAbs = Math.abs(parseFloat(d.deducted));
+                const newQty = Math.max(0, currentQty - deductedAbs);
+                await posDb.update(warehouseStockLevels).set({ quantity: String(newQty) }).where(eq(warehouseStockLevels.id, wsl.id));
+              }
+            } catch (e: any) { console.error(`POS warehouse stock deduction failed for product ${d.productId}:`, e.message); }
+          }
+        }
 
         if (fullTaxInvoice) {
           try {
