@@ -365,6 +365,7 @@ export default function ProductImportExport(props: { Wrapper?: React.ComponentTy
                         <p className="text-sm font-bold">{bundle.bundleName || "(ไม่มีชื่อ)"}</p>
                         <p className="text-xs text-muted-foreground">
                           รหัส: {bundle.bundleCode} | ราคา: ฿{Number(bundle.bundlePrice).toLocaleString()} | {bundle.components.length} รายการในชุด
+                          {bundle.barcode ? ` | บาร์โค้ด: ${bundle.barcode}` : " | บาร์โค้ด: (สร้างอัตโนมัติ)"}
                         </p>
                       </div>
                       {bundle.isExisting && <Badge variant="outline" className="text-xs border-blue-300 text-blue-600">มีอยู่แล้ว</Badge>}

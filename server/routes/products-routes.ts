@@ -2,7 +2,7 @@ import type { Express, Request, Response } from "express";
 import { db } from "../db";
 import { storage } from "../storage";
 import { eq, desc, and, or, ilike, inArray, count, sum , sql } from "drizzle-orm";
-import { products, productBundles, documentImportBatches, stockMovements, promotions, companies, productLots, goodsRequisitions, goodsRequisitionItems, journalEntries, journalLines, stockTransfers, stockTransferItems, warehouses, warehouseStockLevels, branches } from "@shared/schema";
+import { products, productBundles, productCategories, documentImportBatches, stockMovements, promotions, companies, productLots, goodsRequisitions, goodsRequisitionItems, journalEntries, journalLines, stockTransfers, stockTransferItems, warehouses, warehouseStockLevels, branches } from "@shared/schema";
 import { requireAuth, requireModule, requireAnyModule, checkDocOwnership } from "../route-middleware";
 import { getNextJournalEntryNo, logActivity, deleteStockMovementsForDoc } from "../route-helpers";
 import { parsePagination, paginatedResponse } from "./pagination";
@@ -22,45 +22,17 @@ const DEFAULT_CATEGORIES = [
   { code: "consumable", name: "วัสดุสิ้นเปลือง" },
 ];
 
-let _schemaReady = false;
-async function ensureProductSchema() {
-  if (_schemaReady) return;
-  try {
-    await db.execute(sql`CREATE TABLE IF NOT EXISTS product_categories (
-      id SERIAL PRIMARY KEY,
-      company_id INTEGER NOT NULL,
-      code TEXT NOT NULL,
-      name TEXT NOT NULL,
-      active BOOLEAN NOT NULL DEFAULT true
-    )`);
-    await db.execute(sql`DO $$ BEGIN
-      ALTER TABLE products ADD COLUMN IF NOT EXISTS sub_unit TEXT;
-      ALTER TABLE products ADD COLUMN IF NOT EXISTS conversion_rate TEXT DEFAULT '1';
-    EXCEPTION WHEN others THEN NULL;
-    END $$`);
-    _schemaReady = true;
-    console.log("[products] auto-created product_categories table + sub_unit/conversion_rate columns");
-  } catch (e: any) {
-    console.error("[products] schema ensure failed:", e.message);
-  }
-}
-
 export function registerProductsRoutes(app: Express) {
 
 // ==================== Product Categories ====================
 app.get("/api/product-categories", requireAuth, async (req, res) => {
   try {
-    await ensureProductSchema();
     const companyId = Number(req.query.companyId);
     if (!companyId) return res.status(400).json({ message: "companyId required" });
-    const result = await db.execute(sql`SELECT * FROM product_categories WHERE company_id = ${companyId} ORDER BY id`);
-    let cats = result.rows as any[];
+    let cats = await db.select().from(productCategories).where(eq(productCategories.companyId, companyId)).orderBy(productCategories.id);
     if (cats.length === 0) {
-      for (const c of DEFAULT_CATEGORIES) {
-        await db.execute(sql`INSERT INTO product_categories (company_id, code, name, active) VALUES (${companyId}, ${c.code}, ${c.name}, true)`);
-      }
-      const seeded = await db.execute(sql`SELECT * FROM product_categories WHERE company_id = ${companyId} ORDER BY id`);
-      cats = seeded.rows as any[];
+      const toInsert = DEFAULT_CATEGORIES.map(c => ({ companyId, code: c.code, name: c.name, active: true }));
+      cats = await db.insert(productCategories).values(toInsert).returning();
     }
     res.json(cats);
   } catch (err: any) { res.status(400).json({ message: err.message }); }
@@ -70,10 +42,10 @@ app.post("/api/product-categories", requireAuth, async (req, res) => {
   try {
     const { companyId, code, name } = req.body;
     if (!companyId || !code || !name) return res.status(400).json({ message: "กรุณาระบุ code และ name" });
-    const existing = await db.execute(sql`SELECT id FROM product_categories WHERE company_id = ${companyId} AND code = ${code.trim()}`);
-    if (existing.rows.length > 0) return res.status(409).json({ message: `รหัสหมวดหมู่ "${code}" ซ้ำ` });
-    const result = await db.execute(sql`INSERT INTO product_categories (company_id, code, name, active) VALUES (${companyId}, ${code.trim()}, ${name.trim()}, true) RETURNING *`);
-    res.status(201).json(result.rows[0]);
+    const existing = await db.select().from(productCategories).where(and(eq(productCategories.companyId, companyId), eq(productCategories.code, code.trim())));
+    if (existing.length > 0) return res.status(409).json({ message: `รหัสหมวดหมู่ "${code}" ซ้ำ` });
+    const [created] = await db.insert(productCategories).values({ companyId, code: code.trim(), name: name.trim(), active: true }).returning();
+    res.status(201).json(created);
   } catch (err: any) { res.status(400).json({ message: err.message }); }
 });
 
@@ -81,29 +53,25 @@ app.patch("/api/product-categories/:id", requireAuth, async (req, res) => {
   try {
     const id = Number(req.params.id);
     const { name, active } = req.body;
-    if (name !== undefined) {
-      await db.execute(sql`UPDATE product_categories SET name = ${name.trim()} WHERE id = ${id}`);
-    }
-    if (active !== undefined) {
-      await db.execute(sql`UPDATE product_categories SET active = ${active} WHERE id = ${id}`);
-    }
-    const result = await db.execute(sql`SELECT * FROM product_categories WHERE id = ${id}`);
-    if (result.rows.length === 0) return res.status(404).json({ message: "ไม่พบหมวดหมู่" });
-    res.json(result.rows[0]);
+    const updates: any = {};
+    if (name !== undefined) updates.name = name.trim();
+    if (active !== undefined) updates.active = active;
+    const [updated] = await db.update(productCategories).set(updates).where(eq(productCategories.id, id)).returning();
+    if (!updated) return res.status(404).json({ message: "ไม่พบหมวดหมู่" });
+    res.json(updated);
   } catch (err: any) { res.status(400).json({ message: err.message }); }
 });
 
 app.delete("/api/product-categories/:id", requireAuth, async (req, res) => {
   try {
     const id = Number(req.params.id);
-    const catResult = await db.execute(sql`SELECT * FROM product_categories WHERE id = ${id}`);
-    if (catResult.rows.length === 0) return res.status(404).json({ message: "ไม่พบหมวดหมู่" });
-    const cat = catResult.rows[0] as any;
-    const usedCount = await db.select({ c: count() }).from(products).where(and(eq(products.companyId, cat.company_id), eq(products.category, cat.code), eq(products.active, true)));
+    const [cat] = await db.select().from(productCategories).where(eq(productCategories.id, id));
+    if (!cat) return res.status(404).json({ message: "ไม่พบหมวดหมู่" });
+    const usedCount = await db.select({ c: count() }).from(products).where(and(eq(products.companyId, cat.companyId), eq(products.category, cat.code), eq(products.active, true)));
     if (Number(usedCount[0]?.c) > 0) {
       return res.status(400).json({ message: `หมวดหมู่นี้มีสินค้าใช้อยู่ ${usedCount[0].c} รายการ ไม่สามารถลบได้` });
     }
-    await db.execute(sql`DELETE FROM product_categories WHERE id = ${id}`);
+    await db.delete(productCategories).where(eq(productCategories.id, id));
     res.json({ success: true });
   } catch (err: any) { res.status(400).json({ message: err.message }); }
 });
@@ -128,7 +96,6 @@ app.get("/api/product-categories/import/template", requireAuth, (_req, res) => {
 
 app.post("/api/product-categories/import", requireAuth, upload.single("file"), async (req, res) => {
   try {
-    await ensureProductSchema();
     const companyId = Number(req.body.companyId);
     if (!companyId) return res.status(400).json({ message: "companyId required" });
     if (!req.file) return res.status(400).json({ message: "ไม่พบไฟล์" });
@@ -137,8 +104,8 @@ app.post("/api/product-categories/import", requireAuth, upload.single("file"), a
     const rows: any[] = XLSX.utils.sheet_to_json(ws, { defval: "" });
     if (rows.length === 0) return res.status(400).json({ message: "ไฟล์ว่าง" });
 
-    const existingResult = await db.execute(sql`SELECT code FROM product_categories WHERE company_id = ${companyId}`);
-    const existingCodes = new Set((existingResult.rows as any[]).map(c => c.code));
+    const existing = await db.select().from(productCategories).where(eq(productCategories.companyId, companyId));
+    const existingCodes = new Set(existing.map(c => c.code));
 
     let created = 0;
     let skipped = 0;
@@ -150,7 +117,7 @@ app.post("/api/product-categories/import", requireAuth, upload.single("file"), a
       const name = String(row["ชื่อหมวดหมู่"] || "").trim();
       if (!code || !name) { errors.push(`แถว ${i + 2}: รหัสหรือชื่อว่าง`); continue; }
       if (existingCodes.has(code)) { skipped++; continue; }
-      await db.execute(sql`INSERT INTO product_categories (company_id, code, name, active) VALUES (${companyId}, ${code}, ${name}, true)`);
+      await db.insert(productCategories).values({ companyId, code, name, active: true });
       existingCodes.add(code);
       created++;
     }
@@ -547,6 +514,7 @@ app.post("/api/products/import/execute", requireAuth, requireModule("inventory")
         } while (existingBarcodes.has(barcode));
         existingBarcodes.add(barcode);
         await storage.updateProduct(p.id, { barcode });
+        (p as any).barcode = barcode;
       }
     }
 
@@ -826,18 +794,18 @@ app.delete("/api/bom/:id", requireAuth, requireModule("inventory"), async (req, 
 // ===== Bundle Import =====
 app.get("/api/bundles/import/template", (_req, res) => {
   const wb = XLSX.utils.book_new();
-  const headers = ["รหัสชุด", "ชื่อชุด", "ราคาชุด", "หน่วย", "รหัสสินค้าในชุด", "กลุ่มตัวเลือก", "จำนวน", "ค่าเริ่มต้น"];
+  const headers = ["รหัสชุด", "ชื่อชุด", "ราคาชุด", "หน่วย", "บาร์โค้ด", "รหัสสินค้าในชุด", "กลุ่มตัวเลือก", "จำนวน", "ค่าเริ่มต้น"];
   const example = [
-    ["SET-BED5", "ชุดผ้าปูที่นอน 5 ฟุต", 1990, "ชุด", "BED-PINK", "ผ้าปู", 1, "Y"],
-    ["SET-BED5", "", "", "", "BED-BLUE", "ผ้าปู", 1, ""],
-    ["SET-BED5", "", "", "", "BED-FLOWER", "ผ้าปู", 1, ""],
-    ["SET-BED5", "", "", "", "PIL-PINK", "หมอนหนุน", 2, "Y"],
-    ["SET-BED5", "", "", "", "PIL-BLUE", "หมอนหนุน", 2, ""],
-    ["SET-BED5", "", "", "", "BOL-PINK", "หมอนข้าง", 2, "Y"],
-    ["SET-BED5", "", "", "", "BOL-BLUE", "หมอนข้าง", 2, ""],
+    ["SET-BED5", "ชุดผ้าปูที่นอน 5 ฟุต", 1990, "ชุด", "", "BED-PINK", "ผ้าปู", 1, "Y"],
+    ["SET-BED5", "", "", "", "", "BED-BLUE", "ผ้าปู", 1, ""],
+    ["SET-BED5", "", "", "", "", "BED-FLOWER", "ผ้าปู", 1, ""],
+    ["SET-BED5", "", "", "", "", "PIL-PINK", "หมอนหนุน", 2, "Y"],
+    ["SET-BED5", "", "", "", "", "PIL-BLUE", "หมอนหนุน", 2, ""],
+    ["SET-BED5", "", "", "", "", "BOL-PINK", "หมอนข้าง", 2, "Y"],
+    ["SET-BED5", "", "", "", "", "BOL-BLUE", "หมอนข้าง", 2, ""],
   ];
   const ws = XLSX.utils.aoa_to_sheet([headers, ...example]);
-  ws["!cols"] = [{ wch: 15 }, { wch: 30 }, { wch: 12 }, { wch: 10 }, { wch: 20 }, { wch: 18 }, { wch: 10 }, { wch: 12 }];
+  ws["!cols"] = [{ wch: 15 }, { wch: 30 }, { wch: 12 }, { wch: 10 }, { wch: 18 }, { wch: 20 }, { wch: 18 }, { wch: 10 }, { wch: 12 }];
   XLSX.utils.book_append_sheet(wb, ws, "Bundles");
   const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
   res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
@@ -869,6 +837,7 @@ app.post("/api/bundles/import/preview", requireAuth, requireModule("inventory"),
       bundleName: ["ชื่อชุด", "bundle_name", "set_name"],
       bundlePrice: ["ราคาชุด", "bundle_price", "set_price", "price"],
       unit: ["หน่วย", "unit"],
+      barcode: ["บาร์โค้ด", "barcode", "bar_code", "ean", "ean13"],
       componentCode: ["รหัสสินค้าในชุด", "component_code", "item_code"],
       slotGroup: ["กลุ่มตัวเลือก", "slot_group", "group"],
       qty: ["จำนวน", "qty", "quantity"],
@@ -895,6 +864,7 @@ app.post("/api/bundles/import/preview", requireAuth, requireModule("inventory"),
       bundleName: string;
       bundlePrice: string;
       unit: string;
+      barcode: string;
       components: { componentCode: string; slotGroup: string; qty: string; isDefault: boolean; productName: string; found: boolean; row: number }[];
       isExisting: boolean;
       issues: string[];
@@ -921,6 +891,7 @@ app.post("/api/bundles/import/preview", requireAuth, requireModule("inventory"),
           bundleName: mapped.bundleName || "",
           bundlePrice: String(Number(mapped.bundlePrice) || 0),
           unit: mapped.unit || "ชุด",
+          barcode: mapped.barcode || "",
           components: [],
           isExisting: existingBundleCodes.has(bundleCode),
           issues: [],
@@ -930,6 +901,7 @@ app.post("/api/bundles/import/preview", requireAuth, requireModule("inventory"),
       const bundle = bundleMap.get(bundleCode)!;
       if (mapped.bundleName && !bundle.bundleName) bundle.bundleName = mapped.bundleName;
       if (mapped.bundlePrice && bundle.bundlePrice === "0") bundle.bundlePrice = String(Number(mapped.bundlePrice) || 0);
+      if (mapped.barcode && !bundle.barcode) bundle.barcode = mapped.barcode;
 
       const componentCode = mapped.componentCode;
       if (!componentCode) continue;
@@ -1001,7 +973,7 @@ app.post("/api/bundles/import/execute", requireAuth, requireModule("inventory"),
     const existingBarcodes = new Set(existingProducts.filter(p => p.barcode).map(p => p.barcode));
 
     for (const bundle of bundles) {
-      const { bundleCode, bundleName, bundlePrice, unit, components } = bundle;
+      const { bundleCode, bundleName, bundlePrice, unit, components, barcode: userBarcode } = bundle;
       if (!bundleCode || !bundleName || !components || components.length === 0) continue;
 
       const validComponents = components.filter((c: any) => {
@@ -1046,13 +1018,17 @@ app.post("/api/bundles/import/execute", requireAuth, requireModule("inventory"),
         } as any);
 
         let barcode: string;
-        do {
-          const num = Math.floor(Math.random() * 999999999999).toString().padStart(12, '0');
-          let sum = 0;
-          for (let i = 0; i < 12; i++) { sum += parseInt(num[i]) * (i % 2 === 0 ? 1 : 3); }
-          const checkDigit = (10 - (sum % 10)) % 10;
-          barcode = num + checkDigit;
-        } while (existingBarcodes.has(barcode));
+        if (userBarcode && !existingBarcodes.has(userBarcode)) {
+          barcode = userBarcode;
+        } else {
+          do {
+            const num = Math.floor(Math.random() * 999999999999).toString().padStart(12, '0');
+            let sum = 0;
+            for (let i = 0; i < 12; i++) { sum += parseInt(num[i]) * (i % 2 === 0 ? 1 : 3); }
+            const checkDigit = (10 - (sum % 10)) % 10;
+            barcode = num + checkDigit;
+          } while (existingBarcodes.has(barcode));
+        }
         existingBarcodes.add(barcode);
         await storage.updateProduct(created.id, { barcode });
 
