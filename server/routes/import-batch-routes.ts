@@ -102,19 +102,20 @@ export function registerImportBatchRoutes(app: Express) {
             break;
           }
           case "product": {
+            const pgDocIds = sql.raw(`ARRAY[${docIds.join(',')}]::int[]`);
             const usedRows = await tx.execute(sql`
               SELECT DISTINCT product_id FROM (
-                SELECT product_id FROM pos_transaction_items WHERE product_id = ANY(${docIds})
-                UNION ALL SELECT product_id FROM invoice_items WHERE product_id = ANY(${docIds})
-                UNION ALL SELECT product_id FROM stock_movements WHERE product_id = ANY(${docIds})
-                UNION ALL SELECT product_id FROM quotation_items WHERE product_id = ANY(${docIds})
-                UNION ALL SELECT product_id FROM sales_order_items WHERE product_id = ANY(${docIds})
-                UNION ALL SELECT product_id FROM tax_invoice_items WHERE product_id = ANY(${docIds})
-                UNION ALL SELECT product_id FROM receipt_items WHERE product_id = ANY(${docIds})
-                UNION ALL SELECT product_id FROM purchase_order_items WHERE product_id = ANY(${docIds})
-                UNION ALL SELECT product_id FROM purchase_invoice_items WHERE product_id = ANY(${docIds})
-                UNION ALL SELECT product_id FROM ecommerce_order_items WHERE product_id = ANY(${docIds})
-                UNION ALL SELECT product_id FROM goods_receiving_items WHERE product_id = ANY(${docIds})
+                SELECT product_id FROM pos_transaction_items WHERE product_id = ANY(${pgDocIds})
+                UNION ALL SELECT product_id FROM invoice_items WHERE product_id = ANY(${pgDocIds})
+                UNION ALL SELECT product_id FROM stock_movements WHERE product_id = ANY(${pgDocIds})
+                UNION ALL SELECT product_id FROM quotation_items WHERE product_id = ANY(${pgDocIds})
+                UNION ALL SELECT product_id FROM sales_order_items WHERE product_id = ANY(${pgDocIds})
+                UNION ALL SELECT product_id FROM tax_invoice_items WHERE product_id = ANY(${pgDocIds})
+                UNION ALL SELECT product_id FROM receipt_items WHERE product_id = ANY(${pgDocIds})
+                UNION ALL SELECT product_id FROM purchase_order_items WHERE product_id = ANY(${pgDocIds})
+                UNION ALL SELECT product_id FROM purchase_invoice_items WHERE product_id = ANY(${pgDocIds})
+                UNION ALL SELECT product_id FROM ecommerce_order_items WHERE product_id = ANY(${pgDocIds})
+                UNION ALL SELECT product_id FROM goods_receiving_items WHERE product_id = ANY(${pgDocIds})
               ) t
             `);
             const usedIds = new Set((usedRows.rows as any[]).map(r => r.product_id));
@@ -122,6 +123,7 @@ export function registerImportBatchRoutes(app: Express) {
             const deactivateIds = docIds.filter(id => usedIds.has(id));
 
             if (canDeleteIds.length > 0) {
+              const pgDelIds = sql.raw(`ARRAY[${canDeleteIds.join(',')}]::int[]`);
               await tx.delete(productStock).where(inArray(productStock.productId, canDeleteIds));
               await tx.delete(productBundles).where(inArray(productBundles.bundleProductId, canDeleteIds));
               await tx.delete(productBundles).where(inArray(productBundles.componentProductId, canDeleteIds));
@@ -129,11 +131,11 @@ export function registerImportBatchRoutes(app: Express) {
               await tx.delete(warehouseStockLevels).where(inArray(warehouseStockLevels.productId, canDeleteIds));
               await tx.delete(productLots).where(inArray(productLots.productId, canDeleteIds));
               await tx.delete(demandForecasts).where(inArray(demandForecasts.productId, canDeleteIds));
-              await tx.execute(sql`DELETE FROM product_bin_assignments WHERE product_id = ANY(${canDeleteIds})`);
-              await tx.execute(sql`DELETE FROM menu_items WHERE product_id = ANY(${canDeleteIds})`);
-              await tx.execute(sql`DELETE FROM promotion_rules WHERE buy_product_id = ANY(${canDeleteIds}) OR get_product_id = ANY(${canDeleteIds})`);
-              await tx.execute(sql`DELETE FROM product_mappings WHERE buy_product_id = ANY(${canDeleteIds}) OR sell_product_id = ANY(${canDeleteIds})`);
-              await tx.execute(sql`DELETE FROM supplier_quote_items WHERE product_id = ANY(${canDeleteIds})`);
+              await tx.execute(sql`DELETE FROM product_bin_assignments WHERE product_id = ANY(${pgDelIds})`);
+              await tx.execute(sql`DELETE FROM menu_items WHERE product_id = ANY(${pgDelIds})`);
+              await tx.execute(sql`DELETE FROM promotion_rules WHERE buy_product_id = ANY(${pgDelIds}) OR get_product_id = ANY(${pgDelIds})`);
+              await tx.execute(sql`DELETE FROM product_mappings WHERE buy_product_id = ANY(${pgDelIds}) OR sell_product_id = ANY(${pgDelIds})`);
+              await tx.execute(sql`DELETE FROM supplier_quote_items WHERE product_id = ANY(${pgDelIds})`);
               await tx.delete(products).where(and(eq(products.companyId, batch.companyId), inArray(products.id, canDeleteIds)));
             }
             if (deactivateIds.length > 0) {
