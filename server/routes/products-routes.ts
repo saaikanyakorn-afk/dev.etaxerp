@@ -2,7 +2,7 @@ import type { Express, Request, Response } from "express";
 import { db } from "../db";
 import { storage } from "../storage";
 import { eq, desc, and, or, ilike, inArray, count, sum , sql } from "drizzle-orm";
-import { products, productBundles, productCategories, documentImportBatches, stockMovements, promotions, companies, productLots, goodsRequisitions, goodsRequisitionItems, journalEntries, journalLines, stockTransfers, stockTransferItems, warehouses, warehouseStockLevels, branches } from "@shared/schema";
+import { products, productBundles, documentImportBatches, stockMovements, promotions, companies, productLots, goodsRequisitions, goodsRequisitionItems, journalEntries, journalLines, stockTransfers, stockTransferItems, warehouses, warehouseStockLevels, branches } from "@shared/schema";
 import { requireAuth, requireModule, requireAnyModule, checkDocOwnership } from "../route-middleware";
 import { getNextJournalEntryNo, logActivity, deleteStockMovementsForDoc } from "../route-helpers";
 import { parsePagination, paginatedResponse } from "./pagination";
@@ -29,10 +29,14 @@ app.get("/api/product-categories", requireAuth, async (req, res) => {
   try {
     const companyId = Number(req.query.companyId);
     if (!companyId) return res.status(400).json({ message: "companyId required" });
-    let cats = await db.select().from(productCategories).where(eq(productCategories.companyId, companyId)).orderBy(productCategories.id);
+    let result = await db.execute(sql`SELECT * FROM product_categories WHERE company_id = ${companyId} ORDER BY id`);
+    let cats = result.rows as any[];
     if (cats.length === 0) {
-      const toInsert = DEFAULT_CATEGORIES.map(c => ({ companyId, code: c.code, name: c.name, active: true }));
-      cats = await db.insert(productCategories).values(toInsert).returning();
+      for (const c of DEFAULT_CATEGORIES) {
+        await db.execute(sql`INSERT INTO product_categories (company_id, code, name, active) VALUES (${companyId}, ${c.code}, ${c.name}, true)`);
+      }
+      const seeded = await db.execute(sql`SELECT * FROM product_categories WHERE company_id = ${companyId} ORDER BY id`);
+      cats = seeded.rows as any[];
     }
     res.json(cats);
   } catch (err: any) { res.status(400).json({ message: err.message }); }
@@ -42,10 +46,10 @@ app.post("/api/product-categories", requireAuth, async (req, res) => {
   try {
     const { companyId, code, name } = req.body;
     if (!companyId || !code || !name) return res.status(400).json({ message: "กรุณาระบุ code และ name" });
-    const existing = await db.select().from(productCategories).where(and(eq(productCategories.companyId, companyId), eq(productCategories.code, code.trim())));
-    if (existing.length > 0) return res.status(409).json({ message: `รหัสหมวดหมู่ "${code}" ซ้ำ` });
-    const [created] = await db.insert(productCategories).values({ companyId, code: code.trim(), name: name.trim(), active: true }).returning();
-    res.status(201).json(created);
+    const existing = await db.execute(sql`SELECT id FROM product_categories WHERE company_id = ${companyId} AND code = ${code.trim()}`);
+    if (existing.rows.length > 0) return res.status(409).json({ message: `รหัสหมวดหมู่ "${code}" ซ้ำ` });
+    const created = await db.execute(sql`INSERT INTO product_categories (company_id, code, name, active) VALUES (${companyId}, ${code.trim()}, ${name.trim()}, true) RETURNING *`);
+    res.status(201).json(created.rows[0]);
   } catch (err: any) { res.status(400).json({ message: err.message }); }
 });
 
@@ -53,25 +57,34 @@ app.patch("/api/product-categories/:id", requireAuth, async (req, res) => {
   try {
     const id = Number(req.params.id);
     const { name, active } = req.body;
-    const updates: any = {};
-    if (name !== undefined) updates.name = name.trim();
-    if (active !== undefined) updates.active = active;
-    const [updated] = await db.update(productCategories).set(updates).where(eq(productCategories.id, id)).returning();
-    if (!updated) return res.status(404).json({ message: "ไม่พบหมวดหมู่" });
-    res.json(updated);
+    if (name !== undefined && active !== undefined) {
+      const result = await db.execute(sql`UPDATE product_categories SET name = ${name.trim()}, active = ${active} WHERE id = ${id} RETURNING *`);
+      if (result.rows.length === 0) return res.status(404).json({ message: "ไม่พบหมวดหมู่" });
+      return res.json(result.rows[0]);
+    } else if (name !== undefined) {
+      const result = await db.execute(sql`UPDATE product_categories SET name = ${name.trim()} WHERE id = ${id} RETURNING *`);
+      if (result.rows.length === 0) return res.status(404).json({ message: "ไม่พบหมวดหมู่" });
+      return res.json(result.rows[0]);
+    } else if (active !== undefined) {
+      const result = await db.execute(sql`UPDATE product_categories SET active = ${active} WHERE id = ${id} RETURNING *`);
+      if (result.rows.length === 0) return res.status(404).json({ message: "ไม่พบหมวดหมู่" });
+      return res.json(result.rows[0]);
+    }
+    return res.status(400).json({ message: "ไม่มีข้อมูลที่ต้องอัพเดท" });
   } catch (err: any) { res.status(400).json({ message: err.message }); }
 });
 
 app.delete("/api/product-categories/:id", requireAuth, async (req, res) => {
   try {
     const id = Number(req.params.id);
-    const [cat] = await db.select().from(productCategories).where(eq(productCategories.id, id));
-    if (!cat) return res.status(404).json({ message: "ไม่พบหมวดหมู่" });
-    const usedCount = await db.select({ c: count() }).from(products).where(and(eq(products.companyId, cat.companyId), eq(products.category, cat.code), eq(products.active, true)));
+    const catResult = await db.execute(sql`SELECT * FROM product_categories WHERE id = ${id}`);
+    if (catResult.rows.length === 0) return res.status(404).json({ message: "ไม่พบหมวดหมู่" });
+    const cat = catResult.rows[0] as any;
+    const usedCount = await db.select({ c: count() }).from(products).where(and(eq(products.companyId, cat.company_id), eq(products.category, cat.code), eq(products.active, true)));
     if (Number(usedCount[0]?.c) > 0) {
       return res.status(400).json({ message: `หมวดหมู่นี้มีสินค้าใช้อยู่ ${usedCount[0].c} รายการ ไม่สามารถลบได้` });
     }
-    await db.delete(productCategories).where(eq(productCategories.id, id));
+    await db.execute(sql`DELETE FROM product_categories WHERE id = ${id}`);
     res.json({ success: true });
   } catch (err: any) { res.status(400).json({ message: err.message }); }
 });
@@ -104,8 +117,8 @@ app.post("/api/product-categories/import", requireAuth, upload.single("file"), a
     const rows: any[] = XLSX.utils.sheet_to_json(ws, { defval: "" });
     if (rows.length === 0) return res.status(400).json({ message: "ไฟล์ว่าง" });
 
-    const existing = await db.select().from(productCategories).where(eq(productCategories.companyId, companyId));
-    const existingCodes = new Set(existing.map(c => c.code));
+    const existingResult = await db.execute(sql`SELECT * FROM product_categories WHERE company_id = ${companyId}`);
+    const existingCodes = new Set((existingResult.rows as any[]).map(c => c.code));
 
     let created = 0;
     let skipped = 0;
@@ -117,7 +130,7 @@ app.post("/api/product-categories/import", requireAuth, upload.single("file"), a
       const name = String(row["ชื่อหมวดหมู่"] || "").trim();
       if (!code || !name) { errors.push(`แถว ${i + 2}: รหัสหรือชื่อว่าง`); continue; }
       if (existingCodes.has(code)) { skipped++; continue; }
-      await db.insert(productCategories).values({ companyId, code, name, active: true });
+      await db.execute(sql`INSERT INTO product_categories (company_id, code, name, active) VALUES (${companyId}, ${code}, ${name}, true)`);
       existingCodes.add(code);
       created++;
     }
