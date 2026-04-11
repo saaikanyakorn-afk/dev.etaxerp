@@ -12,7 +12,8 @@ import {
   BookOpen,
   Receipt,
   FileX,
-  FileSpreadsheet
+  FileSpreadsheet,
+  PackageOpen
 } from "lucide-react";
 import { useLocation } from "wouter";
 
@@ -29,6 +30,7 @@ const MGMT_TOOLS = [
   { label: "Change Anchor", icon: Anchor, color: "bg-[#64748b]", href: "/accounting-mgmt/change-anchor" },
   { label: "GL NO DOC", icon: BookOpen, color: "bg-[#fec90f]", href: "/accounting-mgmt/gl-no-doc" },
   { label: "ค้นหา GL ไม่มีเอกสาร", icon: FileX, color: "bg-[#f94d4d]", href: "/accounting-mgmt/orphan-journal" },
+  { label: "แก้ไขสต็อก Bundle ย้อนหลัง", icon: PackageOpen, color: "bg-[#7c3aed]", href: "/accounting-mgmt/bundle-stock-fix" },
 ];
 
 export default function AccountingMgmt() {

@@ -89,6 +89,7 @@ import { registerAiPerformanceRoutes } from "./routes/ai-performance-routes";
 import { registerLandingPageRoutes } from "./routes/landing-page-routes";
 import { registerDevMenuRoutes } from "./routes/dev-menu-routes";
 import { registerFacebookWebhookRoutes } from "./routes/facebook-webhook-routes";
+import { registerBundleFixRoutes } from "./routes/bundle-fix-routes";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -229,6 +230,7 @@ export async function registerRoutes(
   registerLandingPageRoutes(app);
   registerDevMenuRoutes(app);
   registerFacebookWebhookRoutes(app);
+  registerBundleFixRoutes(app);
 
   return httpServer;
 }
