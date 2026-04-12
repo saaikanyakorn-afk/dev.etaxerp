@@ -23,9 +23,9 @@ async function getDefaultLineToken(): Promise<string | null> {
   const now = Date.now();
   if (_cachedDefaultLineToken && now - _cachedDefaultLineTokenTime < TOKEN_CACHE_TTL) return _cachedDefaultLineToken;
   try {
-    const rows = await db.execute(sql`SELECT value FROM system_config WHERE key = 'LINE_CHANNEL_ACCESS_TOKEN' LIMIT 1`);
+    const rows = await db.execute(sql`SELECT config_value FROM system_config WHERE config_key = 'LINE_CHANNEL_ACCESS_TOKEN' LIMIT 1`);
     if (rows.rows.length > 0) {
-      _cachedDefaultLineToken = (rows.rows[0] as any).value;
+      _cachedDefaultLineToken = (rows.rows[0] as any).config_value;
       _cachedDefaultLineTokenTime = now;
       return _cachedDefaultLineToken;
     }
@@ -1480,10 +1480,10 @@ let currentDrainIntervalMin = 0;
 
 async function getDrainIntervalMinutes(): Promise<number> {
   try {
-    const rows = await db.execute(sql`SELECT value FROM system_config WHERE key = 'LINE_GATEWAY_DRAIN_INTERVAL_MIN' LIMIT 1`);
+    const rows = await db.execute(sql`SELECT config_value FROM system_config WHERE config_key = 'LINE_GATEWAY_DRAIN_INTERVAL_MIN' LIMIT 1`);
     const row = (rows.rows?.[0] as any);
     if (!row) return 10;
-    const val = parseInt(row.value, 10);
+    const val = parseInt(row.config_value, 10);
     return (val >= 0 && val <= 1440) ? val : 10;
   } catch {
     return 10;
@@ -1506,9 +1506,9 @@ function scheduleDrain(intervalMin: number) {
 
 async function drainGatewayQueue() {
   try {
-    const rows = await db.execute(sql`SELECT key, value FROM system_config WHERE key IN ('LINE_GATEWAY_URL', 'LINE_GATEWAY_AUTH_KEY')`);
+    const rows = await db.execute(sql`SELECT config_key, config_value FROM system_config WHERE config_key IN ('LINE_GATEWAY_URL', 'LINE_GATEWAY_AUTH_KEY')`);
     const configMap: Record<string, string> = {};
-    for (const r of (rows.rows || []) as any[]) configMap[r.key] = r.value;
+    for (const r of (rows.rows || []) as any[]) configMap[r.config_key] = r.config_value;
 
     const gatewayUrl = configMap['LINE_GATEWAY_URL'];
     const authKey = configMap['LINE_GATEWAY_AUTH_KEY'];
@@ -1567,9 +1567,9 @@ app.get("/api/line/gateway-config", requireAuth, async (req, res) => {
   const user = req.user as any;
   if (user.role !== "super_admin") return res.status(403).json({ message: "สิทธิ์ sysAdmin เท่านั้น" });
   try {
-    const rows = await db.execute(sql`SELECT key, value FROM system_config WHERE key IN ('LINE_GATEWAY_URL', 'LINE_GATEWAY_AUTH_KEY')`);
+    const rows = await db.execute(sql`SELECT config_key, config_value FROM system_config WHERE config_key IN ('LINE_GATEWAY_URL', 'LINE_GATEWAY_AUTH_KEY')`);
     const config: Record<string, string> = {};
-    for (const r of (rows.rows || []) as any[]) config[r.key] = r.value;
+    for (const r of (rows.rows || []) as any[]) config[r.config_key] = r.config_value;
     res.json({ gatewayUrl: config['LINE_GATEWAY_URL'] || '', authKey: config['LINE_GATEWAY_AUTH_KEY'] ? '••••••••' : '' });
   } catch (e: any) { res.status(500).json({ message: e.message }); }
 });
@@ -1580,10 +1580,10 @@ app.post("/api/line/gateway-config", requireAuth, async (req, res) => {
   const { gatewayUrl, authKey } = req.body;
   try {
     if (gatewayUrl !== undefined) {
-      await db.execute(sql`INSERT INTO system_config (key, value) VALUES ('LINE_GATEWAY_URL', ${gatewayUrl}) ON CONFLICT (key) DO UPDATE SET value = ${gatewayUrl}`);
+      await db.execute(sql`INSERT INTO system_config (config_key, config_value) VALUES ('LINE_GATEWAY_URL', ${gatewayUrl}) ON CONFLICT (config_key) DO UPDATE SET config_value = ${gatewayUrl}`);
     }
     if (authKey !== undefined && authKey !== '••••••••') {
-      await db.execute(sql`INSERT INTO system_config (key, value) VALUES ('LINE_GATEWAY_AUTH_KEY', ${authKey}) ON CONFLICT (key) DO UPDATE SET value = ${authKey}`);
+      await db.execute(sql`INSERT INTO system_config (config_key, config_value) VALUES ('LINE_GATEWAY_AUTH_KEY', ${authKey}) ON CONFLICT (config_key) DO UPDATE SET config_value = ${authKey}`);
     }
     res.json({ message: "บันทึก Gateway Config แล้ว" });
   } catch (e: any) { res.status(500).json({ message: e.message }); }
@@ -1601,7 +1601,7 @@ app.post("/api/line/gateway-drain-config", requireAuth, async (req, res) => {
   const { intervalMin } = req.body;
   const val = parseInt(intervalMin, 10);
   if (isNaN(val) || val < 0 || val > 1440) return res.status(400).json({ message: "ระบุ 0-1440 นาที (0=ปิด)" });
-  await db.execute(sql`INSERT INTO system_config (key, value) VALUES ('LINE_GATEWAY_DRAIN_INTERVAL_MIN', ${String(val)}) ON CONFLICT (key) DO UPDATE SET value = ${String(val)}`);
+  await db.execute(sql`INSERT INTO system_config (config_key, config_value) VALUES ('LINE_GATEWAY_DRAIN_INTERVAL_MIN', ${String(val)}) ON CONFLICT (config_key) DO UPDATE SET config_value = ${String(val)}`);
   scheduleDrain(val);
   res.json({ intervalMin: val, message: val === 0 ? "ปิด drain แล้ว" : `ตั้ง drain ทุก ${val} นาที` });
 });
