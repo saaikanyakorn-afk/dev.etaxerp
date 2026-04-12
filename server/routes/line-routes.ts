@@ -1611,6 +1611,10 @@ setTimeout(async () => {
     console.log(`[Gateway Queue] Initializing...`);
     const interval = await getDrainIntervalMinutes();
     scheduleDrain(interval);
+    if (interval > 0) {
+      console.log(`[Gateway Queue] Running initial drain on startup...`);
+      await drainGatewayQueue();
+    }
   } catch (err: any) {
     console.error(`[Gateway Queue] Init error:`, err.message);
     scheduleDrain(10);
