@@ -23,6 +23,22 @@ import { useToast } from "@/hooks/use-toast";
 import { objectPathToUrl } from "@/lib/utils";
 import { useCompany } from "@/lib/company-context";
 
+function AuthImage({ src, alt, className }: { src: string; alt: string; className?: string }) {
+  const [blobUrl, setBlobUrl] = useState<string | null>(null);
+  const [error, setError] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    fetch(src, { credentials: "include" })
+      .then(r => { if (!r.ok) throw new Error("Failed"); return r.blob(); })
+      .then(blob => { if (!cancelled) setBlobUrl(URL.createObjectURL(blob)); })
+      .catch(() => { if (!cancelled) setError(true); });
+    return () => { cancelled = true; if (blobUrl) URL.revokeObjectURL(blobUrl); };
+  }, [src]);
+  if (error) return <div className="text-white text-center"><File className="w-16 h-16 mx-auto mb-2 text-gray-400" /><p>ไม่สามารถโหลดรูปได้</p></div>;
+  if (!blobUrl) return <Loader2 className="w-8 h-8 animate-spin text-gray-400" />;
+  return <img src={blobUrl} alt={alt} className={className} />;
+}
+
 const FOLDER_COLORS = [
   "var(--theme-primary)", "#05b187", "#fb9678", "#fec90f", "#03c9d7",
   "#f94d4d", "#9c27b0", "#607d8b", "#ff5722", "#795548",
@@ -665,9 +681,21 @@ function ClientDocumentsTab({ companyId }: { companyId: number | null }) {
                             </button>
                           )}
                           {f.objectPath && (
-                            <a href={isLine ? `/api/line-documents/${f.id}/download` : objectPathToUrl(f.objectPath)} download={f.fileName} className="p-1.5 rounded hover:bg-gray-100" title="ดาวน์โหลด">
+                            <button className="p-1.5 rounded hover:bg-gray-100" title="ดาวน์โหลด" onClick={async () => {
+                              const dlUrl = isLine ? `/api/line-documents/${f.id}/download` : objectPathToUrl(f.objectPath);
+                              try {
+                                const r = await fetch(dlUrl, { credentials: "include" });
+                                if (!r.ok) throw new Error("Download failed");
+                                const blob = await r.blob();
+                                const a = document.createElement("a");
+                                a.href = URL.createObjectURL(blob);
+                                a.download = f.fileName;
+                                a.click();
+                                URL.revokeObjectURL(a.href);
+                              } catch { window.open(dlUrl, "_blank"); }
+                            }}>
                               <Download className="w-4 h-4 text-gray-500" />
-                            </a>
+                            </button>
                           )}
                           <button
                             className="p-1.5 rounded hover:bg-red-50"
@@ -742,7 +770,7 @@ function ClientDocumentsTab({ companyId }: { companyId: number | null }) {
             <div className="flex-1 flex items-center justify-center overflow-hidden bg-gray-800">
               {canPreview ? (
                 file.mimeType?.includes("image") ? (
-                  <img src={url} alt={file.fileName} className="max-w-full max-h-full object-contain" />
+                  <AuthImage src={url} alt={file.fileName} className="max-w-full max-h-full object-contain" />
                 ) : (
                   <iframe src={url} className="w-full h-full border-0 bg-white" title={file.fileName} />
                 )
