@@ -30,3 +30,9 @@ id = "Iw91q_U0FOsoM_DkNvz6r"
 uri = "file://attached_assets/test-og-preview.png"
 type = "image"
 title = "ตัวอย่าง OG Card ใบเสนอราคา (PNG)"
+
+[[outputs]]
+id = "luoZJjkI4P2h8bDz4o8W3"
+uri = "file://bundle_full_export.xlsx"
+type = "table"
+title = "ไฟล์สินค้าจัดชุดฉบับเต็ม (378 รายการ, 3 ชุด)"
