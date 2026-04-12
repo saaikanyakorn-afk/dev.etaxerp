@@ -1088,10 +1088,13 @@ app.get("/api/product-bundles/:productId", requireAuth, requireModule("inventory
 
 app.put("/api/product-bundles/:productId", requireAuth, requireModule("inventory"), async (req, res) => {
   try {
+    const productId = Number(req.params.productId);
     const items = req.body.items || [];
-    const saved = await storage.setProductBundles(Number(req.params.productId), items);
-    // Auto-recalculate component stock
-    const prod = await storage.getProduct(Number(req.params.productId));
+    const saved = await storage.setProductBundles(productId, items);
+    if (items.length > 0) {
+      await storage.updateProduct(productId, { productType: "bundle" });
+    }
+    const prod = await storage.getProduct(productId);
     if (prod) {
       try { await recalcBundleStock(prod.companyId, prod.id); } catch(e) { console.error("Bundle recalc error:", e); }
     }

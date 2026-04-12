@@ -722,6 +722,19 @@ export function registerPosRoutes(app: Express) {
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
+  app.get("/api/pos/bundle-product-ids", requireAuth, requireModule("pos"), async (req, res) => {
+    try {
+      const companyId = Number(req.query.companyId);
+      if (!companyId) return res.status(400).json({ message: "companyId required" });
+      const allBundles = await posDb.select({ bundleProductId: productBundles.bundleProductId })
+        .from(productBundles)
+        .innerJoin(products, eq(products.id, productBundles.bundleProductId))
+        .where(and(eq(products.companyId, companyId), eq(products.active, true)));
+      const ids = [...new Set(allBundles.map(b => b.bundleProductId))];
+      res.json(ids);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
   // POS Daily Summary
   app.get("/api/pos/daily-summary", requireAuth, requireModule("pos"), async (req, res) => {
     try {
