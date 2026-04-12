@@ -12,6 +12,13 @@ import OpenAI from "openai";
 import { sanitizeFilename } from "../utils/safe-filename";
 import { pool } from "../db";
 
+let openai: OpenAI | null = null;
+try {
+  if (process.env.OPENAI_API_KEY) {
+    openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  }
+} catch {}
+
 export function registerLineRoutes(app: Express) {
 
 let _cachedDefaultLineToken: string | null = null;
