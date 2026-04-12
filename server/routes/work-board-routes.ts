@@ -166,91 +166,6 @@ app.put("/api/work-board-items/:id", requireAuth, async (req, res) => {
         updateData.firmClientId = fcVal ? Number(fcVal) : null;
       }
 
-      const fileCols = columns.filter((c: any) => c.columnType === "file");
-      const dateCols = columns.filter((c: any) => c.columnType === "date");
-      const itemFirmClientId = updateData.firmClientId ?? oldItem.firmClientId;
-
-      if (fileCols.length > 0) {
-        const oldCv = typeof oldItem.cellValues === "string" ? JSON.parse(oldItem.cellValues || "{}") : (oldItem.cellValues || {});
-
-        for (const fc of fileCols) {
-          const parseFiles = (v: any): { name: string; path: string; size?: number }[] => {
-            if (!v) return [];
-            if (typeof v === "string") { try { const p = JSON.parse(v); return Array.isArray(p) ? p : [p]; } catch { return []; } }
-            if (Array.isArray(v)) return v;
-            return [v];
-          };
-          const oldFiles = parseFiles(oldCv[String(fc.id)]);
-          const newFiles = parseFiles(newCv[String(fc.id)]);
-          const oldPaths = new Set(oldFiles.map(f => f.path));
-          const newPaths = new Set(newFiles.map(f => f.path));
-
-          const addedFiles = newFiles.filter(f => !oldPaths.has(f.path));
-          const removedPaths = oldFiles.filter(f => !newPaths.has(f.path)).map(f => f.path);
-
-          if (addedFiles.length > 0 || removedPaths.length > 0) {
-            try {
-              const boardRow = oldItem.boardId ? await db.select({ companyId: workBoards.companyId, name: workBoards.name }).from(workBoards).where(eq(workBoards.id, oldItem.boardId)).then(r => r[0]) : null;
-              const docCompanyId = boardRow?.companyId || user.companyId;
-              const folderName = `${fc.name} [${boardRow?.name || `Board#${oldItem.boardId}`}]`;
-
-              let folder = await db.select().from(firmFolders)
-                .where(and(
-                  eq(firmFolders.tenantId, user.tenantId),
-                  eq(firmFolders.companyId, docCompanyId),
-                  eq(firmFolders.name, folderName),
-                )).then(r => r[0]);
-
-              if (!folder) {
-                [folder] = await db.insert(firmFolders).values({
-                  tenantId: user.tenantId,
-                  companyId: docCompanyId,
-                  name: folderName,
-                  color: "#03c9d7",
-                  sortOrder: 0,
-                }).returning();
-              }
-
-              for (const af of addedFiles) {
-                const existing = await db.select({ id: firmDocuments.id }).from(firmDocuments)
-                  .where(and(
-                    eq(firmDocuments.tenantId, user.tenantId),
-                    eq(firmDocuments.folderId, folder.id),
-                    eq(firmDocuments.fileUrl, af.path),
-                  )).then(r => r[0]);
-                if (!existing) {
-                  await db.insert(firmDocuments).values({
-                    tenantId: user.tenantId,
-                    companyId: docCompanyId,
-                    folderId: folder.id,
-                    category: "board",
-                    name: af.name,
-                    description: oldItem.name || null,
-                    fileUrl: af.path,
-                    fileName: af.name,
-                    fileSize: af.size || 0,
-                    uploadedBy: user.id,
-                  });
-                }
-              }
-
-              if (removedPaths.length > 0) {
-                for (const rp of removedPaths) {
-                  await db.delete(firmDocuments).where(
-                    and(
-                      eq(firmDocuments.tenantId, user.tenantId),
-                      eq(firmDocuments.folderId, folder.id),
-                      eq(firmDocuments.fileUrl, rp),
-                    )
-                  );
-                }
-              }
-            } catch (syncErr: any) {
-              console.error("[Board→FirmDocs sync] Error:", syncErr.message);
-            }
-          }
-        }
-      }
     } catch (e: any) {
       console.error("[Board item update] cellValues parse error:", e.message);
     }
@@ -286,10 +201,10 @@ app.get("/api/board-files-summary", requireAuth, async (req, res) => {
     const allColumns = await db.select().from(workBoardColumns)
       .where(inArray(workBoardColumns.boardId, allBoardIds));
 
-    const boardsWithClient = new Set(
-      allColumns.filter(c => c.columnType === "firm_client").map(c => c.boardId)
+    const boardsWithFiles = new Set(
+      allColumns.filter(c => c.columnType === "file").map(c => c.boardId)
     );
-    const boards = allBoards.filter(b => boardsWithClient.has(b.id));
+    const boards = allBoards.filter(b => boardsWithFiles.has(b.id));
     if (!boards.length) return res.json([]);
 
     const boardIds = boards.map(b => b.id);
