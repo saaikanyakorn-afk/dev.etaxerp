@@ -164,12 +164,7 @@ app.post("/api/line/webhook", async (req, res) => {
             }
           } catch {}
         }
-        const [existing] = await db.select().from(lineRecipients).where(eq(lineRecipients.lineId, groupId));
-        if (!existing) {
-          await db.insert(lineRecipients).values({ lineId: groupId, type: "group", displayName: groupName });
-        } else if (groupName && !existing.displayName) {
-          await db.update(lineRecipients).set({ displayName: groupName }).where(eq(lineRecipients.id, existing.id));
-        }
+        await db.execute(sql`INSERT INTO line_recipients (line_id, type, display_name) VALUES (${groupId}, 'group', ${groupName}) ON CONFLICT (line_id, type) DO UPDATE SET display_name = COALESCE(NULLIF(EXCLUDED.display_name, ''), line_recipients.display_name)`);
 
         // Auto-register as pending group mapping for LINE Document Archive
         const existingMapping = await storage.getLineGroupMappingByGroupId(groupId);
@@ -203,12 +198,7 @@ app.post("/api/line/webhook", async (req, res) => {
             }
           } catch {}
         }
-        const [existing] = await db.select().from(lineRecipients).where(eq(lineRecipients.lineId, userId));
-        if (!existing) {
-          await db.insert(lineRecipients).values({ lineId: userId, type: "user", displayName: userName });
-        } else if (userName && !existing.displayName) {
-          await db.update(lineRecipients).set({ displayName: userName }).where(eq(lineRecipients.id, existing.id));
-        }
+        await db.execute(sql`INSERT INTO line_recipients (line_id, type, display_name) VALUES (${userId}, 'user', ${userName}) ON CONFLICT (line_id, type) DO UPDATE SET display_name = COALESCE(NULLIF(EXCLUDED.display_name, ''), line_recipients.display_name)`);
       } else if (event.type === "message" && event.source?.type === "user") {
         const userId = event.source.userId;
         const token = await getDefaultLineToken();
@@ -224,12 +214,7 @@ app.post("/api/line/webhook", async (req, res) => {
             }
           } catch {}
         }
-        const [existing] = await db.select().from(lineRecipients).where(eq(lineRecipients.lineId, userId));
-        if (!existing) {
-          await db.insert(lineRecipients).values({ lineId: userId, type: "user", displayName: userName });
-        } else if (userName) {
-          await db.update(lineRecipients).set({ displayName: userName }).where(eq(lineRecipients.id, existing.id));
-        }
+        await db.execute(sql`INSERT INTO line_recipients (line_id, type, display_name) VALUES (${userId}, 'user', ${userName}) ON CONFLICT (line_id, type) DO UPDATE SET display_name = COALESCE(NULLIF(EXCLUDED.display_name, ''), line_recipients.display_name)`);
 
         const msgText = (event.message?.text || "").trim();
         const linkMatch = msgText.match(/^(?:ลงทะเบียน|link|เชื่อม)\s*(.+)$/i);
@@ -1062,14 +1047,19 @@ app.post("/api/line/recipients", requireAuth, async (req, res) => {
     if (companyId) dupConds.push(eq(lineRecipients.companyId, companyId));
     const [existing] = await db.select().from(lineRecipients).where(and(...dupConds));
     if (existing) return res.status(400).json({ message: "LINE ID นี้มีอยู่แล้ว" });
-    const [created] = await db.insert(lineRecipients).values({
-      lineId,
-      type: type || "user",
-      displayName: displayName || null,
-      tenantId,
-      companyId: companyId || null,
-    }).returning();
-    res.status(201).json(created);
+    try {
+      const [created] = await db.insert(lineRecipients).values({
+        lineId,
+        type: type || "user",
+        displayName: displayName || null,
+        tenantId,
+        companyId: companyId || null,
+      }).returning();
+      res.status(201).json(created);
+    } catch (dupErr: any) {
+      if (dupErr.code === '23505') return res.status(400).json({ message: "LINE ID นี้มีอยู่แล้ว" });
+      throw dupErr;
+    }
   } catch (err: any) { res.status(500).json({ message: err.message }); }
 });
 
@@ -1620,5 +1610,76 @@ setTimeout(async () => {
     scheduleDrain(10);
   }
 }, 15000);
+
+// ============================================================
+// ONE-TIME SEED: ensure LINE gateway config exists in every database
+// Runs once per database, sets flag in system_config so it never runs again
+// ============================================================
+setTimeout(async () => {
+  const SEED_KEY = 'SEED_LINE_GATEWAY_CONFIG_DONE';
+  try {
+    const flagRows = await db.execute(sql`SELECT config_value FROM system_config WHERE config_key = ${SEED_KEY} LIMIT 1`);
+    if ((flagRows.rows || []).length > 0) return;
+
+    const existing = await db.execute(sql`SELECT config_key FROM system_config WHERE config_key = 'LINE_GATEWAY_URL' LIMIT 1`);
+    if ((existing.rows || []).length > 0) {
+      await db.execute(sql`INSERT INTO system_config (config_key, config_value, description) VALUES (${SEED_KEY}, ${'already_exists_' + new Date().toISOString()}, 'LINE gateway config seed') ON CONFLICT (config_key) DO NOTHING`);
+      console.log(`[Seed] LINE gateway config already exists, skipping`);
+      return;
+    }
+
+    const gwUrl = 'https://www.apc-tech.com/line-gateway-configured.php';
+    const gwKey = 'e49a83b98e013f35316ea1e0bfc2324bbcad9f0abbdfa8c2';
+    await db.execute(sql`INSERT INTO system_config (config_key, config_value, is_secret, description) VALUES ('LINE_GATEWAY_URL', ${gwUrl}, false, 'LINE Gateway PHP URL') ON CONFLICT (config_key) DO UPDATE SET config_value = EXCLUDED.config_value`);
+    await db.execute(sql`INSERT INTO system_config (config_key, config_value, is_secret, description) VALUES ('LINE_GATEWAY_AUTH_KEY', ${gwKey}, true, 'LINE Gateway Auth Key') ON CONFLICT (config_key) DO UPDATE SET config_value = EXCLUDED.config_value`);
+
+    await db.execute(sql`INSERT INTO system_config (config_key, config_value, description) VALUES (${SEED_KEY}, ${'seeded_' + new Date().toISOString()}, 'LINE gateway config seed') ON CONFLICT (config_key) DO NOTHING`);
+    console.log(`[Seed] LINE gateway config seeded successfully`);
+  } catch (err: any) {
+    console.error(`[Seed] LINE gateway config error:`, err.message);
+  }
+}, 3000);
+
+// ============================================================
+// ONE-TIME MIGRATION: cleanup duplicate line_recipients
+// Runs once per database, sets flag in system_config so it never runs again
+// Safe to leave in code — the flag check makes it a no-op after first run
+// ============================================================
+setTimeout(async () => {
+  const MIGRATION_KEY = 'MIGRATION_LINE_RECIPIENTS_DEDUP_DONE';
+  try {
+    const flagRows = await db.execute(sql`SELECT config_value FROM system_config WHERE config_key = ${MIGRATION_KEY} LIMIT 1`);
+    if ((flagRows.rows || []).length > 0) return; // already done
+
+    console.log(`[Migration] Starting line_recipients dedup cleanup...`);
+
+    // Count before
+    const beforeRes = await db.execute(sql`SELECT count(*) as cnt FROM line_recipients`);
+    const beforeCount = (beforeRes.rows[0] as any)?.cnt || 0;
+
+    // Delete duplicates, keep the latest id for each (line_id, type)
+    const delRes = await db.execute(sql`
+      DELETE FROM line_recipients
+      WHERE id NOT IN (
+        SELECT MAX(id) FROM line_recipients GROUP BY line_id, type
+      )
+    `);
+    const deleted = (delRes as any).rowCount || 0;
+
+    // Create unique index if not exists
+    await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS line_recipients_line_id_type_uniq ON line_recipients(line_id, type)`);
+
+    // Count after
+    const afterRes = await db.execute(sql`SELECT count(*) as cnt FROM line_recipients`);
+    const afterCount = (afterRes.rows[0] as any)?.cnt || 0;
+
+    // Set flag so this never runs again
+    await db.execute(sql`INSERT INTO system_config (config_key, config_value, description) VALUES (${MIGRATION_KEY}, ${`done_${new Date().toISOString()}_deleted_${deleted}`}, 'One-time dedup migration for line_recipients') ON CONFLICT (config_key) DO NOTHING`);
+
+    console.log(`[Migration] line_recipients dedup complete: ${beforeCount} → ${afterCount} (deleted ${deleted} duplicates, unique index created)`);
+  } catch (err: any) {
+    console.error(`[Migration] line_recipients dedup error:`, err.message);
+  }
+}, 5000);
 
 }
