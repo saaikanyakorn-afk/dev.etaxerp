@@ -223,7 +223,8 @@ function ClientDocumentsTab({ companyId }: { companyId: number | null }) {
     },
     onSuccess: () => {
       toast({ title: "ลบไฟล์แล้ว" });
-      qc.invalidateQueries({ queryKey: ["/api/client-documents"] });
+      qc.invalidateQueries({ queryKey: ["/api/client-documents/month-files"] });
+      qc.invalidateQueries({ queryKey: ["/api/client-documents/monthly-summary"] });
     },
     onError: (err: any) => toast({ title: "ลบไม่สำเร็จ", description: err.message, variant: "destructive" }),
   });
