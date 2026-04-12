@@ -286,10 +286,10 @@ app.get("/api/board-files-summary", requireAuth, async (req, res) => {
     const allColumns = await db.select().from(workBoardColumns)
       .where(inArray(workBoardColumns.boardId, allBoardIds));
 
-    const boardsWithFiles = new Set(
-      allColumns.filter(c => c.columnType === "file").map(c => c.boardId)
+    const boardsWithClient = new Set(
+      allColumns.filter(c => c.columnType === "firm_client").map(c => c.boardId)
     );
-    const boards = allBoards.filter(b => boardsWithFiles.has(b.id));
+    const boards = allBoards.filter(b => boardsWithClient.has(b.id));
     if (!boards.length) return res.json([]);
 
     const boardIds = boards.map(b => b.id);
