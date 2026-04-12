@@ -793,12 +793,9 @@ app.get("/api/line-documents", requireAuth, async (req, res) => {
 app.get("/api/line-documents/:id/download", requireAuth, async (req, res) => {
   try {
     const user = req.user as any;
-    const dlFilters: any = {};
-    if (user.companyId) dlFilters.companyId = user.companyId;
-    const docs = await storage.getLineDocuments(user.tenantId, dlFilters);
-    const doc = docs.find(d => d.id === Number(req.params.id));
+    const [doc] = await db.select().from(lineDocuments)
+      .where(and(eq(lineDocuments.id, Number(req.params.id)), eq(lineDocuments.tenantId, user.tenantId)));
     if (!doc) return res.status(404).json({ message: "ไม่พบเอกสาร" });
-    { const ac = await checkDocOwnership(doc.companyId, req.user); if (!ac.allowed) return res.status(403).json({ message: ac.message }); }
     const { readFromPath } = await import("../replit_integrations/object_storage/routes");
     const fileData = readFromPath(doc.storageUrl);
     if (!fileData) return res.status(404).json({ message: "ไม่พบไฟล์ในระบบจัดเก็บ" });
@@ -857,12 +854,9 @@ app.post("/api/line-documents/batch-download", requireAuth, async (req, res) => 
 app.delete("/api/line-documents/:id", requireAuth, async (req, res) => {
   try {
     const user = req.user as any;
-    const delFilters: any = {};
-    if (user.companyId) delFilters.companyId = user.companyId;
-    const docs = await storage.getLineDocuments(user.tenantId, delFilters);
-    const doc = docs.find(d => d.id === Number(req.params.id));
+    const [doc] = await db.select().from(lineDocuments)
+      .where(and(eq(lineDocuments.id, Number(req.params.id)), eq(lineDocuments.tenantId, user.tenantId)));
     if (!doc) return res.status(404).json({ message: "ไม่พบเอกสาร" });
-    { const ac = await checkDocOwnership(doc.companyId, req.user); if (!ac.allowed) return res.status(403).json({ message: ac.message }); }
     try {
       const { deleteFromPath } = await import("../replit_integrations/object_storage/routes");
       deleteFromPath(doc.storageUrl);
