@@ -165,7 +165,7 @@ export default function PosTerminal() {
   const { data: productsData } = useQuery({
     queryKey: ["/api/pos/products", selectedCompanyId, searchTerm],
     queryFn: async () => {
-      const r = await fetch(`/api/pos/products?companyId=${selectedCompanyId}&search=${encodeURIComponent(searchTerm)}`, { credentials: "include" });
+      const r = await fetch(`/api/pos/products?companyId=${selectedCompanyId}&search=${encodeURIComponent(searchTerm)}&limit=1000`, { credentials: "include" });
       if (!r.ok) return [];
       return r.json();
     },
@@ -242,7 +242,7 @@ export default function PosTerminal() {
   const categories = ["ทั้งหมด", "สินค้าจัดชุด", ...Array.from(new Set(products.map((p: any) => p.category).filter(Boolean)))];
   const filteredProducts = useMemo(() => {
     if (selectedCategory === "ทั้งหมด") return products;
-    if (selectedCategory === "สินค้าจัดชุด") return products.filter((p: any) => p.productType === "bundle" || p.unit === "ชุด");
+    if (selectedCategory === "สินค้าจัดชุด") return products.filter((p: any) => p.productType === "bundle");
     return products.filter((p: any) => p.category === selectedCategory);
   }, [products, selectedCategory]);
 
