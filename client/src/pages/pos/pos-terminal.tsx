@@ -239,31 +239,12 @@ export default function PosTerminal() {
   const pmethods = Array.isArray(paymentMethodsData) ? paymentMethodsData : [];
   const contactsList = Array.isArray(contactsData) ? contactsData : [];
 
-  const bundleProductIds = useMemo(() => {
-    const ids = new Set<number>();
-    products.forEach((p: any) => {
-      if (p.productType === "bundle") ids.add(p.id);
-    });
-    return ids;
-  }, [products]);
-
-  const { data: bundleIdsFromDb } = useQuery<number[]>({
-    queryKey: ["/api/pos/bundle-product-ids", selectedCompanyId],
-    queryFn: async () => {
-      const r = await fetch(`/api/pos/bundle-product-ids?companyId=${selectedCompanyId}`, { credentials: "include" });
-      return r.ok ? r.json() : [];
-    },
-    enabled: !!selectedCompanyId && !!activeSession,
-  });
-
-  const allBundleIds = useMemo(() => {
-    const ids = new Set(bundleProductIds);
-    (bundleIdsFromDb || []).forEach(id => ids.add(id));
-    return ids;
-  }, [bundleProductIds, bundleIdsFromDb]);
-
   const categories = ["ทั้งหมด", "สินค้าจัดชุด", ...Array.from(new Set(products.map((p: any) => p.category).filter(Boolean)))];
-  const filteredProducts = selectedCategory === "ทั้งหมด" ? products : selectedCategory === "สินค้าจัดชุด" ? products.filter((p: any) => allBundleIds.has(p.id)) : products.filter((p: any) => p.category === selectedCategory);
+  const filteredProducts = useMemo(() => {
+    if (selectedCategory === "ทั้งหมด") return products;
+    if (selectedCategory === "สินค้าจัดชุด") return products.filter((p: any) => p.productType === "bundle" || p.unit === "ชุด");
+    return products.filter((p: any) => p.category === selectedCategory);
+  }, [products, selectedCategory]);
 
   const openSessionMutation = useMutation({
     mutationFn: async (data: any) => {
