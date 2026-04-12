@@ -8,7 +8,33 @@ import multer from "multer";
 import path from "path";
 import { decodeMulterFilename } from "../utils/safe-filename";
 
+async function cleanupBoardSyncedDocuments() {
+  try {
+    const boardDocs = await db.select({ id: firmDocuments.id, folderId: firmDocuments.folderId })
+      .from(firmDocuments).where(eq(firmDocuments.category, "board"));
+    if (boardDocs.length === 0) return;
+
+    const docIds = boardDocs.map(d => d.id);
+    const folderIds = [...new Set(boardDocs.map(d => d.folderId).filter(Boolean))] as number[];
+
+    await db.delete(firmDocuments).where(inArray(firmDocuments.id, docIds));
+    console.log(`[Board cleanup] Deleted ${docIds.length} board-synced documents`);
+
+    for (const fId of folderIds) {
+      const remaining = await db.select({ id: firmDocuments.id }).from(firmDocuments)
+        .where(eq(firmDocuments.folderId, fId)).then(r => r.length);
+      if (remaining === 0) {
+        await db.delete(firmFolders).where(eq(firmFolders.id, fId));
+        console.log(`[Board cleanup] Deleted empty folder id=${fId}`);
+      }
+    }
+  } catch (e: any) {
+    console.error("[Board cleanup] Error:", e.message);
+  }
+}
+
 export function registerWorkBoardRoutes(app: Express) {
+cleanupBoardSyncedDocuments();
 // ============ WORK BOARD (Monday.com-style) ============
 async function verifyBoardOwnership(boardId: number, res: Response): Promise<any> {
   const board = await storage.getWorkBoard(boardId);
