@@ -146,7 +146,6 @@ function ClientDocumentsTab({ companyId }: { companyId: number | null }) {
       return r.ok ? r.json() : [];
     },
     enabled: !!selectedMonth,
-    refetchInterval: 30000,
   });
 
   const { data: monthLinks = [] } = useQuery<any[]>({
