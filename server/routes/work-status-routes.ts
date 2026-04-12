@@ -575,7 +575,16 @@ app.get("/api/firm-folders", requireAuth, requireModule("firm-mgmt"), async (req
   try {
     const user = req.user as any;
     const companyId = req.query.companyId ? Number(req.query.companyId) : undefined;
-    const folders = await storage.getFirmFolders(user.tenantId, companyId);
+    const excludeBoard = req.query.excludeBoard === "1";
+    let folders = await storage.getFirmFolders(user.tenantId, companyId);
+    if (excludeBoard) {
+      const boardFolderIds = new Set(
+        (await db.select({ folderId: firmDocuments.folderId }).from(firmDocuments)
+          .where(and(eq(firmDocuments.tenantId, user.tenantId), eq(firmDocuments.category, "board")))
+        ).map(r => r.folderId).filter(Boolean)
+      );
+      folders = folders.filter(f => !boardFolderIds.has(f.id));
+    }
     res.json(folders);
   } catch (err: any) {
     res.status(500).json({ message: err.message });
@@ -641,11 +650,18 @@ app.get("/api/firm-documents", requireAuth, requireModule("firm-mgmt"), async (r
     const category = req.query.category as string | undefined;
     const folderId = req.query.folderId as string | undefined;
     const companyId = req.query.companyId ? Number(req.query.companyId) : undefined;
+    const excludeBoard = req.query.excludeBoard === "1";
     if (folderId !== undefined) {
-      const docs = await storage.getFirmDocumentsByFolder(user.tenantId, folderId === "null" ? null : Number(folderId), companyId);
+      let docs = await storage.getFirmDocumentsByFolder(user.tenantId, folderId === "null" ? null : Number(folderId), companyId);
+      if (excludeBoard) docs = docs.filter(d => d.category !== "board");
       return res.json(docs);
     }
-    const docs = await storage.getFirmDocuments(user.tenantId, category, companyId);
+    if (category === "board") {
+      const docs = await storage.getFirmDocuments(user.tenantId, "board", companyId);
+      return res.json(docs);
+    }
+    let docs = await storage.getFirmDocuments(user.tenantId, category, companyId);
+    if (excludeBoard) docs = docs.filter(d => d.category !== "board");
     res.json(docs);
   } catch (err: any) {
     res.status(500).json({ message: err.message });

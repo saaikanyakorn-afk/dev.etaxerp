@@ -873,16 +873,16 @@ function OfficeDocumentsTab({ companyId }: { companyId: number | null }) {
   }, [companyId]);
 
   const { data: allFolders = [], isLoading: foldersLoading } = useQuery<any[]>({
-    queryKey: ["/api/firm-folders", companyId],
-    queryFn: async () => { const r = await fetch(`/api/firm-folders?companyId=${companyId}`, { credentials: "include" }); return r.ok ? r.json() : []; },
+    queryKey: ["/api/firm-folders", companyId, "office"],
+    queryFn: async () => { const r = await fetch(`/api/firm-folders?companyId=${companyId}&excludeBoard=1`, { credentials: "include" }); return r.ok ? r.json() : []; },
     enabled: !!companyId,
   });
 
   const { data: documents = [], isLoading: docsLoading } = useQuery<any[]>({
-    queryKey: ["/api/firm-documents", currentFolderId, companyId],
+    queryKey: ["/api/firm-documents", currentFolderId, companyId, "office"],
     queryFn: async () => {
       const fid = currentFolderId === null ? "null" : currentFolderId;
-      const r = await fetch(`/api/firm-documents?folderId=${fid}&companyId=${companyId}`, { credentials: "include" });
+      const r = await fetch(`/api/firm-documents?folderId=${fid}&companyId=${companyId}&excludeBoard=1`, { credentials: "include" });
       return r.ok ? r.json() : [];
     },
     enabled: !!companyId,
@@ -1159,27 +1159,29 @@ interface AttachmentDoc {
 
 function BoardDocumentsTab() {
   const { selectedCompanyId } = useCompany();
-  const [selectedBoardId, setSelectedBoardId] = useState<number | null>(null);
-  const [openFolderKey, setOpenFolderKey] = useState<string | null>(null);
+  const [selectedFolderId, setSelectedFolderId] = useState<number | null>(null);
   const [viewerFile, setViewerFile] = useState<{ name: string; url: string } | null>(null);
 
   useEffect(() => {
-    setSelectedBoardId(null);
-    setOpenFolderKey(null);
+    setSelectedFolderId(null);
     setViewerFile(null);
   }, [selectedCompanyId]);
 
-  const { data: boards = [], isLoading } = useQuery<any[]>({
-    queryKey: ["/api/board-files-summary", selectedCompanyId],
+  const { data: boardFolders = [], isLoading } = useQuery<any[]>({
+    queryKey: ["/api/firm-folders", selectedCompanyId, "board"],
     queryFn: async () => {
-      const r = await fetch(`/api/board-files-summary?companyId=${selectedCompanyId}`, { credentials: "include" });
-      return r.ok ? r.json() : [];
+      const allFolders: any[] = await fetch(`/api/firm-folders?companyId=${selectedCompanyId}`, { credentials: "include" }).then(r => r.ok ? r.json() : []);
+      const boardDocs: any[] = await fetch(`/api/firm-documents?category=board&companyId=${selectedCompanyId}`, { credentials: "include" }).then(r => r.ok ? r.json() : []);
+      const boardFolderIds = new Set(boardDocs.map((d: any) => d.folderId).filter(Boolean));
+      return allFolders.filter((f: any) => boardFolderIds.has(f.id)).map((f: any) => ({
+        ...f,
+        files: boardDocs.filter((d: any) => d.folderId === f.id),
+      }));
     },
     enabled: !!selectedCompanyId,
   });
 
-  const selectedBoard = boards.find((b: any) => b.boardId === selectedBoardId);
-  const openFolder = selectedBoard?.folders?.find((f: any) => `${selectedBoardId}-${f.columnId}` === openFolderKey);
+  const selectedFolder = boardFolders.find((f: any) => f.id === selectedFolderId);
 
   const FOLDER_COLORS: Record<string, string> = {
     "เอกสารหัก ณ ที่จ่าย": "#fec90f",
@@ -1247,6 +1249,8 @@ function BoardDocumentsTab() {
     );
   }
 
+  const totalFiles = boardFolders.reduce((s: number, f: any) => s + (f.files?.length || 0), 0);
+
   return (
     <div className="flex gap-4 h-full" style={{ minHeight: 500 }}>
       <div className="w-[300px] flex-shrink-0 flex flex-col">
@@ -1254,33 +1258,30 @@ function BoardDocumentsTab() {
           {isLoading && (
             <div className="flex justify-center py-10"><Loader2 className="w-5 h-5 animate-spin text-gray-400" /></div>
           )}
-          {!isLoading && boards.length === 0 && (
+          {!isLoading && boardFolders.length === 0 && (
             <div className="text-center py-10 text-gray-400 text-sm">
               <ClipboardList className="w-10 h-10 mx-auto mb-2 text-gray-300" />
-              <p>ยังไม่มีไฟล์ในบอร์ด</p>
+              <p>ยังไม่มีไฟล์จากบอร์ด</p>
               <p className="text-xs mt-1">แนบไฟล์ในบอร์ดงานเพื่อเริ่มต้น</p>
             </div>
           )}
-          {boards.map((board: any) => {
-            const isSelected = selectedBoardId === board.boardId;
+          {boardFolders.map((folder: any) => {
+            const isSelected = selectedFolderId === folder.id;
+            const color = FOLDER_COLORS[folder.name] || folder.color || "#03c9d7";
             return (
               <div
-                key={board.boardId}
+                key={folder.id}
                 className={`p-3 rounded-lg border cursor-pointer transition-colors ${isSelected ? "border-[#fb9678] bg-[#fb9678]/5" : "border-border hover:border-muted-foreground/30 bg-card"}`}
-                onClick={() => { setSelectedBoardId(board.boardId); setOpenFolderKey(null); }}
-                data-testid={`board-nav-${board.boardId}`}
+                onClick={() => setSelectedFolderId(folder.id)}
+                data-testid={`board-folder-nav-${folder.id}`}
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: (board.boardColor || "#fb9678") + "18" }}>
-                    <ClipboardList className="w-4 h-4" style={{ color: board.boardColor || "#fb9678" }} />
+                  <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: color + "18" }}>
+                    <Folder className="w-4 h-4" style={{ color }} />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <span className="text-sm font-medium text-foreground truncate block">{board.boardName}</span>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      <span className="text-[11px] text-gray-400">
-                        {board.folders.length} โฟลเดอร์ • {board.totalFiles} ไฟล์
-                      </span>
-                    </div>
+                    <span className="text-sm font-medium text-foreground truncate block">{folder.name}</span>
+                    <span className="text-[11px] text-gray-400">{folder.files?.length || 0} ไฟล์</span>
                   </div>
                 </div>
               </div>
@@ -1290,89 +1291,56 @@ function BoardDocumentsTab() {
       </div>
 
       <div className="flex-1 min-w-0">
-        {!selectedBoard ? (
+        {!selectedFolder ? (
           <div className="flex flex-col items-center justify-center h-full text-gray-400">
             <FolderOpen className="w-16 h-16 mb-3 text-gray-300" />
-            <p className="text-sm">เลือกบอร์ดเพื่อดูเอกสาร</p>
-          </div>
-        ) : !openFolder ? (
-          <div className="h-full flex flex-col">
-            <div className="mb-3">
-              <h3 className="text-base font-semibold text-gray-800">{selectedBoard.boardName}</h3>
-              <p className="text-xs text-gray-400">{selectedBoard.totalFiles} ไฟล์ • {selectedBoard.folders.length} โฟลเดอร์</p>
-            </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              {selectedBoard.folders.map((folder: any) => {
-                const color = FOLDER_COLORS[folder.columnName] || "#03c9d7";
-                const itemCount = new Set(folder.files.map((f: any) => f.itemId)).size;
-                return (
-                  <button
-                    key={folder.columnId}
-                    className="flex flex-col items-center p-5 rounded-xl border border-gray-100 hover:border-gray-200 hover:shadow-sm transition-all cursor-pointer"
-                    onClick={() => setOpenFolderKey(`${selectedBoardId}-${folder.columnId}`)}
-                    data-testid={`board-folder-${folder.columnId}`}
-                  >
-                    <div className="relative mb-2">
-                      <Folder className="w-14 h-14" style={{ color }} fill={color + "30"} />
-                      <span className="absolute bottom-1 right-0 text-white text-[9px] rounded-full w-5 h-5 flex items-center justify-center font-bold" style={{ backgroundColor: color }}>{folder.files.length}</span>
-                    </div>
-                    <span className="text-xs font-medium text-gray-700 text-center leading-tight line-clamp-2">{folder.columnName}</span>
-                    <span className="text-[10px] text-gray-400 mt-0.5">{folder.files.length} ไฟล์ • {itemCount} รายการ</span>
-                  </button>
-                );
-              })}
-            </div>
+            <p className="text-sm">เลือกโฟลเดอร์เพื่อดูเอกสาร</p>
+            {totalFiles > 0 && <p className="text-xs mt-1">{boardFolders.length} โฟลเดอร์ • {totalFiles} ไฟล์</p>}
           </div>
         ) : (
           <div className="h-full flex flex-col">
             <div className="flex items-center gap-2 mb-3">
               <button
                 className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 px-2 py-1 rounded hover:bg-gray-100"
-                onClick={() => setOpenFolderKey(null)}
+                onClick={() => setSelectedFolderId(null)}
                 data-testid="btn-back-folders"
               >
                 <ArrowLeft className="w-4 h-4" /> กลับ
               </button>
               <div className="flex items-center gap-1.5">
-                <Folder className="w-4 h-4" style={{ color: FOLDER_COLORS[openFolder.columnName] || "#03c9d7" }} />
-                <span className="text-sm font-semibold text-gray-800">{openFolder.columnName}</span>
-                <Badge variant="secondary" className="text-[10px] px-1.5">{openFolder.files.length} ไฟล์</Badge>
+                <Folder className="w-4 h-4" style={{ color: FOLDER_COLORS[selectedFolder.name] || selectedFolder.color || "#03c9d7" }} />
+                <span className="text-sm font-semibold text-gray-800">{selectedFolder.name}</span>
+                <Badge variant="secondary" className="text-[10px] px-1.5">{selectedFolder.files?.length || 0} ไฟล์</Badge>
               </div>
             </div>
 
             <div className="flex-1 overflow-y-auto space-y-2">
-              {openFolder.files.map((f: any, idx: number) => {
-                const url = resolveFileUrl(f.url);
-                const fileKey = `${f.itemId}-${f.name}-${f.url}`;
+              {(selectedFolder.files || []).map((f: any, idx: number) => {
+                const url = resolveFileUrl(f.fileUrl || "");
+                const fileName = f.fileName || f.name || "unknown";
                 return (
-                  <div key={fileKey} className="flex items-center gap-3 p-3 rounded-lg border border-border bg-card hover:border-gray-300 transition-colors" data-testid={`board-file-${idx}`}>
+                  <div key={f.id || idx} className="flex items-center gap-3 p-3 rounded-lg border border-border bg-card hover:border-gray-300 transition-colors" data-testid={`board-file-${idx}`}>
                     <div
                       className="w-9 h-11 rounded flex items-center justify-center flex-shrink-0 relative cursor-pointer hover:opacity-80"
-                      onClick={() => setViewerFile(f)}
+                      onClick={() => setViewerFile({ name: fileName, url: f.fileUrl || "" })}
                     >
                       <svg viewBox="0 0 24 30" className="w-full h-full" fill="none">
-                        <path d="M2 2C2 0.9 2.9 0 4 0H16L22 6V28C22 29.1 21.1 30 20 30H4C2.9 30 2 29.1 2 28V2Z" fill={getFileColor(f.name) + "22"} stroke={getFileColor(f.name)} strokeWidth="1.2"/>
-                        <path d="M16 0L22 6H18C16.9 6 16 5.1 16 4V0Z" fill={getFileColor(f.name) + "40"}/>
+                        <path d="M2 2C2 0.9 2.9 0 4 0H16L22 6V28C22 29.1 21.1 30 20 30H4C2.9 30 2 29.1 2 28V2Z" fill={getFileColor(fileName) + "22"} stroke={getFileColor(fileName)} strokeWidth="1.2"/>
+                        <path d="M16 0L22 6H18C16.9 6 16 5.1 16 4V0Z" fill={getFileColor(fileName) + "40"}/>
                       </svg>
-                      <span className="absolute inset-0 flex items-center justify-center text-[7px] font-bold uppercase pt-1.5" style={{ color: getFileColor(f.name) }}>{getFileExt(f.name).slice(0, 4)}</span>
+                      <span className="absolute inset-0 flex items-center justify-center text-[7px] font-bold uppercase pt-1.5" style={{ color: getFileColor(fileName) }}>{getFileExt(fileName).slice(0, 4)}</span>
                     </div>
                     <div className="flex-1 min-w-0">
-                      <span className="text-sm font-medium text-gray-800 truncate block">{f.name}</span>
-                      <div className="flex items-center gap-3 text-[11px] text-gray-400 mt-0.5">
-                        <span className="text-[#03c9d7]"><Building2 className="w-3 h-3 inline mr-0.5" />{f.itemName}</span>
-                        {f.groupName && (
-                          <span className="flex items-center gap-0.5">
-                            <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: f.groupColor || "#ccc" }} />
-                            {f.groupName}
-                          </span>
-                        )}
-                      </div>
+                      <span className="text-sm font-medium text-gray-800 truncate block">{fileName}</span>
+                      {f.description && (
+                        <span className="text-[11px] text-gray-400 mt-0.5 block truncate">{f.description}</span>
+                      )}
                     </div>
                     <div className="flex items-center gap-1 flex-shrink-0">
-                      <button className="p-1.5 rounded hover:bg-blue-50" title="ดูเอกสาร" onClick={() => setViewerFile(f)} data-testid={`btn-view-file-${idx}`}>
+                      <button className="p-1.5 rounded hover:bg-blue-50" title="ดูเอกสาร" onClick={() => setViewerFile({ name: fileName, url: f.fileUrl || "" })} data-testid={`btn-view-file-${idx}`}>
                         <Eye className="w-4 h-4 text-blue-500" />
                       </button>
-                      <a href={url} download={f.name} className="p-1.5 rounded hover:bg-gray-100" title="ดาวน์โหลด" data-testid={`btn-download-file-${idx}`}>
+                      <a href={url} download={fileName} className="p-1.5 rounded hover:bg-gray-100" title="ดาวน์โหลด" data-testid={`btn-download-file-${idx}`}>
                         <Download className="w-4 h-4 text-gray-500" />
                       </a>
                     </div>
