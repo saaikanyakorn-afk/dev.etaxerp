@@ -503,6 +503,13 @@ app.post("/api/line/webhook", async (req, res) => {
               console.log(`[LINE Doc] Mapping: ${mapping ? `id=${mapping.id}, active=${mapping.active}, firmClientId=${mapping.firmClientId}` : 'none'}`);
               if (!mapping || !mapping.active) return;
 
+              const existingDoc = await db.select({ id: lineDocuments.id }).from(lineDocuments)
+                .where(eq(lineDocuments.messageId, capturedEvent.message.id)).limit(1);
+              if (existingDoc.length > 0) {
+                console.log(`[LINE Doc] Already saved msgId=${capturedEvent.message.id}, skipping`);
+                return;
+              }
+
               const capturedToken = await getLineTokenForCompany(mapping.companyId);
               if (!capturedToken) {
                 console.log(`[LINE Doc] No LINE token available, skipping download`);
