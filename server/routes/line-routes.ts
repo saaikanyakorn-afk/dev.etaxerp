@@ -3,7 +3,7 @@ import { db } from "../db";
 import { ecomDb } from "../ecom-db";
 import { storage } from "../storage";
 import { eq, desc, and, isNull, isNotNull, asc, inArray, count , sql } from "drizzle-orm";
-import { companies, employees, firmClients, users, tenants, platformChatThreads, otRecords } from "@shared/schema";
+import { companies, employees, firmClients, users, tenants, platformChatThreads, otRecords, lineRecipients, lineDocuments, lineGroupMappings, lineDocClassifyRules } from "@shared/schema";
 import { requireAuth, requireSuperAdmin, checkDocOwnership } from "../route-middleware";
 import path from "path";
 import fs from "fs";
