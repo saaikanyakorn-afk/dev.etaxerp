@@ -11,13 +11,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/lib/auth";
 import { useCompany } from "@/lib/company-context";
 import { apiRequest } from "@/lib/queryClient";
 import {
   ArrowLeft, MessageCircle, Key, Shield, CheckCircle2,
   AlertTriangle, Loader2, Info, Bot, Eye, EyeOff, Plus,
   Trash2, Wifi, WifiOff, Link2, FileText, Sparkles, Copy, ExternalLink,
-  Building2, Settings2
+  Building2, Settings2, Globe, RefreshCw, Server
 } from "lucide-react";
 import { useLocation } from "wouter";
 
@@ -54,7 +55,7 @@ export default function LineSettingsPage() {
   const { selectedCompany } = useCompany();
   const companyId = selectedCompany?.id;
 
-  const [activeTab, setActiveTab] = useState<"token" | "groups" | "rules" | "webhook">("token");
+  const [activeTab, setActiveTab] = useState<"token" | "groups" | "rules" | "webhook" | "gateway">("token");
   const [tokenVisible, setTokenVisible] = useState(false);
   const [secretVisible, setSecretVisible] = useState(false);
   const [form, setForm] = useState({
@@ -69,6 +70,43 @@ export default function LineSettingsPage() {
 
   const [showRuleDialog, setShowRuleDialog] = useState(false);
   const [ruleForm, setRuleForm] = useState({ name: "", condition: "file_type", conditionValue: "", targetCategory: "receipt", priority: 0 });
+
+  const { user } = useAuth();
+  const isSysAdmin = user?.role === "super_admin";
+  const [gatewayUrl, setGatewayUrl] = useState("https://www.apc-tech.com/line-gateway.php");
+  const [drainInterval, setDrainInterval] = useState<string>("");
+  const [drainSaving, setDrainSaving] = useState(false);
+
+  const { data: drainConfig } = useQuery<any>({
+    queryKey: ["/api/line/gateway-drain-config"],
+    queryFn: async () => {
+      const res = await fetch("/api/line/gateway-drain-config", { credentials: "include" });
+      if (!res.ok) return null;
+      return res.json();
+    },
+    enabled: activeTab === "gateway" && isSysAdmin,
+  });
+
+  useEffect(() => {
+    if (drainConfig?.intervalMin !== undefined) {
+      setDrainInterval(String(drainConfig.intervalMin));
+    }
+  }, [drainConfig]);
+
+  const { data: gatewayInfo, isLoading: gatewayLoading, refetch: refetchGateway } = useQuery<any>({
+    queryKey: ["/line-gateway-info", gatewayUrl],
+    queryFn: async () => {
+      try {
+        const r = await fetch(`${gatewayUrl}?action=info`, { signal: AbortSignal.timeout(8000) });
+        if (!r.ok) return { error: `HTTP ${r.status}` };
+        return r.json();
+      } catch (e: any) {
+        return { error: e.message || "ไม่สามารถเชื่อมต่อ gateway ได้" };
+      }
+    },
+    enabled: activeTab === "gateway",
+    refetchInterval: activeTab === "gateway" ? 30000 : false,
+  });
 
   const [claimClientId, setClaimClientId] = useState<Record<number, string>>({});
 
@@ -295,6 +333,7 @@ export default function LineSettingsPage() {
     { id: "groups" as const, label: "กลุ่ม LINE", icon: MessageCircle, badge: pendingGroups.length || undefined },
     { id: "rules" as const, label: "จัดประเภทอัตโนมัติ", icon: Sparkles },
     { id: "webhook" as const, label: "Webhook", icon: Wifi },
+    { id: "gateway" as const, label: "Gateway", icon: Globe },
   ];
 
   return (
@@ -1086,6 +1125,297 @@ export default function LineSettingsPage() {
                 </ol>
               </CardContent>
             </Card>
+          </div>
+        )}
+
+        {activeTab === "gateway" && (
+          <div className="space-y-4">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Globe className="h-5 w-5" />
+                    LINE Gateway Server
+                  </CardTitle>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => refetchGateway()}
+                    disabled={gatewayLoading}
+                    data-testid="button-refresh-gateway"
+                  >
+                    <RefreshCw className={`h-4 w-4 mr-1 ${gatewayLoading ? "animate-spin" : ""}`} />
+                    รีเฟรช
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <Label className="text-xs text-gray-500">Gateway URL</Label>
+                  <div className="flex gap-2 mt-1">
+                    <Input
+                      value={gatewayUrl}
+                      onChange={e => setGatewayUrl(e.target.value)}
+                      placeholder="https://your-server.com/line-gateway.php"
+                      className="font-mono text-sm"
+                      data-testid="input-gateway-url"
+                    />
+                  </div>
+                </div>
+
+                {gatewayLoading && (
+                  <div className="flex items-center gap-2 text-gray-500 py-4">
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                    <span className="text-sm">กำลังตรวจสอบ gateway...</span>
+                  </div>
+                )}
+
+                {gatewayInfo && !gatewayInfo.error && (
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2 text-green-600">
+                      <CheckCircle2 className="h-5 w-5" />
+                      <span className="font-medium text-sm">Gateway ออนไลน์</span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="bg-gray-50 rounded-lg p-3">
+                        <div className="text-xs text-gray-500">เซิร์ฟเวอร์</div>
+                        <div className="text-sm font-medium mt-0.5">{gatewayInfo.server}</div>
+                      </div>
+                      <div className="bg-gray-50 rounded-lg p-3">
+                        <div className="text-xs text-gray-500">PHP Version</div>
+                        <div className="text-sm font-medium mt-0.5">{gatewayInfo.php_version}</div>
+                      </div>
+                      <div className="bg-gray-50 rounded-lg p-3">
+                        <div className="text-xs text-gray-500">App Target</div>
+                        <div className="text-sm font-medium mt-0.5 truncate" title={gatewayInfo.app_target}>{gatewayInfo.app_target}</div>
+                      </div>
+                      <div className="bg-gray-50 rounded-lg p-3">
+                        <div className="text-xs text-gray-500">Log ขนาด</div>
+                        <div className="text-sm font-medium mt-0.5">{gatewayInfo.log_size_kb} KB</div>
+                      </div>
+                    </div>
+
+                    {gatewayInfo.today && (
+                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                        <div className="text-xs text-blue-600 font-medium mb-1">สถิติวันนี้</div>
+                        <div className="grid grid-cols-3 gap-2 text-sm">
+                          <div>
+                            <span className="text-gray-500">Requests:</span>{" "}
+                            <span className="font-medium">{gatewayInfo.today.requests}</span>
+                          </div>
+                          <div>
+                            <span className="text-gray-500">Errors:</span>{" "}
+                            <span className={`font-medium ${gatewayInfo.today.errors > 0 ? "text-red-600" : "text-green-600"}`}>{gatewayInfo.today.errors}</span>
+                          </div>
+                          <div>
+                            <span className="text-gray-500">Bandwidth:</span>{" "}
+                            <span className="font-medium">{gatewayInfo.today.bandwidth}</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {gatewayInfo.queue && !gatewayInfo.queue.error && (
+                      <div className={`rounded-lg p-3 border text-sm ${
+                        (gatewayInfo.queue.pending || 0) > 0 ? "bg-amber-50 border-amber-200" : "bg-gray-50 border-gray-200"
+                      }`} data-testid="queue-status">
+                        <div className="text-xs font-medium mb-1 flex items-center gap-1">
+                          {(gatewayInfo.queue.pending || 0) > 0 ? (
+                            <><AlertTriangle className="h-3.5 w-3.5 text-amber-600" /> Webhook Queue</>
+                          ) : (
+                            <>Webhook Queue</>
+                          )}
+                        </div>
+                        <div className="grid grid-cols-4 gap-2">
+                          <div>
+                            <span className="text-gray-500">Pending:</span>{" "}
+                            <span className={`font-medium ${(gatewayInfo.queue.pending || 0) > 0 ? "text-amber-600" : ""}`}>{gatewayInfo.queue.pending || 0}</span>
+                          </div>
+                          <div>
+                            <span className="text-gray-500">Delivered:</span>{" "}
+                            <span className="font-medium text-green-600">{gatewayInfo.queue.delivered || 0}</span>
+                          </div>
+                          <div>
+                            <span className="text-gray-500">Failed:</span>{" "}
+                            <span className={`font-medium ${(gatewayInfo.queue.failed || 0) > 0 ? "text-red-600" : ""}`}>{gatewayInfo.queue.failed || 0}</span>
+                          </div>
+                          <div>
+                            <span className="text-gray-500">Processing:</span>{" "}
+                            <span className="font-medium">{gatewayInfo.queue.processing || 0}</span>
+                          </div>
+                        </div>
+                        {gatewayInfo.queue.oldest_pending && (
+                          <div className="text-xs text-amber-600 mt-1">
+                            รอตั้งแต่: {gatewayInfo.queue.oldest_pending}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {gatewayInfo.php_eol_warning && (
+                      <div className={`rounded-lg p-4 border ${
+                        gatewayInfo.php_eol_warning.includes("⛔")
+                          ? "bg-red-50 border-red-300"
+                          : "bg-amber-50 border-amber-300"
+                      }`} data-testid="php-version-warning">
+                        <div className="flex items-start gap-3">
+                          <AlertTriangle className={`h-5 w-5 mt-0.5 flex-shrink-0 ${
+                            gatewayInfo.php_eol_warning.includes("⛔") ? "text-red-600" : "text-amber-600"
+                          }`} />
+                          <div>
+                            <p className={`font-medium text-sm ${
+                              gatewayInfo.php_eol_warning.includes("⛔") ? "text-red-700" : "text-amber-700"
+                            }`}>
+                              {gatewayInfo.php_eol_warning}
+                            </p>
+                            <p className="text-xs text-gray-500 mt-1">
+                              PHP ที่หมดอายุจะไม่ได้รับ security patches — ควรอัปเกรดเป็นเวอร์ชันล่าสุดที่ hosting รองรับ
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {!gatewayInfo.php_eol_warning && gatewayInfo.php_eol && (
+                      <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-sm text-green-700" data-testid="php-version-ok">
+                        <div className="flex items-center gap-2">
+                          <CheckCircle2 className="h-4 w-4" />
+                          PHP {gatewayInfo.php_version} — รองรับจนถึง {gatewayInfo.php_eol}
+                        </div>
+                      </div>
+                    )}
+
+                    {gatewayInfo.disk && gatewayInfo.disk.used_pct !== null && (
+                      <div className={`rounded-lg p-3 border text-sm ${
+                        gatewayInfo.disk.used_pct > 80 ? "bg-red-50 border-red-200 text-red-700" : "bg-gray-50 border-gray-200 text-gray-700"
+                      }`}>
+                        <div className="flex items-center gap-2">
+                          <Server className="h-4 w-4" />
+                          Disk: {gatewayInfo.disk.used_gb} / {gatewayInfo.disk.total_gb} GB ({gatewayInfo.disk.used_pct}%)
+                          {gatewayInfo.disk.used_pct > 80 && <Badge variant="destructive" className="text-xs ml-2">เต็มเกือบเต็ม!</Badge>}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {gatewayInfo && gatewayInfo.error && (
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-4" data-testid="gateway-error">
+                    <div className="flex items-start gap-3">
+                      <WifiOff className="h-5 w-5 text-red-600 mt-0.5" />
+                      <div>
+                        <p className="font-medium text-sm text-red-700">ไม่สามารถเชื่อมต่อ Gateway ได้</p>
+                        <p className="text-xs text-red-600 mt-1">{gatewayInfo.error}</p>
+                        <p className="text-xs text-gray-500 mt-2">ตรวจสอบว่า gateway URL ถูกต้อง และเซิร์ฟเวอร์ออนไลน์อยู่</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">เกี่ยวกับ LINE Gateway</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-sm text-gray-700 space-y-3">
+                  <p>
+                    LINE Gateway เป็นตัวกลางระหว่าง LINE กับระบบ e-Tax Center — ทำหน้าที่รับ webhook จาก LINE แล้วส่งต่อให้ระบบประมวลผล
+                  </p>
+                  <div className="bg-gray-50 rounded-lg p-3 font-mono text-xs space-y-1">
+                    <p>LINE → Gateway (PHP) → e-Tax Center</p>
+                    <p>e-Tax Center → Gateway (PHP) → LINE API (push/reply)</p>
+                  </div>
+                  <div className="space-y-2">
+                    <p className="font-medium text-gray-800">ข้อกำหนดเซิร์ฟเวอร์</p>
+                    <ul className="list-disc pl-4 text-xs text-gray-600 space-y-1">
+                      <li>PHP 8.2+ (แนะนำ 8.4)</li>
+                      <li>MySQL / MariaDB (สำหรับ webhook queue)</li>
+                      <li>HTTPS (SSL Certificate)</li>
+                      <li>cURL + PDO_MySQL extensions</li>
+                      <li>สิทธิ์เขียนไฟล์ log/stats ในโฟลเดอร์เดียวกัน</li>
+                    </ul>
+                  </div>
+                  <div className="space-y-2">
+                    <p className="font-medium text-gray-800">Webhook Queue (Pull-based)</p>
+                    <p className="text-xs text-gray-600">
+                      เมื่อ etaxerp ล่ม — Gateway เก็บ webhook ไว้ใน MySQL → เมื่อ etaxerp กลับมาออนไลน์ จะดึง (pull) webhook ที่ค้างมาประมวลผลเองอัตโนมัติ ไม่ต้องตั้ง cron
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {isSysAdmin && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Settings2 className="h-4 w-4" />
+                    ตั้งค่า Queue Drain (sysAdmin)
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    <p className="text-xs text-gray-600">
+                      กำหนดความถี่ในการดึง webhook ที่ค้างจาก Gateway — ค่า 0 = ปิด, สูงสุด 1440 นาที (1 วัน)
+                    </p>
+                    <div className="flex items-end gap-3">
+                      <div className="flex-1">
+                        <Label className="text-sm">รอบดึง (นาที)</Label>
+                        <Input
+                          type="number"
+                          min="0"
+                          max="1440"
+                          value={drainInterval}
+                          onChange={(e) => setDrainInterval(e.target.value)}
+                          placeholder="10"
+                          className="mt-1"
+                          data-testid="input-drain-interval"
+                        />
+                      </div>
+                      <Button
+                        onClick={async () => {
+                          const val = parseInt(drainInterval, 10);
+                          if (isNaN(val) || val < 0 || val > 1440) {
+                            toast({ title: "ระบุ 0-1440 นาที", variant: "destructive" });
+                            return;
+                          }
+                          setDrainSaving(true);
+                          try {
+                            const res = await fetch("/api/line/gateway-drain-config", {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              credentials: "include",
+                              body: JSON.stringify({ intervalMin: val }),
+                            });
+                            const data = await res.json();
+                            if (res.ok) {
+                              toast({ title: data.message || "บันทึกแล้ว" });
+                            } else {
+                              toast({ title: data.message || "เกิดข้อผิดพลาด", variant: "destructive" });
+                            }
+                          } catch {
+                            toast({ title: "เกิดข้อผิดพลาด", variant: "destructive" });
+                          } finally {
+                            setDrainSaving(false);
+                          }
+                        }}
+                        disabled={drainSaving}
+                        className="bg-[#fb9678] hover:bg-[#e8856a]"
+                        data-testid="button-save-drain-interval"
+                      >
+                        {drainSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : "บันทึก"}
+                      </Button>
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      สถานะปัจจุบัน: {drainConfig ? (drainConfig.intervalMin === 0 ? "ปิด" : `ทุก ${drainConfig.intervalMin} นาที`) : "กำลังโหลด..."}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </div>
         )}
       </div>

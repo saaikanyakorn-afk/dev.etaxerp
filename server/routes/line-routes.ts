@@ -1415,4 +1415,140 @@ app.get("/api/chat/threads", requireAuth, requireSuperAdmin, async (req, res) =>
   } catch (err: any) { res.status(500).json({ message: err.message }); }
 });
 
+// ========== Gateway Queue Drainer (pull-based, dynamic interval) ==========
+let drainIntervalHandle: ReturnType<typeof setInterval> | null = null;
+let currentDrainIntervalMin = 0;
+
+async function getDrainIntervalMinutes(): Promise<number> {
+  try {
+    const rows = await db.execute(sql`SELECT value FROM system_config WHERE key = 'LINE_GATEWAY_DRAIN_INTERVAL_MIN' LIMIT 1`);
+    const row = (rows.rows?.[0] as any);
+    if (!row) return 10;
+    const val = parseInt(row.value, 10);
+    return (val >= 0 && val <= 1440) ? val : 10;
+  } catch {
+    return 10;
+  }
+}
+
+function scheduleDrain(intervalMin: number) {
+  if (drainIntervalHandle) {
+    clearInterval(drainIntervalHandle);
+    drainIntervalHandle = null;
+  }
+  currentDrainIntervalMin = intervalMin;
+  if (intervalMin <= 0) {
+    console.log(`[Gateway Queue] Drain disabled (interval=0)`);
+    return;
+  }
+  console.log(`[Gateway Queue] Drain scheduled every ${intervalMin} min`);
+  drainIntervalHandle = setInterval(drainGatewayQueue, intervalMin * 60 * 1000);
+}
+
+async function drainGatewayQueue() {
+  try {
+    const rows = await db.execute(sql`SELECT key, value FROM system_config WHERE key IN ('LINE_GATEWAY_URL', 'LINE_GATEWAY_AUTH_KEY')`);
+    const configMap: Record<string, string> = {};
+    for (const r of (rows.rows || []) as any[]) configMap[r.key] = r.value;
+
+    const gatewayUrl = configMap['LINE_GATEWAY_URL'];
+    const authKey = configMap['LINE_GATEWAY_AUTH_KEY'];
+    if (!gatewayUrl || !authKey) return;
+
+    const drainRes = await fetch(`${gatewayUrl}?action=drain&limit=50`, {
+      method: 'POST',
+      headers: { 'X-Gateway-Auth': authKey, 'Content-Type': 'application/json' },
+      body: '{}',
+      signal: AbortSignal.timeout(15000),
+    });
+    if (!drainRes.ok) return;
+    const data = await drainRes.json() as any;
+    if (!data.count || !data.webhooks?.length) return;
+
+    console.log(`[Gateway Queue] Draining ${data.webhooks.length} pending webhooks`);
+
+    const delivered: number[] = [];
+    const failed: { id: number; error: string }[] = [];
+
+    for (const wh of data.webhooks) {
+      try {
+        const payload = typeof wh.payload === 'string' ? JSON.parse(wh.payload) : wh.payload;
+        const events = payload?.events || [];
+
+        for (const event of events) {
+          if (event.type === "join" && event.source?.type === "group") {
+            const groupId = event.source.groupId;
+            const token = process.env.LINE_CHANNEL_ACCESS_TOKEN;
+            let groupName = null;
+            if (token && groupId) {
+              try {
+                const profileRes = await fetch(`https://api.line.me/v2/bot/group/${groupId}/summary`, {
+                  headers: { "Authorization": `Bearer ${token}` },
+                });
+                if (profileRes.ok) {
+                  const profile = await profileRes.json() as any;
+                  groupName = profile.groupName || null;
+                }
+              } catch {}
+            }
+            await db.execute(sql`INSERT INTO line_recipients (tenant_id, company_id, line_id, type, display_name)
+              VALUES (NULL, NULL, ${groupId}, 'group', ${groupName})
+              ON CONFLICT (line_id) DO UPDATE SET display_name = COALESCE(EXCLUDED.display_name, line_recipients.display_name)`);
+          }
+
+          if (event.type === "message" && event.source?.type === "group") {
+            const groupId = event.source.groupId;
+            const msg = event.message;
+            if (msg && (msg.type === "image" || msg.type === "file" || msg.type === "video")) {
+              try {
+                await db.execute(sql`INSERT INTO line_documents (line_group_id, line_user_id, message_id, message_type, file_name, sender_name, raw_event)
+                  VALUES (${groupId}, ${event.source.userId || null}, ${msg.id}, ${msg.type}, ${msg.fileName || null}, ${null}, ${JSON.stringify(event)})`);
+              } catch {}
+            }
+          }
+        }
+
+        delivered.push(wh.id);
+      } catch (err: any) {
+        failed.push({ id: wh.id, error: err.message || 'processing error' });
+      }
+    }
+
+    if (delivered.length || failed.length) {
+      await fetch(`${gatewayUrl}?action=ack`, {
+        method: 'POST',
+        headers: { 'X-Gateway-Auth': authKey, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ delivered, failed }),
+        signal: AbortSignal.timeout(10000),
+      });
+      console.log(`[Gateway Queue] Ack sent — delivered=${delivered.length} failed=${failed.length}`);
+    }
+  } catch (err: any) {
+    if (err.message?.includes('timeout') || err.message?.includes('fetch')) return;
+    console.error(`[Gateway Queue] Error:`, err.message);
+  }
+}
+
+app.get("/api/line/gateway-drain-config", requireAuth, async (req, res) => {
+  const user = req.user as any;
+  if (user.role !== "super_admin") return res.status(403).json({ message: "สิทธิ์ sysAdmin เท่านั้น" });
+  res.json({ intervalMin: currentDrainIntervalMin });
+});
+
+app.post("/api/line/gateway-drain-config", requireAuth, async (req, res) => {
+  const user = req.user as any;
+  if (user.role !== "super_admin") return res.status(403).json({ message: "สิทธิ์ sysAdmin เท่านั้น" });
+  const { intervalMin } = req.body;
+  const val = parseInt(intervalMin, 10);
+  if (isNaN(val) || val < 0 || val > 1440) return res.status(400).json({ message: "ระบุ 0-1440 นาที (0=ปิด)" });
+  await db.execute(sql`INSERT INTO system_config (key, value) VALUES ('LINE_GATEWAY_DRAIN_INTERVAL_MIN', ${String(val)}) ON CONFLICT (key) DO UPDATE SET value = ${String(val)}`);
+  scheduleDrain(val);
+  res.json({ intervalMin: val, message: val === 0 ? "ปิด drain แล้ว" : `ตั้ง drain ทุก ${val} นาที` });
+});
+
+(async () => {
+  const interval = await getDrainIntervalMinutes();
+  scheduleDrain(interval);
+})();
+
 }
