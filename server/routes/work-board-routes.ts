@@ -2,17 +2,28 @@ import type { Express, Request, Response } from "express";
 import { db } from "../db";
 import { storage } from "../storage";
 import { eq, and, inArray } from "drizzle-orm";
-import { workBoardColumns, workBoardItems, workBoards, firmFolders, firmDocuments, companies, workBoardSubitems, workBoardGroups } from "@shared/schema";
+import { workBoardColumns, workBoardItems, workBoards, firmFolders, firmDocuments, companies, workBoardSubitems, workBoardGroups, systemConfig } from "@shared/schema";
 import { requireAuth } from "../route-middleware";
 import multer from "multer";
 import path from "path";
 import { decodeMulterFilename } from "../utils/safe-filename";
 
+const CLEANUP_FLAG = "CLEANUP_BOARD_SYNCED_DOCS_DONE";
+
 async function cleanupBoardSyncedDocuments() {
   try {
+    const flag = await db.select().from(systemConfig)
+      .where(eq(systemConfig.configKey, CLEANUP_FLAG)).then(r => r[0]);
+    if (flag) return;
+
     const boardDocs = await db.select({ id: firmDocuments.id, folderId: firmDocuments.folderId })
       .from(firmDocuments).where(eq(firmDocuments.category, "board"));
-    if (boardDocs.length === 0) return;
+
+    if (boardDocs.length === 0) {
+      await db.insert(systemConfig).values({ configKey: CLEANUP_FLAG, configValue: "1", description: "Board-synced firmDocuments cleanup completed (no data found)" });
+      console.log("[Board cleanup] No board-synced documents found, flag set");
+      return;
+    }
 
     const docIds = boardDocs.map(d => d.id);
     const folderIds = [...new Set(boardDocs.map(d => d.folderId).filter(Boolean))] as number[];
@@ -28,6 +39,9 @@ async function cleanupBoardSyncedDocuments() {
         console.log(`[Board cleanup] Deleted empty folder id=${fId}`);
       }
     }
+
+    await db.insert(systemConfig).values({ configKey: CLEANUP_FLAG, configValue: "1", description: `Board-synced firmDocuments cleanup completed (deleted ${docIds.length} docs)` });
+    console.log("[Board cleanup] Complete, flag set — will not run again");
   } catch (e: any) {
     console.error("[Board cleanup] Error:", e.message);
   }
