@@ -1546,9 +1546,15 @@ app.post("/api/line/gateway-drain-config", requireAuth, async (req, res) => {
   res.json({ intervalMin: val, message: val === 0 ? "ปิด drain แล้ว" : `ตั้ง drain ทุก ${val} นาที` });
 });
 
-(async () => {
-  const interval = await getDrainIntervalMinutes();
-  scheduleDrain(interval);
-})();
+setTimeout(async () => {
+  try {
+    console.log(`[Gateway Queue] Initializing...`);
+    const interval = await getDrainIntervalMinutes();
+    scheduleDrain(interval);
+  } catch (err: any) {
+    console.error(`[Gateway Queue] Init error:`, err.message);
+    scheduleDrain(10);
+  }
+}, 15000);
 
 }
