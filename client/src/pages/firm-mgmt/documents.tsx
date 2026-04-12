@@ -271,7 +271,7 @@ function ClientDocumentsTab({ companyId }: { companyId: number | null }) {
     if (selected.length === 1) {
       const f = selected[0];
       const a = document.createElement("a");
-      a.href = objectPathToUrl(f.objectPath);
+      a.href = f.source === "line" ? `/api/line-documents/${f.id}/download` : objectPathToUrl(f.objectPath);
       a.download = f.fileName;
       a.click();
       return;
@@ -665,7 +665,7 @@ function ClientDocumentsTab({ companyId }: { companyId: number | null }) {
                             </button>
                           )}
                           {f.objectPath && (
-                            <a href={objectPathToUrl(f.objectPath)} download={f.fileName} className="p-1.5 rounded hover:bg-gray-100" title="ดาวน์โหลด">
+                            <a href={isLine ? `/api/line-documents/${f.id}/download` : objectPathToUrl(f.objectPath)} download={f.fileName} className="p-1.5 rounded hover:bg-gray-100" title="ดาวน์โหลด">
                               <Download className="w-4 h-4 text-gray-500" />
                             </a>
                           )}
@@ -689,7 +689,7 @@ function ClientDocumentsTab({ companyId }: { companyId: number | null }) {
 
       {viewerFileIndex !== null && monthFiles[viewerFileIndex] && (() => {
         const file = monthFiles[viewerFileIndex];
-        const url = objectPathToUrl(file.objectPath);
+        const url = file.source === "line" ? `/api/line-documents/${file.id}/download` : objectPathToUrl(file.objectPath);
         const canPreview = file.mimeType?.includes("pdf") || file.mimeType?.includes("image");
         const total = monthFiles.length;
         return (
