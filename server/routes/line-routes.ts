@@ -896,9 +896,12 @@ app.get("/api/line-documents/unread-count", requireAuth, async (req, res) => {
   try {
     const user = req.user as any;
     const companyId = req.query.companyId ? Number(req.query.companyId) : null;
-    const conditions: any[] = [eq(lineDocuments.tenantId, user.tenantId), isNull(lineDocuments.readAt)];
-    if (companyId) conditions.push(eq(lineDocuments.companyId, companyId));
-    const result = await db.select({ count: sql<number>`count(*)` }).from(lineDocuments).where(and(...conditions));
+    if (!companyId) return res.json({ unreadCount: 0 });
+    const clientIds = await db.select({ id: firmClients.id }).from(firmClients).where(eq(firmClients.companyId, companyId));
+    const cids = clientIds.map(c => c.id);
+    if (cids.length === 0) return res.json({ unreadCount: 0 });
+    const result = await db.select({ count: sql<number>`count(*)` }).from(lineDocuments)
+      .where(and(eq(lineDocuments.tenantId, user.tenantId), isNull(lineDocuments.readAt), inArray(lineDocuments.firmClientId, cids)));
     res.json({ unreadCount: Number(result[0]?.count ?? 0) });
   } catch (err: any) { res.status(500).json({ message: err.message }); }
 });
