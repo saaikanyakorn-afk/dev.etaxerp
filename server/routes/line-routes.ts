@@ -13,6 +13,46 @@ import { sanitizeFilename } from "../utils/safe-filename";
 import { pool } from "../db";
 
 export function registerLineRoutes(app: Express) {
+
+let _cachedDefaultLineToken: string | null = null;
+let _cachedDefaultLineTokenTime = 0;
+const TOKEN_CACHE_TTL = 5 * 60 * 1000;
+
+async function getDefaultLineToken(): Promise<string | null> {
+  if (process.env.LINE_CHANNEL_ACCESS_TOKEN) return process.env.LINE_CHANNEL_ACCESS_TOKEN;
+  const now = Date.now();
+  if (_cachedDefaultLineToken && now - _cachedDefaultLineTokenTime < TOKEN_CACHE_TTL) return _cachedDefaultLineToken;
+  try {
+    const rows = await db.execute(sql`SELECT value FROM system_config WHERE key = 'LINE_CHANNEL_ACCESS_TOKEN' LIMIT 1`);
+    if (rows.rows.length > 0) {
+      _cachedDefaultLineToken = (rows.rows[0] as any).value;
+      _cachedDefaultLineTokenTime = now;
+      return _cachedDefaultLineToken;
+    }
+  } catch {}
+  try {
+    const [comp] = await db.select({ lineChannelAccessToken: companies.lineChannelAccessToken })
+      .from(companies).where(isNotNull(companies.lineChannelAccessToken)).limit(1);
+    if (comp?.lineChannelAccessToken) {
+      _cachedDefaultLineToken = comp.lineChannelAccessToken;
+      _cachedDefaultLineTokenTime = now;
+      return _cachedDefaultLineToken;
+    }
+  } catch {}
+  return null;
+}
+
+async function getLineTokenForCompany(companyId: number | null): Promise<string | null> {
+  if (companyId) {
+    try {
+      const [comp] = await db.select({ lineChannelAccessToken: companies.lineChannelAccessToken })
+        .from(companies).where(eq(companies.id, companyId));
+      if (comp?.lineChannelAccessToken) return comp.lineChannelAccessToken;
+    } catch {}
+  }
+  return getDefaultLineToken();
+}
+
 // ========== LINE Settings (per-company) ==========
 async function verifyCompanyAccess(user: any, companyId: number): Promise<boolean> {
   if (user.role === "super_admin") return true;
@@ -36,7 +76,7 @@ app.get("/api/line/settings", requireAuth, async (req, res) => {
     if (!company) return res.status(404).json({ message: "ไม่พบบริษัท" });
     res.json({
       hasCompanyToken: !!company.lineChannelAccessToken,
-      hasPlatformToken: !!process.env.LINE_CHANNEL_ACCESS_TOKEN,
+      hasPlatformToken: !!(process.env.LINE_CHANNEL_ACCESS_TOKEN || _cachedDefaultLineToken),
       lineChannelAccessToken: company.lineChannelAccessToken ? "••••••••" + company.lineChannelAccessToken.slice(-8) : "",
       lineChannelSecret: company.lineChannelSecret ? "••••••••" + company.lineChannelSecret.slice(-6) : "",
       lineId: company.lineId || "",
@@ -68,11 +108,9 @@ app.post("/api/line/test", requireAuth, async (req, res) => {
   try {
     const user = req.user as any;
     const { companyId } = req.body;
-    let token = process.env.LINE_CHANNEL_ACCESS_TOKEN;
+    let token = await getLineTokenForCompany(companyId ? Number(companyId) : null) || "";
     if (companyId) {
       if (!(await verifyCompanyAccess(user, companyId))) return res.status(403).json({ success: false, message: "ไม่มีสิทธิ์" });
-      const [company] = await db.select({ lineChannelAccessToken: companies.lineChannelAccessToken }).from(companies).where(eq(companies.id, Number(companyId)));
-      if (company?.lineChannelAccessToken) token = company.lineChannelAccessToken;
     }
     if (!token) return res.status(400).json({ success: false, message: "ไม่พบ LINE Channel Access Token" });
     const botRes = await fetch("https://api.line.me/v2/bot/info", {
@@ -89,11 +127,7 @@ app.post("/api/line/send", requireAuth, async (req, res) => {
   try {
     const { to, message, companyId } = req.body;
     if (!to || !message) return res.status(400).json({ message: "กรุณาระบุผู้รับและข้อความ" });
-    let token = process.env.LINE_CHANNEL_ACCESS_TOKEN;
-    if (companyId) {
-      const [company] = await db.select({ lineChannelAccessToken: companies.lineChannelAccessToken }).from(companies).where(eq(companies.id, Number(companyId)));
-      if (company?.lineChannelAccessToken) token = company.lineChannelAccessToken;
-    }
+    let token = await getLineTokenForCompany(companyId ? Number(companyId) : null) || "";
     if (!token) return res.status(400).json({ message: "ยังไม่ได้ตั้งค่า LINE Channel Access Token" });
     const lineRes = await fetch("https://api.line.me/v2/bot/message/push", {
       method: "POST",
@@ -117,7 +151,7 @@ app.post("/api/line/webhook", async (req, res) => {
     for (const event of events) {
       if (event.type === "join" && event.source?.type === "group") {
         const groupId = event.source.groupId;
-        const token = process.env.LINE_CHANNEL_ACCESS_TOKEN;
+        const token = await getDefaultLineToken();
         let groupName = null;
         if (token && groupId) {
           try {
@@ -156,7 +190,7 @@ app.post("/api/line/webhook", async (req, res) => {
         }
       } else if (event.type === "follow" && event.source?.type === "user") {
         const userId = event.source.userId;
-        const token = process.env.LINE_CHANNEL_ACCESS_TOKEN;
+        const token = await getDefaultLineToken();
         let userName = null;
         if (token && userId) {
           try {
@@ -177,7 +211,7 @@ app.post("/api/line/webhook", async (req, res) => {
         }
       } else if (event.type === "message" && event.source?.type === "user") {
         const userId = event.source.userId;
-        const token = process.env.LINE_CHANNEL_ACCESS_TOKEN;
+        const token = await getDefaultLineToken();
         let userName = null;
         if (token && userId) {
           try {
@@ -467,17 +501,21 @@ app.post("/api/line/webhook", async (req, res) => {
       if (event.type === "message" && event.source?.type === "group") {
         const groupId = event.source.groupId;
         const msg = event.message;
-        const token = process.env.LINE_CHANNEL_ACCESS_TOKEN;
         console.log(`[LINE Doc] Group message: groupId=${groupId}, msgType=${msg?.type}, msgId=${msg?.id}`);
-        if (token && groupId && msg && ["image", "video", "file", "audio"].includes(msg.type)) {
+        if (groupId && msg && ["image", "video", "file", "audio"].includes(msg.type)) {
           const capturedEvent = { ...event, source: { ...event.source }, message: { ...msg } };
           const capturedGroupId = groupId;
-          const capturedToken = token;
           (async () => {
             try {
               const mapping = await storage.getLineGroupMappingByGroupId(capturedGroupId);
               console.log(`[LINE Doc] Mapping: ${mapping ? `id=${mapping.id}, active=${mapping.active}, firmClientId=${mapping.firmClientId}` : 'none'}`);
               if (!mapping || !mapping.active) return;
+
+              const capturedToken = await getLineTokenForCompany(mapping.companyId);
+              if (!capturedToken) {
+                console.log(`[LINE Doc] No LINE token available, skipping download`);
+                return;
+              }
 
               console.log(`[LINE Doc] Downloading content for msgId=${capturedEvent.message.id}...`);
               const contentRes = await fetch(`https://api-data.line.me/v2/bot/message/${capturedEvent.message.id}/content`, {
@@ -627,6 +665,27 @@ app.get("/api/line-documents/groups", requireAuth, async (req, res) => {
 app.get("/api/line-documents/groups/pending", requireAuth, async (req, res) => {
   try {
     const pending = await db.select().from(lineGroupMappings).where(isNull(lineGroupMappings.tenantId)).orderBy(desc(lineGroupMappings.createdAt));
+
+    const token = await getDefaultLineToken();
+    if (token) {
+      for (const g of pending) {
+        if (g.groupName && !g.groupName.startsWith("กลุ่ม ") && !g.groupName.match(/^[A-Fa-f0-9]{8}/)) continue;
+        try {
+          const profileRes = await fetch(`https://api.line.me/v2/bot/group/${g.lineGroupId}/summary`, {
+            headers: { "Authorization": `Bearer ${token}` },
+            signal: AbortSignal.timeout(5000),
+          });
+          if (profileRes.ok) {
+            const profile = await profileRes.json() as any;
+            if (profile.groupName) {
+              g.groupName = profile.groupName;
+              await db.update(lineGroupMappings).set({ groupName: profile.groupName }).where(eq(lineGroupMappings.id, g.id));
+            }
+          }
+        } catch {}
+      }
+    }
+
     res.json(pending);
   } catch (err: any) { res.status(500).json({ message: err.message }); }
 });
@@ -935,7 +994,7 @@ app.post("/api/line/webhook-test", requireAuth, async (req, res) => {
   try {
     const user = req.user as any;
     const { companyId } = req.body;
-    let token = process.env.LINE_CHANNEL_ACCESS_TOKEN;
+    let token = await getDefaultLineToken() || "";
     if (companyId) {
       const companyConditions = [eq(companies.id, Number(companyId))];
       if (user.tenantId) companyConditions.push(eq(companies.tenantId, user.tenantId));
@@ -1472,43 +1531,18 @@ async function drainGatewayQueue() {
 
     for (const wh of data.webhooks) {
       try {
-        const payload = typeof wh.payload === 'string' ? JSON.parse(wh.payload) : wh.payload;
-        const events = payload?.events || [];
-
-        for (const event of events) {
-          if (event.type === "join" && event.source?.type === "group") {
-            const groupId = event.source.groupId;
-            const token = process.env.LINE_CHANNEL_ACCESS_TOKEN;
-            let groupName = null;
-            if (token && groupId) {
-              try {
-                const profileRes = await fetch(`https://api.line.me/v2/bot/group/${groupId}/summary`, {
-                  headers: { "Authorization": `Bearer ${token}` },
-                });
-                if (profileRes.ok) {
-                  const profile = await profileRes.json() as any;
-                  groupName = profile.groupName || null;
-                }
-              } catch {}
-            }
-            await db.execute(sql`INSERT INTO line_recipients (tenant_id, company_id, line_id, type, display_name)
-              VALUES (NULL, NULL, ${groupId}, 'group', ${groupName})
-              ON CONFLICT (line_id) DO UPDATE SET display_name = COALESCE(EXCLUDED.display_name, line_recipients.display_name)`);
-          }
-
-          if (event.type === "message" && event.source?.type === "group") {
-            const groupId = event.source.groupId;
-            const msg = event.message;
-            if (msg && (msg.type === "image" || msg.type === "file" || msg.type === "video")) {
-              try {
-                await db.execute(sql`INSERT INTO line_documents (line_group_id, line_user_id, message_id, message_type, file_name, sender_name, raw_event)
-                  VALUES (${groupId}, ${event.source.userId || null}, ${msg.id}, ${msg.type}, ${msg.fileName || null}, ${null}, ${JSON.stringify(event)})`);
-              } catch {}
-            }
-          }
+        const payload = typeof wh.payload === 'string' ? wh.payload : JSON.stringify(wh.payload);
+        const replayRes = await fetch(`http://localhost:5000/api/line/webhook`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: payload,
+          signal: AbortSignal.timeout(30000),
+        });
+        if (replayRes.ok) {
+          delivered.push(wh.id);
+        } else {
+          failed.push({ id: wh.id, error: `replay HTTP ${replayRes.status}` });
         }
-
-        delivered.push(wh.id);
       } catch (err: any) {
         failed.push({ id: wh.id, error: err.message || 'processing error' });
       }
@@ -1528,6 +1562,32 @@ async function drainGatewayQueue() {
     console.error(`[Gateway Queue] Error:`, err.message);
   }
 }
+
+app.get("/api/line/gateway-config", requireAuth, async (req, res) => {
+  const user = req.user as any;
+  if (user.role !== "super_admin") return res.status(403).json({ message: "สิทธิ์ sysAdmin เท่านั้น" });
+  try {
+    const rows = await db.execute(sql`SELECT key, value FROM system_config WHERE key IN ('LINE_GATEWAY_URL', 'LINE_GATEWAY_AUTH_KEY')`);
+    const config: Record<string, string> = {};
+    for (const r of (rows.rows || []) as any[]) config[r.key] = r.value;
+    res.json({ gatewayUrl: config['LINE_GATEWAY_URL'] || '', authKey: config['LINE_GATEWAY_AUTH_KEY'] ? '••••••••' : '' });
+  } catch (e: any) { res.status(500).json({ message: e.message }); }
+});
+
+app.post("/api/line/gateway-config", requireAuth, async (req, res) => {
+  const user = req.user as any;
+  if (user.role !== "super_admin") return res.status(403).json({ message: "สิทธิ์ sysAdmin เท่านั้น" });
+  const { gatewayUrl, authKey } = req.body;
+  try {
+    if (gatewayUrl !== undefined) {
+      await db.execute(sql`INSERT INTO system_config (key, value) VALUES ('LINE_GATEWAY_URL', ${gatewayUrl}) ON CONFLICT (key) DO UPDATE SET value = ${gatewayUrl}`);
+    }
+    if (authKey !== undefined && authKey !== '••••••••') {
+      await db.execute(sql`INSERT INTO system_config (key, value) VALUES ('LINE_GATEWAY_AUTH_KEY', ${authKey}) ON CONFLICT (key) DO UPDATE SET value = ${authKey}`);
+    }
+    res.json({ message: "บันทึก Gateway Config แล้ว" });
+  } catch (e: any) { res.status(500).json({ message: e.message }); }
+});
 
 app.get("/api/line/gateway-drain-config", requireAuth, async (req, res) => {
   const user = req.user as any;

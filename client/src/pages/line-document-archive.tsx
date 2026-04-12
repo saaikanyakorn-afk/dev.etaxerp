@@ -8,9 +8,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { Checkbox } from "@/components/ui/checkbox";
-import { FileArchive, Plus, Trash2, Download, Search, Image, FileText, Film, Music, File, Settings, MessageCircle, Loader2, Eye, ArrowLeft, Building2, Calendar, Sparkles, PackageOpen } from "lucide-react";
+import { FileArchive, Plus, Trash2, Download, Search, Image, FileText, Film, Music, File, Settings, MessageCircle, Loader2, Eye, ArrowLeft, Building2, Calendar, Sparkles, PackageOpen, RefreshCw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { useLocation } from "wouter";
@@ -29,7 +29,20 @@ export default function LineDocumentArchive() {
 
   const [showGroupDialog, setShowGroupDialog] = useState(false);
   const [groupForm, setGroupForm] = useState({ lineGroupId: "", groupName: "", firmClientId: urlFirmClientId || "" });
+  const [claimSearch, setClaimSearch] = useState<Record<number, string>>({});
+  const [claimDropdownOpen, setClaimDropdownOpen] = useState<Record<number, boolean>>({});
+  const pendingRef = useRef<HTMLDivElement>(null);
   const [filterCategory, setFilterCategory] = useState("all");
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (pendingRef.current && !pendingRef.current.contains(e.target as Node)) {
+        setClaimDropdownOpen({});
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
   const [filterGroupId, setFilterGroupId] = useState("all");
   const [filterFirmClientId, setFilterFirmClientId] = useState(urlFirmClientId || "all");
   const [searchText, setSearchText] = useState("");
@@ -631,7 +644,7 @@ export default function LineDocumentArchive() {
       {true && (
         <>
         {pendingGroups.length > 0 && (
-          <Card className="border-2 border-yellow-300 bg-yellow-50">
+          <Card className="border-2 border-yellow-300 bg-yellow-50" ref={pendingRef}>
             <CardHeader className="pb-3">
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse" />
@@ -641,45 +654,91 @@ export default function LineDocumentArchive() {
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {pendingGroups.map((g: any) => (
-                  <div key={g.id} className="flex items-center justify-between p-3 border border-yellow-200 rounded-lg bg-white" data-testid={`pending-group-${g.id}`}>
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full flex items-center justify-center bg-yellow-100">
-                        <MessageCircle className="w-5 h-5 text-yellow-600" />
+                {pendingGroups.map((g: any) => {
+                  const searchTerm = (claimSearch[g.id] || "").toLowerCase();
+                  const filteredClients = searchTerm
+                    ? firmClients.filter((fc: any) => fc.name?.toLowerCase().includes(searchTerm) || fc.taxId?.includes(searchTerm))
+                    : firmClients;
+                  const isOpen = claimDropdownOpen[g.id] || false;
+                  const selectedClient = claimClientId[g.id] ? firmClients.find((fc: any) => String(fc.id) === claimClientId[g.id]) : null;
+
+                  return (
+                    <div key={g.id} className="p-4 border border-yellow-200 rounded-lg bg-white space-y-3" data-testid={`pending-group-${g.id}`}>
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full flex items-center justify-center bg-yellow-100 flex-shrink-0">
+                          <MessageCircle className="w-5 h-5 text-yellow-600" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium text-sm">{g.groupName || "กลุ่มไม่มีชื่อ"}</div>
+                          <div className="text-xs text-gray-400 font-mono truncate">{g.lineGroupId}</div>
+                          <div className="text-xs text-yellow-600 mt-0.5">รอเชื่อมโยงกับลูกค้า</div>
+                        </div>
                       </div>
-                      <div>
-                        <div className="font-medium text-sm">{g.groupName || "กลุ่มไม่มีชื่อ"}</div>
-                        <div className="text-xs text-gray-400 font-mono">{g.lineGroupId}</div>
-                        <div className="text-xs text-yellow-600 mt-0.5">รอเชื่อมโยงกับลูกค้า</div>
+                      <div className="flex items-center gap-2">
+                        <div className="relative flex-1">
+                          <Input
+                            placeholder={selectedClient ? selectedClient.name : "พิมพ์ค้นหาลูกค้า..."}
+                            value={claimSearch[g.id] || ""}
+                            onChange={e => {
+                              setClaimSearch(prev => ({ ...prev, [g.id]: e.target.value }));
+                              setClaimDropdownOpen(prev => ({ ...prev, [g.id]: true }));
+                            }}
+                            onFocus={() => setClaimDropdownOpen(prev => ({ ...prev, [g.id]: true }))}
+                            className={`h-8 text-sm ${selectedClient ? "border-green-300 bg-green-50" : ""}`}
+                            data-testid={`search-claim-client-${g.id}`}
+                          />
+                          {selectedClient && !claimSearch[g.id] && (
+                            <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
+                              <span className="text-sm text-green-700 font-medium">{selectedClient.name}</span>
+                            </div>
+                          )}
+                          {isOpen && (
+                            <div className="absolute z-50 mt-1 w-full max-h-48 overflow-y-auto bg-white border rounded-md shadow-lg">
+                              <button
+                                className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 text-gray-500"
+                                onClick={() => {
+                                  setClaimClientId(prev => ({ ...prev, [g.id]: "none" }));
+                                  setClaimSearch(prev => ({ ...prev, [g.id]: "" }));
+                                  setClaimDropdownOpen(prev => ({ ...prev, [g.id]: false }));
+                                }}
+                                data-testid={`claim-option-none-${g.id}`}
+                              >
+                                ไม่ระบุลูกค้า
+                              </button>
+                              {filteredClients.map((fc: any) => (
+                                <button
+                                  key={fc.id}
+                                  className="w-full text-left px-3 py-2 text-sm hover:bg-[#fb9678]/10 border-t border-gray-50"
+                                  onClick={() => {
+                                    setClaimClientId(prev => ({ ...prev, [g.id]: String(fc.id) }));
+                                    setClaimSearch(prev => ({ ...prev, [g.id]: "" }));
+                                    setClaimDropdownOpen(prev => ({ ...prev, [g.id]: false }));
+                                  }}
+                                  data-testid={`claim-option-${fc.id}-${g.id}`}
+                                >
+                                  <div className="font-medium">{fc.name}</div>
+                                  {fc.taxId && <div className="text-xs text-gray-400">{fc.taxId}</div>}
+                                </button>
+                              ))}
+                              {filteredClients.length === 0 && (
+                                <div className="px-3 py-2 text-sm text-gray-400">ไม่พบลูกค้าที่ตรงกัน</div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                        <Button
+                          size="sm"
+                          className="bg-[#05b187] hover:bg-[#049a76] h-8 text-xs"
+                          onClick={() => claimGroupMutation.mutate({ id: g.id, firmClientId: claimClientId[g.id] || "" })}
+                          disabled={claimGroupMutation.isPending}
+                          data-testid={`button-claim-${g.id}`}
+                        >
+                          {claimGroupMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : "เชื่อมโยง"}
+                        </Button>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Select
-                        value={claimClientId[g.id] || ""}
-                        onValueChange={v => setClaimClientId(prev => ({ ...prev, [g.id]: v }))}
-                      >
-                        <SelectTrigger className="w-[180px] h-8 text-xs" data-testid={`select-claim-client-${g.id}`}>
-                          <SelectValue placeholder="เลือกลูกค้า..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">ไม่ระบุลูกค้า</SelectItem>
-                          {firmClients.map((fc: any) => (
-                            <SelectItem key={fc.id} value={String(fc.id)}>{fc.name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <Button
-                        size="sm"
-                        className="bg-[#05b187] hover:bg-[#049a76] h-8 text-xs"
-                        onClick={() => claimGroupMutation.mutate({ id: g.id, firmClientId: claimClientId[g.id] || "" })}
-                        disabled={claimGroupMutation.isPending}
-                        data-testid={`button-claim-${g.id}`}
-                      >
-                        {claimGroupMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : "เชื่อมโยง"}
-                      </Button>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </CardContent>
           </Card>
