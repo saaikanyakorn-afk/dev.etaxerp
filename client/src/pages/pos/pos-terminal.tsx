@@ -239,8 +239,8 @@ export default function PosTerminal() {
   const pmethods = Array.isArray(paymentMethodsData) ? paymentMethodsData : [];
   const contactsList = Array.isArray(contactsData) ? contactsData : [];
 
-  const categories = ["ทั้งหมด", ...Array.from(new Set(products.map((p: any) => p.category).filter(Boolean)))];
-  const filteredProducts = selectedCategory === "ทั้งหมด" ? products : products.filter((p: any) => p.category === selectedCategory);
+  const categories = ["ทั้งหมด", "สินค้าจัดชุด", ...Array.from(new Set(products.map((p: any) => p.category).filter(Boolean)))];
+  const filteredProducts = selectedCategory === "ทั้งหมด" ? products : selectedCategory === "สินค้าจัดชุด" ? products.filter((p: any) => p.productType === "bundle") : products.filter((p: any) => p.category === selectedCategory);
 
   const openSessionMutation = useMutation({
     mutationFn: async (data: any) => {
