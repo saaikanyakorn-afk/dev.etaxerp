@@ -4987,9 +4987,10 @@ export const lineDocuments = pgTable("line_documents", {
   documentDateSource: text("document_date_source"),
   sentAt: timestamp("sent_at").defaultNow(),
   createdAt: timestamp("created_at").defaultNow(),
+  readAt: timestamp("read_at"),
 });
 
-export const insertLineDocumentSchema = createInsertSchema(lineDocuments).omit({ id: true, createdAt: true });
+export const insertLineDocumentSchema = createInsertSchema(lineDocuments).omit({ id: true, createdAt: true, readAt: true });
 export type InsertLineDocument = z.infer<typeof insertLineDocumentSchema>;
 export type LineDocument = typeof lineDocuments.$inferSelect;
 

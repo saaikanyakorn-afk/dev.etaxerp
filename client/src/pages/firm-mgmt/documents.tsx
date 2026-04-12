@@ -677,6 +677,13 @@ function ClientDocumentsTab({ companyId }: { companyId: number | null }) {
                             <button className="p-1.5 rounded hover:bg-blue-50" title="ดูเอกสาร" onClick={() => {
                               setViewerFileIndex(idx);
                               if (!isLine && !f.isRead) markRead.mutate(f.id);
+                              if (isLine && !f.readAt) {
+                                fetch(`/api/line-documents/${f.id}/mark-read`, { method: "POST", credentials: "include" })
+                                  .then(() => {
+                                    qc.invalidateQueries({ queryKey: ["/api/client-documents/month-files"] });
+                                    qc.invalidateQueries({ queryKey: ["/api/line-documents/unread-count"] });
+                                  });
+                              }
                             }}>
                               <Eye className="w-4 h-4 text-blue-500" />
                             </button>

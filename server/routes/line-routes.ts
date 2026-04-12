@@ -866,6 +866,43 @@ app.delete("/api/line-documents/:id", requireAuth, async (req, res) => {
   } catch (err: any) { res.status(500).json({ message: err.message }); }
 });
 
+db.execute(sql`ALTER TABLE line_documents ADD COLUMN IF NOT EXISTS read_at TIMESTAMP`).catch(() => {});
+
+app.post("/api/line-documents/:id/mark-read", requireAuth, async (req, res) => {
+  try {
+    const user = req.user as any;
+    const id = Number(req.params.id);
+    const [doc] = await db.select({ id: lineDocuments.id, tenantId: lineDocuments.tenantId })
+      .from(lineDocuments).where(eq(lineDocuments.id, id));
+    if (!doc || doc.tenantId !== user.tenantId) return res.status(404).json({ message: "ไม่พบเอกสาร" });
+    await db.update(lineDocuments).set({ readAt: new Date() }).where(eq(lineDocuments.id, id));
+    res.json({ success: true });
+  } catch (err: any) { res.status(500).json({ message: err.message }); }
+});
+
+app.post("/api/line-documents/batch-mark-read", requireAuth, async (req, res) => {
+  try {
+    const user = req.user as any;
+    const { ids } = req.body;
+    if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ message: "ต้องระบุ ids" });
+    await db.update(lineDocuments)
+      .set({ readAt: new Date() })
+      .where(and(inArray(lineDocuments.id, ids.map(Number)), eq(lineDocuments.tenantId, user.tenantId)));
+    res.json({ success: true, count: ids.length });
+  } catch (err: any) { res.status(500).json({ message: err.message }); }
+});
+
+app.get("/api/line-documents/unread-count", requireAuth, async (req, res) => {
+  try {
+    const user = req.user as any;
+    const companyId = req.query.companyId ? Number(req.query.companyId) : null;
+    const conditions: any[] = [eq(lineDocuments.tenantId, user.tenantId), isNull(lineDocuments.readAt)];
+    if (companyId) conditions.push(eq(lineDocuments.companyId, companyId));
+    const result = await db.select({ count: sql<number>`count(*)` }).from(lineDocuments).where(and(...conditions));
+    res.json({ unreadCount: Number(result[0]?.count ?? 0) });
+  } catch (err: any) { res.status(500).json({ message: err.message }); }
+});
+
 app.post("/api/line-documents/:id/extract-date", requireAuth, async (req, res) => {
   try {
     const user = req.user as any;
