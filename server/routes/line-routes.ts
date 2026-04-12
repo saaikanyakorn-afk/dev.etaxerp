@@ -544,7 +544,7 @@ app.post("/api/line/webhook", async (req, res) => {
 
               const { saveBufferToPath } = await import("../replit_integrations/object_storage/routes");
               console.log(`[LINE Doc] Saving to ${storagePath}...`);
-              saveBufferToPath(buffer, storagePath);
+              await saveBufferToPath(buffer, storagePath);
               console.log(`[LINE Doc] Save complete`);
 
               let senderName = null;
