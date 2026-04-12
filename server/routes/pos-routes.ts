@@ -690,14 +690,9 @@ export function registerPosRoutes(app: Express) {
         );
       }
 
-      const limit = Math.min(Number(req.query.limit) || 500, 1000);
-      const offset = Math.max(Number(req.query.offset) || 0, 0);
-
       const result = await posDb.select().from(products)
         .where(and(...conditions))
-        .orderBy(asc(products.name))
-        .limit(limit)
-        .offset(offset);
+        .orderBy(asc(products.name));
       res.json(result);
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
