@@ -78,6 +78,16 @@ export default function LineDocumentArchive() {
     },
   });
 
+  const { data: availableGroups = [] } = useQuery<any[]>({
+    queryKey: ["/api/line-documents/available-groups"],
+    queryFn: async () => {
+      const r = await fetch("/api/line-documents/available-groups", { credentials: "include" });
+      if (!r.ok) return [];
+      return r.json();
+    },
+  });
+
+  const [clientSearch, setClientSearch] = useState("");
   const [claimClientId, setClaimClientId] = useState<Record<number, string>>({});
 
   const createGroupMutation = useMutation({
@@ -691,14 +701,34 @@ export default function LineDocumentArchive() {
                   </DialogHeader>
                   <div className="space-y-4 mt-2">
                     <div>
-                      <Label>LINE Group ID *</Label>
-                      <Input
-                        value={groupForm.lineGroupId}
-                        onChange={e => setGroupForm(f => ({ ...f, lineGroupId: e.target.value }))}
-                        placeholder="C1234..."
-                        data-testid="input-group-id"
-                      />
-                      <p className="text-xs text-gray-400 mt-1">ได้จากการเชิญ Bot เข้ากลุ่ม (ดูใน webhook event)</p>
+                      <Label>เลือกกลุ่ม LINE *</Label>
+                      {availableGroups && availableGroups.length > 0 ? (
+                        <>
+                          <Select
+                            value={groupForm.lineGroupId}
+                            onValueChange={v => {
+                              const grp = availableGroups.find((g: any) => g.lineId === v);
+                              setGroupForm(f => ({ ...f, lineGroupId: v, groupName: grp?.displayName || "" }));
+                            }}
+                          >
+                            <SelectTrigger data-testid="select-group-id">
+                              <SelectValue placeholder="เลือกกลุ่ม LINE..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {availableGroups.map((g: any) => (
+                                <SelectItem key={g.lineId} value={g.lineId}>
+                                  {g.displayName || g.lineId}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <p className="text-xs text-gray-400 mt-1">แสดงกลุ่มที่ Bot เข้าร่วมแล้ว — ถ้ายังไม่เห็นกลุ่ม ให้เชิญ Bot เข้ากลุ่มก่อน</p>
+                        </>
+                      ) : (
+                        <div className="p-3 bg-amber-50 border border-amber-200 rounded text-sm text-amber-700">
+                          ยังไม่มีกลุ่มที่ Bot เข้าร่วม — เชิญ Bot เข้ากลุ่ม LINE ก่อน แล้วกลุ่มจะปรากฏที่นี่
+                        </div>
+                      )}
                     </div>
                     <div>
                       <Label>ชื่อกลุ่ม</Label>
@@ -708,30 +738,46 @@ export default function LineDocumentArchive() {
                         placeholder="กลุ่มลูกค้า ABC"
                         data-testid="input-group-name"
                       />
+                      <p className="text-xs text-gray-400 mt-1">ดึงอัตโนมัติจาก LINE — แก้ไขได้ถ้าต้องการ</p>
                     </div>
                     <div>
                       <Label>เชื่อมกับลูกค้า (ไม่บังคับ)</Label>
                       <Select
                         value={groupForm.firmClientId}
-                        onValueChange={v => setGroupForm(f => ({ ...f, firmClientId: v }))}
+                        onValueChange={v => { setGroupForm(f => ({ ...f, firmClientId: v })); setClientSearch(""); }}
                       >
                         <SelectTrigger data-testid="select-firm-client">
                           <SelectValue placeholder="เลือกลูกค้า..." />
                         </SelectTrigger>
                         <SelectContent>
+                          <div className="px-2 pb-2 sticky top-0 bg-white z-10">
+                            <Input
+                              placeholder="ค้นหาชื่อลูกค้า..."
+                              value={clientSearch}
+                              onChange={e => setClientSearch(e.target.value)}
+                              className="h-8 text-sm"
+                              data-testid="input-search-client"
+                              onKeyDown={e => e.stopPropagation()}
+                            />
+                          </div>
                           <SelectItem value="none">ไม่ระบุ</SelectItem>
-                          {firmClients.map((fc: any) => (
-                            <SelectItem key={fc.id} value={String(fc.id)}>{fc.name}</SelectItem>
-                          ))}
+                          <SelectItem value="self">🏢 สำนักงานของเรา</SelectItem>
+                          {firmClients
+                            .filter((fc: any) => !clientSearch || fc.name?.toLowerCase().includes(clientSearch.toLowerCase()))
+                            .map((fc: any) => (
+                              <SelectItem key={fc.id} value={String(fc.id)}>{fc.name}</SelectItem>
+                            ))}
                         </SelectContent>
                       </Select>
+                      <p className="text-xs text-gray-400 mt-1">เลือก "สำนักงานของเรา" สำหรับเอกสารของอีแท็กเอง</p>
                     </div>
                     <Button
                       onClick={() => {
                         createGroupMutation.mutate({
                           lineGroupId: groupForm.lineGroupId,
                           groupName: groupForm.groupName || null,
-                          firmClientId: groupForm.firmClientId && groupForm.firmClientId !== "none" ? Number(groupForm.firmClientId) : null,
+                          firmClientId: groupForm.firmClientId && groupForm.firmClientId !== "none" && groupForm.firmClientId !== "self" ? Number(groupForm.firmClientId) : null,
+                          isSelf: groupForm.firmClientId === "self" ? true : undefined,
                         });
                       }}
                       disabled={!groupForm.lineGroupId || createGroupMutation.isPending}
@@ -770,8 +816,10 @@ export default function LineDocumentArchive() {
                         <div>
                           <div className="font-medium text-sm">{g.groupName || "กลุ่มไม่มีชื่อ"}</div>
                           <div className="text-xs text-gray-400 font-mono">{g.lineGroupId}</div>
-                          {client && (
+                          {client ? (
                             <Badge variant="outline" className="text-xs mt-1">{client.name}</Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-xs mt-1 border-blue-200 text-blue-600">🏢 สำนักงานของเรา</Badge>
                           )}
                         </div>
                       </div>

@@ -605,6 +605,14 @@ app.post("/api/line/webhook", async (req, res) => {
 });
 
 // ============ LINE Group Document Archive ============
+
+app.get("/api/line-documents/available-groups", requireAuth, async (req, res) => {
+  try {
+    const rows = await db.execute(sql`SELECT line_id, display_name, created_at FROM line_recipients WHERE type = 'group' ORDER BY display_name, created_at DESC`);
+    res.json(rows.rows.map((r: any) => ({ lineId: r.line_id, displayName: r.display_name, createdAt: r.created_at })));
+  } catch (err: any) { res.status(500).json({ message: err.message }); }
+});
+
 // Get LINE group mappings (own tenant)
 app.get("/api/line-documents/groups", requireAuth, async (req, res) => {
   try {
