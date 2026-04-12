@@ -10,6 +10,7 @@ export function objectPathToUrl(objectPath: string | null | undefined): string {
   const match = objectPath.match(/\/objects\/uploads\/(.+)/);
   if (match) return `/api/file/${match[1]}`;
   if (objectPath.startsWith("/api/")) return objectPath;
+  if (objectPath.startsWith(".private/") || objectPath.startsWith("public/")) return `/${objectPath}`;
   return objectPath;
 }
 
