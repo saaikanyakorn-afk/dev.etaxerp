@@ -2,7 +2,7 @@ import type { Express, Request, Response } from "express";
 import { db } from "../db";
 import { storage } from "../storage";
 import { eq, desc, and, isNull, asc, ilike, inArray, count , sql } from "drizzle-orm";
-import { employees, firmClients, firmClientTeam, companies, contacts, accounts, workBoards, workBoardItems, workBoardColumns, contracts, accountingFormulaLines, accountingFormulas, paymentMethods, invoices, quotations, receipts, expenses, products, firmClientImportLogs, workStatusRows, workBoardGroups, clientUploadLinks } from "@shared/schema";
+import { employees, firmClients, firmClientTeam, companies, contacts, accounts, workBoards, workBoardItems, workBoardColumns, contracts, accountingFormulaLines, accountingFormulas, paymentMethods, invoices, quotations, receipts, expenses, products, firmClientImportLogs, workStatusRows, workBoardGroups, clientUploadLinks, insertFirmClientSchema } from "@shared/schema";
 import { requireAuth, requireAdmin, requireModule } from "../route-middleware";
 import { logActivity, isDbConnectionError, deleteCompaniesCascade } from "../route-helpers";
 import multer from "multer";
