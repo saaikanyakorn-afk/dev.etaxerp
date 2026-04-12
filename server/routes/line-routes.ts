@@ -1597,6 +1597,10 @@ app.post("/api/line/gateway-drain-config", requireAuth, async (req, res) => {
 });
 
 setTimeout(async () => {
+  if (process.env.NODE_ENV !== 'production') {
+    console.log(`[Gateway Queue] Skipped — not production (NODE_ENV=${process.env.NODE_ENV})`);
+    return;
+  }
   try {
     console.log(`[Gateway Queue] Initializing...`);
     const interval = await getDrainIntervalMinutes();
