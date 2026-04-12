@@ -1117,7 +1117,7 @@ function OfficeDocumentsTab({ companyId }: { companyId: number | null }) {
             </div>
             <div className="flex-1 flex items-center justify-center p-4 overflow-auto" onClick={e => e.stopPropagation()}>
               {isImage ? (
-                <img src={previewUrl} alt={fileName} className="max-w-full max-h-full object-contain" />
+                <AuthImage src={previewUrl} alt={fileName} className="max-w-full max-h-full object-contain" />
               ) : isPdf ? (
                 <iframe src={previewUrl} className="w-full h-full border-0 bg-white rounded" title={fileName} />
               ) : (
@@ -1224,7 +1224,7 @@ function BoardDocumentsTab() {
         </div>
         <div className="flex-1 flex items-center justify-center overflow-hidden bg-gray-800">
           {isImage ? (
-            <img src={url} alt={viewerFile.name} className="max-w-full max-h-full object-contain" />
+            <AuthImage src={url} alt={viewerFile.name} className="max-w-full max-h-full object-contain" />
           ) : isPdf ? (
             <iframe src={url} className="w-full h-full border-0 bg-white" title={viewerFile.name} />
           ) : (
@@ -1468,7 +1468,7 @@ function AccountingAttachmentsTab({ companyId }: { companyId: number | null }) {
         <div className="flex-1 flex items-center justify-center overflow-hidden bg-gray-800">
           {canPreview ? (
             mime === "image" ? (
-              <img src={viewerUrl} alt={viewerName} className="max-w-full max-h-full object-contain" />
+              <AuthImage src={viewerUrl} alt={viewerName} className="max-w-full max-h-full object-contain" />
             ) : (
               <iframe src={viewerUrl} className="w-full h-full border-0 bg-white" title={viewerName} />
             )
