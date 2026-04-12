@@ -873,16 +873,16 @@ function OfficeDocumentsTab({ companyId }: { companyId: number | null }) {
   }, [companyId]);
 
   const { data: allFolders = [], isLoading: foldersLoading } = useQuery<any[]>({
-    queryKey: ["/api/firm-folders", companyId, "office"],
-    queryFn: async () => { const r = await fetch(`/api/firm-folders?companyId=${companyId}&excludeBoard=1`, { credentials: "include" }); return r.ok ? r.json() : []; },
+    queryKey: ["/api/firm-folders", companyId],
+    queryFn: async () => { const r = await fetch(`/api/firm-folders?companyId=${companyId}`, { credentials: "include" }); return r.ok ? r.json() : []; },
     enabled: !!companyId,
   });
 
   const { data: documents = [], isLoading: docsLoading } = useQuery<any[]>({
-    queryKey: ["/api/firm-documents", currentFolderId, companyId, "office"],
+    queryKey: ["/api/firm-documents", currentFolderId, companyId],
     queryFn: async () => {
       const fid = currentFolderId === null ? "null" : currentFolderId;
-      const r = await fetch(`/api/firm-documents?folderId=${fid}&companyId=${companyId}&excludeBoard=1`, { credentials: "include" });
+      const r = await fetch(`/api/firm-documents?folderId=${fid}&companyId=${companyId}`, { credentials: "include" });
       return r.ok ? r.json() : [];
     },
     enabled: !!companyId,
@@ -1168,15 +1168,10 @@ function BoardDocumentsTab() {
   }, [selectedCompanyId]);
 
   const { data: boardFolders = [], isLoading } = useQuery<any[]>({
-    queryKey: ["/api/firm-folders", selectedCompanyId, "board"],
+    queryKey: ["/api/board-files-summary", selectedCompanyId],
     queryFn: async () => {
-      const allFolders: any[] = await fetch(`/api/firm-folders?companyId=${selectedCompanyId}`, { credentials: "include" }).then(r => r.ok ? r.json() : []);
-      const boardDocs: any[] = await fetch(`/api/firm-documents?category=board&companyId=${selectedCompanyId}`, { credentials: "include" }).then(r => r.ok ? r.json() : []);
-      const boardFolderIds = new Set(boardDocs.map((d: any) => d.folderId).filter(Boolean));
-      return allFolders.filter((f: any) => boardFolderIds.has(f.id)).map((f: any) => ({
-        ...f,
-        files: boardDocs.filter((d: any) => d.folderId === f.id),
-      }));
+      const r = await fetch(`/api/board-files-summary?companyId=${selectedCompanyId}`, { credentials: "include" });
+      return r.ok ? r.json() : [];
     },
     enabled: !!selectedCompanyId,
   });
