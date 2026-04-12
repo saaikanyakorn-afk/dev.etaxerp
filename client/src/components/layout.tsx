@@ -1019,38 +1019,25 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 <span className="text-sm font-semibold hidden lg:inline">เช็คอิน</span>
               </button>
             )}
-            {myPermissions?.modules?.includes("firm-mgmt") && (
-              <button
-                onClick={() => setLocation("/firm-mgmt/documents")}
-                className="relative h-10 w-10 rounded-full flex items-center justify-center transition-colors hover:bg-[var(--theme-primary-light)]"
-                style={{ color: "var(--theme-primary)" }}
-                data-testid="btn-line-doc-archive"
-                title="คลังเอกสาร"
-              >
-                <Archive className="h-5 w-5" />
-                {(lineDocUnread?.unreadCount ?? 0) > 0 && (
-                  <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] rounded-full bg-[#06C755] text-white text-[10px] font-bold flex items-center justify-center px-1 animate-pulse" data-testid="badge-line-doc-unread">
-                    {(lineDocUnread?.unreadCount ?? 0) > 99 ? "99+" : lineDocUnread?.unreadCount}
-                  </span>
-                )}
-              </button>
-            )}
-            {myPermissions?.modules?.includes("firm-mgmt") && (
+            {myPermissions?.modules?.includes("firm-mgmt") && (() => {
+              const totalUnread = (clientUploadData?.totalUnread ?? 0) + (lineDocUnread?.unreadCount ?? 0);
+              return (
               <button
                 onClick={() => setLocation("/firm-mgmt/documents")}
                 className="relative h-10 w-10 rounded-full flex items-center justify-center transition-colors hover:bg-[var(--theme-primary-light)]"
                 style={{ color: "var(--theme-primary)" }}
                 data-testid="btn-client-uploads"
-                title="เอกสารลูกค้า"
+                title="คลังเอกสาร"
               >
                 <Inbox className="h-5 w-5" />
-                {(clientUploadData?.totalUnread ?? 0) > 0 && (
-                  <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] rounded-full bg-[#03c9d7] text-white text-[10px] font-bold flex items-center justify-center px-1 animate-pulse" data-testid="badge-client-upload-count">
-                    {(clientUploadData?.totalUnread ?? 0) > 99 ? "99+" : clientUploadData?.totalUnread}
+                {totalUnread > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] rounded-full bg-[#06C755] text-white text-[10px] font-bold flex items-center justify-center px-1 animate-pulse" data-testid="badge-doc-unread">
+                    {totalUnread > 99 ? "99+" : totalUnread}
                   </span>
                 )}
               </button>
-            )}
+              );
+            })()}
             {myPermissions?.modules?.includes("settings") && (
               <button
                 onClick={() => setLocation("/approval-center")}
