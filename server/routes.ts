@@ -90,6 +90,7 @@ import { registerLandingPageRoutes } from "./routes/landing-page-routes";
 import { registerDevMenuRoutes } from "./routes/dev-menu-routes";
 import { registerFacebookWebhookRoutes } from "./routes/facebook-webhook-routes";
 import { registerBundleFixRoutes } from "./routes/bundle-fix-routes";
+import { registerSysAdminRoutes } from "./routes/sysadmin-routes";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -231,6 +232,7 @@ export async function registerRoutes(
   registerDevMenuRoutes(app);
   registerFacebookWebhookRoutes(app);
   registerBundleFixRoutes(app);
+  registerSysAdminRoutes(app);
 
   return httpServer;
 }

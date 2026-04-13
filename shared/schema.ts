@@ -6221,3 +6221,61 @@ export const calibrationInstruments = pgTable("calibration_instruments", {
 export const insertCalibrationInstrumentSchema = createInsertSchema(calibrationInstruments).omit({ id: true, createdAt: true });
 export type InsertCalibrationInstrument = z.infer<typeof insertCalibrationInstrumentSchema>;
 export type CalibrationInstrument = typeof calibrationInstruments.$inferSelect;
+
+export const sysAdmins = pgTable("sys_admins", {
+  id: serial("id").primaryKey(),
+  username: text("username").notNull().unique(),
+  password: text("password").notNull(),
+  fullName: text("full_name").notNull(),
+  email: text("email"),
+  isMaster: boolean("is_master").notNull().default(false),
+  active: boolean("active").notNull().default(true),
+  mustChangePassword: boolean("must_change_password").notNull().default(true),
+  passwordChangedAt: timestamp("password_changed_at"),
+  passwordExpiryDays: integer("password_expiry_days").notNull().default(90),
+  failedLoginAttempts: integer("failed_login_attempts").notNull().default(0),
+  lockedUntil: timestamp("locked_until"),
+  lastLoginAt: timestamp("last_login_at"),
+  lastLoginIp: text("last_login_ip"),
+  createdAt: timestamp("created_at").defaultNow(),
+  createdBy: integer("created_by"),
+  lineUserId: text("line_user_id"),
+});
+
+export const sysAdminPasswordHistory = pgTable("sys_admin_password_history", {
+  id: serial("id").primaryKey(),
+  sysAdminId: integer("sys_admin_id").notNull(),
+  passwordHash: text("password_hash").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const sysAdminPasswordPolicy = pgTable("sys_admin_password_policy", {
+  id: serial("id").primaryKey(),
+  minLength: integer("min_length").notNull().default(12),
+  requireUppercase: boolean("require_uppercase").notNull().default(true),
+  requireLowercase: boolean("require_lowercase").notNull().default(true),
+  requireNumbers: boolean("require_numbers").notNull().default(true),
+  requireSpecial: boolean("require_special").notNull().default(true),
+  expiryDays: integer("expiry_days").notNull().default(90),
+  historyCount: integer("history_count").notNull().default(5),
+  maxFailedAttempts: integer("max_failed_attempts").notNull().default(5),
+  lockoutMinutes: integer("lockout_minutes").notNull().default(30),
+  sessionTimeoutMinutes: integer("session_timeout_minutes").notNull().default(15),
+  require2fa: boolean("require_2fa").notNull().default(false),
+  ipWhitelistEnabled: boolean("ip_whitelist_enabled").notNull().default(false),
+  ipWhitelist: text("ip_whitelist").array(),
+  updatedAt: timestamp("updated_at"),
+});
+
+export const sysAdminAuditLog = pgTable("sys_admin_audit_log", {
+  id: serial("id").primaryKey(),
+  sysAdminId: integer("sys_admin_id").notNull(),
+  sysAdminUsername: text("sys_admin_username").notNull(),
+  action: text("action").notNull(),
+  targetType: text("target_type"),
+  targetId: integer("target_id"),
+  targetName: text("target_name"),
+  details: text("details"),
+  ipAddress: text("ip_address"),
+  createdAt: timestamp("created_at").defaultNow(),
+});

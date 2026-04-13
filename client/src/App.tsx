@@ -68,6 +68,8 @@ const DatabaseSwitch = lazy(() => import("@/pages/platform/database-switch"));
 const GithubManagement = lazy(() => import("@/pages/platform/github-management"));
 const PlatformMaintenance = lazy(() => import("@/pages/platform/maintenance"));
 const PasswordManagement = lazy(() => import("@/pages/platform/password-management"));
+const SysAdminLogin = lazy(() => import("@/pages/platform/sysadmin-login"));
+const SysAdminManagement = lazy(() => import("@/pages/platform/sysadmin-management"));
 const Dashboard = lazy(() => import("@/pages/dashboard"));
 const Journal = lazy(() => import("@/pages/journal"));
 const JournalForm = lazy(() => import("@/pages/journal-form"));
@@ -611,6 +613,13 @@ function Router() {
       <Route path="/dev/pdf-stress-test" component={PdfStressTest} />
       <Route path="/platform/passwords" component={PasswordManagement} />
       <Route path="/platform/github" component={GithubManagement} />
+      <Route path="/sys-k7x9" component={SysAdminLogin} />
+      <Route path="/sys-k7x9/users" component={SysAdminManagement} />
+      <Route path="/sys-k7x9/infrastructure" component={Infrastructure} />
+      <Route path="/sys-k7x9/db-switch" component={DatabaseSwitch} />
+      <Route path="/sys-k7x9/clone-data" component={CloneData} />
+      <Route path="/sys-k7x9/maintenance" component={PlatformMaintenance} />
+      <Route path="/sys-k7x9/github" component={GithubManagement} />
       <Route path="/journal" component={Journal} />
       <Route path="/journal/new" component={JournalForm} />
       <Route path="/journal/edit/:id" component={JournalForm} />
