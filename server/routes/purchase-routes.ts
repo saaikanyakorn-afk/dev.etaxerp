@@ -2372,8 +2372,13 @@ export function registerPurchaseRoutes(app: Express) {
         try {
           let expNo = doc.expNo;
           const docDateStr = doc.expDate || doc.apDate || new Date().toISOString().split("T")[0];
+
+          const taxRef = (doc.taxInvoiceRef || "").trim();
+          const prefixMatch = taxRef.match(/^([A-Za-z]{1,3})/);
+          const docPrefix = prefixMatch ? prefixMatch[1].toUpperCase() : "EXP";
+
           if (!expNo || expNo === "(สร้างอัตโนมัติ)") {
-            expNo = await getNextDocNo(companyId, "EXP", expenses, expenses.expNo, expenses.companyId, docDateStr);
+            expNo = await getNextDocNo(companyId, docPrefix, expenses, expenses.expNo, expenses.companyId, docDateStr);
           } else {
             const existing = await db.select({ expNo: expenses.expNo })
               .from(expenses).where(and(eq(expenses.companyId, companyId), eq(expenses.expNo, expNo)));
@@ -2458,7 +2463,7 @@ export function registerPurchaseRoutes(app: Express) {
               paymentMethod: payMethod,
               priceMode: doc.priceMode || "excluded",
               showInTaxReport: true,
-              docPrefix: "EXP",
+              docPrefix: docPrefix,
               notes: doc.notes || null,
               refDoc: doc.refDoc || null,
               attachedUrl: doc.attachedUrl || doc.archivedFileUrl || null,
