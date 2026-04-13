@@ -112,7 +112,7 @@ export function registerImportBatchRoutes(app: Express) {
                 ));
               const whtIds = whtCertsToDelete.map(w => w.id);
               if (whtIds.length > 0) {
-                await tx.delete(whtCertItems).where(inArray(whtCertItems.certId, whtIds));
+                await tx.delete(whtCertItems).where(inArray(whtCertItems.whtCertId, whtIds));
                 await tx.delete(withholdingTaxCerts).where(inArray(withholdingTaxCerts.id, whtIds));
               }
             }
@@ -227,6 +227,9 @@ export function registerImportBatchRoutes(app: Express) {
       });
 
       res.json({ deletedDocs, deletedJournals, batchId, deactivated: skippedNames.length, deactivatedNames: skippedNames });
-    } catch (err: any) { res.status(500).json({ message: err.message }); }
+    } catch (err: any) {
+      console.error("[import-batch-delete] Error:", err.message);
+      res.status(500).json({ message: err.message });
+    }
   });
 }
