@@ -66,7 +66,8 @@ export default function Journal() {
   const [, navigate] = useLocation();
   const { selectedCompany } = useCompany();
   const companyId = selectedCompany?.id;
-  const [searchTerm, setSearchTerm] = useState("");
+  const urlSearch = new URLSearchParams(window.location.search).get("search") || "";
+  const [searchTerm, setSearchTerm] = useState(urlSearch);
   const [bookFilter, setBookFilter] = useState("all");
   const { colors: themeColors } = useThemeColor();
   const [createdByFilter, setCreatedByFilter] = useState("all");

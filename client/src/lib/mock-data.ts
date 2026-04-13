@@ -189,7 +189,7 @@ export const NAV_ITEMS = [
       { label: "รายงานการขายทรัพย์สิน", href: "/assets/sales", group: "รายงาน" },
       { label: "รายงานทรัพย์สินหมดอายุ", href: "/assets/expired", group: "รายงาน" },
       { label: "สรุปรายการ", href: "/assets/summary", group: "รายงาน" },
-      { label: "ประวัติการลงบัญชี", href: "/assets/history", group: "รายงาน" },
+      { label: "ประวัติการลงบัญชี", href: "/journal?search=DEP-", group: "รายงาน" },
     ]
   },
   { 
