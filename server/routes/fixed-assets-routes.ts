@@ -556,14 +556,14 @@ export function registerFixedAssetsRoutes(app: Express) {
     try {
       const companyId = Number(req.query.companyId);
       if (!companyId) return res.status(400).json({ message: "กรุณาระบุ companyId" });
-      const entries = await db.select().from(journalEntries)
-        .where(and(
-          eq(journalEntries.companyId, companyId),
-          eq(journalEntries.sourceDocType, "depreciation"),
-        ))
-        .orderBy(desc(journalEntries.entryDate));
+      const entries = await db.execute(sql`
+        SELECT * FROM journal_entries 
+        WHERE company_id = ${companyId} 
+          AND (source_doc_type = 'depreciation' OR reference LIKE 'DEP-%')
+        ORDER BY entry_date DESC
+      `);
       const result = [];
-      for (const je of entries) {
+      for (const je of entries.rows as any[]) {
         const lines = await db.select().from(journalLines).where(eq(journalLines.journalEntryId, je.id));
         result.push({ ...je, lines });
       }

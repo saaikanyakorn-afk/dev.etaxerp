@@ -26,15 +26,27 @@ export default function AssetAccountingHistory() {
     enabled: !!selectedCompanyId,
   });
 
+  const normalized = useMemo(() => {
+    return journals.map((j: any) => ({
+      id: j.id,
+      entryNo: j.entryNo || j.entry_no,
+      entryDate: j.entryDate || j.entry_date,
+      reference: j.reference,
+      description: j.description,
+      status: j.status,
+      lines: j.lines || [],
+    }));
+  }, [journals]);
+
   const filtered = useMemo(() => {
-    if (!search) return journals;
+    if (!search) return normalized;
     const s = search.toLowerCase();
-    return journals.filter((j: any) =>
+    return normalized.filter((j: any) =>
       j.reference?.toLowerCase().includes(s) ||
       j.description?.toLowerCase().includes(s) ||
       j.entryNo?.toLowerCase().includes(s)
     );
-  }, [journals, search]);
+  }, [normalized, search]);
 
   const totalAmount = filtered.reduce((sum: number, j: any) => {
     const debitTotal = (j.lines || []).reduce((s: number, l: any) => s + parseFloat(l.debit || "0"), 0);
