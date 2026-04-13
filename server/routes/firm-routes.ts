@@ -25,6 +25,7 @@ app.get("/api/firm-clients/db-servers", requireAuth, requireModule("firm-mgmt"),
   const servers = await db.select({
     id: machines.id,
     localName: machines.localName,
+    displayName: machines.displayName,
     fqdn: machines.fqdn,
     lanIp: machines.lanIp,
     serverType: machines.serverType,

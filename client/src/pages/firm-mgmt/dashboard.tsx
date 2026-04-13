@@ -650,7 +650,7 @@ export default function FirmManagement() {
               <SelectItem value="none">-- เซิร์ฟเวอร์หลัก (ค่าเริ่มต้น) --</SelectItem>
               {dbServers.map((sv: any) => (
                 <SelectItem key={sv.id} value={String(sv.id)}>
-                  {sv.localName} ({sv.fqdn || sv.lanIp || "ไม่ระบุ IP"})
+                  {sv.displayName || sv.localName}
                 </SelectItem>
               ))}
             </SelectContent>

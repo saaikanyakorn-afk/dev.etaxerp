@@ -33,6 +33,7 @@ export type InsertPlatformLocation = z.infer<typeof insertPlatformLocationSchema
 export const machines = pgTable("machines", {
   id: serial("id").primaryKey(),
   localName: text("local_name").notNull(),
+  displayName: text("display_name"),
   windowsName: text("windows_name"),
   fqdn: text("fqdn"),
   domainName: text("domain_name"),

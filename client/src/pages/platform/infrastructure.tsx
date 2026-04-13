@@ -21,6 +21,7 @@ import {
 interface MachineRecord {
   id: number;
   localName: string;
+  displayName: string | null;
   windowsName: string | null;
   fqdn: string | null;
   domainName: string | null;
@@ -1799,6 +1800,7 @@ function EditMachineDialog({
   const [showDbPassword, setShowDbPassword] = useState(false);
   const [form, setForm] = useState({
     localName: machine?.localName || "",
+    displayName: machine?.displayName || "",
     windowsName: machine?.windowsName || "",
     fqdn: machine?.fqdn || "",
     domainName: machine?.domainName || "",
@@ -1839,6 +1841,14 @@ function EditMachineDialog({
               <Label className="text-sm font-medium">ชื่อเครื่อง (ชื่อเรียก) *</Label>
               <Input value={form.localName} onChange={e => setForm({ ...form, localName: e.target.value })} placeholder="เช่น server-e5, etaxerp" data-testid="input-local-name" />
             </div>
+            <div>
+              <Label className="text-sm font-medium">ชื่อแสดงผล (สำหรับผู้ใช้)</Label>
+              <Input value={form.displayName} onChange={e => setForm({ ...form, displayName: e.target.value })} placeholder="เช่น etax1, etax2" data-testid="input-display-name" />
+              <p className="text-xs text-muted-foreground mt-0.5">ชื่อที่ผู้ใช้เห็นเมื่อเลือกเซิร์ฟเวอร์เก็บข้อมูล</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
             <div>
               <Label className="text-sm font-medium">Domain Name</Label>
               <Input value={form.domainName} onChange={e => setForm({ ...form, domainName: e.target.value })} placeholder="เช่น deep-main.hopto.org" data-testid="input-domain-name" />
