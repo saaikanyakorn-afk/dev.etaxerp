@@ -2993,7 +2993,7 @@ export function registerPurchaseRoutes(app: Express) {
   });
 
   const pdfBulkUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
-  app.post("/api/pdf-bulk-parse", requireAuth, requireModule("purchases"), pdfBulkUpload.array("files", 1000), async (req, res) => {
+  app.post("/api/pdf-bulk-parse", requireAuth, requireModule("purchases"), pdfBulkUpload.array("files", 5000), async (req, res) => {
     try {
       const files = req.files as Express.Multer.File[];
       if (!files || files.length === 0) return res.status(400).json({ message: "กรุณาอัปโหลดไฟล์ PDF" });

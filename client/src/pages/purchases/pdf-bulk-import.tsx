@@ -15,7 +15,7 @@ import { useDateSettings } from "@/hooks/use-date-settings";
 import { formatDate } from "@/lib/format";
 import {
   Upload, CheckCircle2, XCircle, AlertCircle, ArrowLeft, FileText,
-  Loader2, ChevronDown, ChevronUp, File, X, BookOpen, Trash2,
+  Loader2, ChevronDown, ChevronUp, File, X, BookOpen, Trash2, FolderOpen,
 } from "lucide-react";
 
 interface ParsedItem {
@@ -92,6 +92,52 @@ const WHT_RATES = [
   { value: "5", label: "5% - ค่าเช่า" },
 ];
 
+async function readEntryAsFile(entry: FileSystemFileEntry): Promise<File> {
+  return new Promise((resolve, reject) => {
+    entry.file(resolve, reject);
+  });
+}
+
+async function readDirectoryEntries(dirEntry: FileSystemDirectoryEntry): Promise<FileSystemEntry[]> {
+  return new Promise((resolve, reject) => {
+    const reader = dirEntry.createReader();
+    const allEntries: FileSystemEntry[] = [];
+    const readBatch = () => {
+      reader.readEntries((entries) => {
+        if (entries.length === 0) {
+          resolve(allEntries);
+        } else {
+          allEntries.push(...entries);
+          readBatch();
+        }
+      }, reject);
+    };
+    readBatch();
+  });
+}
+
+async function collectPdfFiles(entries: FileSystemEntry[]): Promise<File[]> {
+  const files: File[] = [];
+  const queue = [...entries];
+  while (queue.length > 0) {
+    const entry = queue.shift()!;
+    if (entry.isFile) {
+      if (entry.name.toLowerCase().endsWith(".pdf")) {
+        try {
+          const file = await readEntryAsFile(entry as FileSystemFileEntry);
+          files.push(file);
+        } catch {}
+      }
+    } else if (entry.isDirectory) {
+      try {
+        const subEntries = await readDirectoryEntries(entry as FileSystemDirectoryEntry);
+        queue.push(...subEntries);
+      } catch {}
+    }
+  }
+  return files;
+}
+
 export default function PdfBulkImport() {
   const { selectedCompany } = useCompany();
   const companyId = selectedCompany?.id;
@@ -99,6 +145,7 @@ export default function PdfBulkImport() {
   const queryClient = useQueryClient();
   const [, navigate] = useLocation();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const folderInputRef = useRef<HTMLInputElement>(null);
   const { dateEra, dateFmt } = useDateSettings();
 
   const [step, setStep] = useState<"upload" | "preview" | "result">("upload");
@@ -306,6 +353,9 @@ export default function PdfBulkImport() {
     },
   });
 
+  const [scanningFolders, setScanningFolders] = useState(false);
+  const [scannedFileCount, setScannedFileCount] = useState(0);
+
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (files && files.length > 0) {
@@ -319,11 +369,57 @@ export default function PdfBulkImport() {
     }
   };
 
-  const handleDrop = useCallback((e: React.DragEvent) => {
+  const handleFolderSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files && files.length > 0) {
+      const arr = Array.from(files).filter(f => f.type === "application/pdf" || f.name.endsWith(".pdf"));
+      e.target.value = "";
+      if (arr.length === 0) {
+        toast({ title: "ไม่พบไฟล์ PDF ในโฟลเดอร์", variant: "destructive" });
+        return;
+      }
+      toast({ title: `พบ ${arr.length} ไฟล์ PDF`, description: "กำลังเริ่มอ่านข้อมูล..." });
+      parseMutation.mutate(arr);
+    }
+  };
+
+  const handleDrop = useCallback(async (e: React.DragEvent) => {
     e.preventDefault();
-    const files = Array.from(e.dataTransfer.files).filter(f => f.type === "application/pdf" || f.name.endsWith(".pdf"));
-    if (files.length > 0) parseMutation.mutate(files);
-  }, [parseMutation]);
+    const items = e.dataTransfer.items;
+    if (!items || items.length === 0) return;
+
+    const entries: FileSystemEntry[] = [];
+    let hasDirectory = false;
+    for (let i = 0; i < items.length; i++) {
+      const entry = items[i].webkitGetAsEntry?.();
+      if (entry) {
+        entries.push(entry);
+        if (entry.isDirectory) hasDirectory = true;
+      }
+    }
+
+    if (hasDirectory && entries.length > 0) {
+      setScanningFolders(true);
+      setScannedFileCount(0);
+      try {
+        const pdfFiles = await collectPdfFiles(entries);
+        setScannedFileCount(pdfFiles.length);
+        setScanningFolders(false);
+        if (pdfFiles.length === 0) {
+          toast({ title: "ไม่พบไฟล์ PDF ในโฟลเดอร์", variant: "destructive" });
+          return;
+        }
+        toast({ title: `พบ ${pdfFiles.length} ไฟล์ PDF`, description: "กำลังเริ่มอ่านข้อมูล..." });
+        parseMutation.mutate(pdfFiles);
+      } catch {
+        setScanningFolders(false);
+        toast({ title: "เกิดข้อผิดพลาดในการอ่านโฟลเดอร์", variant: "destructive" });
+      }
+    } else {
+      const files = Array.from(e.dataTransfer.files).filter(f => f.type === "application/pdf" || f.name.endsWith(".pdf"));
+      if (files.length > 0) parseMutation.mutate(files);
+    }
+  }, [parseMutation, toast]);
 
   const toggleDoc = (key: string) => {
     setSelectedDocs(prev => {
@@ -384,11 +480,17 @@ export default function PdfBulkImport() {
               <div
                 className="border-2 border-dashed border-gray-300 rounded-xl p-12 text-center hover:border-[#fb9678] transition-colors cursor-pointer"
                 onDrop={handleDrop}
-                onDragOver={(e) => e.preventDefault()}
+                onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; }}
                 onClick={() => fileInputRef.current?.click()}
                 data-testid="dropzone-upload"
               >
-                {parseMutation.isPending ? (
+                {scanningFolders ? (
+                  <div className="flex flex-col items-center gap-3">
+                    <Loader2 className="h-12 w-12 text-[#03c9d7] animate-spin" />
+                    <p className="text-lg font-medium">กำลังสแกนโฟลเดอร์...</p>
+                    <p className="text-sm text-gray-500">ค้นหาไฟล์ PDF ในโฟลเดอร์และโฟลเดอร์ย่อย</p>
+                  </div>
+                ) : parseMutation.isPending ? (
                   <div className="flex flex-col items-center gap-3">
                     <Loader2 className="h-12 w-12 text-[#fb9678] animate-spin" />
                     <p className="text-lg font-medium">กำลังอ่านไฟล์ PDF...</p>
@@ -404,10 +506,30 @@ export default function PdfBulkImport() {
                 ) : (
                   <div className="flex flex-col items-center gap-3">
                     <Upload className="h-12 w-12 text-gray-400" />
-                    <p className="text-lg font-medium">ลากไฟล์ PDF วางที่นี่ หรือคลิกเพื่อเลือก</p>
-                    <p className="text-sm text-gray-500">รองรับ PDF สูงสุด 1,000 ไฟล์ — ใบเสร็จ TikTok, ใบกำกับภาษีทั่วไป</p>
+                    <p className="text-lg font-medium">ลากไฟล์ PDF หรือโฟลเดอร์วางที่นี่</p>
+                    <p className="text-sm text-gray-500">รองรับโฟลเดอร์ (อ่าน subfolder อัตโนมัติ) — ใบเสร็จ TikTok, Shopee, ใบกำกับภาษีทั่วไป</p>
+                    <p className="text-xs text-gray-400">สูงสุด 5,000 ไฟล์ — ไม่ใช้ AI</p>
                   </div>
                 )}
+              </div>
+              <div className="flex items-center justify-center gap-3 mt-4">
+                <Button
+                  variant="outline"
+                  onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}
+                  className="gap-2"
+                  data-testid="button-select-files"
+                >
+                  <FileText className="h-4 w-4" /> เลือกไฟล์ PDF
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={(e) => { e.stopPropagation(); folderInputRef.current?.click(); }}
+                  className="gap-2"
+                  style={{ borderColor: "#03c9d7", color: "#03c9d7" }}
+                  data-testid="button-select-folder"
+                >
+                  <FolderOpen className="h-4 w-4" /> เลือกโฟลเดอร์
+                </Button>
               </div>
               <input
                 ref={fileInputRef}
@@ -417,6 +539,14 @@ export default function PdfBulkImport() {
                 className="hidden"
                 onChange={handleFileSelect}
                 data-testid="input-pdf-files"
+              />
+              <input
+                ref={folderInputRef}
+                type="file"
+                className="hidden"
+                onChange={handleFolderSelect}
+                {...({ webkitdirectory: "", directory: "", multiple: true } as any)}
+                data-testid="input-folder"
               />
             </CardContent>
           </Card>
