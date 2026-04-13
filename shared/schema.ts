@@ -5118,9 +5118,12 @@ export type InsertLandingContent = z.infer<typeof insertLandingContentSchema>;
 export type LandingContent = typeof landingContent.$inferSelect;
 
 export const schemaVersion = pgTable("schema_version", {
-  id: integer("id").primaryKey().default(1),
+  id: serial("id").primaryKey(),
   version: text("version").notNull(),
-  updatedAt: timestamp("updated_at").defaultNow(),
+  description: text("description").notNull(),
+  upSql: text("up_sql").notNull(),
+  downSql: text("down_sql").notNull(),
+  appliedAt: timestamp("applied_at").defaultNow(),
 });
 
 export const session = pgTable("session", {
