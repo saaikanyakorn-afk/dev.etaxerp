@@ -98,58 +98,85 @@ export function registerImportBatchRoutes(app: Express) {
             break;
           }
           case "expense": {
-            for (const docId of docIds) {
-              try {
-                await deleteJournalEntriesForDoc(tx, "expense", docId);
-              } catch (jErr: any) {
-                console.error(`[import-batch-delete] deleteJournalEntriesForDoc expense ${docId} failed:`, jErr.message);
-                throw jErr;
-              }
-              await tx.delete(expenseItems).where(eq(expenseItems.expenseId, docId));
-            }
-            const expRows = await tx.select({ id: expenses.id, expNo: expenses.expNo, batchId: expenses.batchId })
-              .from(expenses).where(and(eq(expenses.companyId, batch.companyId), inArray(expenses.id, docIds)));
-            const expIds = expRows.map(e => e.id);
+            const pgDocIds = sql.raw(`ARRAY[${docIds.join(',')}]::int[]`);
+            console.log(`[import-batch-delete] Step 1: querying expense rows...`);
+            const expRowsResult = await tx.execute(sql`
+              SELECT id, exp_no, batch_id FROM expenses 
+              WHERE company_id = ${batch.companyId} AND id = ANY(${pgDocIds})
+            `);
+            const expRows = (expRowsResult.rows as any[]);
+            const expIds = expRows.map((e: any) => e.id);
+            console.log(`[import-batch-delete] Step 2: found ${expIds.length} expenses, deleting expense_items...`);
+
             if (expIds.length > 0) {
-              const whtCertsToDelete = await tx.select({ id: withholdingTaxCerts.id })
-                .from(withholdingTaxCerts)
-                .where(and(
-                  eq(withholdingTaxCerts.companyId, batch.companyId),
-                  eq(withholdingTaxCerts.sourceDocType, "expense"),
-                  inArray(withholdingTaxCerts.sourceDocId, expIds)
-                ));
-              const whtIds = whtCertsToDelete.map(w => w.id);
-              if (whtIds.length > 0) {
-                await tx.delete(whtCertItems).where(inArray(whtCertItems.whtCertId, whtIds));
-                await tx.delete(withholdingTaxCerts).where(inArray(withholdingTaxCerts.id, whtIds));
+              const pgExpIds = sql.raw(`ARRAY[${expIds.join(',')}]::int[]`);
+              await tx.execute(sql`DELETE FROM expense_items WHERE expense_id = ANY(${pgExpIds})`);
+              console.log(`[import-batch-delete] Step 3: deleting per-expense journals...`);
+
+              const jResult = await tx.execute(sql`
+                SELECT id FROM journal_entries 
+                WHERE source_doc_type = 'expense' AND source_doc_id = ANY(${pgExpIds})
+              `);
+              const jIds = (jResult.rows as any[]).map((j: any) => j.id);
+              if (jIds.length > 0) {
+                const pgJIds = sql.raw(`ARRAY[${jIds.join(',')}]::int[]`);
+                console.log(`[import-batch-delete] Clearing ${jIds.length} per-expense journal refs...`);
+                const clearRef = async (stmt: string) => { try { await tx.execute(sql.raw(stmt)); } catch {} };
+                const jIdsList = jIds.join(",");
+                await clearRef(`UPDATE bank_statements SET matched_journal_id = NULL WHERE matched_journal_id IN (${jIdsList})`);
+                await clearRef(`UPDATE manufacturing_orders SET journal_entry_id = NULL WHERE journal_entry_id IN (${jIdsList})`);
+                await clearRef(`UPDATE payroll_records SET journal_entry_id = NULL WHERE journal_entry_id IN (${jIdsList})`);
+                await clearRef(`UPDATE fixed_assets SET journal_entry_id = NULL WHERE journal_entry_id IN (${jIdsList})`);
+                await tx.execute(sql`DELETE FROM journal_lines WHERE journal_entry_id = ANY(${pgJIds})`);
+                await tx.execute(sql`DELETE FROM journal_entries WHERE id = ANY(${pgJIds})`);
+                deletedJournals += jIds.length;
               }
+
+              console.log(`[import-batch-delete] Step 4: deleting WHT certs...`);
+              const whtResult = await tx.execute(sql`
+                SELECT id FROM withholding_tax_certs 
+                WHERE company_id = ${batch.companyId} AND source_doc_type = 'expense' AND source_doc_id = ANY(${pgExpIds})
+              `);
+              const whtIds = (whtResult.rows as any[]).map((w: any) => w.id);
+              if (whtIds.length > 0) {
+                const pgWhtIds = sql.raw(`ARRAY[${whtIds.join(',')}]::int[]`);
+                await tx.execute(sql`DELETE FROM wht_cert_items WHERE wht_cert_id = ANY(${pgWhtIds})`);
+                await tx.execute(sql`DELETE FROM withholding_tax_certs WHERE id = ANY(${pgWhtIds})`);
+              }
+
+              console.log(`[import-batch-delete] Step 5: deleting ${expIds.length} expenses...`);
+              const delResult = await tx.execute(sql`
+                DELETE FROM expenses WHERE company_id = ${batch.companyId} AND id = ANY(${pgExpIds})
+              `);
+              deletedDocs = delResult.rowCount || 0;
             }
-            const result = await tx.delete(expenses).where(and(eq(expenses.companyId, batch.companyId), inArray(expenses.id, docIds)));
-            deletedDocs = result.rowCount || 0;
-            const affectedBatchIds = [...new Set(expRows.map(e => e.batchId).filter(Boolean))] as number[];
+
+            console.log(`[import-batch-delete] Step 6: handling DXP batches...`);
+            const affectedBatchIds = [...new Set(expRows.map((e: any) => e.batch_id).filter(Boolean))] as number[];
             for (const dxpId of affectedBatchIds) {
-              const remaining = await tx.select({ id: expenses.id }).from(expenses).where(eq(expenses.batchId, dxpId));
-              const [dxpBatch] = await tx.select().from(expenseDailyBatches).where(eq(expenseDailyBatches.id, dxpId));
+              const remResult = await tx.execute(sql`SELECT id FROM expenses WHERE batch_id = ${dxpId}`);
+              const remaining = remResult.rows as any[];
+              const dxpBatchResult = await tx.execute(sql`SELECT * FROM expense_daily_batches WHERE id = ${dxpId}`);
+              const dxpBatch = (dxpBatchResult.rows as any[])[0];
               if (dxpBatch) {
-                const dxpNo = dxpBatch.batchNo;
-                const dxpJournals = await tx.select({ id: journalEntries.id })
-                  .from(journalEntries)
-                  .where(and(
-                    eq(journalEntries.companyId, batch.companyId),
-                    eq(journalEntries.docNo, dxpNo),
-                    eq(journalEntries.sourceDocType, "expense_daily_batch"),
-                  ));
-                for (const dj of dxpJournals) {
-                  const djId = dj.id;
-                  try { await tx.execute(sql`UPDATE bank_statements SET matched_journal_id = NULL WHERE matched_journal_id = ${djId}`); } catch {}
-                  await tx.delete(journalLines).where(eq(journalLines.journalEntryId, djId));
-                  await tx.delete(journalEntries).where(eq(journalEntries.id, djId));
-                  deletedJournals++;
+                const dxpNo = dxpBatch.batch_no;
+                const dxpJResult = await tx.execute(sql`
+                  SELECT id FROM journal_entries 
+                  WHERE company_id = ${batch.companyId} AND doc_no = ${dxpNo} AND source_doc_type = 'expense_daily_batch'
+                `);
+                const djIds = (dxpJResult.rows as any[]).map((dj: any) => dj.id);
+                if (djIds.length > 0) {
+                  const djIdsList = djIds.join(",");
+                  try { await tx.execute(sql.raw(`UPDATE bank_statements SET matched_journal_id = NULL WHERE matched_journal_id IN (${djIdsList})`)); } catch {}
+                  const pgDjIds = sql.raw(`ARRAY[${djIds.join(',')}]::int[]`);
+                  await tx.execute(sql`DELETE FROM journal_lines WHERE journal_entry_id = ANY(${pgDjIds})`);
+                  await tx.execute(sql`DELETE FROM journal_entries WHERE id = ANY(${pgDjIds})`);
+                  deletedJournals += djIds.length;
                 }
               }
               if (remaining.length === 0) {
-                await tx.delete(expenseDailyBatches).where(eq(expenseDailyBatches.id, dxpId));
-                console.log(`[import-batch-delete] DXP batch ${dxpId} fully removed (0 expenses left)`);
+                await tx.execute(sql`DELETE FROM expense_daily_batches WHERE id = ${dxpId}`);
+                console.log(`[import-batch-delete] DXP batch ${dxpId} fully removed`);
               } else {
                 const sums = await tx.execute(sql`
                   SELECT COALESCE(SUM(total_amount::numeric),0) as total,
@@ -165,9 +192,10 @@ export function registerImportBatchRoutes(app: Express) {
                   totalWht: String(row.wht),
                   totalExpenses: Number(row.cnt),
                 }).where(eq(expenseDailyBatches.id, dxpId));
-                console.log(`[import-batch-delete] DXP batch ${dxpId} updated: ${row.cnt} expenses left, total=${row.total}. DXP journal deleted — will recreate on next import.`);
+                console.log(`[import-batch-delete] DXP batch ${dxpId} updated: ${row.cnt} left. Journal deleted.`);
               }
             }
+            console.log(`[import-batch-delete] Done: deleted=${deletedDocs}, journals=${deletedJournals}`);
             break;
           }
           case "product": {
