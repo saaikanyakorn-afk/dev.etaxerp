@@ -10,7 +10,40 @@ import * as XLSX from "xlsx";
 import multer from "multer";
 import path from "path";
 
+let schemaVersionMigrated = false;
+async function migrateSchemaVersionTable() {
+  if (schemaVersionMigrated) return;
+  schemaVersionMigrated = true;
+  try {
+    const colCheck = await db.execute(sql.raw(
+      "SELECT column_name FROM information_schema.columns WHERE table_name = 'schema_version' AND column_name = 'up_sql'"
+    ));
+    if ((colCheck.rows as any[]).length > 0) return;
+
+    const oldData = await db.execute(sql.raw("SELECT version FROM schema_version WHERE id = 1"));
+    const oldVersion = (oldData.rows as any[])[0]?.version || "85";
+
+    await db.execute(sql.raw("DROP TABLE IF EXISTS schema_version"));
+    await db.execute(sql.raw(
+      "CREATE TABLE schema_version (id SERIAL PRIMARY KEY, version TEXT NOT NULL, description TEXT NOT NULL, up_sql TEXT NOT NULL, down_sql TEXT NOT NULL, applied_at TIMESTAMP DEFAULT NOW())"
+    ));
+
+    const entries = [
+      { version: "85", description: "Baseline - all schema up to version 85", up_sql: "N/A - baseline", down_sql: "N/A - baseline" },
+      { version: "86", description: "Fix asset category depExpCode per category type", up_sql: "UPDATE asset_categories SET dep_exp_code = CASE account_code WHEN '1702000' THEN '5301000' WHEN '1702100' THEN '5301100' WHEN '1705000' THEN '5301700' WHEN '1706000' THEN '5301600' END WHERE account_code IN ('1702000','1702100','1705000','1706000')", down_sql: "UPDATE asset_categories SET dep_exp_code = '5301500' WHERE account_code IN ('1702000','1702100','1705000','1706000')" },
+      { version: "87", description: "Restructure schema_version table with rollback support (up_sql/down_sql)", up_sql: "ALTER TABLE schema_version ADD COLUMN description TEXT, ADD COLUMN up_sql TEXT, ADD COLUMN down_sql TEXT, ALTER COLUMN id TYPE SERIAL", down_sql: "DROP TABLE IF EXISTS schema_version; CREATE TABLE schema_version (id INTEGER PRIMARY KEY DEFAULT 1 CHECK (id = 1), version TEXT NOT NULL, updated_at TIMESTAMP DEFAULT NOW()); INSERT INTO schema_version (id, version) VALUES (1, '86')" },
+    ];
+    for (const e of entries) {
+      await db.execute(sql`INSERT INTO schema_version (version, description, up_sql, down_sql) VALUES (${e.version}, ${e.description}, ${e.up_sql}, ${e.down_sql})`);
+    }
+    console.log("[schema_version] Migrated to new structure with rollback support, old version was:", oldVersion);
+  } catch (err: any) {
+    console.error("[schema_version] Migration error:", err.message);
+  }
+}
+
 export function registerFixedAssetsRoutes(app: Express) {
+  migrateSchemaVersionTable();
   const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
   // ============= FIXED ASSETS =============
   const DEFAULT_ASSET_CATEGORIES = [
