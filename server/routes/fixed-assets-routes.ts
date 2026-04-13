@@ -529,22 +529,12 @@ export function registerFixedAssetsRoutes(app: Express) {
       const startDate = new Date(asset.startDepreciationDate);
       const endDate = new Date(upToDate || new Date().toISOString().split("T")[0]);
       
-      const importedAccumSingle = parseFloat(asset.accumDepreciation || "0");
-      const hasImportedAccumSingle = importedAccumSingle > 0 && existingDeps.length === 0;
-      
       let currentAccum = existingDeps.length > 0 
         ? parseFloat(existingDeps[existingDeps.length - 1].accumDepreciation || "0")
-        : (hasImportedAccumSingle ? importedAccumSingle : 0);
+        : 0;
 
       const newDeps: any[] = [];
-      let calcStart: Date;
-      if (hasImportedAccumSingle) {
-        const monthsAlready = Math.round(importedAccumSingle / monthlyDep);
-        calcStart = new Date(startDate.getFullYear(), startDate.getMonth() + monthsAlready, 1);
-      } else {
-        calcStart = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
-      }
-      const current = new Date(calcStart);
+      const current = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
 
       while (current <= endDate) {
         const period = `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, "0")}`;
@@ -553,7 +543,7 @@ export function registerFixedAssetsRoutes(app: Express) {
           const maxDepreciable = cost - salvageValue;
           let depAmount = monthlyDep;
           
-          if (!hasImportedAccumSingle && current.getFullYear() === startDate.getFullYear() && current.getMonth() === startDate.getMonth()) {
+          if (current.getFullYear() === startDate.getFullYear() && current.getMonth() === startDate.getMonth()) {
             const daysInMonth = new Date(current.getFullYear(), current.getMonth() + 1, 0).getDate();
             const daysUsed = daysInMonth - startDate.getDate() + 1;
             depAmount = (monthlyDep / daysInMonth) * daysUsed;
@@ -680,23 +670,12 @@ export function registerFixedAssetsRoutes(app: Express) {
         if (from > endDepDate) continue;
         if (to < startDate) continue;
         
-        const importedAccum = parseFloat(asset.accumDepreciation || "0");
-        const hasImportedAccum = importedAccum > 0 && existingDeps.length === 0;
-        
-        let calcStartDate: Date;
-        if (hasImportedAccum) {
-          const monthsDepreciated = Math.round(importedAccum / monthlyDep);
-          calcStartDate = new Date(startDate.getFullYear(), startDate.getMonth() + monthsDepreciated, 1);
-          if (calcStartDate > to) continue;
-        } else {
-          calcStartDate = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
-        }
-        
+        const fillStart = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
         const toMonth = new Date(to.getFullYear(), to.getMonth(), 1);
-        const current = hasImportedAccum ? new Date(calcStartDate) : new Date(startDate.getFullYear(), startDate.getMonth(), 1);
+        const current = new Date(fillStart);
         
-        let runningAccum = hasImportedAccum ? importedAccum : 0;
-        let accumBeforeRange = hasImportedAccum ? importedAccum : 0;
+        let runningAccum = 0;
+        let accumBeforeRange = 0;
         let depInRange = 0;
         let hasUnposted = false;
         
@@ -714,7 +693,7 @@ export function registerFixedAssetsRoutes(app: Express) {
             }
           } else {
             let depAmount = monthlyDep;
-            if (!hasImportedAccum && current.getFullYear() === startDate.getFullYear() && current.getMonth() === startDate.getMonth()) {
+            if (current.getFullYear() === startDate.getFullYear() && current.getMonth() === startDate.getMonth()) {
               const daysInMonth = new Date(current.getFullYear(), current.getMonth() + 1, 0).getDate();
               const daysUsed = daysInMonth - startDate.getDate() + 1;
               depAmount = (monthlyDep / daysInMonth) * daysUsed;
