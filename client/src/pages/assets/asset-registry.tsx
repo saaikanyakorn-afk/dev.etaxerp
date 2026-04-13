@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Warehouse, Search, Plus, FileSpreadsheet, Upload, Download, X, Check, AlertTriangle, Settings } from "lucide-react";
+import { Warehouse, Search, Plus, FileSpreadsheet, Upload, Download, X, Check, AlertTriangle, Settings, Trash2 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { useCompany } from "@/lib/company-context";
@@ -43,6 +43,9 @@ export default function AssetRegistry() {
   const [showSettingsDialog, setShowSettingsDialog] = useState(false);
   const [thresholdInput, setThresholdInput] = useState("");
   const [savingSettings, setSavingSettings] = useState(false);
+  const [showDeleteAllDialog, setShowDeleteAllDialog] = useState(false);
+  const [deletingAll, setDeletingAll] = useState(false);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
   const now = new Date();
   const yearStart = `${now.getFullYear()}-01-01`;
   const todayStr = toLocalDateStr(now);
@@ -151,6 +154,44 @@ export default function AssetRegistry() {
       toast({ title: "เกิดข้อผิดพลาด", description: err.message, variant: "destructive" });
     } finally {
       setImporting(false);
+    }
+  };
+
+  const handleDeleteOne = async (id: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!confirm("ต้องการลบสินทรัพย์รายการนี้ใช่หรือไม่?")) return;
+    setDeletingId(id);
+    try {
+      const res = await fetch(`/api/fixed-assets/${id}`, { method: "DELETE", credentials: "include" });
+      if (!res.ok) {
+        const data = await res.json();
+        toast({ title: "ลบไม่สำเร็จ", description: data.message, variant: "destructive" });
+        return;
+      }
+      toast({ title: "ลบสินทรัพย์สำเร็จ" });
+      queryClient.invalidateQueries({ queryKey: ["/api/fixed-assets"] });
+    } catch (err: any) {
+      toast({ title: "เกิดข้อผิดพลาด", description: err.message, variant: "destructive" });
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const handleDeleteAll = async () => {
+    setDeletingAll(true);
+    try {
+      let count = 0;
+      for (const asset of assets) {
+        const res = await fetch(`/api/fixed-assets/${asset.id}`, { method: "DELETE", credentials: "include" });
+        if (res.ok) count++;
+      }
+      toast({ title: `ลบสินทรัพย์ทั้งหมด ${count} รายการสำเร็จ` });
+      queryClient.invalidateQueries({ queryKey: ["/api/fixed-assets"] });
+      setShowDeleteAllDialog(false);
+    } catch (err: any) {
+      toast({ title: "เกิดข้อผิดพลาด", description: err.message, variant: "destructive" });
+    } finally {
+      setDeletingAll(false);
     }
   };
 
@@ -264,6 +305,17 @@ export default function AssetRegistry() {
                 >
                   <FileSpreadsheet className="h-4 w-4 mr-1" /> ส่งออก Excel
                 </Button>
+                {assets.length > 0 && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="border-red-400 text-red-500 hover:bg-red-50 h-8 text-xs"
+                    data-testid="button-delete-all"
+                    onClick={() => setShowDeleteAllDialog(true)}
+                  >
+                    <Trash2 className="h-4 w-4 mr-1" /> ลบทั้งหมด ({assets.length})
+                  </Button>
+                )}
                 <Button
                   size="sm"
                   style={{ background: "var(--theme-primary)" }} className="hover:opacity-90 text-white h-8 text-xs"
@@ -288,16 +340,17 @@ export default function AssetRegistry() {
                   <TableHead className="text-white text-[11px] font-normal text-right">ค่าเสื่อมสะสม</TableHead>
                   <TableHead className="text-white text-[11px] font-normal text-right">มูลค่าสุทธิ</TableHead>
                   <TableHead className="text-white text-[11px] font-normal text-center">สถานะ</TableHead>
+                  <TableHead className="text-white text-[11px] font-normal text-center w-10"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8 text-sm text-muted-foreground">กำลังโหลด...</TableCell>
+                    <TableCell colSpan={9} className="text-center py-8 text-sm text-muted-foreground">กำลังโหลด...</TableCell>
                   </TableRow>
                 ) : filtered.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8 text-sm text-muted-foreground" data-testid="text-empty-state">
+                    <TableCell colSpan={9} className="text-center py-8 text-sm text-muted-foreground" data-testid="text-empty-state">
                       {assets.length === 0 ? "ยังไม่มีสินทรัพย์ กดปุ่ม \"เพิ่มรายการสินทรัพย์\" เพื่อเริ่มต้น" : "ไม่พบรายการที่ตรงกับตัวกรอง"}
                     </TableCell>
                   </TableRow>
@@ -334,6 +387,18 @@ export default function AssetRegistry() {
                         ) : (
                           <Badge className="bg-gray-400 text-white hover:bg-gray-500 text-[9px] font-normal px-2 py-0">จำหน่ายแล้ว</Badge>
                         )}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 w-7 p-0 text-red-400 hover:text-red-600 hover:bg-red-50"
+                          data-testid={`button-delete-${asset.id}`}
+                          disabled={deletingId === asset.id}
+                          onClick={(e) => handleDeleteOne(asset.id, e)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
                       </TableCell>
                     </TableRow>
                   ))
@@ -447,6 +512,32 @@ export default function AssetRegistry() {
               data-testid="button-save-asset-settings"
             >
               {savingSettings ? "กำลังบันทึก..." : "บันทึก"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showDeleteAllDialog} onOpenChange={setShowDeleteAllDialog}>
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600">
+              <Trash2 className="h-5 w-5" />
+              ลบสินทรัพย์ทั้งหมด
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm">คุณต้องการลบสินทรัพย์ <strong className="text-red-600">{assets.length} รายการ</strong> ทั้งหมดใช่หรือไม่?</p>
+            <p className="text-xs text-red-500">การลบจะไม่สามารถกู้คืนได้ กรุณาตรวจสอบให้แน่ใจก่อนยืนยัน</p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDeleteAllDialog(false)} disabled={deletingAll}>ยกเลิก</Button>
+            <Button
+              className="bg-red-600 text-white hover:bg-red-700"
+              onClick={handleDeleteAll}
+              disabled={deletingAll}
+              data-testid="button-confirm-delete-all"
+            >
+              {deletingAll ? "กำลังลบ..." : `ยืนยันลบทั้งหมด ${assets.length} รายการ`}
             </Button>
           </DialogFooter>
         </DialogContent>
