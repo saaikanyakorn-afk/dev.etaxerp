@@ -674,6 +674,24 @@ The test/backup database (`db_rp_tst`) is temporarily on tax-gateway because dee
 - **TODO:** `emergencySwitchToSource` hardcodes USA as source — needs to know the real source dynamically.
 - **TODO:** Half-baked timeout (30min default) should be configurable by platform user.
 
+### Database Baseline & Version Tracking (Updated: 13/04/2569)
+**schema_version table** exists on ALL databases (Neon=v88, Production=v87, Main=check). Kai writes ONLY to Neon; production/main updated via พี่ช้าง pull+build+restart.
+
+**Principle:** Kai can READ all databases anytime. Every schema/data change goes through Kai's code, so Kai knows BEFORE any DB is altered. No excuse to "not know" what's in each DB.
+
+| Database | journal_entries | journal_lines | fixed_assets | asset_depreciations | companies | users | schema_version |
+|----------|----------------|---------------|--------------|---------------------|-----------|-------|----------------|
+| Replit Neon (Dev) | 7,191 | 21,574 | 248 | 7,993 | 450 | 29 | v88 |
+| Production (deep-main) | 28 | 78 | 248 | 8,001 | 453 | 50 | v87 |
+| Main DB | 10 | 27 | 0 | 0 | 448 | 24 | — |
+
+**Key data differences:**
+- **Neon:** Most journal entries (payroll, invoices, expenses, petty cash) — NO depreciation journals
+- **Production:** Has depreciation data (1 DEP journal entry, 8001 depreciation records) — real user testing here
+- **Main:** Minimal data, no fixed assets — dev/staging only
+
+**Push tracking:** Every push gets a sequential number per day. Example: Push #1 (13/04/2569), Push #2, etc.
+
 ### 🔖 FUTURE: Standalone Clone Tool
 - **Plan:** Extract clone database feature into a standalone Node.js project, publishable on Windows (target: tax-gateway server).
 - **When:** AFTER clone database function is fully closed — all types (static/transaction/manual), all directions (US→TH, TH→US) tested and baselined.
