@@ -15,28 +15,33 @@ async function migrateSchemaVersionTable() {
   if (schemaVersionMigrated) return;
   schemaVersionMigrated = true;
   try {
-    const colCheck = await db.execute(sql.raw(
-      "SELECT column_name FROM information_schema.columns WHERE table_name = 'schema_version' AND column_name = 'up_sql'"
+    const tableCheck = await db.execute(sql.raw(
+      "SELECT column_name FROM information_schema.columns WHERE table_name = 'schema_version'"
     ));
-    if ((colCheck.rows as any[]).length > 0) return;
+    const cols = (tableCheck.rows as any[]).map(r => r.column_name);
 
-    const oldData = await db.execute(sql.raw("SELECT version FROM schema_version WHERE id = 1"));
-    const oldVersion = (oldData.rows as any[])[0]?.version || "85";
-
-    await db.execute(sql.raw("DROP TABLE IF EXISTS schema_version"));
-    await db.execute(sql.raw(
-      "CREATE TABLE schema_version (id SERIAL PRIMARY KEY, version TEXT NOT NULL, description TEXT NOT NULL, up_sql TEXT NOT NULL, down_sql TEXT NOT NULL, applied_at TIMESTAMP DEFAULT NOW())"
-    ));
-
-    const entries = [
-      { version: "85", description: "Baseline - all schema up to version 85", up_sql: "N/A - baseline", down_sql: "N/A - baseline" },
-      { version: "86", description: "Fix asset category depExpCode per category type", up_sql: "UPDATE asset_categories SET dep_exp_code = CASE account_code WHEN '1702000' THEN '5301000' WHEN '1702100' THEN '5301100' WHEN '1705000' THEN '5301700' WHEN '1706000' THEN '5301600' END WHERE account_code IN ('1702000','1702100','1705000','1706000')", down_sql: "UPDATE asset_categories SET dep_exp_code = '5301500' WHERE account_code IN ('1702000','1702100','1705000','1706000')" },
-      { version: "87", description: "Restructure schema_version table with rollback support (up_sql/down_sql)", up_sql: "ALTER TABLE schema_version ADD COLUMN description TEXT, ADD COLUMN up_sql TEXT, ADD COLUMN down_sql TEXT, ALTER COLUMN id TYPE SERIAL", down_sql: "DROP TABLE IF EXISTS schema_version; CREATE TABLE schema_version (id INTEGER PRIMARY KEY DEFAULT 1 CHECK (id = 1), version TEXT NOT NULL, updated_at TIMESTAMP DEFAULT NOW()); INSERT INTO schema_version (id, version) VALUES (1, '86')" },
-    ];
-    for (const e of entries) {
-      await db.execute(sql`INSERT INTO schema_version (version, description, up_sql, down_sql) VALUES (${e.version}, ${e.description}, ${e.up_sql}, ${e.down_sql})`);
+    if (!cols.includes("up_sql")) {
+      const oldData = await db.execute(sql.raw("SELECT version FROM schema_version WHERE id = 1"));
+      const oldVersion = (oldData.rows as any[])[0]?.version || "85";
+      await db.execute(sql.raw("DROP TABLE IF EXISTS schema_version"));
+      await db.execute(sql.raw(
+        "CREATE TABLE schema_version (id SERIAL PRIMARY KEY, version TEXT NOT NULL, description TEXT NOT NULL, up_sql TEXT NOT NULL, down_sql TEXT NOT NULL, applied_at TIMESTAMP DEFAULT NOW(), change_type TEXT NOT NULL DEFAULT 'schema', files_changed TEXT, applied_neon BOOLEAN NOT NULL DEFAULT true, applied_production BOOLEAN NOT NULL DEFAULT false, applied_main BOOLEAN NOT NULL DEFAULT false, reverted_at TIMESTAMP, push_ref TEXT)"
+      ));
+      const entries = [
+        { version: "85", description: "Baseline - all schema up to version 85", up_sql: "N/A - baseline", down_sql: "N/A - baseline" },
+        { version: "86", description: "Fix asset category depExpCode per category type", up_sql: "UPDATE asset_categories SET dep_exp_code = CASE account_code WHEN '1702000' THEN '5301000' WHEN '1702100' THEN '5301100' WHEN '1705000' THEN '5301700' WHEN '1706000' THEN '5301600' END WHERE account_code IN ('1702000','1702100','1705000','1706000')", down_sql: "UPDATE asset_categories SET dep_exp_code = '5301500' WHERE account_code IN ('1702000','1702100','1705000','1706000')" },
+        { version: "87", description: "Restructure schema_version table with rollback support", up_sql: "CREATE TABLE schema_version with history columns", down_sql: "Revert to single-row schema_version" },
+      ];
+      for (const e of entries) {
+        await db.execute(sql`INSERT INTO schema_version (version, description, up_sql, down_sql, applied_neon, applied_production, applied_main) VALUES (${e.version}, ${e.description}, ${e.up_sql}, ${e.down_sql}, true, true, true)`);
+      }
+      console.log("[schema_version] Migrated from single-row to history+tracking, old version:", oldVersion);
+    } else if (!cols.includes("change_type")) {
+      await db.execute(sql.raw(
+        "ALTER TABLE schema_version ADD COLUMN IF NOT EXISTS change_type TEXT NOT NULL DEFAULT 'schema', ADD COLUMN IF NOT EXISTS files_changed TEXT, ADD COLUMN IF NOT EXISTS applied_neon BOOLEAN NOT NULL DEFAULT true, ADD COLUMN IF NOT EXISTS applied_production BOOLEAN NOT NULL DEFAULT false, ADD COLUMN IF NOT EXISTS applied_main BOOLEAN NOT NULL DEFAULT false, ADD COLUMN IF NOT EXISTS reverted_at TIMESTAMP, ADD COLUMN IF NOT EXISTS push_ref TEXT"
+      ));
+      console.log("[schema_version] Added multi-DB tracking columns (v89 upgrade)");
     }
-    console.log("[schema_version] Migrated to new structure with rollback support, old version was:", oldVersion);
   } catch (err: any) {
     console.error("[schema_version] Migration error:", err.message);
   }
