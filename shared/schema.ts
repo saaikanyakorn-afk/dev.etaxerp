@@ -2258,6 +2258,7 @@ export const expenses = pgTable("expenses", {
   attachedUrl: text("attached_url"),
   linkJournal: boolean("link_journal").default(false),
   shareToken: text("share_token"),
+  batchId: integer("batch_id"),
   createdBy: integer("created_by").references(() => users.id),
   updatedBy: integer("updated_by").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow(),
@@ -2267,6 +2268,26 @@ export const expenses = pgTable("expenses", {
 export const insertExpenseSchema = createInsertSchema(expenses).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertExpense = z.infer<typeof insertExpenseSchema>;
 export type Expense = typeof expenses.$inferSelect;
+
+export const expenseDailyBatches = pgTable("expense_daily_batches", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").references(() => companies.id).notNull(),
+  batchNo: text("batch_no").notNull(),
+  batchDate: date("batch_date").notNull(),
+  totalExpenses: integer("total_expenses").notNull().default(0),
+  totalSubtotal: decimal("total_subtotal", { precision: 15, scale: 2 }).default("0"),
+  totalVat: decimal("total_vat", { precision: 15, scale: 2 }).default("0"),
+  totalAmount: decimal("total_amount", { precision: 15, scale: 2 }).default("0"),
+  totalWht: decimal("total_wht", { precision: 15, scale: 2 }).default("0"),
+  status: text("status").notNull().default("active"),
+  notes: text("notes"),
+  createdBy: integer("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertExpenseDailyBatchSchema = createInsertSchema(expenseDailyBatches).omit({ id: true, createdAt: true });
+export type InsertExpenseDailyBatch = z.infer<typeof insertExpenseDailyBatchSchema>;
+export type ExpenseDailyBatch = typeof expenseDailyBatches.$inferSelect;
 
 export const expenseItems = pgTable("expense_items", {
   id: serial("id").primaryKey(),

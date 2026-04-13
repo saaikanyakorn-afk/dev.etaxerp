@@ -3,7 +3,7 @@ import * as XLSX from "xlsx";
 import { db } from "../db";
 import { storage } from "../storage";
 import { eq, and, desc, or, sql, count, not, ilike } from "drizzle-orm";
-import { purchaseRequests, purchaseRequestItems, bidComparisons, bidComparisonItems, bidVendors, purchaseOrders, purchaseOrderItems, purchaseInvoices, purchaseInvoiceItems, companies, accounts, contacts, products, journalEntries, journalLines, productStock, stockMovements, expenses, expenseItems, withholdingTaxCerts, whtCertItems, documentImportBatches, firmClients, clientUploadLinks, clientUploadFiles } from "@shared/schema";
+import { purchaseRequests, purchaseRequestItems, bidComparisons, bidComparisonItems, bidVendors, purchaseOrders, purchaseOrderItems, purchaseInvoices, purchaseInvoiceItems, companies, accounts, contacts, products, journalEntries, journalLines, productStock, stockMovements, expenses, expenseItems, withholdingTaxCerts, whtCertItems, documentImportBatches, firmClients, clientUploadLinks, clientUploadFiles, expenseDailyBatches } from "@shared/schema";
 import { requireAuth, requireModule, requireRole, checkDocOwnership } from "../route-middleware";
 import { getNextDocNo, validateDocNo, createAutoJournalEntry, resolvePaymentMethodAccountCode, getNextJournalEntryNo, checkDocumentLimit, deleteStockMovementsForDoc, deleteJournalEntriesForDoc, logActivity } from "../route-helpers";
 import { parsePagination, paginatedResponse } from "./pagination";
@@ -2309,6 +2309,50 @@ export function registerPurchaseRoutes(app: Express) {
 
       const vendorCache = new Map<string, number>();
 
+      const dateGroups = new Map<string, typeof documents>();
+      for (const doc of documents) {
+        const d = doc.expDate || doc.date || new Date().toISOString().split("T")[0];
+        const existing = dateGroups.get(d) || [];
+        existing.push(doc);
+        dateGroups.set(d, existing);
+      }
+
+      const batchMap = new Map<string, number>();
+      for (const [dateStr, dateDocs] of dateGroups) {
+        const existingBatches = await db.select({ id: expenseDailyBatches.id, batchNo: expenseDailyBatches.batchNo })
+          .from(expenseDailyBatches)
+          .where(and(eq(expenseDailyBatches.companyId, companyId), eq(expenseDailyBatches.batchDate, dateStr)));
+
+        if (existingBatches.length > 0) {
+          batchMap.set(dateStr, existingBatches[0].id);
+        } else {
+          const dateObj = new Date(dateStr + "T00:00:00");
+          const dd = String(dateObj.getDate()).padStart(2, "0");
+          const mm = String(dateObj.getMonth() + 1).padStart(2, "0");
+          const yyyy = String(dateObj.getFullYear());
+          const batchNo = `DXP-${yyyy}${mm}${dd}`;
+
+          const totalSub = dateDocs.reduce((s: number, d: any) => s + (Number(d.subtotal) || 0), 0);
+          const totalV = dateDocs.reduce((s: number, d: any) => s + (Number(d.vatAmount) || 0), 0);
+          const totalW = dateDocs.reduce((s: number, d: any) => s + (Number(d.withholdingTax) || 0), 0);
+          const totalA = dateDocs.reduce((s: number, d: any) => s + (Number(d.totalAmount) || 0), 0);
+
+          const [batch] = await db.insert(expenseDailyBatches).values({
+            companyId,
+            batchNo,
+            batchDate: dateStr,
+            totalExpenses: dateDocs.length,
+            totalSubtotal: String(totalSub),
+            totalVat: String(totalV),
+            totalAmount: String(totalA),
+            totalWht: String(totalW),
+            status: "active",
+            createdBy: user.id,
+          }).returning();
+          batchMap.set(dateStr, batch.id);
+        }
+      }
+
       let firmClientId: number | null = null;
       if (archiveToDocs && user.tenantId) {
         const [fc] = await db.select({ id: firmClients.id }).from(firmClients)
@@ -2426,6 +2470,7 @@ export function registerPurchaseRoutes(app: Express) {
               refDoc: doc.refDoc || null,
               attachedUrl: doc.attachedUrl || null,
               linkJournal: autoJournal ? true : false,
+              batchId: batchMap.get(doc.expDate || doc.date || new Date().toISOString().split("T")[0]) || null,
               createdBy: user.id,
             }).returning();
 
@@ -3194,6 +3239,109 @@ export function registerPurchaseRoutes(app: Express) {
         errors,
       });
     } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/expense-daily-batches", requireAuth, requireModule("purchases"), async (req, res) => {
+    try {
+      const companyId = Number(req.query.companyId);
+      if (!companyId) return res.status(400).json({ message: "กรุณาระบุบริษัท" });
+
+      const batches = await db.select().from(expenseDailyBatches)
+        .where(and(eq(expenseDailyBatches.companyId, companyId), eq(expenseDailyBatches.status, "active")))
+        .orderBy(desc(expenseDailyBatches.batchDate));
+
+      const batchIds = batches.map(b => b.id);
+      let expCounts = new Map<number, number>();
+      if (batchIds.length > 0) {
+        const counts = await db.select({
+          batchId: expenses.batchId,
+          count: count(),
+        }).from(expenses)
+          .where(and(eq(expenses.companyId, companyId), sql`${expenses.batchId} = ANY(${batchIds})`))
+          .groupBy(expenses.batchId);
+        for (const c of counts) {
+          if (c.batchId) expCounts.set(c.batchId, Number(c.count));
+        }
+      }
+
+      const result = batches.map(b => ({
+        ...b,
+        actualExpenseCount: expCounts.get(b.id) || 0,
+      }));
+
+      res.json(result);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/expense-daily-batches/:id/expenses", requireAuth, requireModule("purchases"), async (req, res) => {
+    try {
+      const batchId = Number(req.params.id);
+      const batchExpenses = await db.select().from(expenses)
+        .where(eq(expenses.batchId, batchId))
+        .orderBy(expenses.expNo);
+      res.json(batchExpenses);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.delete("/api/expense-daily-batches/:id", requireAuth, requireModule("purchases"), async (req, res) => {
+    try {
+      const user = req.user as any;
+      const batchId = Number(req.params.id);
+
+      const [batch] = await db.select().from(expenseDailyBatches).where(eq(expenseDailyBatches.id, batchId));
+      if (!batch) return res.status(404).json({ message: "ไม่พบ batch" });
+
+      const batchExpenses = await db.select({ id: expenses.id, expNo: expenses.expNo })
+        .from(expenses).where(eq(expenses.batchId, batchId));
+
+      let deletedJournals = 0;
+      let deletedClientFiles = 0;
+
+      for (const exp of batchExpenses) {
+        const deleted = await db.delete(journalEntries)
+          .where(and(eq(journalEntries.refDocType, "expense"), eq(journalEntries.refDocId, exp.id)))
+          .returning({ id: journalEntries.id });
+        deletedJournals += deleted.length;
+
+        if (user.tenantId) {
+          const files = await db.delete(clientUploadFiles)
+            .where(and(
+              eq(clientUploadFiles.tenantId, user.tenantId),
+              sql`${clientUploadFiles.fileName} LIKE ${exp.expNo + ' -%'}`,
+            ))
+            .returning({ id: clientUploadFiles.id });
+          deletedClientFiles += files.length;
+        }
+
+        await db.delete(expenseItems).where(eq(expenseItems.expenseId, exp.id));
+
+        await db.delete(withholdingTaxCerts)
+          .where(and(eq(withholdingTaxCerts.refDocType, "expense"), eq(withholdingTaxCerts.refDocId, exp.id)));
+      }
+
+      await db.delete(expenses).where(eq(expenses.batchId, batchId));
+
+      await db.delete(expenseDailyBatches).where(eq(expenseDailyBatches.id, batchId));
+
+      console.log(`[DXP] Deleted batch ${batch.batchNo}: ${batchExpenses.length} expenses, ${deletedJournals} journals, ${deletedClientFiles} client files`);
+
+      res.json({
+        success: true,
+        deleted: {
+          batch: batch.batchNo,
+          expenses: batchExpenses.length,
+          journals: deletedJournals,
+          clientFiles: deletedClientFiles,
+        },
+      });
+    } catch (err: any) {
+      console.error("[DXP] Delete error:", err);
       res.status(500).json({ message: err.message });
     }
   });

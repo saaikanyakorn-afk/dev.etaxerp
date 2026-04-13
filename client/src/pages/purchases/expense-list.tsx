@@ -15,7 +15,8 @@ import {
   Search, Plus, Receipt, Edit2, Trash2, Eye, Minus, Phone, Mail, FileText,
   CheckCircle2, Clock, XCircle, AlertCircle, Copy, MoreHorizontal, CreditCard,
   BookOpen, ExternalLink, Calendar as CalendarIcon,
-  Printer, Link2, MessageSquare, MailCheck, Upload, Sparkles, Paperclip, FileDown
+  Printer, Link2, MessageSquare, MailCheck, Upload, Sparkles, Paperclip, FileDown,
+  ChevronDown, ChevronRight, Package, Loader2
 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import LineSendDialog from "@/components/line-send-dialog";
@@ -92,8 +93,56 @@ export default function ExpenseList() {
   const [filterBranch, setFilterBranch] = useState("all");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [expandedBatches, setExpandedBatches] = useState<Set<number>>(new Set());
+  const [batchExpenses, setBatchExpenses] = useState<Record<number, any[]>>({});
+  const [loadingBatches, setLoadingBatches] = useState<Set<number>>(new Set());
+  const [viewMode, setViewMode] = useState<"normal" | "batch">("normal");
 
   const { dateEra, dateFmt } = useDateSettings();
+
+  const { data: dailyBatches = [] } = useQuery<any[]>({
+    queryKey: ["/api/expense-daily-batches", companyId],
+    queryFn: async () => {
+      if (!companyId) return [];
+      const res = await fetch(`/api/expense-daily-batches?companyId=${companyId}`, { credentials: "include" });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!companyId,
+  });
+
+  const deleteBatchMutation = useMutation({
+    mutationFn: async (batchId: number) => {
+      const res = await fetch(`/api/expense-daily-batches/${batchId}`, { method: "DELETE", credentials: "include" });
+      if (!res.ok) { const err = await res.json(); throw new Error(err.message); }
+      return res.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/expense-daily-batches"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/expenses"] });
+      toast({ title: `ลบสำเร็จ: ${data.deleted.batch}`, description: `${data.deleted.expenses} ค่าใช้จ่าย, ${data.deleted.journals} บันทึกบัญชี, ${data.deleted.clientFiles} เอกสาร`, variant: "success" as any });
+    },
+    onError: (err: any) => toast({ title: "เกิดข้อผิดพลาด", description: err.message, variant: "destructive" }),
+  });
+
+  const toggleBatch = async (batchId: number) => {
+    if (expandedBatches.has(batchId)) {
+      setExpandedBatches(prev => { const n = new Set(prev); n.delete(batchId); return n; });
+      return;
+    }
+    setExpandedBatches(prev => new Set(prev).add(batchId));
+    if (!batchExpenses[batchId]) {
+      setLoadingBatches(prev => new Set(prev).add(batchId));
+      try {
+        const res = await fetch(`/api/expense-daily-batches/${batchId}/expenses`, { credentials: "include" });
+        if (res.ok) {
+          const data = await res.json();
+          setBatchExpenses(prev => ({ ...prev, [batchId]: data }));
+        }
+      } catch {}
+      setLoadingBatches(prev => { const n = new Set(prev); n.delete(batchId); return n; });
+    }
+  };
 
   const { data: expList = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/expenses", companyId, searchText],
@@ -229,8 +278,26 @@ export default function ExpenseList() {
         <Card className="rounded border shadow-sm bg-white">
           <CardHeader className="p-3 border-b space-y-3">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-sm text-slate-500">
+              <div className="flex items-center gap-3 text-sm text-slate-500">
                 <span>รายละเอียด - {filtered.length} รายการ</span>
+                {dailyBatches.length > 0 && (
+                  <div className="flex items-center border rounded-lg overflow-hidden">
+                    <button
+                      onClick={() => setViewMode("normal")}
+                      className={`px-3 py-1 text-xs font-medium transition-colors ${viewMode === "normal" ? "bg-[#05b187] text-white" : "bg-white text-gray-500 hover:bg-gray-50"}`}
+                      data-testid="button-view-normal"
+                    >
+                      รายใบ
+                    </button>
+                    <button
+                      onClick={() => setViewMode("batch")}
+                      className={`px-3 py-1 text-xs font-medium transition-colors ${viewMode === "batch" ? "bg-[#fb9678] text-white" : "bg-white text-gray-500 hover:bg-gray-50"}`}
+                      data-testid="button-view-batch"
+                    >
+                      สรุปรายวัน (DXP) <span className="ml-1">{dailyBatches.length}</span>
+                    </button>
+                  </div>
+                )}
               </div>
               <div className="flex items-center gap-2">
                 {/* ⚠️ AI FEATURE LINK — navigates to PDF import page (AI reads PDF via OpenAI).
@@ -320,7 +387,117 @@ export default function ExpenseList() {
                 </Button>
               </div>
             )}
-            {isLoading ? (
+            {viewMode === "batch" && dailyBatches.length > 0 ? (
+              <Table>
+                <TableHeader style={{ backgroundColor: '#fb9678' }}>
+                  <TableRow className="hover:bg-transparent h-11">
+                    <TableHead className="w-10 text-center text-sm font-medium text-white"></TableHead>
+                    <TableHead className="w-10 text-center text-sm font-medium text-white">#</TableHead>
+                    <TableHead className="w-[140px] text-sm font-medium text-white">DXP #</TableHead>
+                    <TableHead className="w-[100px] text-sm font-medium text-white">วันที่</TableHead>
+                    <TableHead className="text-sm font-medium text-white">รายละเอียด</TableHead>
+                    <TableHead className="w-[80px] text-center text-sm font-medium text-white">จำนวนใบ</TableHead>
+                    <TableHead className="w-[130px] text-right text-sm font-medium text-white">ยอดรวม</TableHead>
+                    <TableHead className="w-[100px] text-right text-sm font-medium text-white">VAT</TableHead>
+                    <TableHead className="w-[100px] text-right text-sm font-medium text-white">WHT</TableHead>
+                    <TableHead className="w-10"></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {dailyBatches.map((batch: any, idx: number) => {
+                    const isExpanded = expandedBatches.has(batch.id);
+                    const isLoading = loadingBatches.has(batch.id);
+                    const exps = batchExpenses[batch.id] || [];
+                    return (
+                      <Fragment key={batch.id}>
+                        <TableRow
+                          className="cursor-pointer hover:bg-[#fb9678]/5 h-12"
+                          onClick={() => toggleBatch(batch.id)}
+                          data-testid={`batch-row-${batch.id}`}
+                        >
+                          <TableCell className="text-center">
+                            {isLoading ? (
+                              <Loader2 className="h-4 w-4 animate-spin text-[#fb9678] mx-auto" />
+                            ) : isExpanded ? (
+                              <ChevronDown className="h-4 w-4 text-[#fb9678] mx-auto" />
+                            ) : (
+                              <ChevronRight className="h-4 w-4 text-gray-400 mx-auto" />
+                            )}
+                          </TableCell>
+                          <TableCell className="text-center text-sm text-gray-500">{idx + 1}</TableCell>
+                          <TableCell>
+                            <span className="font-medium text-sm text-[#fb9678]">{batch.batchNo}</span>
+                          </TableCell>
+                          <TableCell className="text-sm">{formatDate(batch.batchDate, dateFmt, dateEra)}</TableCell>
+                          <TableCell className="text-sm text-gray-600">
+                            สรุปค่าใช้จ่ายรายวัน
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <Badge variant="outline" className="text-xs px-2 py-0.5 bg-[#fb9678]/10 text-[#fb9678] border-[#fb9678]">
+                              {batch.actualExpenseCount || batch.totalExpenses} ใบ
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right font-medium text-sm">{fmt(batch.totalAmount)}</TableCell>
+                          <TableCell className="text-right text-sm text-gray-500">{fmt(batch.totalVat)}</TableCell>
+                          <TableCell className="text-right text-sm text-gray-500">{fmt(batch.totalWht)}</TableCell>
+                          <TableCell>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-red-400 hover:text-red-600 hover:bg-red-50"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (confirm(`ยืนยันลบ ${batch.batchNo}?\nจะลบค่าใช้จ่าย ${batch.actualExpenseCount || batch.totalExpenses} ใบ พร้อมบันทึกบัญชีและเอกสารที่เกี่ยวข้องทั้งหมด`)) {
+                                  deleteBatchMutation.mutate(batch.id);
+                                }
+                              }}
+                              data-testid={`button-delete-batch-${batch.id}`}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                        {isExpanded && exps.length > 0 && exps.map((exp: any, eIdx: number) => (
+                          <TableRow key={exp.id} className="bg-gray-50/50 hover:bg-gray-100/50 h-9">
+                            <TableCell></TableCell>
+                            <TableCell className="text-center text-xs text-gray-400">{eIdx + 1}</TableCell>
+                            <TableCell>
+                              <span
+                                className="text-xs text-[#05b187] cursor-pointer hover:underline"
+                                onClick={() => navigate(`/purchases/exp/${exp.id}`)}
+                              >
+                                {exp.expNo}
+                              </span>
+                            </TableCell>
+                            <TableCell className="text-xs">{formatDate(exp.expDate, dateFmt, dateEra)}</TableCell>
+                            <TableCell className="text-xs text-gray-600 truncate max-w-[300px]">
+                              {exp.vendorName}
+                              {exp.taxInvoiceRef && <span className="text-gray-400 ml-2">#{exp.taxInvoiceRef}</span>}
+                            </TableCell>
+                            <TableCell></TableCell>
+                            <TableCell className="text-right text-xs">{fmt(exp.totalAmount)}</TableCell>
+                            <TableCell className="text-right text-xs text-gray-400">{fmt(exp.vatAmount)}</TableCell>
+                            <TableCell className="text-right text-xs text-gray-400">{fmt(exp.withholdingTax)}</TableCell>
+                            <TableCell>
+                              <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => navigate(`/purchases/exp/${exp.id}`)}>
+                                <Eye className="h-3 w-3" />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                        {isExpanded && isLoading && (
+                          <TableRow className="bg-gray-50/50">
+                            <TableCell colSpan={10} className="text-center py-4 text-sm text-gray-400">
+                              <Loader2 className="h-4 w-4 animate-spin inline mr-2" /> กำลังโหลดรายการ...
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </Fragment>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            ) : isLoading ? (
               <div className="text-center py-12 text-muted-foreground">กำลังโหลด...</div>
             ) : filtered.length === 0 ? (
               <div className="text-center py-12 text-muted-foreground">
