@@ -2353,14 +2353,6 @@ export function registerPurchaseRoutes(app: Express) {
         }
       }
 
-      let firmClientId: number | null = null;
-      if (archiveToDocs && user.tenantId) {
-        const [fc] = await db.select({ id: firmClients.id }).from(firmClients)
-          .where(eq(firmClients.companyId, companyId)).limit(1);
-        firmClientId = fc?.id || null;
-      }
-      const archiveLinkCache = new Map<string, any>();
-
       let formulaDebitCode: string | null = null;
       if (formulaBusinessType) {
         const defFormula = DEFAULT_FORMULAS.find((f: any) => f.documentType === "purchase" && f.businessType === formulaBusinessType)
@@ -2469,7 +2461,7 @@ export function registerPurchaseRoutes(app: Express) {
               docPrefix: "EXP",
               notes: doc.notes || null,
               refDoc: doc.refDoc || null,
-              attachedUrl: doc.attachedUrl || null,
+              attachedUrl: doc.attachedUrl || doc.archivedFileUrl || null,
               linkJournal: autoJournal ? true : false,
               batchId: batchMap.get(doc.expDate || doc.date || new Date().toISOString().split("T")[0]) || null,
               createdBy: user.id,
@@ -2510,69 +2502,7 @@ export function registerPurchaseRoutes(app: Express) {
             pendingJournals.push({ result, doc, validItems });
           }
 
-          if (archiveToDocs && doc.archivedFileUrl && user.tenantId && firmClientId) {
-            try {
-              const docDateObj = new Date((doc.date || new Date().toISOString().split("T")[0]) + "T00:00:00");
-              const docMonth = docDateObj.getMonth() + 1;
-              const docYear = docDateObj.getFullYear();
-              const linkKey = `${docMonth}-${docYear}`;
-
-              let link = archiveLinkCache.get(linkKey);
-              if (!link) {
-                const [existing] = await db.select().from(clientUploadLinks).where(
-                  and(
-                    eq(clientUploadLinks.tenantId, user.tenantId),
-                    eq(clientUploadLinks.firmClientId, firmClientId),
-                    eq(clientUploadLinks.month, docMonth),
-                    eq(clientUploadLinks.year, docYear),
-                  )
-                );
-                if (existing) {
-                  link = existing;
-                } else {
-                  const THAI_MONTHS = ["มกราคม","กุมภาพันธ์","มีนาคม","เมษายน","พฤษภาคม","มิถุนายน","กรกฎาคม","สิงหาคม","กันยายน","ตุลาคม","พฤศจิกายน","ธันวาคม"];
-                  const crypto = await import("crypto");
-                  const token = crypto.randomBytes(24).toString("hex");
-                  const [created] = await db.insert(clientUploadLinks).values({
-                    tenantId: user.tenantId,
-                    firmClientId: firmClientId,
-                    token,
-                    label: `เอกสาร ${THAI_MONTHS[docMonth - 1]} ${docYear + 543}`,
-                    month: docMonth,
-                    year: docYear,
-                    isActive: true,
-                    maxFiles: 999,
-                    createdBy: user.id,
-                  }).returning();
-                  link = created;
-                }
-                archiveLinkCache.set(linkKey, link);
-              }
-
-              const dd = String(docDateObj.getDate()).padStart(2, "0");
-              const mm = String(docMonth).padStart(2, "0");
-              const buddhistYear = docYear + 543;
-              const dateFolderPath = `${dd}/${mm}/${buddhistYear}`;
-
-              await db.insert(clientUploadFiles).values({
-                linkId: link.id,
-                tenantId: user.tenantId,
-                firmClientId: firmClientId,
-                fileName: `${result.expNo} - ${doc.vendorName || "ค่าใช้จ่าย"}.pdf`,
-                fileSize: null,
-                mimeType: "application/pdf",
-                objectPath: doc.archivedFileUrl,
-                folderPath: dateFolderPath,
-                category: "ใบกำกับภาษีซื้อ",
-                uploaderName: user.fullName || user.username || "ระบบนำเข้า PDF",
-                uploaderNote: `นำเข้าจาก PDF: ${doc.fileName || doc.taxInvoiceRef || ""}`,
-                isRead: true,
-                source: "staff",
-              });
-            } catch (archiveErr: any) {
-              console.log(`[PDF-Import] Failed to archive to client docs for ${result.expNo}:`, archiveErr.message);
-            }
-          }
+          
 
           created.push({
             expNo: result.expNo, id: result.id,

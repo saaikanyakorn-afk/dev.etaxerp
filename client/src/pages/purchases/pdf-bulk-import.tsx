@@ -158,7 +158,6 @@ export default function PdfBulkImport() {
   const [expandedDocs, setExpandedDocs] = useState<Set<string>>(new Set());
   const [docType, setDocType] = useState<"purchase" | "expense">("expense");
   const [autoJournal, setAutoJournal] = useState(true);
-  const [archiveToDocs, setArchiveToDocs] = useState(true);
   const [paymentMethod, setPaymentMethod] = useState("transfer");
   const [globalWhtRate, setGlobalWhtRate] = useState("0");
   const [showJournalPreview, setShowJournalPreview] = useState(false);
@@ -211,7 +210,7 @@ export default function PdfBulkImport() {
         const formData = new FormData();
         for (const f of batch) formData.append("files", f);
         formData.append("companyId", String(companyId));
-        if (archiveToDocs) formData.append("archiveToDocs", "true");
+        
 
         const res = await fetch("/api/pdf-bulk-parse", {
           method: "POST",
@@ -367,7 +366,6 @@ export default function PdfBulkImport() {
           autoJournal,
           autoWht: docType === "expense" && whtRate > 0,
           paymentMethod,
-          archiveToDocs,
           formulaId: autoJournal && selectedFormula?.id ? selectedFormula.id : undefined,
           formulaBusinessType: autoJournal && !selectedFormula?.id && selectedFormula?.businessType ? selectedFormula.businessType : undefined,
         }),
@@ -896,16 +894,6 @@ export default function PdfBulkImport() {
                         {showJournalPreview ? "ซ่อนพรีวิวบัญชี" : "ดูพรีวิวบัญชี"}
                       </Button>
                     )}
-                    <span className="mx-2 text-gray-300">|</span>
-                    <Checkbox
-                      id="archiveToDocs"
-                      checked={archiveToDocs}
-                      onCheckedChange={(v) => setArchiveToDocs(!!v)}
-                      data-testid="check-archive-docs"
-                    />
-                    <label htmlFor="archiveToDocs" className="text-sm font-medium cursor-pointer">
-                      เก็บ PDF เข้าคลังเอกสาร
-                    </label>
                   </div>
                   <div className="flex items-center gap-4 text-sm">
                     <div>ยอดรวม: <span className="font-bold">{fmt(totalSubtotal)}</span></div>

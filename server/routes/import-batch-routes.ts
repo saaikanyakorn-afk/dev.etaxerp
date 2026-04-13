@@ -19,7 +19,6 @@ import {
   productLots,
   demandForecasts,
   withholdingTaxCerts, whtCertItems,
-  clientUploadFiles, clientUploadLinks,
   expenseDailyBatches,
 } from "@shared/schema";
 import { requireAuth, requireModule, requireRole } from "../route-middleware";
@@ -115,17 +114,6 @@ export function registerImportBatchRoutes(app: Express) {
               if (whtIds.length > 0) {
                 await tx.delete(whtCertItems).where(inArray(whtCertItems.certId, whtIds));
                 await tx.delete(withholdingTaxCerts).where(inArray(withholdingTaxCerts.id, whtIds));
-              }
-            }
-            const linksForCompany = await tx.select({ id: clientUploadLinks.id })
-              .from(clientUploadLinks).where(eq(clientUploadLinks.companyId, batch.companyId));
-            const linkIds = linksForCompany.map(l => l.id);
-            if (linkIds.length > 0) {
-              const fileNames = expRows.map(e => `${e.expNo}%`);
-              for (const fn of fileNames) {
-                await tx.delete(clientUploadFiles).where(
-                  and(inArray(clientUploadFiles.linkId, linkIds), sql`${clientUploadFiles.fileName} LIKE ${fn}`)
-                );
               }
             }
             const result = await tx.delete(expenses).where(and(eq(expenses.companyId, batch.companyId), inArray(expenses.id, docIds)));
