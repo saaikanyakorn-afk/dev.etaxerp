@@ -8,14 +8,14 @@ pg.types.setTypeParser(DATE_OID, (val: string) => val);
 
 const isProduction = process.env.NODE_ENV === "production";
 
+function isReplit(): boolean {
+  return !!(process.env.REPL_ID || process.env.REPL_SLUG || process.env.REPLIT_DOMAINS);
+}
+
 function getPosDbUrl(): { url: string; label: string } {
   const posUrl = process.env.DATABASE_URL_POS || getConfig("DATABASE_URL_POS");
   if (posUrl) {
     return { url: posUrl, label: "POS (Separate DB)" };
-  }
-  const prodUrl = getConfig("DB_PROD_URL") || process.env.DB_PROD_URL;
-  if (prodUrl) {
-    return { url: prodUrl, label: "POS (Shared Production DB)" };
   }
   try {
     const { getActiveDbInfo } = require("./db");
@@ -24,6 +24,15 @@ function getPosDbUrl(): { url: string; label: string } {
       return { url: mainInfo.url, label: "POS (Shared DB)" };
     }
   } catch {}
+  if (!isReplit()) {
+    if (process.env.DATABASE_URL) {
+      return { url: process.env.DATABASE_URL, label: "POS (Shared DB)" };
+    }
+  }
+  const prodUrl = getConfig("DB_PROD_URL") || process.env.DB_PROD_URL;
+  if (prodUrl) {
+    return { url: prodUrl, label: "POS (Shared Production DB)" };
+  }
   if (process.env.DATABASE_URL) {
     return { url: process.env.DATABASE_URL, label: "POS (Shared Dev DB)" };
   }

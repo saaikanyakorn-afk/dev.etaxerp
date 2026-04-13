@@ -8,14 +8,14 @@ pg.types.setTypeParser(DATE_OID, (val: string) => val);
 
 const isProduction = process.env.NODE_ENV === "production";
 
+function isReplit(): boolean {
+  return !!(process.env.REPL_ID || process.env.REPL_SLUG || process.env.REPLIT_DOMAINS);
+}
+
 function getEcomDbUrl(): { url: string; label: string } {
   const ecomUrl = process.env.DATABASE_URL_ECOM || getConfig("DATABASE_URL_ECOM");
   if (ecomUrl) {
     return { url: ecomUrl, label: "E-Commerce (Separate DB)" };
-  }
-  const prodUrl = getConfig("DB_PROD_URL") || process.env.DB_PROD_URL;
-  if (prodUrl) {
-    return { url: prodUrl, label: "E-Commerce (Shared Production DB)" };
   }
   try {
     const { getActiveDbInfo } = require("./db");
@@ -24,6 +24,15 @@ function getEcomDbUrl(): { url: string; label: string } {
       return { url: mainInfo.url, label: "E-Commerce (Shared DB)" };
     }
   } catch {}
+  if (!isReplit()) {
+    if (process.env.DATABASE_URL) {
+      return { url: process.env.DATABASE_URL, label: "E-Commerce (Shared DB)" };
+    }
+  }
+  const prodUrl = getConfig("DB_PROD_URL") || process.env.DB_PROD_URL;
+  if (prodUrl) {
+    return { url: prodUrl, label: "E-Commerce (Shared Production DB)" };
+  }
   if (process.env.DATABASE_URL) {
     return { url: process.env.DATABASE_URL, label: "E-Commerce (Shared Dev DB)" };
   }
