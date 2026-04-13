@@ -2539,6 +2539,22 @@ export function registerPurchaseRoutes(app: Express) {
           try {
             const dxpBatchId = group.batchId;
             const dxpNo = `DXP-${dateKey.replace(/-/g, "")}`;
+
+            const [existingDxpJournal] = await db.select({ id: journalEntries.id })
+              .from(journalEntries)
+              .where(and(
+                eq(journalEntries.companyId, companyId),
+                eq(journalEntries.docNo, dxpNo),
+                eq(journalEntries.sourceDocType, "expense_daily_batch"),
+              ));
+            if (existingDxpJournal) {
+              console.log(`[PDF-Import] DXP journal ${dxpNo} already exists (id=${existingDxpJournal.id}), updating totals...`);
+              await db.update(journalEntries).set({
+                description: `expense ${dxpNo} - สรุปค่าใช้จ่ายรายวัน (${group.expNos.length} ใบ)`,
+              }).where(eq(journalEntries.id, existingDxpJournal.id));
+              continue;
+            }
+
             console.log(`[PDF-Import] Auto journal for DXP ${dxpNo}: ${group.expNos.length} expenses, total=${group.total.toFixed(2)}`);
             const journalResult = await createAutoJournalEntry({
               companyId,
