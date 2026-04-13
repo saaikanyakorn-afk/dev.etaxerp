@@ -509,7 +509,10 @@ export default function PdfBulkImport() {
           </div>
         </div>
 
-        <ImportBatchHistory docType="purchase_invoice" invalidateKeys={[["purchase-invoices"]]} />
+        <ImportBatchHistory
+          docType={docType === "expense" ? "expense" : "purchase_invoice"}
+          invalidateKeys={docType === "expense" ? [["/api/expenses"], ["/api/expense-daily-batches"]] : [["purchase-invoices"]]}
+        />
 
         {step === "upload" && (
           <Card>

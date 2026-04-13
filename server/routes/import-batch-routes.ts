@@ -18,6 +18,9 @@ import {
   productBinAssignments,
   productLots,
   demandForecasts,
+  withholdingTaxCerts, whtCertItems,
+  clientUploadFiles, clientUploadLinks,
+  expenseDailyBatches,
 } from "@shared/schema";
 import { requireAuth, requireModule, requireRole } from "../route-middleware";
 import { logActivity, deleteJournalEntriesForDoc, deleteStockMovementsForDoc } from "../route-helpers";
@@ -97,8 +100,58 @@ export function registerImportBatchRoutes(app: Express) {
               await deleteJournalEntriesForDoc(tx, "expense", docId);
               await tx.delete(expenseItems).where(eq(expenseItems.expenseId, docId));
             }
+            const expRows = await tx.select({ id: expenses.id, expNo: expenses.expNo, batchId: expenses.batchId })
+              .from(expenses).where(and(eq(expenses.companyId, batch.companyId), inArray(expenses.id, docIds)));
+            const expIds = expRows.map(e => e.id);
+            if (expIds.length > 0) {
+              const whtCertsToDelete = await tx.select({ id: withholdingTaxCerts.id })
+                .from(withholdingTaxCerts)
+                .where(and(
+                  eq(withholdingTaxCerts.companyId, batch.companyId),
+                  eq(withholdingTaxCerts.sourceDocType, "expense"),
+                  inArray(withholdingTaxCerts.sourceDocId, expIds)
+                ));
+              const whtIds = whtCertsToDelete.map(w => w.id);
+              if (whtIds.length > 0) {
+                await tx.delete(whtCertItems).where(inArray(whtCertItems.certId, whtIds));
+                await tx.delete(withholdingTaxCerts).where(inArray(withholdingTaxCerts.id, whtIds));
+              }
+            }
+            const linksForCompany = await tx.select({ id: clientUploadLinks.id })
+              .from(clientUploadLinks).where(eq(clientUploadLinks.companyId, batch.companyId));
+            const linkIds = linksForCompany.map(l => l.id);
+            if (linkIds.length > 0) {
+              const fileNames = expRows.map(e => `${e.expNo}%`);
+              for (const fn of fileNames) {
+                await tx.delete(clientUploadFiles).where(
+                  and(inArray(clientUploadFiles.linkId, linkIds), sql`${clientUploadFiles.fileName} LIKE ${fn}`)
+                );
+              }
+            }
             const result = await tx.delete(expenses).where(and(eq(expenses.companyId, batch.companyId), inArray(expenses.id, docIds)));
             deletedDocs = result.rowCount || 0;
+            const affectedBatchIds = [...new Set(expRows.map(e => e.batchId).filter(Boolean))] as number[];
+            for (const dxpId of affectedBatchIds) {
+              const remaining = await tx.select({ id: expenses.id }).from(expenses).where(eq(expenses.batchId, dxpId));
+              if (remaining.length === 0) {
+                await tx.delete(expenseDailyBatches).where(eq(expenseDailyBatches.id, dxpId));
+              } else {
+                const sums = await tx.execute(sql`
+                  SELECT COALESCE(SUM(total_amount::numeric),0) as total,
+                         COALESCE(SUM(vat_amount::numeric),0) as vat,
+                         COALESCE(SUM(withholding_tax::numeric),0) as wht,
+                         COUNT(*) as cnt
+                  FROM expenses WHERE batch_id = ${dxpId}
+                `);
+                const row = (sums.rows as any[])[0];
+                await tx.update(expenseDailyBatches).set({
+                  totalAmount: String(row.total),
+                  totalVat: String(row.vat),
+                  totalWht: String(row.wht),
+                  totalExpenses: Number(row.cnt),
+                }).where(eq(expenseDailyBatches.id, dxpId));
+              }
+            }
             break;
           }
           case "product": {
