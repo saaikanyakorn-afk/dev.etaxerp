@@ -15,6 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
+import { useCompany } from "@/lib/company-context";
 import { CHART_TEMPLATES } from "@shared/chart-of-accounts";
 import { BUSINESS_TYPES, CHART_TO_BUSINESS_TYPE } from "@shared/accounting-formulas";
 
@@ -92,6 +93,8 @@ const emptyForm = {
 export default function FirmManagement() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { primaryCompanyId, selectedCompanyId } = useCompany();
+  const firmCompanyId = primaryCompanyId || selectedCompanyId;
   const [addOpen, setAddOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [editingClient, setEditingClient] = useState<any>(null);
@@ -128,12 +131,14 @@ export default function FirmManagement() {
   }, [allClients, clientSearch]);
 
   const { data: employeesData } = useQuery<any[]>({
-    queryKey: ["/api/employees"],
+    queryKey: ["/api/employees", firmCompanyId],
     queryFn: async () => {
-      const r = await fetch("/api/employees", { credentials: "include" });
+      const url = firmCompanyId ? `/api/employees?companyId=${firmCompanyId}` : "/api/employees";
+      const r = await fetch(url, { credentials: "include" });
       if (!r.ok) return [];
       return r.json();
     },
+    enabled: !!firmCompanyId,
   });
   const employeesList = Array.isArray(employeesData) ? employeesData.filter((e: any) => e.active) : [];
 
