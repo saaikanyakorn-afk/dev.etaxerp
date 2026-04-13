@@ -129,7 +129,7 @@ export function DatePicker({
           {displayValue || <span>{placeholder}</span>}
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-auto p-0" align="start">
+      <PopoverContent className="w-auto p-0" align="start" side="bottom" sideOffset={4} avoidCollisions={false}>
         {viewMode === "year" && (
           <div className="p-3 w-[270px]">
             <div className="flex items-center justify-between mb-3">
