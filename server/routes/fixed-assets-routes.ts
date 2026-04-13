@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { db } from "../db";
 import { storage } from "../storage";
-import { eq, and, desc, sql, count, sum, not } from "drizzle-orm";
+import { eq, and, desc, sql, count, sum, not, inArray } from "drizzle-orm";
 import { fixedAssets, assetDepreciations, assetCategories, companies, journalEntries, journalLines, vatClosings, taxInvoices, invoices, purchaseInvoices, expenses, expenseItems } from "@shared/schema";
 import { requireAuth, requireModule, checkDocOwnership } from "../route-middleware";
 import { getNextJournalEntryNo } from "../route-helpers";
@@ -798,38 +798,33 @@ export function registerFixedAssetsRoutes(app: Express) {
       const companyAccounts = await storage.getAccounts(companyId);
       const assetMap = new Map(allAssets.map(a => [a.id, a]));
       
-      const fromMonth = new Date(from.getFullYear(), from.getMonth(), 1);
-      const toMonth = new Date(to.getFullYear(), to.getMonth(), 1);
-      const periods: string[] = [];
-      const c = new Date(fromMonth);
-      while (c <= toMonth) {
-        periods.push(`${c.getFullYear()}-${String(c.getMonth() + 1).padStart(2, "0")}`);
-        c.setMonth(c.getMonth() + 1);
-      }
+      const companyCats = await getCompanyCategories(companyId);
+      const catByCode = new Map(companyCats.map(c => [c.accountCode, c]));
+      
+      const fromPeriod = `${from.getFullYear()}-${String(from.getMonth() + 1).padStart(2, "0")}`;
+      const toPeriod = `${to.getFullYear()}-${String(to.getMonth() + 1).padStart(2, "0")}`;
+      
+      const allDepsToPost = await db.select().from(assetDepreciations)
+        .where(and(
+          eq(assetDepreciations.companyId, companyId),
+          eq(assetDepreciations.posted, false),
+          sql`${assetDepreciations.period} >= ${fromPeriod}`,
+          sql`${assetDepreciations.period} <= ${toPeriod}`
+        ));
+      
+      if (allDepsToPost.length === 0) return res.status(400).json({ message: "ไม่มีรายการค่าเสื่อมที่ยังไม่ได้บันทึกบัญชีในช่วงนี้" });
       
       const journalEntryIds: number[] = [];
       let totalPosted = 0;
       const skippedItems: string[] = [];
       
-      const allDepsToPost: any[] = [];
-      for (const period of periods) {
-        const depsInPeriod = await db.select().from(assetDepreciations)
-          .where(and(
-            eq(assetDepreciations.companyId, companyId),
-            eq(assetDepreciations.period, period),
-            eq(assetDepreciations.posted, false)
-          ));
-        allDepsToPost.push(...depsInPeriod);
-      }
-      
-      if (allDepsToPost.length === 0) return res.status(400).json({ message: "ไม่มีรายการค่าเสื่อมที่ยังไม่ได้บันทึกบัญชีในช่วงนี้" });
-      
-      const groupedByCategory: Record<string, { expenseCode: string; accumCode: string; catName: string; items: any[] }> = {};
+      const groupedByCategory: Record<string, { expenseCode: string; accumCode: string; catName: string; depIds: number[]; totalAmount: number }> = {};
       for (const dep of allDepsToPost) {
         const asset = assetMap.get(dep.assetId);
         if (!asset) continue;
         
-        const cat = await findCategory(asset.categoryAccountCode, asset.companyId);
+        const mappedCode = OLD_CODE_MAP[asset.categoryAccountCode] || asset.categoryAccountCode;
+        const cat = catByCode.get(mappedCode) || catByCode.get(asset.categoryAccountCode);
         const expenseCode = cat?.depExpCode || asset.depreciationExpenseAccountCode || null;
         const accumCode = cat?.accumCode || asset.accumDepreciationAccountCode || null;
         const catName = cat?.name || asset.categoryAccountCode;
@@ -840,35 +835,31 @@ export function registerFixedAssetsRoutes(app: Express) {
         }
         
         const key = `${expenseCode}_${accumCode}`;
-        if (!groupedByCategory[key]) groupedByCategory[key] = { expenseCode, accumCode, catName, items: [] };
-        groupedByCategory[key].items.push(dep);
+        if (!groupedByCategory[key]) groupedByCategory[key] = { expenseCode, accumCode, catName, depIds: [], totalAmount: 0 };
+        groupedByCategory[key].depIds.push(dep.id);
+        groupedByCategory[key].totalAmount += parseFloat(dep.depreciationAmount || "0");
       }
       
-      const fromPeriod = periods[0];
-      const toPeriod = periods[periods.length - 1];
       const jeRef = `DEP-${fromPeriod}_${toPeriod}`;
       const periodDesc = fromPeriod === toPeriod ? fromPeriod : `${fromPeriod} ถึง ${toPeriod}`;
       
-      const validGroups: { expenseAccount: any; accumAccount: any; catName: string; totalAmount: number; items: any[] }[] = [];
+      const validGroups: { expenseAccount: any; accumAccount: any; catName: string; totalAmount: number; depIds: number[] }[] = [];
       for (const [_key, group] of Object.entries(groupedByCategory)) {
         const expenseAccount = companyAccounts.find(a => a.code === group.expenseCode);
         const accumAccount = companyAccounts.find(a => a.code === group.accumCode);
         
         if (!expenseAccount || !accumAccount) {
-          for (const dep of group.items) {
-            const asset = assetMap.get(dep.assetId);
-            skippedItems.push(`${asset?.assetCode || dep.assetId} (${group.catName}) - ไม่พบรหัสบัญชี ${!expenseAccount ? group.expenseCode : group.accumCode} ในผังบัญชี`);
-          }
+          skippedItems.push(`${group.catName} - ไม่พบรหัสบัญชี ${!expenseAccount ? group.expenseCode : group.accumCode} ในผังบัญชี`);
           continue;
         }
         
-        const totalAmount = group.items.reduce((sum: number, d: any) => sum + parseFloat(d.depreciationAmount || "0"), 0);
-        if (totalAmount <= 0) continue;
-        
-        validGroups.push({ expenseAccount, accumAccount, catName: group.catName, totalAmount, items: group.items });
+        if (group.totalAmount <= 0) continue;
+        validGroups.push({ expenseAccount, accumAccount, catName: group.catName, totalAmount: group.totalAmount, depIds: group.depIds });
       }
       
       if (validGroups.length > 0) {
+        const allDepIds = validGroups.flatMap(g => g.depIds);
+        
         await db.transaction(async (tx) => {
           const existingJE = await tx.select().from(journalEntries)
             .where(and(
@@ -897,31 +888,29 @@ export function registerFixedAssetsRoutes(app: Express) {
             journalEntryId = journalEntry.id;
           }
           
-          for (const group of validGroups) {
-            await tx.insert(journalLines).values({
+          const allLines = validGroups.flatMap(group => [
+            {
               journalEntryId,
               accountId: group.expenseAccount.id,
               description: `ค่าเสื่อมราคา - ${group.catName}`,
               debit: group.totalAmount.toFixed(2),
               credit: "0",
-            });
-            await tx.insert(journalLines).values({
+            },
+            {
               journalEntryId,
               accountId: group.accumAccount.id,
               description: `ค่าเสื่อมราคาสะสม - ${group.catName}`,
               debit: "0",
               credit: group.totalAmount.toFixed(2),
-            });
-            
-            for (const dep of group.items) {
-              await tx.update(assetDepreciations)
-                .set({ posted: true, journalEntryId })
-                .where(eq(assetDepreciations.id, dep.id));
-            }
-            
-            totalPosted += group.items.length;
-          }
+            },
+          ]);
+          await tx.insert(journalLines).values(allLines);
           
+          await tx.update(assetDepreciations)
+            .set({ posted: true, journalEntryId })
+            .where(inArray(assetDepreciations.id, allDepIds));
+          
+          totalPosted = allDepIds.length;
           journalEntryIds.push(journalEntryId);
         });
       }
