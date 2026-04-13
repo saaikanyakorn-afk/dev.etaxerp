@@ -3,7 +3,7 @@ import * as XLSX from "xlsx";
 import { db } from "../db";
 import { storage } from "../storage";
 import { eq, and, desc, or, sql, count, not, ilike } from "drizzle-orm";
-import { purchaseRequests, purchaseRequestItems, bidComparisons, bidComparisonItems, bidVendors, purchaseOrders, purchaseOrderItems, purchaseInvoices, purchaseInvoiceItems, companies, accounts, contacts, products, journalEntries, journalLines, productStock, stockMovements, expenses, expenseItems, withholdingTaxCerts, whtCertItems, documentImportBatches } from "@shared/schema";
+import { purchaseRequests, purchaseRequestItems, bidComparisons, bidComparisonItems, bidVendors, purchaseOrders, purchaseOrderItems, purchaseInvoices, purchaseInvoiceItems, companies, accounts, contacts, products, journalEntries, journalLines, productStock, stockMovements, expenses, expenseItems, withholdingTaxCerts, whtCertItems, documentImportBatches, firmDocuments } from "@shared/schema";
 import { requireAuth, requireModule, requireRole, checkDocOwnership } from "../route-middleware";
 import { getNextDocNo, validateDocNo, createAutoJournalEntry, resolvePaymentMethodAccountCode, getNextJournalEntryNo, checkDocumentLimit, deleteStockMovementsForDoc, deleteJournalEntriesForDoc, logActivity } from "../route-helpers";
 import { parsePagination, paginatedResponse } from "./pagination";
@@ -2283,7 +2283,7 @@ export function registerPurchaseRoutes(app: Express) {
   app.post("/api/pdf-import/create-expense", requireAuth, requireModule("purchases"), async (req, res) => {
     try {
       const user = req.user as any;
-      const { companyId, documents, autoJournal, autoWht, paymentMethod: reqPaymentMethod, formulaId, formulaBusinessType } = req.body;
+      const { companyId, documents, autoJournal, autoWht, paymentMethod: reqPaymentMethod, formulaId, formulaBusinessType, archiveToDocs } = req.body;
       console.log(`[PDF-Import] create-expense: companyId=${companyId}, autoJournal=${autoJournal}, formulaId=${formulaId}, formulaBusinessType=${formulaBusinessType}, docs=${documents?.length}`);
       if (!companyId || !documents || !Array.isArray(documents)) {
         return res.status(400).json({ message: "ข้อมูลไม่ถูกต้อง" });
@@ -2454,6 +2454,29 @@ export function registerPurchaseRoutes(app: Express) {
 
           if (autoJournal || autoWht) {
             pendingJournals.push({ result, doc, validItems });
+          }
+
+          if (archiveToDocs && doc.archivedFileUrl && user.tenantId) {
+            try {
+              await db.insert(firmDocuments).values({
+                tenantId: user.tenantId,
+                companyId,
+                folderId: null,
+                category: "expense_receipt",
+                name: `${result.expNo} - ${doc.vendorName || "ค่าใช้จ่าย"}`,
+                description: `นำเข้าจาก PDF: ${doc.fileName || doc.taxInvoiceRef || ""}`,
+                fileUrl: doc.archivedFileUrl,
+                fileName: doc.fileName || `${result.expNo}.pdf`,
+                fileSize: null,
+                mimeType: "application/pdf",
+                linkUrl: null,
+                linkType: null,
+                sortOrder: 0,
+                uploadedBy: user.id,
+              });
+            } catch (archiveErr: any) {
+              console.log(`[PDF-Import] Failed to create firm_document for ${result.expNo}:`, archiveErr.message);
+            }
           }
 
           created.push({
@@ -2999,8 +3022,16 @@ export function registerPurchaseRoutes(app: Express) {
       if (!files || files.length === 0) return res.status(400).json({ message: "กรุณาอัปโหลดไฟล์ PDF" });
       const companyId = Number(req.body.companyId);
       if (!companyId) return res.status(400).json({ message: "กรุณาระบุบริษัท" });
+      const archiveToDocs = req.body.archiveToDocs === "true" || req.body.archiveToDocs === true;
 
       const { parsePdfInvoice } = await import("../utils/pdf-invoice-parser");
+      let saveBufferFn: ((buffer: Buffer, path: string) => void) | null = null;
+      if (archiveToDocs) {
+        try {
+          const { saveBufferToPath } = await import("../replit_integrations/object_storage/routes");
+          saveBufferFn = saveBufferToPath;
+        } catch {}
+      }
 
       const companyContacts = await db.select({
         id: contacts.id,
@@ -3054,6 +3085,20 @@ export function registerPurchaseRoutes(app: Express) {
             if (isNaN(testDate.getTime())) docErrors.push("รูปแบบวันที่ไม่ถูกต้อง: " + docDate);
           }
 
+          let archivedFileUrl: string | null = null;
+          if (saveBufferFn) {
+            try {
+              const decodedName = decodeMulterFilename(file.originalname);
+              const safeName = decodedName.replace(/[^a-zA-Z0-9._\-\u0E00-\u0E7F]/g, "_");
+              const datePrefix = (docDate || new Date().toISOString().split("T")[0]).substring(0, 7);
+              const storageKey = `firm-documents/pdf-import/${companyId}/${datePrefix}/${safeName}`;
+              saveBufferFn(file.buffer, storageKey);
+              archivedFileUrl = storageKey;
+            } catch (saveErr: any) {
+              console.log(`[PDF-Import] Failed to archive ${file.originalname}:`, saveErr.message);
+            }
+          }
+
           documents.push({
             key: `${file.originalname}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
             fileName: decodeMulterFilename(file.originalname),
@@ -3086,6 +3131,7 @@ export function registerPurchaseRoutes(app: Express) {
             })),
             isTikTok: parsed.invoiceNo?.startsWith("TTSTHAC") || false,
             isPlatformFee: /Shopee|SPX\s*Express/i.test(parsed.vendorName || "") || parsed.invoiceNo?.startsWith("TRSPEMKP") || parsed.invoiceNo?.startsWith("RCSPXSP") || false,
+            archivedFileUrl,
             hasErrors: docErrors.length > 0,
             errors: docErrors,
           });
