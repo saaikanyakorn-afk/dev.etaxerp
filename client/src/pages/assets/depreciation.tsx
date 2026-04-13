@@ -91,9 +91,16 @@ export default function DepreciationPage() {
     },
     onSuccess: (data) => {
       setShowPostDialog(false);
-      const skipped = data.skippedItems?.length || 0;
-      const desc = `สร้างสมุดรายวัน ${data.journalEntryIds?.length || 0} รายการ (${data.postedCount || 0} สินทรัพย์)` + (skipped > 0 ? ` | ข้ามไป ${skipped} รายการ` : "");
-      toast({ title: "ลงบัญชีค่าเสื่อมราคาสำเร็จ", description: desc, ...(skipped > 0 ? { variant: "destructive" as const } : {}) });
+      if (data.message && (data.postedCount || 0) === 0) {
+        toast({ title: "แจ้งเตือน", description: data.message });
+      } else {
+        const skipped = data.skippedItems?.length || 0;
+        const skippedZero = data.skippedZero || 0;
+        let desc = `สร้างสมุดรายวัน ${data.journalEntryIds?.length || 0} รายการ (${data.postedCount || 0} สินทรัพย์)`;
+        if (skipped > 0) desc += ` | ข้ามไป ${skipped} รายการ`;
+        if (skippedZero > 0) desc += ` | ข้ามทรัพย์สินหมดอายุ ${skippedZero} รายการ`;
+        toast({ title: "ลงบัญชีค่าเสื่อมราคาสำเร็จ", description: desc, ...(skipped > 0 ? { variant: "destructive" as const } : {}) });
+      }
       calculateMutation.mutate();
     },
     onError: (err: any) => {

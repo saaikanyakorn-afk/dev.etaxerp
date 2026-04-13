@@ -944,7 +944,7 @@ export function registerFixedAssetsRoutes(app: Express) {
       
       const actualDeps = allDepsToPost.filter(d => parseFloat(d.depreciationAmount || "0") > 0);
       if (actualDeps.length === 0) {
-        return res.json({ success: true, journalEntryIds: [], postedCount: 0, skippedZero: zeroDeps.length, message: `ข้ามรายการค่าเสื่อม 0 บาท ${zeroDeps.length} รายการ (ทรัพย์สินหมดอายุ)` });
+        return res.json({ success: true, journalEntryIds: [], postedCount: 0, skippedZero: zeroDeps.length, message: `ไม่มีรายการที่ต้องลงบัญชี — ข้ามทรัพย์สินหมดอายุ ${zeroDeps.length} รายการ (ค่าเสื่อม 0 บาท)` });
       }
       
       const journalEntryIds: number[] = [];
