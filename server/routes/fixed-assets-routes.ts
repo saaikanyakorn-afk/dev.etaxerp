@@ -15,13 +15,13 @@ export function registerFixedAssetsRoutes(app: Express) {
   // ============= FIXED ASSETS =============
   const DEFAULT_ASSET_CATEGORIES = [
     { accountCode: "1701000", name: "ที่ดิน", accumCode: null, depExpCode: null, usefulLifeMonths: 0, depreciationRate: "0", sortOrder: 1 },
-    { accountCode: "1702000", name: "อาคาร", accumCode: "1712000", depExpCode: "5301500", usefulLifeMonths: 240, depreciationRate: "5", sortOrder: 2 },
-    { accountCode: "1702100", name: "ส่วนต่อเติมอาคาร", accumCode: "1712100", depExpCode: "5301500", usefulLifeMonths: 240, depreciationRate: "5", sortOrder: 3 },
+    { accountCode: "1702000", name: "อาคาร", accumCode: "1712000", depExpCode: "5301000", usefulLifeMonths: 240, depreciationRate: "5", sortOrder: 2 },
+    { accountCode: "1702100", name: "ส่วนต่อเติมอาคาร", accumCode: "1712100", depExpCode: "5301100", usefulLifeMonths: 240, depreciationRate: "5", sortOrder: 3 },
     { accountCode: "1702200", name: "ส่วนต่อเติมอาคารระหว่างทำ", accumCode: null, depExpCode: null, usefulLifeMonths: 0, depreciationRate: "0", sortOrder: 4 },
     { accountCode: "1707000", name: "เครื่องตกแต่งและติดตั้ง", accumCode: "1717000", depExpCode: "5301500", usefulLifeMonths: 60, depreciationRate: "20", sortOrder: 5 },
     { accountCode: "1704000", name: "อุปกรณ์สำนักงาน", accumCode: "1714000", depExpCode: "5301500", usefulLifeMonths: 60, depreciationRate: "20", sortOrder: 6 },
-    { accountCode: "1706000", name: "ยานพาหนะ", accumCode: "1716000", depExpCode: "5301500", usefulLifeMonths: 60, depreciationRate: "20", sortOrder: 7 },
-    { accountCode: "1705000", name: "อุปกรณ์คอมพิวเตอร์", accumCode: "1715000", depExpCode: "5301500", usefulLifeMonths: 36, depreciationRate: "33.33", sortOrder: 8 },
+    { accountCode: "1706000", name: "ยานพาหนะ", accumCode: "1716000", depExpCode: "5301600", usefulLifeMonths: 60, depreciationRate: "20", sortOrder: 7 },
+    { accountCode: "1705000", name: "อุปกรณ์คอมพิวเตอร์", accumCode: "1715000", depExpCode: "5301700", usefulLifeMonths: 36, depreciationRate: "33.33", sortOrder: 8 },
     { accountCode: "1801000", name: "สินทรัพย์ไม่มีตัวตน", accumCode: "1811000", depExpCode: "5311000", usefulLifeMonths: 60, depreciationRate: "20", sortOrder: 9 },
     { accountCode: "1703000", name: "งานระหว่างก่อสร้าง", accumCode: null, depExpCode: null, usefulLifeMonths: 0, depreciationRate: "0", sortOrder: 10 },
   ];
