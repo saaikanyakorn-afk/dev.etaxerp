@@ -817,82 +817,85 @@ export function registerFixedAssetsRoutes(app: Express) {
       
       const fromPeriod = periods[0];
       const toPeriod = periods[periods.length - 1];
-      const refRange = `${fromPeriod}_${toPeriod}`;
+      const jeRef = `DEP-${fromPeriod}_${toPeriod}`;
+      const periodDesc = fromPeriod === toPeriod ? fromPeriod : `${fromPeriod} ถึง ${toPeriod}`;
       
-      await db.transaction(async (tx) => {
-        for (const [_key, group] of Object.entries(groupedByCategory)) {
-          const expenseAccount = companyAccounts.find(a => a.code === group.expenseCode);
-          const accumAccount = companyAccounts.find(a => a.code === group.accumCode);
-          
-          if (!expenseAccount || !accumAccount) {
-            for (const dep of group.items) {
-              const asset = assetMap.get(dep.assetId);
-              skippedItems.push(`${asset?.assetCode || dep.assetId} (${group.catName}) - ไม่พบรหัสบัญชี ${!expenseAccount ? group.expenseCode : group.accumCode} ในผังบัญชี`);
-            }
-            continue;
+      const validGroups: { expenseAccount: any; accumAccount: any; catName: string; totalAmount: number; items: any[] }[] = [];
+      for (const [_key, group] of Object.entries(groupedByCategory)) {
+        const expenseAccount = companyAccounts.find(a => a.code === group.expenseCode);
+        const accumAccount = companyAccounts.find(a => a.code === group.accumCode);
+        
+        if (!expenseAccount || !accumAccount) {
+          for (const dep of group.items) {
+            const asset = assetMap.get(dep.assetId);
+            skippedItems.push(`${asset?.assetCode || dep.assetId} (${group.catName}) - ไม่พบรหัสบัญชี ${!expenseAccount ? group.expenseCode : group.accumCode} ในผังบัญชี`);
           }
-          
-          const totalAmount = group.items.reduce((sum: number, d: any) => sum + parseFloat(d.depreciationAmount || "0"), 0);
-          if (totalAmount <= 0) continue;
-          
-          const jeRef = `DEP-${refRange}-${group.expenseCode}`;
+          continue;
+        }
+        
+        const totalAmount = group.items.reduce((sum: number, d: any) => sum + parseFloat(d.depreciationAmount || "0"), 0);
+        if (totalAmount <= 0) continue;
+        
+        validGroups.push({ expenseAccount, accumAccount, catName: group.catName, totalAmount, items: group.items });
+      }
+      
+      if (validGroups.length > 0) {
+        await db.transaction(async (tx) => {
           const existingJE = await tx.select().from(journalEntries)
             .where(and(
               eq(journalEntries.companyId, companyId),
               eq(journalEntries.reference, jeRef),
               eq(journalEntries.sourceDocType, "depreciation"),
             ));
+          
+          let journalEntryId: number;
           if (existingJE.length > 0) {
+            journalEntryId = existingJE[0].id;
+          } else {
+            const jeEntryDate = entryDate || toDate;
+            const entryNo = await getNextJournalEntryNo(companyId, "general", jeEntryDate);
+            const [journalEntry] = await tx.insert(journalEntries).values({
+              companyId,
+              entryNo,
+              entryDate: jeEntryDate,
+              description: `ค่าเสื่อมราคา ${periodDesc}`,
+              reference: jeRef,
+              journalBook: "general",
+              status: "posted",
+              sourceDocType: "depreciation",
+              sourceDocId: null,
+            }).returning();
+            journalEntryId = journalEntry.id;
+          }
+          
+          for (const group of validGroups) {
+            await tx.insert(journalLines).values({
+              journalEntryId,
+              accountId: group.expenseAccount.id,
+              description: `ค่าเสื่อมราคา - ${group.catName}`,
+              debit: group.totalAmount.toFixed(2),
+              credit: "0",
+            });
+            await tx.insert(journalLines).values({
+              journalEntryId,
+              accountId: group.accumAccount.id,
+              description: `ค่าเสื่อมราคาสะสม - ${group.catName}`,
+              debit: "0",
+              credit: group.totalAmount.toFixed(2),
+            });
+            
             for (const dep of group.items) {
               await tx.update(assetDepreciations)
-                .set({ posted: true, journalEntryId: existingJE[0].id })
+                .set({ posted: true, journalEntryId })
                 .where(eq(assetDepreciations.id, dep.id));
             }
-            journalEntryIds.push(existingJE[0].id);
+            
             totalPosted += group.items.length;
-            continue;
           }
           
-          const jeEntryDate = entryDate || toDate;
-          const entryNo = await getNextJournalEntryNo(companyId, "general", jeEntryDate);
-          const periodDesc = fromPeriod === toPeriod ? fromPeriod : `${fromPeriod} ถึง ${toPeriod}`;
-          const [journalEntry] = await tx.insert(journalEntries).values({
-            companyId,
-            entryNo,
-            entryDate: jeEntryDate,
-            description: `ค่าเสื่อมราคา ${periodDesc} - ${group.catName}`,
-            reference: jeRef,
-            journalBook: "general",
-            status: "posted",
-            sourceDocType: "depreciation",
-            sourceDocId: null,
-          }).returning();
-          
-          await tx.insert(journalLines).values({
-            journalEntryId: journalEntry.id,
-            accountId: expenseAccount.id,
-            description: `ค่าเสื่อมราคา - ${group.catName}`,
-            debit: totalAmount.toFixed(2),
-            credit: "0",
-          });
-          await tx.insert(journalLines).values({
-            journalEntryId: journalEntry.id,
-            accountId: accumAccount.id,
-            description: `ค่าเสื่อมราคาสะสม - ${group.catName}`,
-            debit: "0",
-            credit: totalAmount.toFixed(2),
-          });
-          
-          for (const dep of group.items) {
-            await tx.update(assetDepreciations)
-              .set({ posted: true, journalEntryId: journalEntry.id })
-              .where(eq(assetDepreciations.id, dep.id));
-          }
-          
-          journalEntryIds.push(journalEntry.id);
-          totalPosted += group.items.length;
-        }
-      });
+          journalEntryIds.push(journalEntryId);
+        });
+      }
       
       if (journalEntryIds.length === 0 && skippedItems.length === 0) return res.status(400).json({ message: "ไม่มีรายการค่าเสื่อมที่ยังไม่ได้บันทึกบัญชีในช่วงนี้" });
       
