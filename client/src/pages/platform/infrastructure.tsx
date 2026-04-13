@@ -37,6 +37,9 @@ interface MachineRecord {
   dbUser: string;
   dbPassword: string;
   notes: string | null;
+  repoName: string | null;
+  repoUrl: string | null;
+  repoBranch: string | null;
   encHostname: string | null;
   encMacAddress: string | null;
   encConfigDbPort: string | null;
@@ -1708,6 +1711,12 @@ function MachineCard({ machine, onEdit, expanded, onToggle, onToggleOfficial, al
                 </div>
               ) : null;
             })()}
+            {machine.repoName && (
+              <div>
+                <span className="text-gray-400 text-xs block">Repo</span>
+                <span className="text-xs font-mono">{machine.repoName}{machine.repoBranch && machine.repoBranch !== "main" ? ` (${machine.repoBranch})` : ""}</span>
+              </div>
+            )}
             {machine.sysadminEmail && (
               <div>
                 <span className="text-gray-400 text-xs block">Sysadmin Email</span>
@@ -1809,6 +1818,9 @@ function EditMachineDialog({
     envContent: machine?.envContent || "",
     internetType: machine?.internetType || "dynamic",
     routerId: machine?.routerId ? String(machine.routerId) : "",
+    repoName: machine?.repoName || "",
+    repoUrl: machine?.repoUrl || "",
+    repoBranch: machine?.repoBranch || "main",
     sysadminEmail: machine?.sysadminEmail || "",
     sysadminLineId: machine?.sysadminLineId || "",
     physicalLocation: machine?.physicalLocation || "",
@@ -1959,6 +1971,34 @@ function EditMachineDialog({
               </Select>
             </div>
           </div>
+
+          {(form.serverType === "app" || form.serverType === "app_database") && (
+            <div className="border-t pt-4">
+              <h3 className="text-sm font-semibold mb-3">Git Repository</h3>
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <Label className="text-sm font-medium">Repo Name</Label>
+                  <Select value={form.repoName || "none"} onValueChange={v => setForm({ ...form, repoName: v === "none" ? "" : v })}>
+                    <SelectTrigger data-testid="select-repo-name"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">-- ยังไม่กำหนด --</SelectItem>
+                      <SelectItem value="github-production">github-production</SelectItem>
+                      <SelectItem value="github-dev">github-dev</SelectItem>
+                      <SelectItem value="replit">replit</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Repo URL</Label>
+                  <Input className="font-mono text-xs" value={form.repoUrl} onChange={e => setForm({ ...form, repoUrl: e.target.value })} placeholder="https://github.com/..." data-testid="input-repo-url" />
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Branch</Label>
+                  <Input className="font-mono" value={form.repoBranch} onChange={e => setForm({ ...form, repoBranch: e.target.value })} placeholder="main" data-testid="input-repo-branch" />
+                </div>
+              </div>
+            </div>
+          )}
 
           <div className="border-t pt-4">
             <h3 className="text-sm font-semibold mb-3">Local Config Database (ฐานข้อมูล config บนเครื่องนี้)</h3>
