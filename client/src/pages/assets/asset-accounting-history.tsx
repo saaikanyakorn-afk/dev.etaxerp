@@ -13,6 +13,11 @@ import ThaiDateInput from "@/components/thai-date-input";
 import { Search, BookOpen, CheckCircle, Clock } from "lucide-react";
 
 const CATEGORY_NAMES: Record<string, string> = {
+  "1701000": "ที่ดิน", "1702000": "อาคาร", "1702100": "ส่วนต่อเติมอาคาร",
+  "1702200": "ส่วนต่อเติมอาคารระหว่างทำ",
+  "1707000": "เครื่องตกแต่งและติดตั้ง", "1704000": "อุปกรณ์สำนักงาน",
+  "1706000": "ยานพาหนะ", "1705000": "อุปกรณ์คอมพิวเตอร์",
+  "1801000": "สินทรัพย์ไม่มีตัวตน", "1703000": "งานระหว่างก่อสร้าง",
   "1401": "ที่ดิน", "1411": "อาคาร", "1421": "ส่วนต่อเติมอาคาร",
   "1422": "ส่วนต่อเติมอาคารระหว่างทำ",
   "1431": "เครื่องตกแต่งและติดตั้ง", "1441": "อุปกรณ์สำนักงาน",
@@ -26,59 +31,32 @@ export default function AssetAccountingHistory() {
   const [search, setSearch] = useState("");
   const [filterPosted, setFilterPosted] = useState("all");
   const now = new Date();
-  const [dateFrom, setDateFrom] = useState("");
+  const [dateFrom, setDateFrom] = useState(`${now.getFullYear()}-01-01`);
   const [dateTo, setDateTo] = useState(`${now.getFullYear()}-12-31`);
 
-  const { data: assets = [] } = useQuery<any[]>({
-    queryKey: ["/api/fixed-assets", selectedCompanyId],
+  const { data: depreciations = [], isLoading } = useQuery<any[]>({
+    queryKey: ["/api/fixed-assets/depreciations/by-company", selectedCompanyId],
     queryFn: async () => {
-      const res = await fetch(`/api/fixed-assets?companyId=${selectedCompanyId}`, { credentials: "include" });
+      const res = await fetch(`/api/fixed-assets/depreciations/by-company?companyId=${selectedCompanyId}`, { credentials: "include" });
       if (!res.ok) return [];
       return res.json();
     },
     enabled: !!selectedCompanyId,
   });
 
-  const assetMap = useMemo(() => {
-    const m: Record<number, any> = {};
-    assets.forEach((a: any) => { m[a.id] = a; });
-    return m;
-  }, [assets]);
-
-  const assetIds = assets.map((a: any) => a.id);
-
-  const { data: depreciations = [], isLoading } = useQuery<any[]>({
-    queryKey: ["/api/fixed-assets/depreciations/all", selectedCompanyId, dateFrom, dateTo],
-    queryFn: async () => {
-      const allDeps: any[] = [];
-      for (const id of assetIds) {
-        try {
-          const res = await fetch(`/api/fixed-assets/${id}/depreciations?companyId=${selectedCompanyId}`, { credentials: "include" });
-          if (res.ok) {
-            const deps = await res.json();
-            allDeps.push(...deps.map((d: any) => ({ ...d, assetId: id })));
-          }
-        } catch {}
-      }
-      return allDeps;
-    },
-    enabled: !!selectedCompanyId && assetIds.length > 0,
-  });
-
   const filtered = useMemo(() => {
     return depreciations.filter((d: any) => {
-      if (d.periodDate < dateFrom || d.periodDate > dateTo) return false;
+      if (dateFrom && d.periodDate < dateFrom) return false;
+      if (dateTo && d.periodDate > dateTo) return false;
       if (filterPosted === "posted" && !d.posted) return false;
       if (filterPosted === "unposted" && d.posted) return false;
       if (search) {
-        const asset = assetMap[d.assetId];
-        if (!asset) return false;
         const s = search.toLowerCase();
-        if (!asset.name?.toLowerCase().includes(s) && !asset.assetCode?.toLowerCase().includes(s)) return false;
+        if (!d.assetName?.toLowerCase().includes(s) && !d.assetCode?.toLowerCase().includes(s)) return false;
       }
       return true;
     }).sort((a: any, b: any) => a.periodDate.localeCompare(b.periodDate));
-  }, [depreciations, search, filterPosted, dateFrom, dateTo, assetMap]);
+  }, [depreciations, search, filterPosted, dateFrom, dateTo]);
 
   const totalDepAmount = filtered.reduce((s: number, d: any) => s + parseFloat(d.depreciationAmount || "0"), 0);
   const postedCount = filtered.filter((d: any) => d.posted).length;
@@ -167,33 +145,30 @@ export default function AssetAccountingHistory() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filtered.map((d: any, i: number) => {
-                      const asset = assetMap[d.assetId];
-                      return (
-                        <TableRow key={d.id} data-testid={`row-dep-${d.id}`}>
-                          <TableCell className="text-sm">{i + 1}</TableCell>
-                          <TableCell className="text-sm">{d.period}</TableCell>
-                          <TableCell className="text-sm">{formatDate(d.periodDate, dateFmt, dateEra)}</TableCell>
-                          <TableCell className="text-sm font-mono">{asset?.assetCode || "-"}</TableCell>
-                          <TableCell className="text-sm">{asset?.name || "-"}</TableCell>
-                          <TableCell className="text-sm">{CATEGORY_NAMES[asset?.categoryAccountCode] || asset?.categoryAccountCode || "-"}</TableCell>
-                          <TableCell className="text-sm text-right">{formatNumber(parseFloat(d.depreciationAmount || "0"))}</TableCell>
-                          <TableCell className="text-sm text-right">{formatNumber(parseFloat(d.accumDepreciation || "0"))}</TableCell>
-                          <TableCell className="text-sm text-right">{formatNumber(parseFloat(d.netBookValue || "0"))}</TableCell>
-                          <TableCell>
-                            {d.posted ? (
-                              <Badge className="text-xs bg-green-100 text-green-700 border-green-300">
-                                <CheckCircle className="h-3 w-3 mr-1" />ลงบัญชีแล้ว
-                              </Badge>
-                            ) : (
-                              <Badge variant="outline" className="text-xs text-amber-600 border-amber-300">
-                                <Clock className="h-3 w-3 mr-1" />รอลงบัญชี
-                              </Badge>
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
+                    {filtered.map((d: any, i: number) => (
+                      <TableRow key={d.id} data-testid={`row-dep-${d.id}`}>
+                        <TableCell className="text-sm">{i + 1}</TableCell>
+                        <TableCell className="text-sm">{d.period}</TableCell>
+                        <TableCell className="text-sm">{formatDate(d.periodDate, dateFmt, dateEra)}</TableCell>
+                        <TableCell className="text-sm font-mono">{d.assetCode || "-"}</TableCell>
+                        <TableCell className="text-sm">{d.assetName || "-"}</TableCell>
+                        <TableCell className="text-sm">{CATEGORY_NAMES[d.categoryAccountCode] || d.categoryAccountCode || "-"}</TableCell>
+                        <TableCell className="text-sm text-right">{formatNumber(parseFloat(d.depreciationAmount || "0"))}</TableCell>
+                        <TableCell className="text-sm text-right">{formatNumber(parseFloat(d.accumDepreciation || "0"))}</TableCell>
+                        <TableCell className="text-sm text-right">{formatNumber(parseFloat(d.netBookValue || "0"))}</TableCell>
+                        <TableCell>
+                          {d.posted ? (
+                            <Badge className="text-xs bg-green-100 text-green-700 border-green-300">
+                              <CheckCircle className="h-3 w-3 mr-1" />ลงบัญชีแล้ว
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-xs text-amber-600 border-amber-300">
+                              <Clock className="h-3 w-3 mr-1" />รอลงบัญชี
+                            </Badge>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
                     <TableRow className="bg-gray-50 font-semibold">
                       <TableCell colSpan={6} className="text-sm text-right">รวมทั้งสิ้น</TableCell>
                       <TableCell className="text-sm text-right">{formatNumber(totalDepAmount)}</TableCell>

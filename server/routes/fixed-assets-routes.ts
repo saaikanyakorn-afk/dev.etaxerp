@@ -552,6 +552,27 @@ export function registerFixedAssetsRoutes(app: Express) {
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
+  app.get("/api/fixed-assets/depreciations/by-company", requireAuth, async (req, res) => {
+    try {
+      const companyId = Number(req.query.companyId);
+      if (!companyId) return res.status(400).json({ message: "กรุณาระบุ companyId" });
+      const companyAssets = await db.select({ id: fixedAssets.id, assetCode: fixedAssets.assetCode, name: fixedAssets.name, categoryAccountCode: fixedAssets.categoryAccountCode })
+        .from(fixedAssets).where(eq(fixedAssets.companyId, companyId));
+      if (companyAssets.length === 0) return res.json([]);
+      const assetIds = companyAssets.map(a => a.id);
+      const deps = await db.select().from(assetDepreciations).where(inArray(assetDepreciations.assetId, assetIds));
+      const assetMap: Record<number, any> = {};
+      companyAssets.forEach(a => { assetMap[a.id] = a; });
+      const result = deps.map(d => ({
+        ...d,
+        assetCode: assetMap[d.assetId]?.assetCode,
+        assetName: assetMap[d.assetId]?.name,
+        categoryAccountCode: assetMap[d.assetId]?.categoryAccountCode,
+      }));
+      res.json(result);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
   app.get("/api/fixed-assets/:id/depreciations", requireAuth, async (req, res) => {
     try {
       const deps = await storage.getAssetDepreciations(Number(req.params.id));
