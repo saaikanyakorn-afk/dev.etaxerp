@@ -37,26 +37,35 @@ async function migrateSchemaVersionTable() {
         await db.execute(sql`INSERT INTO schema_version (version, description, up_sql, down_sql, reason, db_targets, applied_targets) VALUES (${e.version}, ${e.description}, ${e.up_sql}, ${e.down_sql}, ${e.reason}, ${['neon','production','main']}, ${[selfName]})`);
       }
       console.log("[schema_version] Migrated from single-row to full tracking, old version:", oldVersion);
-    } else if (!cols.includes("db_targets")) {
-      await db.execute(sql.raw(
-        "ALTER TABLE schema_version ADD COLUMN IF NOT EXISTS reason TEXT, ADD COLUMN IF NOT EXISTS db_targets TEXT[] NOT NULL DEFAULT '{}'::TEXT[], ADD COLUMN IF NOT EXISTS applied_targets TEXT[] NOT NULL DEFAULT '{}'::TEXT[], ADD COLUMN IF NOT EXISTS reverted_at TIMESTAMP, ADD COLUMN IF NOT EXISTS push_ref TEXT"
-      ));
-      if (cols.includes("applied_neon")) {
-        await db.execute(sql.raw(`
-          UPDATE schema_version SET 
-            db_targets = ARRAY['neon','production','main'],
-            applied_targets = ARRAY(SELECT t FROM (VALUES 
-              (CASE WHEN applied_neon THEN 'neon' END),
-              (CASE WHEN applied_production THEN 'production' END),
-              (CASE WHEN applied_main THEN 'main' END)
-            ) AS x(t) WHERE t IS NOT NULL)
-        `));
-        await db.execute(sql.raw("ALTER TABLE schema_version DROP COLUMN IF EXISTS applied_neon, DROP COLUMN IF EXISTS applied_production, DROP COLUMN IF EXISTS applied_main"));
+    } else {
+      let upgraded = false;
+      if (!cols.includes("db_targets")) {
+        await db.execute(sql.raw(
+          "ALTER TABLE schema_version ADD COLUMN IF NOT EXISTS reason TEXT, ADD COLUMN IF NOT EXISTS db_targets TEXT[] NOT NULL DEFAULT '{}'::TEXT[], ADD COLUMN IF NOT EXISTS applied_targets TEXT[] NOT NULL DEFAULT '{}'::TEXT[], ADD COLUMN IF NOT EXISTS reverted_at TIMESTAMP, ADD COLUMN IF NOT EXISTS push_ref TEXT"
+        ));
+        if (cols.includes("applied_neon")) {
+          await db.execute(sql.raw(`
+            UPDATE schema_version SET 
+              db_targets = ARRAY['neon','production','main'],
+              applied_targets = ARRAY(SELECT t FROM (VALUES 
+                (CASE WHEN applied_neon THEN 'neon' END),
+                (CASE WHEN applied_production THEN 'production' END),
+                (CASE WHEN applied_main THEN 'main' END)
+              ) AS x(t) WHERE t IS NOT NULL)
+          `));
+          await db.execute(sql.raw("ALTER TABLE schema_version DROP COLUMN IF EXISTS applied_neon, DROP COLUMN IF EXISTS applied_production, DROP COLUMN IF EXISTS applied_main"));
+        }
+        if (!cols.includes("change_type")) {
+          await db.execute(sql.raw("ALTER TABLE schema_version ADD COLUMN IF NOT EXISTS change_type TEXT NOT NULL DEFAULT 'schema', ADD COLUMN IF NOT EXISTS files_changed TEXT"));
+        }
+        upgraded = true;
       }
-      if (!cols.includes("change_type")) {
-        await db.execute(sql.raw("ALTER TABLE schema_version ADD COLUMN IF NOT EXISTS change_type TEXT NOT NULL DEFAULT 'schema', ADD COLUMN IF NOT EXISTS files_changed TEXT"));
+      if (!cols.includes("repo_targets")) {
+        await db.execute(sql.raw("ALTER TABLE schema_version ADD COLUMN IF NOT EXISTS repo_targets TEXT[] NOT NULL DEFAULT '{}'::TEXT[], ADD COLUMN IF NOT EXISTS pushed_repos TEXT[] NOT NULL DEFAULT '{}'::TEXT[]"));
+        await db.execute(sql.raw("UPDATE schema_version SET repo_targets = ARRAY['replit','github-dev','github-production'], pushed_repos = ARRAY['replit','github-dev','github-production'] WHERE repo_targets = '{}'"));
+        upgraded = true;
       }
-      console.log("[schema_version] Upgraded to flexible db_targets/applied_targets design");
+      if (upgraded) console.log("[schema_version] Upgraded: flexible targets + repo tracking");
     }
   } catch (err: any) {
     console.error("[schema_version] Migration error:", err.message);
