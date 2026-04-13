@@ -935,12 +935,24 @@ export function registerFixedAssetsRoutes(app: Express) {
       
       if (allDepsToPost.length === 0) return res.status(400).json({ message: "ไม่มีรายการค่าเสื่อมที่ยังไม่ได้บันทึกบัญชีในช่วงนี้" });
       
+      const zeroDeps = allDepsToPost.filter(d => parseFloat(d.depreciationAmount || "0") <= 0);
+      if (zeroDeps.length > 0) {
+        await db.update(assetDepreciations)
+          .set({ posted: true })
+          .where(inArray(assetDepreciations.id, zeroDeps.map(d => d.id)));
+      }
+      
+      const actualDeps = allDepsToPost.filter(d => parseFloat(d.depreciationAmount || "0") > 0);
+      if (actualDeps.length === 0) {
+        return res.json({ success: true, journalEntryIds: [], postedCount: 0, skippedZero: zeroDeps.length, message: `ข้ามรายการค่าเสื่อม 0 บาท ${zeroDeps.length} รายการ (ทรัพย์สินหมดอายุ)` });
+      }
+      
       const journalEntryIds: number[] = [];
       let totalPosted = 0;
       const skippedItems: string[] = [];
       
       const groupedByCategory: Record<string, { expenseCode: string; accumCode: string; catName: string; depIds: number[]; totalAmount: number }> = {};
-      for (const dep of allDepsToPost) {
+      for (const dep of actualDeps) {
         const asset = assetMap.get(dep.assetId);
         if (!asset) continue;
         
