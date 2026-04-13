@@ -147,6 +147,8 @@ export default function PdfBulkImport() {
   const [, navigate] = useLocation();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
+  const addFileInputRef = useRef<HTMLInputElement>(null);
+  const addFolderInputRef = useRef<HTMLInputElement>(null);
   const { dateEra, dateFmt } = useDateSettings();
 
   const [step, setStep] = useState<"upload" | "preview" | "result">("upload");
@@ -192,6 +194,8 @@ export default function PdfBulkImport() {
   const [parseProgress, setParseProgress] = useState(0);
   const [parseTotalFiles, setParseTotalFiles] = useState(0);
 
+  const [importedFolderCount, setImportedFolderCount] = useState(0);
+
   const parseMutation = useMutation({
     mutationFn: async (files: File[]) => {
       const BATCH_SIZE = 50;
@@ -236,9 +240,36 @@ export default function PdfBulkImport() {
       } as BulkParseResult;
     },
     onSuccess: (data) => {
-      setParseResult(data);
-      const validKeys = new Set(data.documents.filter(d => !d.hasErrors && !d.isDuplicate).map(d => d.key));
-      setSelectedDocs(validKeys);
+      setImportedFolderCount(prev => prev + 1);
+
+      if (parseResult) {
+        const existingKeys = new Set(parseResult.documents.map(d => d.key));
+        const newDocs = data.documents.filter(d => !existingKeys.has(d.key));
+        const merged: BulkParseResult = {
+          totalFiles: parseResult.totalFiles + data.totalFiles,
+          successFiles: parseResult.successFiles + data.successFiles,
+          failedFiles: parseResult.failedFiles + data.failedFiles,
+          documents: [...parseResult.documents, ...newDocs],
+          errors: [...parseResult.errors, ...data.errors],
+        };
+        setParseResult(merged);
+        const newValidKeys = newDocs.filter(d => !d.hasErrors && !d.isDuplicate).map(d => d.key);
+        setSelectedDocs(prev => {
+          const next = new Set(prev);
+          newValidKeys.forEach(k => next.add(k));
+          return next;
+        });
+        if (newDocs.length > 0) {
+          toast({ title: `เพิ่ม ${newDocs.length} ไฟล์ใหม่`, description: `รวมทั้งหมด ${merged.documents.length} ไฟล์` });
+        } else {
+          toast({ title: "ไม่มีไฟล์ใหม่", description: "ไฟล์ทั้งหมดมีอยู่แล้ว" });
+        }
+      } else {
+        setParseResult(data);
+        const validKeys = new Set(data.documents.filter(d => !d.hasErrors && !d.isDuplicate).map(d => d.key));
+        setSelectedDocs(validKeys);
+      }
+
       setStep("preview");
       setParseProgress(0);
       setParseTotalFiles(0);
@@ -467,7 +498,7 @@ export default function PdfBulkImport() {
       <div>
         <div className="flex items-center gap-3 mb-4">
           <Button variant="ghost" size="icon" onClick={() => {
-            if (step === "preview") { setStep("upload"); setParseResult(null); }
+            if (step === "preview") { setStep("upload"); setParseResult(null); setImportedFolderCount(0); }
             else navigate(docType === "expense" ? "/purchases/expense" : "/purchases/ap");
           }} data-testid="button-back">
             <ArrowLeft className="h-5 w-5" />
@@ -570,6 +601,11 @@ export default function PdfBulkImport() {
                     <Badge variant="outline" className="text-sm px-3 py-1 bg-[#fb9678]/10 text-[#fb9678] border-[#fb9678]">
                       เลือก {selectedDocs.size} รายการ
                     </Badge>
+                    {importedFolderCount > 0 && (
+                      <Badge variant="outline" className="text-sm px-3 py-1 bg-[#03c9d7]/10 text-[#03c9d7] border-[#03c9d7]">
+                        {importedFolderCount} รอบนำเข้า
+                      </Badge>
+                    )}
                   </div>
                   <div className="flex flex-wrap items-center gap-3">
                     <div className="flex items-center gap-2">
@@ -614,9 +650,55 @@ export default function PdfBulkImport() {
                 </div>
               </CardHeader>
               <CardContent className="p-0">
-                <div className="flex items-center gap-2 px-4 pb-2">
-                  <Button variant="link" size="sm" onClick={selectAll} className="text-xs" data-testid="button-select-all">เลือกทั้งหมด</Button>
-                  <Button variant="link" size="sm" onClick={deselectAll} className="text-xs" data-testid="button-deselect-all">ยกเลิกทั้งหมด</Button>
+                <div className="flex items-center justify-between px-4 pb-2">
+                  <div className="flex items-center gap-2">
+                    <Button variant="link" size="sm" onClick={selectAll} className="text-xs" data-testid="button-select-all">เลือกทั้งหมด</Button>
+                    <Button variant="link" size="sm" onClick={deselectAll} className="text-xs" data-testid="button-deselect-all">ยกเลิกทั้งหมด</Button>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {parseMutation.isPending && (
+                      <div className="flex items-center gap-2 text-sm text-[#03c9d7]">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <span>กำลังอ่าน {parseProgress}/{parseTotalFiles}...</span>
+                      </div>
+                    )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => addFileInputRef.current?.click()}
+                      disabled={parseMutation.isPending}
+                      className="gap-1.5 text-xs"
+                      data-testid="button-add-more-files"
+                    >
+                      <FileText className="h-3.5 w-3.5" /> เพิ่มไฟล์
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => addFolderInputRef.current?.click()}
+                      disabled={parseMutation.isPending}
+                      className="gap-1.5 text-xs"
+                      style={{ borderColor: "#03c9d7", color: "#03c9d7" }}
+                      data-testid="button-add-more-folder"
+                    >
+                      <FolderOpen className="h-3.5 w-3.5" /> เพิ่มโฟลเดอร์
+                    </Button>
+                    <input
+                      ref={addFileInputRef}
+                      type="file"
+                      multiple
+                      accept=".pdf"
+                      className="hidden"
+                      onChange={handleFileSelect}
+                    />
+                    <input
+                      ref={addFolderInputRef}
+                      type="file"
+                      className="hidden"
+                      onChange={handleFolderSelect}
+                      {...({ webkitdirectory: "", directory: "", multiple: true } as any)}
+                    />
+                  </div>
                 </div>
                 <div className="overflow-x-auto">
                   <Table>
