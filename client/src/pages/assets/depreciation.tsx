@@ -56,7 +56,13 @@ export default function DepreciationPage() {
     enabled: !!selectedCompanyId,
   });
   const { data: assetCategories = [] } = useQuery<any[]>({
-    queryKey: ["/api/asset-categories"],
+    queryKey: ["/api/asset-categories", selectedCompanyId],
+    queryFn: async () => {
+      if (!selectedCompanyId) return [];
+      const res = await fetch(`/api/asset-categories?companyId=${selectedCompanyId}`, { credentials: "include" });
+      if (!res.ok) return [];
+      return res.json();
+    },
     enabled: !!selectedCompanyId,
   });
 
