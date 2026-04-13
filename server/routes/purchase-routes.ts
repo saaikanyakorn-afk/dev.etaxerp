@@ -3,7 +3,7 @@ import * as XLSX from "xlsx";
 import { db } from "../db";
 import { storage } from "../storage";
 import { eq, and, desc, or, sql, count, not, ilike } from "drizzle-orm";
-import { purchaseRequests, purchaseRequestItems, bidComparisons, bidComparisonItems, bidVendors, purchaseOrders, purchaseOrderItems, purchaseInvoices, purchaseInvoiceItems, companies, accounts, contacts, products, journalEntries, journalLines, productStock, stockMovements, expenses, expenseItems, withholdingTaxCerts, whtCertItems, documentImportBatches, firmDocuments } from "@shared/schema";
+import { purchaseRequests, purchaseRequestItems, bidComparisons, bidComparisonItems, bidVendors, purchaseOrders, purchaseOrderItems, purchaseInvoices, purchaseInvoiceItems, companies, accounts, contacts, products, journalEntries, journalLines, productStock, stockMovements, expenses, expenseItems, withholdingTaxCerts, whtCertItems, documentImportBatches, firmClients, clientUploadLinks, clientUploadFiles } from "@shared/schema";
 import { requireAuth, requireModule, requireRole, checkDocOwnership } from "../route-middleware";
 import { getNextDocNo, validateDocNo, createAutoJournalEntry, resolvePaymentMethodAccountCode, getNextJournalEntryNo, checkDocumentLimit, deleteStockMovementsForDoc, deleteJournalEntriesForDoc, logActivity } from "../route-helpers";
 import { parsePagination, paginatedResponse } from "./pagination";
@@ -2309,6 +2309,14 @@ export function registerPurchaseRoutes(app: Express) {
 
       const vendorCache = new Map<string, number>();
 
+      let firmClientId: number | null = null;
+      if (archiveToDocs && user.tenantId) {
+        const [fc] = await db.select({ id: firmClients.id }).from(firmClients)
+          .where(eq(firmClients.companyId, companyId)).limit(1);
+        firmClientId = fc?.id || null;
+      }
+      const archiveLinkCache = new Map<string, any>();
+
       let formulaDebitCode: string | null = null;
       if (formulaBusinessType) {
         const defFormula = DEFAULT_FORMULAS.find((f: any) => f.documentType === "purchase" && f.businessType === formulaBusinessType)
@@ -2456,26 +2464,61 @@ export function registerPurchaseRoutes(app: Express) {
             pendingJournals.push({ result, doc, validItems });
           }
 
-          if (archiveToDocs && doc.archivedFileUrl && user.tenantId) {
+          if (archiveToDocs && doc.archivedFileUrl && user.tenantId && firmClientId) {
             try {
-              await db.insert(firmDocuments).values({
+              const docDateObj = new Date((doc.date || new Date().toISOString().split("T")[0]) + "T00:00:00");
+              const docMonth = docDateObj.getMonth() + 1;
+              const docYear = docDateObj.getFullYear();
+              const linkKey = `${docMonth}-${docYear}`;
+
+              let link = archiveLinkCache.get(linkKey);
+              if (!link) {
+                const [existing] = await db.select().from(clientUploadLinks).where(
+                  and(
+                    eq(clientUploadLinks.tenantId, user.tenantId),
+                    eq(clientUploadLinks.firmClientId, firmClientId),
+                    eq(clientUploadLinks.month, docMonth),
+                    eq(clientUploadLinks.year, docYear),
+                  )
+                );
+                if (existing) {
+                  link = existing;
+                } else {
+                  const THAI_MONTHS = ["มกราคม","กุมภาพันธ์","มีนาคม","เมษายน","พฤษภาคม","มิถุนายน","กรกฎาคม","สิงหาคม","กันยายน","ตุลาคม","พฤศจิกายน","ธันวาคม"];
+                  const crypto = await import("crypto");
+                  const token = crypto.randomBytes(24).toString("hex");
+                  const [created] = await db.insert(clientUploadLinks).values({
+                    tenantId: user.tenantId,
+                    firmClientId: firmClientId,
+                    token,
+                    label: `เอกสาร ${THAI_MONTHS[docMonth - 1]} ${docYear + 543}`,
+                    month: docMonth,
+                    year: docYear,
+                    isActive: true,
+                    maxFiles: 999,
+                    createdBy: user.id,
+                  }).returning();
+                  link = created;
+                }
+                archiveLinkCache.set(linkKey, link);
+              }
+
+              await db.insert(clientUploadFiles).values({
+                linkId: link.id,
                 tenantId: user.tenantId,
-                companyId,
-                folderId: null,
-                category: "expense_receipt",
-                name: `${result.expNo} - ${doc.vendorName || "ค่าใช้จ่าย"}`,
-                description: `นำเข้าจาก PDF: ${doc.fileName || doc.taxInvoiceRef || ""}`,
-                fileUrl: doc.archivedFileUrl,
-                fileName: doc.fileName || `${result.expNo}.pdf`,
+                firmClientId: firmClientId,
+                fileName: `${result.expNo} - ${doc.vendorName || "ค่าใช้จ่าย"}.pdf`,
                 fileSize: null,
                 mimeType: "application/pdf",
-                linkUrl: null,
-                linkType: null,
-                sortOrder: 0,
-                uploadedBy: user.id,
+                objectPath: doc.archivedFileUrl,
+                category: "ใบกำกับภาษีซื้อ",
+                uploaderName: user.fullName || user.username || "ระบบนำเข้า PDF",
+                uploaderNote: `นำเข้าจาก PDF: ${doc.fileName || doc.taxInvoiceRef || ""}`,
+                isRead: true,
+                source: "staff",
               });
             } catch (archiveErr: any) {
-              console.log(`[PDF-Import] Failed to create firm_document for ${result.expNo}:`, archiveErr.message);
+              console.log(`[PDF-Import] Failed to archive to client docs for ${result.expNo}:`, archiveErr.message);
             }
           }
 
@@ -3025,11 +3068,11 @@ export function registerPurchaseRoutes(app: Express) {
       const archiveToDocs = req.body.archiveToDocs === "true" || req.body.archiveToDocs === true;
 
       const { parsePdfInvoice } = await import("../utils/pdf-invoice-parser");
-      let saveBufferFn: ((buffer: Buffer, path: string) => void) | null = null;
+      let saveLocalFn: ((buffer: Buffer, contentType: string, originalName?: string) => { objectPath: string }) | null = null;
       if (archiveToDocs) {
         try {
-          const { saveBufferToPath } = await import("../replit_integrations/object_storage/routes");
-          saveBufferFn = saveBufferToPath;
+          const { saveBufferLocally } = await import("../replit_integrations/object_storage/routes");
+          saveLocalFn = saveBufferLocally;
         } catch {}
       }
 
@@ -3086,14 +3129,11 @@ export function registerPurchaseRoutes(app: Express) {
           }
 
           let archivedFileUrl: string | null = null;
-          if (saveBufferFn) {
+          if (saveLocalFn) {
             try {
               const decodedName = decodeMulterFilename(file.originalname);
-              const safeName = decodedName.replace(/[^a-zA-Z0-9._\-\u0E00-\u0E7F]/g, "_");
-              const datePrefix = (docDate || new Date().toISOString().split("T")[0]).substring(0, 7);
-              const storageKey = `firm-documents/pdf-import/${companyId}/${datePrefix}/${safeName}`;
-              saveBufferFn(file.buffer, storageKey);
-              archivedFileUrl = storageKey;
+              const { objectPath } = saveLocalFn(file.buffer, "application/pdf", decodedName);
+              archivedFileUrl = objectPath;
             } catch (saveErr: any) {
               console.log(`[PDF-Import] Failed to archive ${file.originalname}:`, saveErr.message);
             }
