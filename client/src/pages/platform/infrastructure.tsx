@@ -1772,6 +1772,7 @@ function MachineCard({ machine, onEdit, expanded, onToggle, onToggleOfficial, al
 function EditMachineDialog({
   machine,
   locations,
+  routers,
   onSave,
   onCancel,
   onDelete,
@@ -1779,6 +1780,7 @@ function EditMachineDialog({
 }: {
   machine: MachineRecord | null;
   locations: LocationRecord[];
+  routers: RouterRecord[];
   onSave: (m: Partial<MachineRecord> & { localName: string; dbName: string; dbUser: string; dbPassword: string }) => void;
   onCancel: () => void;
   onDelete?: (id: number) => void;
@@ -1805,6 +1807,8 @@ function EditMachineDialog({
     dbPassword: machine?.dbPassword || "",
     notes: machine?.notes || "",
     envContent: machine?.envContent || "",
+    internetType: machine?.internetType || "dynamic",
+    routerId: machine?.routerId ? String(machine.routerId) : "",
     sysadminEmail: machine?.sysadminEmail || "",
     sysadminLineId: machine?.sysadminLineId || "",
     physicalLocation: machine?.physicalLocation || "",
@@ -1924,6 +1928,33 @@ function EditMachineDialog({
                   <SelectItem value="production">Production</SelectItem>
                   <SelectItem value="testing">Testing</SelectItem>
                   <SelectItem value="backup">Backup</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label className="text-sm font-medium">Internet Type</Label>
+              <Select value={form.internetType} onValueChange={(v: any) => setForm({ ...form, internetType: v })}>
+                <SelectTrigger data-testid="select-internet-type"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="fixed">Fixed IP</SelectItem>
+                  <SelectItem value="dynamic">Dynamic (DDNS)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-sm font-medium">Router</Label>
+              <Select value={form.routerId || "none"} onValueChange={v => setForm({ ...form, routerId: v === "none" ? "" : v })}>
+                <SelectTrigger data-testid="select-machine-router"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">-- ยังไม่กำหนด --</SelectItem>
+                  {routers.map(r => (
+                    <SelectItem key={r.id} value={String(r.id)}>
+                      {r.name} {r.lanIp ? `(${r.lanIp})` : ""}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -3066,7 +3097,7 @@ export default function AllServers() {
   });
 
   const handleSave = (data: any) => {
-    const cleaned = { ...data, locationId: data.locationId ? Number(data.locationId) : null };
+    const cleaned = { ...data, locationId: data.locationId ? Number(data.locationId) : null, routerId: data.routerId ? Number(data.routerId) : null };
     if (editingMachine === null) {
       createMut.mutate(cleaned);
     } else if (editingMachine) {
@@ -3415,6 +3446,7 @@ export default function AllServers() {
           <EditMachineDialog
             machine={editingMachine}
             locations={locations}
+            routers={routersList}
             onSave={handleSave}
             onCancel={() => setEditingMachine(undefined)}
             onDelete={(id) => deleteMut.mutate(id)}
