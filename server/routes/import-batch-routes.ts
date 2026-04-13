@@ -59,6 +59,7 @@ export function registerImportBatchRoutes(app: Express) {
 
       const [batch] = await db.select().from(documentImportBatches).where(eq(documentImportBatches.id, batchId));
       if (!batch) return res.status(404).json({ message: "ไม่พบล็อตนำเข้า" });
+      if (batch.status === "deleted") return res.json({ deletedDocs: 0, deletedJournals: 0, batchId, message: "ล็อตนี้ถูกลบไปแล้ว" });
 
       if (user.role !== "super_admin" && user.tenantId) {
         const [company] = await db.select().from(companies).where(eq(companies.id, batch.companyId));
@@ -68,12 +69,14 @@ export function registerImportBatchRoutes(app: Express) {
       }
 
       const docIds: number[] = batch.createdDocIds ? JSON.parse(batch.createdDocIds) : [];
+      console.log(`[import-batch-delete] batch ${batchId}, docType=${batch.docType}, docIds count=${docIds.length}, first5=${JSON.stringify(docIds.slice(0, 5))}`);
       let deletedDocs = 0;
       let deletedJournals = 0;
       let skippedNames: string[] = [];
 
       if (docIds.length > 0) {
         await db.transaction(async (tx) => {
+        console.log(`[import-batch-delete] starting transaction for ${batch.docType}, ${docIds.length} docs`);
         switch (batch.docType) {
           case "invoice": {
             for (const docId of docIds) {
@@ -96,7 +99,12 @@ export function registerImportBatchRoutes(app: Express) {
           }
           case "expense": {
             for (const docId of docIds) {
-              await deleteJournalEntriesForDoc(tx, "expense", docId);
+              try {
+                await deleteJournalEntriesForDoc(tx, "expense", docId);
+              } catch (jErr: any) {
+                console.error(`[import-batch-delete] deleteJournalEntriesForDoc expense ${docId} failed:`, jErr.message);
+                throw jErr;
+              }
               await tx.delete(expenseItems).where(eq(expenseItems.expenseId, docId));
             }
             const expRows = await tx.select({ id: expenses.id, expNo: expenses.expNo, batchId: expenses.batchId })
@@ -121,24 +129,27 @@ export function registerImportBatchRoutes(app: Express) {
             const affectedBatchIds = [...new Set(expRows.map(e => e.batchId).filter(Boolean))] as number[];
             for (const dxpId of affectedBatchIds) {
               const remaining = await tx.select({ id: expenses.id }).from(expenses).where(eq(expenses.batchId, dxpId));
-              if (remaining.length === 0) {
-                const [dxpBatch] = await tx.select().from(expenseDailyBatches).where(eq(expenseDailyBatches.id, dxpId));
-                if (dxpBatch) {
-                  const dxpNo = dxpBatch.batchNo;
-                  const dxpJournals = await tx.select({ id: journalEntries.id })
-                    .from(journalEntries)
-                    .where(and(
-                      eq(journalEntries.companyId, batch.companyId),
-                      eq(journalEntries.docNo, dxpNo),
-                      eq(journalEntries.sourceDocType, "expense_daily_batch"),
-                    ));
-                  for (const dj of dxpJournals) {
-                    await tx.delete(journalLines).where(eq(journalLines.journalEntryId, dj.id));
-                    await tx.delete(journalEntries).where(eq(journalEntries.id, dj.id));
-                    deletedJournals++;
-                  }
+              const [dxpBatch] = await tx.select().from(expenseDailyBatches).where(eq(expenseDailyBatches.id, dxpId));
+              if (dxpBatch) {
+                const dxpNo = dxpBatch.batchNo;
+                const dxpJournals = await tx.select({ id: journalEntries.id })
+                  .from(journalEntries)
+                  .where(and(
+                    eq(journalEntries.companyId, batch.companyId),
+                    eq(journalEntries.docNo, dxpNo),
+                    eq(journalEntries.sourceDocType, "expense_daily_batch"),
+                  ));
+                for (const dj of dxpJournals) {
+                  const djId = dj.id;
+                  try { await tx.execute(sql`UPDATE bank_statements SET matched_journal_id = NULL WHERE matched_journal_id = ${djId}`); } catch {}
+                  await tx.delete(journalLines).where(eq(journalLines.journalEntryId, djId));
+                  await tx.delete(journalEntries).where(eq(journalEntries.id, djId));
+                  deletedJournals++;
                 }
+              }
+              if (remaining.length === 0) {
                 await tx.delete(expenseDailyBatches).where(eq(expenseDailyBatches.id, dxpId));
+                console.log(`[import-batch-delete] DXP batch ${dxpId} fully removed (0 expenses left)`);
               } else {
                 const sums = await tx.execute(sql`
                   SELECT COALESCE(SUM(total_amount::numeric),0) as total,
@@ -154,6 +165,7 @@ export function registerImportBatchRoutes(app: Express) {
                   totalWht: String(row.wht),
                   totalExpenses: Number(row.cnt),
                 }).where(eq(expenseDailyBatches.id, dxpId));
+                console.log(`[import-batch-delete] DXP batch ${dxpId} updated: ${row.cnt} expenses left, total=${row.total}. DXP journal deleted — will recreate on next import.`);
               }
             }
             break;

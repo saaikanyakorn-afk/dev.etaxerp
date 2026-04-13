@@ -2540,22 +2540,52 @@ export function registerPurchaseRoutes(app: Express) {
             const dxpBatchId = group.batchId;
             const dxpNo = `DXP-${dateKey.replace(/-/g, "")}`;
 
-            const [existingDxpJournal] = await db.select({ id: journalEntries.id })
+            const existingDxpJournals = await db.select({ id: journalEntries.id })
               .from(journalEntries)
               .where(and(
                 eq(journalEntries.companyId, companyId),
                 eq(journalEntries.docNo, dxpNo),
                 eq(journalEntries.sourceDocType, "expense_daily_batch"),
               ));
-            if (existingDxpJournal) {
-              console.log(`[PDF-Import] DXP journal ${dxpNo} already exists (id=${existingDxpJournal.id}), updating totals...`);
-              await db.update(journalEntries).set({
-                description: `expense ${dxpNo} - สรุปค่าใช้จ่ายรายวัน (${group.expNos.length} ใบ)`,
-              }).where(eq(journalEntries.id, existingDxpJournal.id));
+
+            if (existingDxpJournals.length > 0) {
+              console.log(`[PDF-Import] DXP journal ${dxpNo} already exists (${existingDxpJournals.length} entries), deleting to recreate with combined totals...`);
+              for (const ej of existingDxpJournals) {
+                const ejId = ej.id;
+                const clearRef = async (stmt: string) => { try { await db.execute(sql.raw(stmt)); } catch {} };
+                await clearRef(`UPDATE bank_statements SET matched_journal_id = NULL WHERE matched_journal_id = ${ejId}`);
+                await db.delete(journalLines).where(eq(journalLines.journalEntryId, ejId));
+                await db.delete(journalEntries).where(eq(journalEntries.id, ejId));
+              }
+            }
+
+            const allDayExps = await db.select({
+              expNo: expenses.expNo,
+              subtotal: expenses.subtotal,
+              vatAmount: expenses.vatAmount,
+              totalAmount: expenses.totalAmount,
+              withholdingTax: expenses.withholdingTax,
+            }).from(expenses).where(and(
+              eq(expenses.companyId, companyId),
+              eq(expenses.expDate, dateKey),
+            ));
+
+            let daySubtotal = 0, dayVat = 0, dayTotal = 0, dayWht = 0;
+            const dayExpNos: string[] = [];
+            for (const e of allDayExps) {
+              daySubtotal += parseFloat(String(e.subtotal || "0"));
+              dayVat += parseFloat(String(e.vatAmount || "0"));
+              dayTotal += parseFloat(String(e.totalAmount || "0"));
+              dayWht += parseFloat(String(e.withholdingTax || "0"));
+              dayExpNos.push(e.expNo);
+            }
+
+            if (allDayExps.length === 0) {
+              console.log(`[PDF-Import] DXP ${dxpNo}: no expenses found for this date, skipping journal`);
               continue;
             }
 
-            console.log(`[PDF-Import] Auto journal for DXP ${dxpNo}: ${group.expNos.length} expenses, total=${group.total.toFixed(2)}`);
+            console.log(`[PDF-Import] Auto journal for DXP ${dxpNo}: ${allDayExps.length} expenses (all day), total=${dayTotal.toFixed(2)}`);
             const journalResult = await createAutoJournalEntry({
               companyId,
               documentType: "expense",
@@ -2563,12 +2593,12 @@ export function registerPurchaseRoutes(app: Express) {
               sourceDocId: dxpBatchId || 0,
               docDate: dateKey,
               docNo: dxpNo,
-              subtotal: group.subtotal.toFixed(2),
-              vatAmount: group.vat.toFixed(2),
-              totalAmount: group.total.toFixed(2),
-              withholdingTax: group.wht.toFixed(2),
+              subtotal: daySubtotal.toFixed(2),
+              vatAmount: dayVat.toFixed(2),
+              totalAmount: dayTotal.toFixed(2),
+              withholdingTax: dayWht.toFixed(2),
               userId: user.id,
-              customerName: `สรุปค่าใช้จ่ายรายวัน (${group.expNos.length} ใบ)`,
+              customerName: `สรุปค่าใช้จ่ายรายวัน (${allDayExps.length} ใบ)`,
               paymentMethod: globalPayMethod || undefined,
               paymentMethodAccountCode: pmAccCode,
               formulaId: formulaId || undefined,
