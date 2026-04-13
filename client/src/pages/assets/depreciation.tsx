@@ -145,17 +145,17 @@ export default function DepreciationPage() {
   const journalPreview = useMemo(() => {
     const grouped: Record<string, { debit: string; debitName: string; credit: string; creditName: string; total: number; count: number }> = {};
     for (const r of results) {
-      const catCode = r.categoryAccountCode;
       if (!r.depreciationInRange) continue;
-      const cat = assetCategories.find((c: any) => c.accountCode === catCode);
-      if (!cat || !cat.depExpCode || !cat.accumCode) continue;
-      const key = catCode;
+      const depExpCode = r.depExpCode || assetCategories.find((c: any) => c.accountCode === r.categoryAccountCode)?.depExpCode;
+      const accumCode = r.accumCode || assetCategories.find((c: any) => c.accountCode === r.categoryAccountCode)?.accumCode;
+      if (!depExpCode || !accumCode) continue;
+      const key = r.categoryAccountCode;
       if (!grouped[key]) {
         grouped[key] = {
-          debit: cat.depExpCode,
-          debitName: `ค่าเสื่อมราคา - ${cat.name}`,
-          credit: cat.accumCode,
-          creditName: `ค่าเสื่อมราคาสะสม - ${cat.name}`,
+          debit: depExpCode,
+          debitName: `ค่าเสื่อมราคา - ${r.categoryName || CATEGORY_NAMES[key] || key}`,
+          credit: accumCode,
+          creditName: `ค่าเสื่อมราคาสะสม - ${r.categoryName || CATEGORY_NAMES[key] || key}`,
           total: 0,
           count: 0,
         };
