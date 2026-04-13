@@ -32,9 +32,27 @@ export function registerFixedAssetsRoutes(app: Express) {
     "1501": "1801000", "1402": "1703000",
   };
 
+  const CORRECT_DEP_EXP_CODES: Record<string, string> = {
+    "1702000": "5301000",
+    "1702100": "5301100",
+    "1705000": "5301700",
+    "1706000": "5301600",
+  };
+
   async function ensureDefaultCategories(companyId: number) {
     const existing = await db.select().from(assetCategories).where(eq(assetCategories.companyId, companyId));
-    if (existing.length > 0) return existing;
+    if (existing.length > 0) {
+      for (const cat of existing) {
+        const correctCode = CORRECT_DEP_EXP_CODES[cat.accountCode];
+        if (correctCode && cat.depExpCode === "5301500") {
+          await db.update(assetCategories)
+            .set({ depExpCode: correctCode })
+            .where(eq(assetCategories.id, cat.id));
+          cat.depExpCode = correctCode;
+        }
+      }
+      return existing;
+    }
     const rows = DEFAULT_ASSET_CATEGORIES.map(c => ({ ...c, companyId, isDefault: true }));
     return db.insert(assetCategories).values(rows).returning();
   }
