@@ -556,17 +556,20 @@ export function registerFixedAssetsRoutes(app: Express) {
     try {
       const companyId = Number(req.query.companyId);
       if (!companyId) return res.status(400).json({ message: "กรุณาระบุ companyId" });
-      const entries = await db.execute(sql`
-        SELECT * FROM journal_entries 
-        WHERE company_id = ${companyId} 
-          AND (source_doc_type = 'depreciation' OR reference LIKE 'DEP-%')
-        ORDER BY entry_date DESC
-      `);
-      const result = [];
-      for (const je of entries.rows as any[]) {
-        const lines = await db.select().from(journalLines).where(eq(journalLines.journalEntryId, je.id));
-        result.push({ ...je, lines });
+      const entries = await db.select().from(journalEntries)
+        .where(and(
+          eq(journalEntries.companyId, companyId),
+          sql`(${journalEntries.sourceDocType} = 'depreciation' OR ${journalEntries.reference} LIKE 'DEP-%')`,
+        ))
+        .orderBy(desc(journalEntries.entryDate));
+      const jeIds = entries.map(e => e.id);
+      let allLines: any[] = [];
+      if (jeIds.length > 0) {
+        allLines = await db.select().from(journalLines).where(inArray(journalLines.journalEntryId, jeIds));
       }
+      const linesByJeId: Record<number, any[]> = {};
+      allLines.forEach(l => { (linesByJeId[l.journalEntryId] ??= []).push(l); });
+      const result = entries.map(je => ({ ...je, lines: linesByJeId[je.id] || [] }));
       res.json(result);
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
