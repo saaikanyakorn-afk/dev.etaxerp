@@ -619,6 +619,7 @@ export const firmClients = pgTable("firm_clients", {
   billingStatus: text("billing_status").default("pending"),
   notes: text("notes"),
   contactId: integer("contact_id").references(() => contacts.id),
+  targetDbMachineId: integer("target_db_machine_id"),
 });
 
 export const insertFirmClientSchema = createInsertSchema(firmClients).omit({ id: true });

@@ -2,7 +2,7 @@ import type { Express, Request, Response } from "express";
 import { db } from "../db";
 import { storage } from "../storage";
 import { eq, desc, and, isNull, asc, ilike, inArray, count , sql } from "drizzle-orm";
-import { employees, firmClients, firmClientTeam, companies, contacts, accounts, workBoards, workBoardItems, workBoardColumns, contracts, accountingFormulaLines, accountingFormulas, paymentMethods, invoices, quotations, receipts, expenses, products, firmClientImportLogs, workStatusRows, workBoardGroups, clientUploadLinks, insertFirmClientSchema } from "@shared/schema";
+import { employees, firmClients, firmClientTeam, companies, contacts, accounts, workBoards, workBoardItems, workBoardColumns, contracts, accountingFormulaLines, accountingFormulas, paymentMethods, invoices, quotations, receipts, expenses, products, firmClientImportLogs, workStatusRows, workBoardGroups, clientUploadLinks, insertFirmClientSchema, machines } from "@shared/schema";
 import { requireAuth, requireAdmin, requireModule } from "../route-middleware";
 import { logActivity, isDbConnectionError, deleteCompaniesCascade } from "../route-helpers";
 import multer from "multer";
@@ -19,6 +19,20 @@ app.get("/api/firm-clients", requireAuth, requireModule("firm-mgmt"), async (req
   const employeeFilter = !isManager && user.employeeId ? user.employeeId : undefined;
   const clients = await storage.getFirmClients(user.tenantId, employeeFilter);
   res.json(clients);
+});
+
+app.get("/api/firm-clients/db-servers", requireAuth, requireModule("firm-mgmt"), async (_req, res) => {
+  const servers = await db.select({
+    id: machines.id,
+    localName: machines.localName,
+    fqdn: machines.fqdn,
+    lanIp: machines.lanIp,
+    serverType: machines.serverType,
+    role: machines.role,
+  }).from(machines)
+    .where(sql`${machines.serverType} IN ('database', 'app_database')`)
+    .orderBy(asc(machines.localName));
+  res.json(servers);
 });
 
 app.get("/api/firm-clients/teams/all", requireAuth, requireModule("firm-mgmt"), async (_req, res) => {

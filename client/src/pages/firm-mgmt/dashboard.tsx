@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Building2, ArrowUpRight, Plus, Pencil, Trash2, UserCircle, Phone, Mail, FileSpreadsheet, FileText, Upload, Download, AlertCircle, CheckCircle2, FileArchive } from "lucide-react";
+import { Building2, ArrowUpRight, Plus, Pencil, Trash2, UserCircle, Phone, Mail, FileSpreadsheet, FileText, Upload, Download, AlertCircle, CheckCircle2, FileArchive, Server } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, useMemo } from "react";
 import { useLocation } from "wouter";
@@ -86,6 +86,7 @@ const emptyForm = {
   serviceFee: "0",
   whtRate: "3",
   notes: "",
+  targetDbMachineId: "none",
 };
 
 export default function FirmManagement() {
@@ -158,6 +159,16 @@ export default function FirmManagement() {
   });
   const allTeams = Array.isArray(allTeamsData) ? allTeamsData : [];
 
+  const { data: dbServersData } = useQuery({
+    queryKey: ["/api/firm-clients/db-servers"],
+    queryFn: async () => {
+      const r = await fetch("/api/firm-clients/db-servers", { credentials: "include" });
+      if (!r.ok) return [];
+      return r.json();
+    },
+  });
+  const dbServers: any[] = Array.isArray(dbServersData) ? dbServersData : [];
+
   const { visibleItems: visibleClients, hasMore: hasMoreClients, remainingCount: remainingClients, totalCount: totalClients, showMore: showMoreClients } = useShowMore(clients);
 
   const invalidateAll = () => {
@@ -184,6 +195,7 @@ export default function FirmManagement() {
         body: JSON.stringify({
           ...data,
           assignedTo: data.assignedTo && data.assignedTo !== "none" ? Number(data.assignedTo) : null,
+          targetDbMachineId: data.targetDbMachineId && data.targetDbMachineId !== "none" ? Number(data.targetDbMachineId) : null,
         }),
         credentials: "include",
       });
@@ -216,6 +228,7 @@ export default function FirmManagement() {
         body: JSON.stringify({
           ...data,
           assignedTo: data.assignedTo && data.assignedTo !== "none" ? Number(data.assignedTo) : null,
+          targetDbMachineId: data.targetDbMachineId && data.targetDbMachineId !== "none" ? Number(data.targetDbMachineId) : null,
         }),
         credentials: "include",
       });
@@ -451,6 +464,7 @@ export default function FirmManagement() {
       serviceFee: client.serviceFee || "0",
       whtRate: client.whtRate || "3",
       notes: client.notes || "",
+      targetDbMachineId: client.targetDbMachineId ? String(client.targetDbMachineId) : "none",
     });
     const clientTeam = allTeams.filter((t: any) => t.firmClientId === client.id).map((t: any) => t.employeeId);
     setEditTeamMembers(clientTeam);
@@ -622,6 +636,28 @@ export default function FirmManagement() {
         <Label>หมายเหตุ</Label>
         <Textarea data-testid="input-notes" value={values.notes} onChange={e => onChange({...values, notes: e.target.value})} rows={2} placeholder="รายละเอียดเพิ่มเติม..." />
       </div>
+      {dbServers.length > 0 && (
+        <div>
+          <Label className="flex items-center gap-1.5">
+            <Server className="h-4 w-4" style={{ color: "#03c9d7" }} />
+            เซิร์ฟเวอร์เก็บข้อมูล
+          </Label>
+          <Select value={values.targetDbMachineId} onValueChange={v => onChange({...values, targetDbMachineId: v})}>
+            <SelectTrigger data-testid="select-target-db-server">
+              <SelectValue placeholder="เลือกเซิร์ฟเวอร์" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">-- เซิร์ฟเวอร์หลัก (ค่าเริ่มต้น) --</SelectItem>
+              {dbServers.map((sv: any) => (
+                <SelectItem key={sv.id} value={String(sv.id)}>
+                  {sv.localName} ({sv.fqdn || sv.lanIp || "ไม่ระบุ IP"})
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground mt-1">กำหนดเซิร์ฟเวอร์ฐานข้อมูลสำหรับเก็บข้อมูลลูกค้ารายนี้</p>
+        </div>
+      )}
     </div>
   );
 
