@@ -42,3 +42,9 @@ id = "F3Zi6FNTcYYCqbn55xgsz"
 uri = "file://bundle_rayong_import.xlsx"
 type = "table"
 title = "สินค้าจัดชุด สาขาระยอง (38 ชุด, 85 รายการ)"
+
+[[outputs]]
+id = "CLgWy5_gmkwtX3WfXdFPQ"
+uri = "file://asset_import_etax.xlsx"
+type = "table"
+title = "ไฟล์นำเข้าทรัพย์สิน E-Tax (248 รายการ)"
