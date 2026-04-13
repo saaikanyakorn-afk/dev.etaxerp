@@ -164,8 +164,19 @@ pg.types.setTypeParser(DATE_OID, (val: string) => val);
 
 const DEV_DB_CHOICE_FILE = path.join(process.cwd(), ".dev-db-choice");
 
+function isReplit(): boolean {
+  return !!(process.env.REPL_ID || process.env.REPL_SLUG || process.env.REPLIT_DOMAINS);
+}
+
 function getActiveDbUrl(): { url: string; label: string; target: "usa" | "thailand" } | null {
   if (process.env.NODE_ENV === "production") {
+    if (!isReplit() && process.env.DATABASE_URL) {
+      const dbMainHost = process.env.DB_MAIN_HOST || "";
+      const label = dbMainHost
+        ? `Production → ${dbMainHost}`
+        : (getConfig("DB_PROD_LABEL") || process.env.DB_PROD_LABEL || "Production");
+      return { url: process.env.DATABASE_URL, label, target: "thailand" };
+    }
     const prodUrl = getConfig("DB_PROD_URL") || process.env.DB_PROD_URL || getConfig("DB_MAIN_URL");
     const dbMainHost = process.env.DB_MAIN_HOST || "";
     const prodLabel = dbMainHost
