@@ -234,6 +234,7 @@ const CommissionRecords = lazy(() => import("@/pages/hr/commission"));
 const EssDashboard = lazy(() => import("@/pages/ess/ess-dashboard"));
 const TaskBoardPage = lazy(() => import("@/pages/office/task-board"));
 const WorkBoardPage = lazy(() => import("@/pages/office/work-board"));
+const ClientForm = lazy(() => import("@/pages/firm-mgmt/client-form"));
 const ContractsPage = lazy(() => import("@/pages/firm-mgmt/contracts"));
 const FirmBilling = lazy(() => import("@/pages/firm-mgmt/billing"));
 const FirmDocuments = lazy(() => import("@/pages/firm-mgmt/documents"));
@@ -837,6 +838,8 @@ function Router() {
       <Route path="/reports/financial-management" component={FinancialManagement} />
       <Route path="/reports/wht" component={WhtCertList} />
       <Route path="/firm-mgmt/clients" component={FirmManagement} />
+      <Route path="/firm-mgmt/clients/new" component={ClientForm} />
+      <Route path="/firm-mgmt/clients/:id/edit" component={ClientForm} />
       <Route path="/firm-mgmt/assignments" component={FirmAssignments} />
       <Route path="/firm-mgmt/contracts" component={ContractsPage} />
       <Route path="/firm-mgmt/billing" component={FirmBilling} />

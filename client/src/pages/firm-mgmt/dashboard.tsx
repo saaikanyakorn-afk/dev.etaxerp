@@ -884,24 +884,9 @@ export default function FirmManagement() {
               )}
             </DialogContent>
           </Dialog>
-          <Dialog open={addOpen} onOpenChange={setAddOpen}>
-            <DialogTrigger asChild>
-              <Button className="text-white hover:opacity-90" style={{ background: "#03c9d7" }} data-testid="button-add-client">
-                <Plus className="mr-2 h-4 w-4" /> เพิ่มลูกค้า
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>เพิ่มลูกค้าใหม่</DialogTitle>
-              </DialogHeader>
-              <form onSubmit={handleAdd}>
-                {renderFormFields(form, setForm, employeesList, false, teamMembers, setTeamMembers)}
-                <Button type="submit" className="w-full mt-4 text-white hover:opacity-90" style={{ background: "#03c9d7" }} data-testid="button-submit-client" disabled={addClientMutation.isPending}>
-                  {addClientMutation.isPending ? "กำลังบันทึก..." : "บันทึก"}
-                </Button>
-              </form>
-            </DialogContent>
-          </Dialog>
+          <Button className="text-white hover:opacity-90" style={{ background: "#03c9d7" }} data-testid="button-add-client" onClick={() => navigate("/firm-mgmt/clients/new")}>
+            <Plus className="mr-2 h-4 w-4" /> เพิ่มลูกค้า
+          </Button>
           </div>
         </div>
 
@@ -1087,7 +1072,7 @@ export default function FirmManagement() {
                           size="sm"
                           className="h-8 hover:opacity-80"
                           style={{ color: "#03c9d7" }}
-                          onClick={() => openEdit(client)}
+                          onClick={() => navigate(`/firm-mgmt/clients/${client.id}/edit`)}
                           data-testid={`button-edit-client-${client.id}`}
                         >
                           <Pencil className="h-3.5 w-3.5 mr-1" /> แก้ไข
@@ -1129,19 +1114,6 @@ export default function FirmManagement() {
           </CardContent>
         </Card>
 
-        <Dialog open={editOpen} onOpenChange={setEditOpen}>
-          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>แก้ไขข้อมูลลูกค้า: {editingClient?.name}</DialogTitle>
-            </DialogHeader>
-            <form onSubmit={handleEdit}>
-              {renderFormFields(editForm, setEditForm, employeesList, true, editTeamMembers, setEditTeamMembers)}
-              <Button type="submit" className="w-full mt-4 text-white hover:opacity-90" style={{ background: "#03c9d7" }} data-testid="button-submit-edit-client" disabled={updateClientMutation.isPending}>
-                {updateClientMutation.isPending ? "กำลังบันทึก..." : "บันทึก"}
-              </Button>
-            </form>
-          </DialogContent>
-        </Dialog>
       </div>
     </Layout>
   );
