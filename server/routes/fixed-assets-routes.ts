@@ -482,6 +482,18 @@ export function registerFixedAssetsRoutes(app: Express) {
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
+  app.delete("/api/fixed-assets/bulk/by-company", requireAuth, async (req, res) => {
+    try {
+      const companyId = Number(req.query.companyId);
+      if (!companyId) return res.status(400).json({ message: "กรุณาระบุ companyId" });
+      const allAssets = await storage.getFixedAssets(companyId);
+      for (const asset of allAssets) {
+        await storage.deleteFixedAsset(asset.id);
+      }
+      res.json({ deleted: allAssets.length });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
   app.delete("/api/fixed-assets/:id", requireAuth, async (req, res) => {
     try {
       await storage.deleteFixedAsset(Number(req.params.id));

@@ -180,12 +180,13 @@ export default function AssetRegistry() {
   const handleDeleteAll = async () => {
     setDeletingAll(true);
     try {
-      let count = 0;
-      for (const asset of assets) {
-        const res = await fetch(`/api/fixed-assets/${asset.id}`, { method: "DELETE", credentials: "include" });
-        if (res.ok) count++;
+      const res = await fetch(`/api/fixed-assets/bulk/by-company?companyId=${selectedCompanyId}`, { method: "DELETE", credentials: "include" });
+      const data = await res.json();
+      if (!res.ok) {
+        toast({ title: "ลบไม่สำเร็จ", description: data.message, variant: "destructive" });
+        return;
       }
-      toast({ title: `ลบสินทรัพย์ทั้งหมด ${count} รายการสำเร็จ` });
+      toast({ title: `ลบสินทรัพย์ทั้งหมด ${data.deleted} รายการสำเร็จ` });
       queryClient.invalidateQueries({ queryKey: ["/api/fixed-assets"] });
       setShowDeleteAllDialog(false);
     } catch (err: any) {
