@@ -25,22 +25,38 @@ async function migrateSchemaVersionTable() {
       const oldVersion = (oldData.rows as any[])[0]?.version || "85";
       await db.execute(sql.raw("DROP TABLE IF EXISTS schema_version"));
       await db.execute(sql.raw(
-        "CREATE TABLE schema_version (id SERIAL PRIMARY KEY, version TEXT NOT NULL, description TEXT NOT NULL, up_sql TEXT NOT NULL, down_sql TEXT NOT NULL, applied_at TIMESTAMP DEFAULT NOW(), change_type TEXT NOT NULL DEFAULT 'schema', files_changed TEXT, applied_neon BOOLEAN NOT NULL DEFAULT true, applied_production BOOLEAN NOT NULL DEFAULT false, applied_main BOOLEAN NOT NULL DEFAULT false, reverted_at TIMESTAMP, push_ref TEXT)"
+        "CREATE TABLE schema_version (id SERIAL PRIMARY KEY, version TEXT NOT NULL, description TEXT NOT NULL, up_sql TEXT NOT NULL, down_sql TEXT NOT NULL, applied_at TIMESTAMP DEFAULT NOW(), change_type TEXT NOT NULL DEFAULT 'schema', files_changed TEXT, reason TEXT, db_targets TEXT[] NOT NULL DEFAULT '{}'::TEXT[], applied_targets TEXT[] NOT NULL DEFAULT '{}'::TEXT[], reverted_at TIMESTAMP, push_ref TEXT)"
       ));
+      const selfName = process.env.REPL_ID ? 'neon' : 'production';
       const entries = [
-        { version: "85", description: "Baseline - all schema up to version 85", up_sql: "N/A - baseline", down_sql: "N/A - baseline" },
-        { version: "86", description: "Fix asset category depExpCode per category type", up_sql: "UPDATE asset_categories SET dep_exp_code = CASE account_code WHEN '1702000' THEN '5301000' WHEN '1702100' THEN '5301100' WHEN '1705000' THEN '5301700' WHEN '1706000' THEN '5301600' END WHERE account_code IN ('1702000','1702100','1705000','1706000')", down_sql: "UPDATE asset_categories SET dep_exp_code = '5301500' WHERE account_code IN ('1702000','1702100','1705000','1706000')" },
-        { version: "87", description: "Restructure schema_version table with rollback support", up_sql: "CREATE TABLE schema_version with history columns", down_sql: "Revert to single-row schema_version" },
+        { version: "85", description: "Baseline - all schema up to version 85", up_sql: "N/A - baseline", down_sql: "N/A - baseline", reason: "Establish baseline" },
+        { version: "86", description: "Fix asset category depExpCode per category type", up_sql: "UPDATE asset_categories SET dep_exp_code = CASE account_code WHEN '1702000' THEN '5301000' WHEN '1702100' THEN '5301100' WHEN '1705000' THEN '5301700' WHEN '1706000' THEN '5301600' END WHERE account_code IN ('1702000','1702100','1705000','1706000')", down_sql: "UPDATE asset_categories SET dep_exp_code = '5301500' WHERE account_code IN ('1702000','1702100','1705000','1706000')", reason: "Wrong depreciation expense codes in journal preview" },
+        { version: "87", description: "Restructure schema_version table with rollback support", up_sql: "CREATE TABLE schema_version with history columns", down_sql: "Revert to single-row schema_version", reason: "Need version history with rollback capability" },
       ];
       for (const e of entries) {
-        await db.execute(sql`INSERT INTO schema_version (version, description, up_sql, down_sql, applied_neon, applied_production, applied_main) VALUES (${e.version}, ${e.description}, ${e.up_sql}, ${e.down_sql}, true, true, true)`);
+        await db.execute(sql`INSERT INTO schema_version (version, description, up_sql, down_sql, reason, db_targets, applied_targets) VALUES (${e.version}, ${e.description}, ${e.up_sql}, ${e.down_sql}, ${e.reason}, ${['neon','production','main']}, ${[selfName]})`);
       }
-      console.log("[schema_version] Migrated from single-row to history+tracking, old version:", oldVersion);
-    } else if (!cols.includes("change_type")) {
+      console.log("[schema_version] Migrated from single-row to full tracking, old version:", oldVersion);
+    } else if (!cols.includes("db_targets")) {
       await db.execute(sql.raw(
-        "ALTER TABLE schema_version ADD COLUMN IF NOT EXISTS change_type TEXT NOT NULL DEFAULT 'schema', ADD COLUMN IF NOT EXISTS files_changed TEXT, ADD COLUMN IF NOT EXISTS applied_neon BOOLEAN NOT NULL DEFAULT true, ADD COLUMN IF NOT EXISTS applied_production BOOLEAN NOT NULL DEFAULT false, ADD COLUMN IF NOT EXISTS applied_main BOOLEAN NOT NULL DEFAULT false, ADD COLUMN IF NOT EXISTS reverted_at TIMESTAMP, ADD COLUMN IF NOT EXISTS push_ref TEXT"
+        "ALTER TABLE schema_version ADD COLUMN IF NOT EXISTS reason TEXT, ADD COLUMN IF NOT EXISTS db_targets TEXT[] NOT NULL DEFAULT '{}'::TEXT[], ADD COLUMN IF NOT EXISTS applied_targets TEXT[] NOT NULL DEFAULT '{}'::TEXT[], ADD COLUMN IF NOT EXISTS reverted_at TIMESTAMP, ADD COLUMN IF NOT EXISTS push_ref TEXT"
       ));
-      console.log("[schema_version] Added multi-DB tracking columns (v89 upgrade)");
+      if (cols.includes("applied_neon")) {
+        await db.execute(sql.raw(`
+          UPDATE schema_version SET 
+            db_targets = ARRAY['neon','production','main'],
+            applied_targets = ARRAY(SELECT t FROM (VALUES 
+              (CASE WHEN applied_neon THEN 'neon' END),
+              (CASE WHEN applied_production THEN 'production' END),
+              (CASE WHEN applied_main THEN 'main' END)
+            ) AS x(t) WHERE t IS NOT NULL)
+        `));
+        await db.execute(sql.raw("ALTER TABLE schema_version DROP COLUMN IF EXISTS applied_neon, DROP COLUMN IF EXISTS applied_production, DROP COLUMN IF EXISTS applied_main"));
+      }
+      if (!cols.includes("change_type")) {
+        await db.execute(sql.raw("ALTER TABLE schema_version ADD COLUMN IF NOT EXISTS change_type TEXT NOT NULL DEFAULT 'schema', ADD COLUMN IF NOT EXISTS files_changed TEXT"));
+      }
+      console.log("[schema_version] Upgraded to flexible db_targets/applied_targets design");
     }
   } catch (err: any) {
     console.error("[schema_version] Migration error:", err.message);
