@@ -2,7 +2,7 @@ import type { Express } from "express";
 import * as XLSX from "xlsx";
 import { db } from "../db";
 import { storage } from "../storage";
-import { eq, and, desc, or, sql, count, not, ilike } from "drizzle-orm";
+import { eq, and, desc, or, sql, count, not, ilike, inArray } from "drizzle-orm";
 import { purchaseRequests, purchaseRequestItems, bidComparisons, bidComparisonItems, bidVendors, purchaseOrders, purchaseOrderItems, purchaseInvoices, purchaseInvoiceItems, companies, accounts, contacts, products, journalEntries, journalLines, productStock, stockMovements, expenses, expenseItems, withholdingTaxCerts, whtCertItems, documentImportBatches, firmClients, clientUploadLinks, clientUploadFiles, expenseDailyBatches } from "@shared/schema";
 import { requireAuth, requireModule, requireRole, checkDocOwnership } from "../route-middleware";
 import { getNextDocNo, validateDocNo, createAutoJournalEntry, resolvePaymentMethodAccountCode, getNextJournalEntryNo, checkDocumentLimit, deleteStockMovementsForDoc, deleteJournalEntriesForDoc, logActivity } from "../route-helpers";
@@ -2423,11 +2423,11 @@ export function registerPurchaseRoutes(app: Express) {
                   const [newContact] = await db.insert(contacts).values({
                     companyId,
                     code: nextCode,
-                    name: doc.vendorName,
+                    name: (doc.vendorName || "").replace(/\x00/g, ""),
                     type: "vendor",
-                    taxId: doc.vendorTaxId || null,
-                    address: doc.vendorAddress || null,
-                    branch: doc.branch || null,
+                    taxId: (doc.vendorTaxId || "").replace(/\x00/g, "") || null,
+                    address: (doc.vendorAddress || "").replace(/\x00/g, "") || null,
+                    branch: (doc.branch || "").replace(/\x00/g, "") || null,
                     active: true,
                   }).returning();
                   resolvedVendorId = newContact.id;
@@ -2443,6 +2443,7 @@ export function registerPurchaseRoutes(app: Express) {
             }
           }
 
+          const sanitize = (s: string | null | undefined) => s ? s.replace(/\x00/g, "") : null;
           const result = await db.transaction(async (tx) => {
             const [newDoc] = await tx.insert(expenses).values({
               companyId,
@@ -2450,11 +2451,11 @@ export function registerPurchaseRoutes(app: Express) {
               expDate: doc.expDate || doc.apDate || new Date().toISOString().split("T")[0],
               dueDate: doc.dueDate || null,
               vendorId: resolvedVendorId,
-              vendorName: doc.vendorName || "ไม่ระบุ",
-              vendorAddress: doc.vendorAddress || null,
-              vendorTaxId: doc.vendorTaxId || null,
-              branch: doc.branch || null,
-              taxInvoiceRef: doc.taxInvoiceRef || null,
+              vendorName: sanitize(doc.vendorName) || "ไม่ระบุ",
+              vendorAddress: sanitize(doc.vendorAddress),
+              vendorTaxId: sanitize(doc.vendorTaxId),
+              branch: sanitize(doc.branch),
+              taxInvoiceRef: sanitize(doc.taxInvoiceRef),
               subtotal: String(doc.subtotal || "0"),
               discountAmount: "0",
               vatAmount: String(doc.vatAmount || "0"),
@@ -2608,7 +2609,7 @@ export function registerPurchaseRoutes(app: Express) {
                 paymentMethodAccountCode: pmAccCode,
                 formulaId: formulaId || undefined,
                 formulaBusinessType: formulaBusinessType || undefined,
-                overrideLines: body?.journalOverrideLines || req?.body?.journalOverrideLines || undefined,
+                overrideLines: req?.body?.journalOverrideLines || undefined,
               });
               console.log(`[PDF-Import] Journal result for ${result.expNo}:`, JSON.stringify(journalResult));
             }
@@ -3259,7 +3260,10 @@ export function registerPurchaseRoutes(app: Express) {
           batchId: expenses.batchId,
           count: count(),
         }).from(expenses)
-          .where(and(eq(expenses.companyId, companyId), sql`${expenses.batchId} = ANY(${batchIds})`))
+          .where(and(
+            eq(expenses.companyId, companyId),
+            inArray(expenses.batchId, batchIds)
+          ))
           .groupBy(expenses.batchId);
         for (const c of counts) {
           if (c.batchId) expCounts.set(c.batchId, Number(c.count));
