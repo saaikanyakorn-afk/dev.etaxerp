@@ -2517,37 +2517,51 @@ export function registerPurchaseRoutes(app: Express) {
         }
       }
 
-      for (const { result, doc, validItems } of pendingJournals) {
-        if (autoJournal) {
-          try {
-            if (formulaId || formulaBusinessType) {
-              console.log(`[PDF-Import] Auto journal for ${result.expNo}: formulaId=${formulaId}, businessType=${formulaBusinessType}`);
-              const journalResult = await createAutoJournalEntry({
-                companyId: result.companyId,
-                documentType: "expense",
-                sourceDocType: "expense",
-                sourceDocId: result.id,
-                docDate: result.expDate,
-                docNo: result.expNo,
-                subtotal: String(result.subtotal),
-                vatAmount: String(result.vatAmount),
-                totalAmount: String(result.totalAmount),
-                withholdingTax: String(result.withholdingTax || "0"),
-                userId: user.id,
-                customerName: result.vendorName,
-                paymentMethod: result.paymentMethod || undefined,
-                paymentMethodAccountCode: pmAccCode,
-                formulaId: formulaId || undefined,
-                formulaBusinessType: formulaBusinessType || undefined,
-                overrideLines: req?.body?.journalOverrideLines || undefined,
-              });
-              console.log(`[PDF-Import] Journal result for ${result.expNo}:`, JSON.stringify(journalResult));
-            }
-          } catch (e) {
-            console.log("Auto journal for expense skipped:", (e as any).message);
-          }
+      if (autoJournal && (formulaId || formulaBusinessType) && pendingJournals.length > 0) {
+        const dailyGroups = new Map<string, { date: string; subtotal: number; vat: number; total: number; wht: number; expNos: string[]; batchId: number | null }>();
+        for (const { result } of pendingJournals) {
+          const dateKey = result.expDate;
+          const group = dailyGroups.get(dateKey) || { date: dateKey, subtotal: 0, vat: 0, total: 0, wht: 0, expNos: [], batchId: result.batchId || null };
+          group.subtotal += parseFloat(String(result.subtotal || "0"));
+          group.vat += parseFloat(String(result.vatAmount || "0"));
+          group.total += parseFloat(String(result.totalAmount || "0"));
+          group.wht += parseFloat(String(result.withholdingTax || "0"));
+          group.expNos.push(result.expNo);
+          dailyGroups.set(dateKey, group);
         }
 
+        for (const [dateKey, group] of dailyGroups) {
+          try {
+            const dxpBatchId = group.batchId;
+            const dxpNo = `DXP-${dateKey.replace(/-/g, "")}`;
+            console.log(`[PDF-Import] Auto journal for DXP ${dxpNo}: ${group.expNos.length} expenses, total=${group.total.toFixed(2)}`);
+            const journalResult = await createAutoJournalEntry({
+              companyId,
+              documentType: "expense",
+              sourceDocType: "expense_daily_batch",
+              sourceDocId: dxpBatchId || 0,
+              docDate: dateKey,
+              docNo: dxpNo,
+              subtotal: group.subtotal.toFixed(2),
+              vatAmount: group.vat.toFixed(2),
+              totalAmount: group.total.toFixed(2),
+              withholdingTax: group.wht.toFixed(2),
+              userId: user.id,
+              customerName: `สรุปค่าใช้จ่ายรายวัน (${group.expNos.length} ใบ)`,
+              paymentMethod: globalPayMethod || undefined,
+              paymentMethodAccountCode: pmAccCode,
+              formulaId: formulaId || undefined,
+              formulaBusinessType: formulaBusinessType || undefined,
+              overrideLines: req?.body?.journalOverrideLines || undefined,
+            });
+            console.log(`[PDF-Import] DXP Journal result for ${dxpNo}:`, JSON.stringify(journalResult));
+          } catch (e) {
+            console.log(`Auto journal for DXP ${dateKey} skipped:`, (e as any).message);
+          }
+        }
+      }
+
+      for (const { result, doc, validItems } of pendingJournals) {
         const whtAmount = parseFloat(String(result.withholdingTax || "0"));
         if (autoWht && whtAmount > 0) {
           try {

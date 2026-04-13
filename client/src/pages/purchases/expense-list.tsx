@@ -215,6 +215,7 @@ export default function ExpenseList() {
   const branchOptions = Array.from(new Set(expList.map((d: any) => d.sellerBranchId).filter(Boolean))) as string[];
 
   const filtered = expList.filter((exp: any) => {
+    if (exp.batchId) return false;
     if (filterStatus && filterStatus !== "all" && exp.status !== filterStatus) return false;
     if (filterBranch !== "all" && exp.sellerBranchId !== filterBranch) return false;
     if (dateFrom && exp.expDate && exp.expDate < dateFrom) return false;
