@@ -2107,7 +2107,7 @@ export function registerPurchaseRoutes(app: Express) {
             isDuplicate,
             confidence: parsed.confidence || "medium",
             fileName: decodeMulterFilename(file.originalname),
-            attachedUrl,
+            archivedFileUrl: attachedUrl,
             aiProvider: chosenAi,
             aiScores: aiTimings,
           };
@@ -3082,16 +3082,12 @@ export function registerPurchaseRoutes(app: Express) {
       if (!files || files.length === 0) return res.status(400).json({ message: "กรุณาอัปโหลดไฟล์ PDF" });
       const companyId = Number(req.body.companyId);
       if (!companyId) return res.status(400).json({ message: "กรุณาระบุบริษัท" });
-      const archiveToDocs = req.body.archiveToDocs === "true" || req.body.archiveToDocs === true;
-
       const { parsePdfInvoice } = await import("../utils/pdf-invoice-parser");
       let saveLocalFn: ((buffer: Buffer, contentType: string, originalName?: string) => { objectPath: string }) | null = null;
-      if (archiveToDocs) {
-        try {
-          const { saveBufferLocally } = await import("../replit_integrations/object_storage/routes");
-          saveLocalFn = saveBufferLocally;
-        } catch {}
-      }
+      try {
+        const { saveBufferLocally } = await import("../replit_integrations/object_storage/routes");
+        saveLocalFn = saveBufferLocally;
+      } catch {}
 
       const companyContacts = await db.select({
         id: contacts.id,
