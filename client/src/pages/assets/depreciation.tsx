@@ -188,51 +188,6 @@ export default function DepreciationPage() {
 
         <Card className="flexy-card">
           <CardContent className="pt-4 space-y-3">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div>
-                <label className="text-sm font-medium mb-1 block">แผนก</label>
-                <Select value={filterDept} onValueChange={setFilterDept}>
-                  <SelectTrigger className="rounded-lg" data-testid="select-department">
-                    <SelectValue placeholder="ทั้งหมด" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__all__">ทั้งหมด</SelectItem>
-                    {departments.map(d => (
-                      <SelectItem key={d} value={d}>{d}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <label className="text-sm font-medium mb-1 block">หมวดหมู่สินทรัพย์</label>
-                <Select value={filterCategory} onValueChange={setFilterCategory}>
-                  <SelectTrigger className="rounded-lg" data-testid="select-category">
-                    <SelectValue placeholder="ทั้งหมด" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__all__">ทั้งหมด</SelectItem>
-                    {categoriesUsed.map(code => (
-                      <SelectItem key={code} value={code}>{CATEGORY_NAMES[code] || code}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div>
-              <label className="text-sm font-medium mb-1 block">คำค้นหา</label>
-              <div className="relative">
-                <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  className="pl-9 rounded-lg"
-                  placeholder="ค้นหา..."
-                  value={searchTerm}
-                  onChange={e => setSearchTerm(e.target.value)}
-                  data-testid="input-search"
-                />
-              </div>
-            </div>
-
             <div className="flex items-end gap-3 flex-wrap">
               <div>
                 <label className="text-sm font-medium mb-1 block">วันที่คำนวณ</label>
@@ -265,6 +220,50 @@ export default function DepreciationPage() {
                 {calculateMutation.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Search className="h-4 w-4 mr-1" />}
                 ค้นหา
               </Button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div>
+                <label className="text-sm font-medium mb-1 block">แผนก</label>
+                <Select value={filterDept} onValueChange={setFilterDept}>
+                  <SelectTrigger className="rounded-lg" data-testid="select-department">
+                    <SelectValue placeholder="ทั้งหมด" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__all__">ทั้งหมด</SelectItem>
+                    {departments.map(d => (
+                      <SelectItem key={d} value={d}>{d}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="text-sm font-medium mb-1 block">หมวดหมู่สินทรัพย์</label>
+                <Select value={filterCategory} onValueChange={setFilterCategory}>
+                  <SelectTrigger className="rounded-lg" data-testid="select-category">
+                    <SelectValue placeholder="ทั้งหมด" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__all__">ทั้งหมด</SelectItem>
+                    {categoriesUsed.map(code => (
+                      <SelectItem key={code} value={code}>{CATEGORY_NAMES[code] || code}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="text-sm font-medium mb-1 block">คำค้นหา</label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    className="pl-9 rounded-lg"
+                    placeholder="ค้นหา..."
+                    value={searchTerm}
+                    onChange={e => setSearchTerm(e.target.value)}
+                    data-testid="input-search"
+                  />
+                </div>
+              </div>
             </div>
           </CardContent>
         </Card>
