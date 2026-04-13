@@ -366,6 +366,8 @@ export default function AssetRegistry() {
                       <TableHead className="text-xs">ชื่อ</TableHead>
                       <TableHead className="text-xs">หมวดหมู่</TableHead>
                       <TableHead className="text-xs text-right">ราคาทุน</TableHead>
+                      <TableHead className="text-xs text-right">เสื่อมสะสม</TableHead>
+                      <TableHead className="text-xs text-right">มูลค่าสุทธิ</TableHead>
                       <TableHead className="text-xs">ปัญหา</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -384,6 +386,8 @@ export default function AssetRegistry() {
                         <TableCell className="text-xs">{item.data.name || "-"}</TableCell>
                         <TableCell className="text-xs">{item.data.categoryName || "-"}</TableCell>
                         <TableCell className="text-xs text-right">{formatNumber(item.data.cost)}</TableCell>
+                        <TableCell className="text-xs text-right">{formatNumber(item.data.accumDepreciation)}</TableCell>
+                        <TableCell className="text-xs text-right">{formatNumber(item.data.netBookValue)}</TableCell>
                         <TableCell className="text-xs text-red-600">{item.issues.join(", ")}</TableCell>
                       </TableRow>
                     ))}

@@ -130,8 +130,8 @@ export function registerFixedAssetsRoutes(app: Express) {
     try {
       const companyId = Number(req.query.companyId) || (req.user as any)?.companyId || 0;
       const cats = companyId ? await getCompanyCategories(companyId) : DEFAULT_ASSET_CATEGORIES;
-      const headers = ["รหัสสินทรัพย์", "ชื่อสินทรัพย์", "รายละเอียด", "หมวดหมู่", "วันที่ซื้อ", "วันเริ่มคิดค่าเสื่อม", "ราคาทุน", "มูลค่าซาก", "อายุการใช้งาน(เดือน)", "สถานที่", "แผนก", "ผู้จำหน่าย", "เลขที่ใบแจ้งหนี้", "หมายเหตุ"];
-      const sample = ["FA-0001", "เครื่องคอมพิวเตอร์", "Dell OptiPlex", "อุปกรณ์คอมพิวเตอร์", "01/01/2026", "01/01/2026", "35000", "1000", "36", "สำนักงานใหญ่", "บัญชี", "บจ. คอมพิวเตอร์ จำกัด", "INV-001", ""];
+      const headers = ["รหัสสินทรัพย์", "ชื่อสินทรัพย์", "รายละเอียด", "หมวดหมู่", "วันที่ซื้อ", "วันเริ่มคิดค่าเสื่อม", "ราคาทุน", "มูลค่าซาก", "อายุการใช้งาน(เดือน)", "ค่าเสื่อมสะสมยกมา", "มูลค่าสุทธิ", "สถานที่", "แผนก", "ผู้จำหน่าย", "เลขที่ใบแจ้งหนี้", "หมายเหตุ"];
+      const sample = ["FA-0001", "เครื่องคอมพิวเตอร์", "Dell OptiPlex", "อุปกรณ์คอมพิวเตอร์", "01/01/2026", "01/01/2026", "35000", "1000", "36", "20000", "15000", "สำนักงานใหญ่", "บัญชี", "บจ. คอมพิวเตอร์ จำกัด", "INV-001", ""];
       const wb = XLSX.utils.book_new();
       const ws = XLSX.utils.aoa_to_sheet([headers, sample]);
       ws["!cols"] = [12, 25, 25, 20, 14, 14, 14, 14, 14, 16, 12, 25, 16, 20].map(w => ({ wch: w }));
@@ -224,6 +224,8 @@ export function registerFixedAssetsRoutes(app: Express) {
         cost: ["ราคาทุน", "cost", "price", "มูลค่า", "amount"],
         salvageValue: ["มูลค่าซาก", "salvage_value", "salvageValue", "residual"],
         usefulLifeMonths: ["อายุการใช้งาน(เดือน)", "อายุการใช้งาน", "useful_life", "usefulLifeMonths", "months"],
+        accumDepreciation: ["ค่าเสื่อมสะสมยกมา", "ค่าเสื่อมสะสม", "accum_depreciation", "accumDepreciation", "accumulated_depreciation"],
+        netBookValue: ["มูลค่าสุทธิ", "net_book_value", "netBookValue", "book_value"],
         location: ["สถานที่", "location"],
         department: ["แผนก", "department", "dept"],
         supplier: ["ผู้จำหน่าย", "supplier", "vendor"],
@@ -284,6 +286,8 @@ export function registerFixedAssetsRoutes(app: Express) {
 
         const salvageValue = parseFloat(String(mapped.salvageValue || "0").replace(/,/g, ""));
         const usefulLifeMonths = mapped.usefulLifeMonths ? parseInt(mapped.usefulLifeMonths) : (cat?.usefulLifeMonths || 60);
+        const accumDep = parseFloat(String(mapped.accumDepreciation || "0").replace(/,/g, ""));
+        const importedNetBV = parseFloat(String(mapped.netBookValue || "0").replace(/,/g, ""));
 
         return {
           row: idx + 1,
@@ -298,6 +302,8 @@ export function registerFixedAssetsRoutes(app: Express) {
             cost: cost.toFixed(2),
             salvageValue: salvageValue.toFixed(2),
             usefulLifeMonths,
+            accumDepreciation: accumDep.toFixed(2),
+            netBookValue: importedNetBV > 0 ? importedNetBV.toFixed(2) : (cost - accumDep).toFixed(2),
             location: mapped.location || "",
             department: mapped.department || "",
             supplier: mapped.supplier || "",
@@ -327,6 +333,13 @@ export function registerFixedAssetsRoutes(app: Express) {
         const cat = await findCategory(item.categoryAccountCode, companyId);
         const assetCode = item.assetCode || await storage.getNextAssetCode(companyId);
 
+        const importedAccumDep = parseFloat(item.accumDepreciation || "0");
+        const importedNetBV = parseFloat(item.netBookValue || "0");
+        const hasImportedDep = importedAccumDep > 0;
+
+        const finalAccumDep = hasImportedDep ? importedAccumDep : 0;
+        const finalNetBV = hasImportedDep ? (importedNetBV > 0 ? importedNetBV : cost - importedAccumDep) : cost;
+
         const asset = await storage.createFixedAsset({
           companyId,
           assetCode,
@@ -342,8 +355,8 @@ export function registerFixedAssetsRoutes(app: Express) {
           usefulLifeMonths,
           depreciationMethod: "straight_line",
           monthlyDepreciation: monthlyDep.toFixed(2),
-          accumDepreciation: "0",
-          netBookValue: cost.toFixed(2),
+          accumDepreciation: finalAccumDep.toFixed(2),
+          netBookValue: finalNetBV.toFixed(2),
           location: item.location || null,
           department: item.department || null,
           supplier: item.supplier || null,
