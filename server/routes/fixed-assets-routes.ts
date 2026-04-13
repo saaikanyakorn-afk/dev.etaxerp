@@ -643,8 +643,9 @@ export function registerFixedAssetsRoutes(app: Express) {
       if (!companyId || !fromDate || !toDate) return res.status(400).json({ message: "กรุณาระบุ companyId, fromDate, toDate" });
       
       const allAssets = await storage.getFixedAssets(companyId);
-      const companyCatsNoDep = await getCompanyCategories(companyId);
-      const noDepCodes = new Set(companyCatsNoDep.filter(c => c.usefulLifeMonths === 0).map(c => c.accountCode));
+      const companyCats = await getCompanyCategories(companyId);
+      const catMap = new Map(companyCats.map(c => [c.accountCode, c]));
+      const noDepCodes = new Set(companyCats.filter(c => c.usefulLifeMonths === 0).map(c => c.accountCode));
       const activeAssets = allAssets.filter(a => a.status === "active" && !noDepCodes.has(a.categoryAccountCode));
       
       const from = new Date(fromDate);
@@ -652,10 +653,20 @@ export function registerFixedAssetsRoutes(app: Express) {
       const fromPeriod = `${from.getFullYear()}-${String(from.getMonth() + 1).padStart(2, "0")}`;
       const toPeriod = `${to.getFullYear()}-${String(to.getMonth() + 1).padStart(2, "0")}`;
       
+      const allExistingDeps = await db.select().from(assetDepreciations)
+        .where(eq(assetDepreciations.companyId, companyId));
+      const depsByAsset = new Map<number, typeof allExistingDeps>();
+      for (const dep of allExistingDeps) {
+        if (!depsByAsset.has(dep.assetId)) depsByAsset.set(dep.assetId, []);
+        depsByAsset.get(dep.assetId)!.push(dep);
+      }
+      
       const results: any[] = [];
+      const newDepsToInsert: any[] = [];
+      const assetUpdates: { id: number; accumDepreciation: string; netBookValue: string }[] = [];
       
       for (const asset of activeAssets) {
-        const existingDeps = await storage.getAssetDepreciations(asset.id);
+        const existingDeps = depsByAsset.get(asset.id) || [];
         const existingPeriods = new Set(existingDeps.map(d => d.period));
         
         const cost = parseFloat(asset.cost || "0");
@@ -670,9 +681,8 @@ export function registerFixedAssetsRoutes(app: Express) {
         if (from > endDepDate) continue;
         if (to < startDate) continue;
         
-        const fillStart = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
         const toMonth = new Date(to.getFullYear(), to.getMonth(), 1);
-        const current = new Date(fillStart);
+        const current = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
         
         let runningAccum = 0;
         let accumBeforeRange = 0;
@@ -703,7 +713,7 @@ export function registerFixedAssetsRoutes(app: Express) {
             
             runningAccum += depAmount;
             
-            await storage.createAssetDepreciation({
+            newDepsToInsert.push({
               companyId: asset.companyId,
               assetId: asset.id,
               period: pStr,
@@ -724,13 +734,15 @@ export function registerFixedAssetsRoutes(app: Express) {
           current.setMonth(current.getMonth() + 1);
         }
         
-        await storage.updateFixedAsset(asset.id, {
+        assetUpdates.push({
+          id: asset.id,
           accumDepreciation: runningAccum.toFixed(2),
           netBookValue: (cost - runningAccum).toFixed(2),
         });
         
         if (depInRange > 0) {
-          const catName = (await findCategory(asset.categoryAccountCode, asset.companyId))?.name || "";
+          const cat = catMap.get(asset.categoryAccountCode) || catMap.get(OLD_CODE_MAP[asset.categoryAccountCode] || "");
+          const catName = cat?.name || "";
           const accumEndOfRange = accumBeforeRange + depInRange;
           results.push({
             assetId: asset.id,
@@ -752,6 +764,23 @@ export function registerFixedAssetsRoutes(app: Express) {
             hasUnposted,
           });
         }
+      }
+      
+      if (newDepsToInsert.length > 0 || assetUpdates.length > 0) {
+        await db.transaction(async (tx) => {
+          if (newDepsToInsert.length > 0) {
+            const BATCH_SIZE = 500;
+            for (let i = 0; i < newDepsToInsert.length; i += BATCH_SIZE) {
+              const batch = newDepsToInsert.slice(i, i + BATCH_SIZE);
+              await tx.insert(assetDepreciations).values(batch);
+            }
+          }
+          for (const upd of assetUpdates) {
+            await tx.update(fixedAssets)
+              .set({ accumDepreciation: upd.accumDepreciation, netBookValue: upd.netBookValue })
+              .where(eq(fixedAssets.id, upd.id));
+          }
+        });
       }
       
       res.json({ fromDate, toDate, totalAssets: results.length, results });
