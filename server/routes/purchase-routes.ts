@@ -2503,6 +2503,11 @@ export function registerPurchaseRoutes(app: Express) {
                 archiveLinkCache.set(linkKey, link);
               }
 
+              const dd = String(docDateObj.getDate()).padStart(2, "0");
+              const mm = String(docMonth).padStart(2, "0");
+              const buddhistYear = docYear + 543;
+              const dateFolderPath = `${dd}/${mm}/${buddhistYear}`;
+
               await db.insert(clientUploadFiles).values({
                 linkId: link.id,
                 tenantId: user.tenantId,
@@ -2511,6 +2516,7 @@ export function registerPurchaseRoutes(app: Express) {
                 fileSize: null,
                 mimeType: "application/pdf",
                 objectPath: doc.archivedFileUrl,
+                folderPath: dateFolderPath,
                 category: "ใบกำกับภาษีซื้อ",
                 uploaderName: user.fullName || user.username || "ระบบนำเข้า PDF",
                 uploaderNote: `นำเข้าจาก PDF: ${doc.fileName || doc.taxInvoiceRef || ""}`,
