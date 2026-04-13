@@ -122,6 +122,22 @@ export function registerImportBatchRoutes(app: Express) {
             for (const dxpId of affectedBatchIds) {
               const remaining = await tx.select({ id: expenses.id }).from(expenses).where(eq(expenses.batchId, dxpId));
               if (remaining.length === 0) {
+                const [dxpBatch] = await tx.select().from(expenseDailyBatches).where(eq(expenseDailyBatches.id, dxpId));
+                if (dxpBatch) {
+                  const dxpNo = dxpBatch.batchNo;
+                  const dxpJournals = await tx.select({ id: journalEntries.id })
+                    .from(journalEntries)
+                    .where(and(
+                      eq(journalEntries.companyId, batch.companyId),
+                      eq(journalEntries.docNo, dxpNo),
+                      eq(journalEntries.sourceDocType, "expense_daily_batch"),
+                    ));
+                  for (const dj of dxpJournals) {
+                    await tx.delete(journalLines).where(eq(journalLines.journalEntryId, dj.id));
+                    await tx.delete(journalEntries).where(eq(journalEntries.id, dj.id));
+                    deletedJournals++;
+                  }
+                }
                 await tx.delete(expenseDailyBatches).where(eq(expenseDailyBatches.id, dxpId));
               } else {
                 const sums = await tx.execute(sql`
