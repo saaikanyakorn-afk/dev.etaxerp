@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Plus, Wrench, Pencil, Trash2, Loader2, AlertTriangle } from "lucide-react";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useCompanyContext } from "@/lib/company-context";
+import { useCompany } from "@/lib/company-context";
 import { useToast } from "@/hooks/use-toast";
 
 function daysUntil(dateStr: string | null): number | null {
@@ -19,7 +19,7 @@ function daysUntil(dateStr: string | null): number | null {
 }
 
 export default function CalibrationPage() {
-  const { selectedCompany } = useCompanyContext();
+  const { selectedCompany } = useCompany();
   const companyId = selectedCompany?.id;
   const { toast } = useToast();
   const qc = useQueryClient();

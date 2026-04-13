@@ -6,10 +6,10 @@ import { Badge } from "@/components/ui/badge";
 import { Search, Loader2, ChevronDown, ChevronRight } from "lucide-react";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useCompanyContext } from "@/lib/company-context";
+import { useCompany } from "@/lib/company-context";
 
 export default function TraceabilityPage() {
-  const { selectedCompany } = useCompanyContext();
+  const { selectedCompany } = useCompany();
   const companyId = selectedCompany?.id;
   const [search, setSearch] = useState("");
   const [expandedIds, setExpandedIds] = useState<Set<number>>(new Set());

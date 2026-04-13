@@ -3,10 +3,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Barcode, Search, Wrench, ClipboardList, Package, AlertTriangle } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-import { useCompanyContext } from "@/lib/company-context";
+import { useCompany } from "@/lib/company-context";
 
 export default function ManufacturingDashboard() {
-  const { selectedCompany } = useCompanyContext();
+  const { selectedCompany } = useCompany();
   const companyId = selectedCompany?.id;
 
   const { data: stats } = useQuery({

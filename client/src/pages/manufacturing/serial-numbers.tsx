@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Plus, Search, Barcode, Loader2 } from "lucide-react";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useCompanyContext } from "@/lib/company-context";
+import { useCompany } from "@/lib/company-context";
 import { useToast } from "@/hooks/use-toast";
 
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
@@ -20,7 +20,7 @@ const STATUS_LABELS: Record<string, { label: string; color: string }> = {
 };
 
 export default function SerialNumbersPage() {
-  const { selectedCompany } = useCompanyContext();
+  const { selectedCompany } = useCompany();
   const companyId = selectedCompany?.id;
   const { toast } = useToast();
   const qc = useQueryClient();

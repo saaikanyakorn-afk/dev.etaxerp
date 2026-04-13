@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/lib/auth";
-import { useCompanyContext } from "@/lib/company-context";
+import { useCompany } from "@/lib/company-context";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -53,7 +53,7 @@ const MFG_NAV: { label: string; icon: any; href: string; children?: NavItem[] }[
 export default function ManufacturingLayout({ children }: { children: React.ReactNode }) {
   const [location, navigate] = useLocation();
   const { user } = useAuth();
-  const { selectedCompany, companies } = useCompanyContext();
+  const { selectedCompany, companies } = useCompany();
   const [openGroups, setOpenGroups] = useState<Set<string>>(new Set());
 
   useEffect(() => {
