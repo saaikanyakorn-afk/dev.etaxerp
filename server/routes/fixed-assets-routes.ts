@@ -921,6 +921,8 @@ export function registerFixedAssetsRoutes(app: Express) {
       const fromPeriod = `${from.getFullYear()}-${String(from.getMonth() + 1).padStart(2, "0")}`;
       const toPeriod = `${to.getFullYear()}-${String(to.getMonth() + 1).padStart(2, "0")}`;
       
+      console.log(`[post-journal] companyId=${companyId} fromDate=${fromDate} toDate=${toDate} fromPeriod=${fromPeriod} toPeriod=${toPeriod}`);
+      
       const allDepsToPost = await db.select().from(assetDepreciations)
         .where(and(
           eq(assetDepreciations.companyId, companyId),
@@ -928,6 +930,8 @@ export function registerFixedAssetsRoutes(app: Express) {
           sql`${assetDepreciations.period} >= ${fromPeriod}`,
           sql`${assetDepreciations.period} <= ${toPeriod}`
         ));
+      
+      console.log(`[post-journal] found ${allDepsToPost.length} unposted records`);
       
       if (allDepsToPost.length === 0) return res.status(400).json({ message: "ไม่มีรายการค่าเสื่อมที่ยังไม่ได้บันทึกบัญชีในช่วงนี้" });
       
