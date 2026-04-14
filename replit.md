@@ -365,6 +365,11 @@ Every block of code that calls an external AI API MUST be marked with a `⚠️ 
 - Date format: DD/MM/YYYY พ.ศ. (Buddhist Era +543) throughout the system
 - Journal books (สมุดบัญชี 5 เล่ม): general (ทั่วไป), receive (รับเงิน), payment (จ่ายเงิน), sales (ขาย), purchase (ซื้อ) - auto-assigned based on document type
 - Chart of Accounts: Hierarchical 3-digit headers (บัญชีคุม) / 7-digit details (บัญชีย่อย) structure following TFRS. Headers are non-postable. Template defined in shared/chart-of-accounts.ts (STANDARD_CHART_OF_ACCOUNTS, ECOMMERCE_EXTRA_ACCOUNTS, ACCOUNTING_FIRM_EXTRA_ACCOUNTS). Old 4-digit code migration map removed — system uses 7-digit codes only.
+- **PDF Invoice Parser** (`server/utils/pdf-invoice-parser.ts`): Parses e-commerce PDFs with platform-specific parsers (Shopee/SPX, TikTok, Lazada, Grab). Uses `INVOICE_PREFIX_MAP` for prefix-based auto-classification. Dispatch order: Shopee → TikTok Invoice → TikTok Receipt → Lazada → Grab → Template Engine → Generic.
+  - **Known prefixes**: TRSPEMKP=Shopee Marketplace, TRSPESPF=ShopeeFood Commission, TRSPXADB=SPX Express Admin Fee, RCSPXSPR/RCSPXSPB=SPX Shipping, TTSTH=TikTok Tax Invoice, TTSTHCN=TikTok Credit Note, TTSTHAC=TikTok Affiliate, THJV=TikTok Logistics, THMPTI=Lazada Limited, THLPTI=Lazada Express, IM=Grab Service Fee
+  - **Platform account codes**: 5241=Shopee Commission, 5242=Lazada, 5243=TikTok, 5244=Grab, 5245=ShopeeFood, 5251=Shopee Service, 5252=Lazada Service, 5253=TikTok Service, 5254=Grab Service, 5255=ShopeeFood Service, 5256=SPX Admin, 5265=SPX Shipping, 5266=Lazada Shipping, 5267=TikTok Shipping
+  - **Formula mapping**: `PREFIX_FORMULA_MAP` in purchase-routes.ts maps invoice prefix → accounting formula businessType; `FORMULA_SUFFIX_MAP` creates distinct DXP journal numbers (SH/SPX/SHF/SPXA/LZ/LZX/TK/TKX/EC/GR/PF)
+- **PDF Template Engine** (`server/utils/pdf-template-engine.ts`): Configurable template system for custom PDF parsing rules. Templates stored in `pdf_import_templates` table. Admin UI at /settings/import-templates.
 
 ## System Architecture
 

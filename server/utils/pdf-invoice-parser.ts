@@ -21,9 +21,41 @@ interface ParsedInvoice {
   withholdingTax: number;
   notes: string;
   rawText: string;
-  platform?: "shopee" | "tiktok" | "lazada" | "other";
-  docSubType?: "platform_fee" | "shipping" | "commission" | "ads" | "mixed";
+  platform?: "shopee" | "tiktok" | "lazada" | "grab" | "other";
+  docSubType?: "platform_fee" | "shipping" | "commission" | "ads" | "service_fee" | "mixed";
+  invoicePrefix?: string;
 }
+
+const INVOICE_PREFIX_MAP: Record<string, { platform: ParsedInvoice["platform"]; docSubType: ParsedInvoice["docSubType"]; label: string }> = {
+  "TRSPEMKP": { platform: "shopee", docSubType: "platform_fee", label: "Shopee Marketplace ค่าบริการ" },
+  "TRSPESPF": { platform: "shopee", docSubType: "service_fee", label: "ShopeeFood Commission Fee" },
+  "TRSPXADB": { platform: "shopee", docSubType: "service_fee", label: "SPX Express ค่าบริการ (Admin Fee)" },
+  "RCSPXSPR": { platform: "shopee", docSubType: "shipping", label: "SPX Express ค่าขนส่ง" },
+  "RCSPXSPB": { platform: "shopee", docSubType: "shipping", label: "SPX Express ค่าขนส่ง (Bulk)" },
+  "TRSLZD":   { platform: "lazada", docSubType: "platform_fee", label: "Lazada Tax Invoice" },
+  "TTSTH":    { platform: "tiktok", docSubType: "platform_fee", label: "TikTok Shop Tax Invoice" },
+  "TTSTHCN":  { platform: "tiktok", docSubType: "platform_fee", label: "TikTok Shop Credit Note" },
+  "TTSTHAC":  { platform: "tiktok", docSubType: "commission", label: "TikTok Affiliate Commission" },
+  "THJV":     { platform: "tiktok", docSubType: "shipping", label: "Thai Happy Logistics ค่าขนส่ง" },
+  "THMPTI":   { platform: "lazada", docSubType: "platform_fee", label: "Lazada Limited Tax Invoice" },
+  "THLPTI":   { platform: "lazada", docSubType: "shipping", label: "Lazada Express ค่าขนส่ง" },
+  "IM":       { platform: "grab", docSubType: "service_fee", label: "Grab Service Fee" },
+};
+
+function classifyByPrefix(invoiceNo: string): { platform: ParsedInvoice["platform"]; docSubType: ParsedInvoice["docSubType"]; prefix: string } | null {
+  if (!invoiceNo) return null;
+  const upper = invoiceNo.toUpperCase();
+  const sortedPrefixes = Object.keys(INVOICE_PREFIX_MAP).sort((a, b) => b.length - a.length);
+  for (const prefix of sortedPrefixes) {
+    if (upper.startsWith(prefix)) {
+      const info = INVOICE_PREFIX_MAP[prefix];
+      return { platform: info.platform, docSubType: info.docSubType, prefix };
+    }
+  }
+  return null;
+}
+
+export { INVOICE_PREFIX_MAP };
 
 interface ParsedLineItem {
   description: string;
@@ -245,6 +277,12 @@ function extractValueFromRow(row: TextItem[], labelPattern: RegExp): string {
   return joinRowItemsSmart(valueItems);
 }
 
+function parseThaiNumber(val: string): number {
+  if (!val || val === "-") return 0;
+  const s = val.replace(/,/g, "").replace(/%/g, "").trim();
+  return parseFloat(s) || 0;
+}
+
 function cleanThaiSpaces(text: string): string {
   const tokens = text.split(/(\s+)/);
   const result: string[] = [];
@@ -318,7 +356,7 @@ function parseShopeeInvoice(rows: TextItem[][], fullText: string): ParsedInvoice
 
     if (!invoiceNo) {
       for (const item of rows[i]) {
-        const m = item.str.match(/((?:TRSPEMKP|RCSPXSPR|RCSPXSPB|TRSLZD)[A-Z0-9\-]{10,})/i);
+        const m = item.str.match(/((?:TRSPEMKP|TRSPESPF|TRSPXADB|RCSPXSPR|RCSPXSPB|TRSLZD)[A-Z0-9\-]{10,})/i);
         if (m) { invoiceNo = m[1]; break; }
       }
     }
@@ -420,7 +458,7 @@ function parseShopeeInvoice(rows: TextItem[][], fullText: string): ParsedInvoice
     totalAmount = subtotal + vatAmount;
   }
 
-  const isSpx = vendorName.includes("SPX");
+  const prefixInfo = classifyByPrefix(invoiceNo);
   return {
     invoiceNo,
     date,
@@ -436,8 +474,9 @@ function parseShopeeInvoice(rows: TextItem[][], fullText: string): ParsedInvoice
     withholdingTax: Math.round(withholdingTax * 100) / 100,
     notes: "",
     rawText: fullText.substring(0, 3000),
-    platform: "shopee" as const,
-    docSubType: isSpx ? "shipping" as const : "platform_fee" as const,
+    platform: prefixInfo?.platform || "shopee",
+    docSubType: prefixInfo?.docSubType || (vendorName.includes("SPX") ? "shipping" : "platform_fee"),
+    invoicePrefix: prefixInfo?.prefix || "",
   };
 }
 
@@ -557,6 +596,7 @@ function parseTikTokReceipt(rows: TextItem[][], fullText: string): ParsedInvoice
 
   const subtotal = items.reduce((s, it) => s + it.amount, 0);
 
+  const prefixInfo = classifyByPrefix(invoiceNo);
   return {
     invoiceNo,
     date,
@@ -572,8 +612,9 @@ function parseTikTokReceipt(rows: TextItem[][], fullText: string): ParsedInvoice
     withholdingTax: Math.round(withholdingTax * 100) / 100,
     notes: "",
     rawText: fullText.substring(0, 3000),
-    platform: "tiktok" as const,
-    docSubType: "commission" as const,
+    platform: prefixInfo?.platform || "tiktok",
+    docSubType: prefixInfo?.docSubType || "commission",
+    invoicePrefix: prefixInfo?.prefix || "",
   };
 }
 
@@ -691,6 +732,7 @@ function parseTikTokInvoice(rows: TextItem[][], fullText: string): ParsedInvoice
     totalAmount = subtotal + vatAmount;
   }
 
+  const prefixInfo = classifyByPrefix(invoiceNo);
   const isLogistics = /Thai\s*Happy\s*Logistics/i.test(fullText);
   return {
     invoiceNo,
@@ -707,8 +749,9 @@ function parseTikTokInvoice(rows: TextItem[][], fullText: string): ParsedInvoice
     withholdingTax: Math.round(withholdingTax * 100) / 100,
     notes: isCreditNote ? "CREDIT NOTE" : "",
     rawText: fullText.substring(0, 3000),
-    platform: "tiktok" as const,
-    docSubType: isLogistics ? "shipping" as const : "platform_fee" as const,
+    platform: prefixInfo?.platform || "tiktok",
+    docSubType: prefixInfo?.docSubType || (isLogistics ? "shipping" : "platform_fee"),
+    invoicePrefix: prefixInfo?.prefix || "",
   };
 }
 
@@ -825,6 +868,7 @@ function parseLazadaInvoice(rows: TextItem[][], fullText: string): ParsedInvoice
     totalAmount = subtotal + vatAmount;
   }
 
+  const prefixInfo = classifyByPrefix(invoiceNo);
   const isLazExpress = /Lazada\s*Express/i.test(vendorName);
   return {
     invoiceNo,
@@ -841,8 +885,143 @@ function parseLazadaInvoice(rows: TextItem[][], fullText: string): ParsedInvoice
     withholdingTax: Math.round(withholdingTax * 100) / 100,
     notes: "",
     rawText: fullText.substring(0, 3000),
-    platform: "lazada" as const,
-    docSubType: isLazExpress ? "shipping" as const : "platform_fee" as const,
+    platform: prefixInfo?.platform || "lazada",
+    docSubType: prefixInfo?.docSubType || (isLazExpress ? "shipping" : "platform_fee"),
+    invoicePrefix: prefixInfo?.prefix || "",
+  };
+}
+
+function isGrabInvoice(fullText: string): boolean {
+  return /gf\.th\.ar@grab\.com/i.test(fullText) || (/grab\.com/i.test(fullText) && /Service\s*Fee/i.test(fullText));
+}
+
+function parseGrabInvoice(rows: TextItem[][], fullText: string): ParsedInvoice {
+  let invoiceNo = "";
+  let date = "";
+  let vendorName = "";
+  let vendorTaxId = "";
+  let vendorAddress = "";
+  let vendorBranch = "สำนักงานใหญ่";
+  let subtotal = 0;
+  let vatAmount = 0;
+  let totalAmount = 0;
+  const items: ParsedLineItem[] = [];
+
+  for (const row of rows) {
+    const text = rowText(row);
+
+    const noMatch = text.match(/(?:เลขที่\s*\/?\s*No\.?)\s*(\S+)/i);
+    if (noMatch && !invoiceNo) {
+      invoiceNo = noMatch[1].trim();
+    }
+    if (!invoiceNo) {
+      const imMatch = text.match(/(IM\d{8,})/i);
+      if (imMatch) invoiceNo = imMatch[1];
+    }
+
+    const dateMatch = text.match(/(?:วันที่\s*\/?\s*Date)\s*(\d{1,2}\/\d{1,2}\/\d{4})/i);
+    if (dateMatch && !date) {
+      date = dateMatch[1];
+    }
+    if (!date) {
+      const dMatch = text.match(/(\d{2}\/\d{2}\/20\d{2})/);
+      if (dMatch) date = dMatch[1];
+    }
+
+    const nameMatch = text.match(/(?:ชื่อ\s*\/?\s*Name\s*1)\s*(.*)/i);
+    if (nameMatch && nameMatch[1].trim()) {
+      vendorName = nameMatch[1].trim();
+    }
+    if (!vendorName && /ชื่อ/.test(text)) {
+      const n2 = text.match(/ชื่อ.*?(?:Name\s*\d?)\s*(.*)/i);
+      if (n2 && n2[1].trim().length > 5) vendorName = n2[1].trim();
+    }
+
+    const taxMatch = text.match(/(?:Tax\s*ID|เลขประจำตัวผู้เสียภาษี).*?(\d{13})/i);
+    if (taxMatch && !vendorTaxId) {
+      vendorTaxId = taxMatch[1];
+    }
+
+    const addrMatch = text.match(/(?:ที่อยู่\s*\/?\s*Address)\s*(.*)/i);
+    if (addrMatch && addrMatch[1].trim()) {
+      vendorAddress = addrMatch[1].trim();
+    }
+
+    const feeMatch = text.match(/Service\s*Fee.*?(\d[\d,]*\.\d{2})\s+(\d[\d,]*\.\d{2})\s*$/i);
+    if (feeMatch) {
+      const unitPrice = parseThaiNumber(feeMatch[1]);
+      const amount = parseThaiNumber(feeMatch[2]);
+      items.push({ description: "Service Fee", qty: 1, unit: "รายการ", unitPrice, amount, vatType: "vat7" });
+    }
+  }
+
+  const allRowTexts = rows.map(r => rowText(r));
+  for (let i = 0; i < allRowTexts.length; i++) {
+    const text = allRowTexts[i];
+    const totalInline = text.match(/(?:Total\s*Amount|รวมมูลค่าสินค้าและบริการ).*?([\d,]+\.\d{2})/i);
+    if (totalInline && !subtotal) {
+      subtotal = parseThaiNumber(totalInline[1]);
+    } else if (!subtotal && /(?:Total\s*Amount|รวมมูลค่า)/i.test(text)) {
+      for (let j = i + 1; j <= Math.min(i + 3, allRowTexts.length - 1); j++) {
+        const numMatch = allRowTexts[j].match(/^[\s]*([\d,]+\.\d{2})\s*$/);
+        if (numMatch) { subtotal = parseThaiNumber(numMatch[1]); break; }
+      }
+    }
+
+    const vatInline = text.match(/VAT\s*7\s*%.*?([\d,]+\.\d{2})/i);
+    if (vatInline && !vatAmount) {
+      vatAmount = parseThaiNumber(vatInline[1]);
+    } else if (!vatAmount && /VAT\s*7\s*%/i.test(text)) {
+      for (let j = i - 2; j <= i + 3; j++) {
+        if (j < 0 || j >= allRowTexts.length || j === i) continue;
+        const numMatch = allRowTexts[j].match(/^[\s]*([\d,]+\.\d{2})\s*$/);
+        if (numMatch) { vatAmount = parseThaiNumber(numMatch[1]); break; }
+      }
+    }
+
+    const grandInline = text.match(/(?:Grand\s*Total|จำนวนเงินรวมทั้งสิ้น).*?([\d,]+\.\d{2})/i);
+    if (grandInline && !totalAmount) {
+      totalAmount = parseThaiNumber(grandInline[1]);
+    } else if (!totalAmount && /(?:Grand\s*Total|จำนวนเงินรวมทั้งสิ้น)/i.test(text)) {
+      for (let j = i - 2; j <= i + 3; j++) {
+        if (j < 0 || j >= allRowTexts.length || j === i) continue;
+        const numMatch = allRowTexts[j].match(/^[\s]*([\d,]+\.\d{2})\s*$/);
+        if (numMatch) { totalAmount = parseThaiNumber(numMatch[1]); break; }
+      }
+    }
+  }
+
+  if (items.length > 0) {
+    const itemsSum = items.reduce((s, it) => s + it.amount, 0);
+    if (!subtotal || Math.abs(subtotal - itemsSum) > 1) {
+      subtotal = itemsSum;
+    }
+  }
+  if (!totalAmount) {
+    totalAmount = subtotal + vatAmount;
+  }
+
+  if (!vendorName) vendorName = "Grab Thailand";
+
+  const prefixInfo = classifyByPrefix(invoiceNo);
+  return {
+    invoiceNo,
+    date,
+    dueDate: "",
+    vendorName,
+    vendorTaxId,
+    vendorAddress,
+    vendorBranch,
+    items,
+    subtotal: Math.round(subtotal * 100) / 100,
+    vatAmount: Math.round(vatAmount * 100) / 100,
+    totalAmount: Math.round(totalAmount * 100) / 100,
+    withholdingTax: 0,
+    notes: "",
+    rawText: fullText.substring(0, 3000),
+    platform: prefixInfo?.platform || "grab",
+    docSubType: prefixInfo?.docSubType || "service_fee",
+    invoicePrefix: prefixInfo?.prefix || "IM",
   };
 }
 
@@ -1096,6 +1275,7 @@ function parseGenericInvoice(rows: TextItem[][], fullText: string): ParsedInvoic
     totalAmount = subtotal + vatAmount - withholdingTax;
   }
 
+  const prefixInfo = classifyByPrefix(invoiceNo);
   return {
     invoiceNo,
     date,
@@ -1111,8 +1291,9 @@ function parseGenericInvoice(rows: TextItem[][], fullText: string): ParsedInvoic
     withholdingTax: Math.round(withholdingTax * 100) / 100,
     notes: "",
     rawText: fullText.substring(0, 3000),
-    platform: "other" as const,
-    docSubType: "mixed" as const,
+    platform: prefixInfo?.platform || "other",
+    docSubType: prefixInfo?.docSubType || "mixed",
+    invoicePrefix: prefixInfo?.prefix || "",
   };
 }
 
@@ -1143,6 +1324,10 @@ export async function parsePdfInvoice(pdfBuffer: Buffer, templates?: import("./p
 
   if (isLazadaInvoice(fullText)) {
     return parseLazadaInvoice(rows, fullText);
+  }
+
+  if (isGrabInvoice(fullText)) {
+    return parseGrabInvoice(rows, fullText);
   }
 
   if (templates && templates.length > 0) {

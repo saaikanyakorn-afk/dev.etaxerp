@@ -571,13 +571,18 @@ export const ECOMMERCE_EXTRA_ACCOUNTS: ChartAccountTemplate[] = [
   { code: "5241000", name: "Shopee Commission", nameTh: "ค่าคอมมิชชั่น Shopee", nameZh: "Shopee佣金", type: "expense", parentCode: "524" },
   { code: "5242000", name: "Lazada Commission", nameTh: "ค่าคอมมิชชั่น Lazada", nameZh: "Lazada佣金", type: "expense", parentCode: "524" },
   { code: "5243000", name: "TikTok Shop Commission", nameTh: "ค่าคอมมิชชั่น TikTok Shop", nameZh: "TikTok Shop佣金", type: "expense", parentCode: "524" },
-  { code: "5244000", name: "Other Marketplace Commission", nameTh: "ค่าคอมมิชชั่นแพลตฟอร์มอื่น", nameZh: "其他平台佣金", type: "expense", parentCode: "524" },
+  { code: "5244000", name: "Grab Commission", nameTh: "ค่าคอมมิชชั่น Grab", nameZh: "Grab佣金", type: "expense", parentCode: "524" },
+  { code: "5245000", name: "ShopeeFood Commission", nameTh: "ค่าคอมมิชชั่น ShopeeFood", nameZh: "ShopeeFood佣金", type: "expense", parentCode: "524" },
+  { code: "5249000", name: "Other Marketplace Commission", nameTh: "ค่าคอมมิชชั่นแพลตฟอร์มอื่น", nameZh: "其他平台佣金", type: "expense", parentCode: "524" },
 
   // --- Platform Service Fees ---
   { code: "525", name: "Platform Service Fees", nameTh: "ค่าบริการแพลตฟอร์ม", nameZh: "平台服务费", type: "expense", parentCode: null },
   { code: "5251000", name: "Shopee Service Fee", nameTh: "ค่าบริการ Shopee", nameZh: "Shopee服务费", type: "expense", parentCode: "525" },
   { code: "5252000", name: "Lazada Service Fee", nameTh: "ค่าบริการ Lazada", nameZh: "Lazada服务费", type: "expense", parentCode: "525" },
   { code: "5253000", name: "TikTok Shop Service Fee", nameTh: "ค่าบริการ TikTok Shop", nameZh: "TikTok Shop服务费", type: "expense", parentCode: "525" },
+  { code: "5254000", name: "Grab Service Fee", nameTh: "ค่าบริการ Grab", nameZh: "Grab服务费", type: "expense", parentCode: "525" },
+  { code: "5255000", name: "ShopeeFood Service Fee", nameTh: "ค่าบริการ ShopeeFood", nameZh: "ShopeeFood服务费", type: "expense", parentCode: "525" },
+  { code: "5256000", name: "SPX Express Admin Fee", nameTh: "ค่าบริการ SPX Express (Admin)", nameZh: "SPX Express管理费", type: "expense", parentCode: "525" },
 
   // --- E-Commerce Shipping Costs ---
   { code: "526", name: "E-Commerce Shipping Costs", nameTh: "ค่าขนส่ง E-Commerce", nameZh: "电商运费", type: "expense", parentCode: null },

@@ -2357,7 +2357,8 @@ export function registerPurchaseRoutes(app: Express) {
       const PLATFORM_FORMULA_MAP: Record<string, string> = {
         "shopee:platform_fee": "shopee_platform_fee",
         "shopee:shipping": "shopee_shipping",
-        "shopee:commission": "shopee_commission",
+        "shopee:commission": "shopee_platform_fee",
+        "shopee:service_fee": "shopeefood_fee",
         "shopee:ads": "shopee_platform_fee",
         "shopee:mixed": "shopee_platform_fee",
         "tiktok:platform_fee": "tiktok_platform_fee",
@@ -2367,14 +2368,46 @@ export function registerPurchaseRoutes(app: Express) {
         "tiktok:mixed": "tiktok_platform_fee",
         "lazada:platform_fee": "lazada_platform_fee",
         "lazada:shipping": "lazada_shipping",
-        "lazada:commission": "lazada_commission",
+        "lazada:commission": "lazada_platform_fee",
         "lazada:ads": "lazada_platform_fee",
         "lazada:mixed": "lazada_platform_fee",
+        "grab:service_fee": "grab_service_fee",
+        "grab:platform_fee": "grab_service_fee",
+        "grab:commission": "grab_service_fee",
+        "grab:mixed": "grab_service_fee",
         "other:mixed": "platform_fee",
+      };
+
+      const PREFIX_FORMULA_MAP: Record<string, string> = {
+        "TRSPEMKP": "shopee_platform_fee",
+        "TRSPESPF": "shopeefood_fee",
+        "TRSPXADB": "spx_admin_fee",
+        "RCSPXSPR": "shopee_shipping",
+        "RCSPXSPB": "shopee_shipping",
+        "TRSLZD":   "lazada_platform_fee",
+        "TTSTH":    "tiktok_platform_fee",
+        "TTSTHCN":  "tiktok_platform_fee",
+        "TTSTHAC":  "ecommerce_commission",
+        "THJV":     "tiktok_shipping",
+        "THMPTI":   "lazada_platform_fee",
+        "THLPTI":   "lazada_shipping",
+        "IM":       "grab_service_fee",
       };
 
       function resolveFormulaForDoc(doc: any): string | null {
         if (doc.formulaBusinessType) return doc.formulaBusinessType;
+        if (doc.invoicePrefix && PREFIX_FORMULA_MAP[doc.invoicePrefix]) {
+          return PREFIX_FORMULA_MAP[doc.invoicePrefix];
+        }
+        if (doc.invoiceNo) {
+          const upper = doc.invoiceNo.toUpperCase();
+          const sortedPrefixes = Object.keys(PREFIX_FORMULA_MAP).sort((a, b) => b.length - a.length);
+          for (const prefix of sortedPrefixes) {
+            if (upper.startsWith(prefix)) {
+              return PREFIX_FORMULA_MAP[prefix];
+            }
+          }
+        }
         const key = `${doc.platform || "other"}:${doc.docSubType || "mixed"}`;
         return PLATFORM_FORMULA_MAP[key] || formulaBusinessType || null;
       }
@@ -2578,12 +2611,15 @@ export function registerPurchaseRoutes(app: Express) {
           "shopee_platform_fee": "SH",
           "shopee_shipping": "SPX",
           "shopee_commission": "SHC",
+          "shopeefood_fee": "SHF",
+          "spx_admin_fee": "SPXA",
           "lazada_platform_fee": "LZ",
           "lazada_shipping": "LZX",
           "lazada_commission": "LZC",
           "tiktok_platform_fee": "TK",
           "tiktok_shipping": "TKX",
           "ecommerce_commission": "EC",
+          "grab_service_fee": "GR",
           "platform_fee": "PF",
         };
 

@@ -356,6 +356,44 @@ export const DEFAULT_FORMULAS: DefaultFormulaTemplate[] = [
   },
   {
     documentType: "purchase",
+    businessType: "grab_service_fee",
+    name: "Grab Service Fee",
+    nameTh: "บันทึกค่าบริการ Grab (ใบ IM)",
+    description: "ค่าบริการ Grab/GrabFood — Commission + Service Fee + ภาษีซื้อ",
+    lines: [
+      { accountCode: "5244000", accountName: "ค่าคอมมิชชั่น Grab", direction: "debit", sortOrder: 1 },
+      { accountCode: "5254000", accountName: "ค่าบริการ Grab", direction: "debit", sortOrder: 2 },
+      { accountCode: "1432000", accountName: "ภาษีซื้อ", direction: "debit", sortOrder: 3 },
+      { accountCode: "2101000", accountName: "เจ้าหนี้การค้า", direction: "credit", sortOrder: 4 },
+    ],
+  },
+  {
+    documentType: "purchase",
+    businessType: "shopeefood_fee",
+    name: "ShopeeFood Commission Fee",
+    nameTh: "บันทึกค่าคอมมิชชั่น ShopeeFood (ใบ TRSPESPF)",
+    description: "ค่าคอมมิชชั่น ShopeeFood — VAT 7%",
+    lines: [
+      { accountCode: "5245000", accountName: "ค่าคอมมิชชั่น ShopeeFood", direction: "debit", sortOrder: 1 },
+      { accountCode: "5255000", accountName: "ค่าบริการ ShopeeFood", direction: "debit", sortOrder: 2 },
+      { accountCode: "1432000", accountName: "ภาษีซื้อ", direction: "debit", sortOrder: 3 },
+      { accountCode: "2101000", accountName: "เจ้าหนี้การค้า", direction: "credit", sortOrder: 4 },
+    ],
+  },
+  {
+    documentType: "purchase",
+    businessType: "spx_admin_fee",
+    name: "SPX Express Admin/Service Fee",
+    nameTh: "บันทึกค่าบริการ SPX Express Admin (ใบ TRSPXADB)",
+    description: "ค่าบริการ SPX Express (Admin Fee) — VAT 7%, หัก ณ ที่จ่าย 3%",
+    lines: [
+      { accountCode: "5256000", accountName: "ค่าบริการ SPX Express (Admin)", direction: "debit", sortOrder: 1 },
+      { accountCode: "1432000", accountName: "ภาษีซื้อ", direction: "debit", sortOrder: 2 },
+      { accountCode: "2101000", accountName: "เจ้าหนี้การค้า", direction: "credit", sortOrder: 3 },
+    ],
+  },
+  {
+    documentType: "purchase",
     businessType: "mixed",
     name: "Mixed Purchase",
     nameTh: "บันทึกซื้อ (ผสม)",
@@ -373,7 +411,7 @@ export const DEFAULT_FORMULAS: DefaultFormulaTemplate[] = [
     nameTh: "บันทึกค่าธรรมเนียมแพลตฟอร์ม (รวม)",
     description: "ค่าธรรมเนียมรวมทุกแพลตฟอร์ม Shopee/Lazada/TikTok — VAT/non-VAT ผสม",
     lines: [
-      { accountCode: "5244000", accountName: "ค่าคอมมิชชั่นแพลตฟอร์มอื่น", direction: "debit", sortOrder: 1 },
+      { accountCode: "5249000", accountName: "ค่าคอมมิชชั่นแพลตฟอร์มอื่น", direction: "debit", sortOrder: 1 },
       { accountCode: "1432000", accountName: "ภาษีซื้อ", direction: "debit", sortOrder: 2 },
       { accountCode: "2101000", accountName: "เจ้าหนี้การค้า", direction: "credit", sortOrder: 3 },
     ],
