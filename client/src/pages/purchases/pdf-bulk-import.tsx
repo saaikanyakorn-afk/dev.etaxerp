@@ -536,8 +536,8 @@ export default function PdfBulkImport() {
   const classifyItem = (desc: string): string => {
     const d = (desc || "").toLowerCase().trim();
     if (/^paid\s*ads$/i.test(d)) return "ads";
-    if (/commission/i.test(d) || /ค่าคอมมิชชั่น/i.test(d)) return "commission";
-    if (/ads|โฆษณา|ams.*fee/i.test(d)) return "ads";
+    if (/commission|คอมมิชชั่น|commerce\s*growth|affiliate/i.test(d)) return "commission";
+    if (/ads|โฆษณา|ams.*fee|sponsored|top\s*picks|search\s*ads/i.test(d)) return "ads";
     return "service";
   };
 
