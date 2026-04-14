@@ -2110,6 +2110,15 @@ export function registerPurchaseRoutes(app: Express) {
             archivedFileUrl: attachedUrl,
             aiProvider: chosenAi,
             aiScores: aiTimings,
+            invoicePrefix: (() => {
+              const docNoVal = parsed.docNo || "";
+              if (!docNoVal) return "";
+              const upper = docNoVal.toUpperCase();
+              const { INVOICE_PREFIX_MAP } = require("../utils/pdf-invoice-parser");
+              const sorted = Object.keys(INVOICE_PREFIX_MAP).sort((a: string, b: string) => b.length - a.length);
+              for (const p of sorted) { if (upper.startsWith(p)) return p; }
+              return "";
+            })(),
           };
         } catch (err: any) {
           fileResult.status = "error";
@@ -3336,6 +3345,7 @@ export function registerPurchaseRoutes(app: Express) {
             isPlatformFee: /Shopee|SPX\s*Express/i.test(parsed.vendorName || "") || parsed.invoiceNo?.startsWith("TRSPEMKP") || parsed.invoiceNo?.startsWith("RCSPXSP") || false,
             platform: parsed.platform || "other",
             docSubType: parsed.docSubType || "mixed",
+            invoicePrefix: parsed.invoicePrefix || "",
             archivedFileUrl,
             folderPath: folderPaths[fi] || "",
             hasErrors: docErrors.length > 0,
