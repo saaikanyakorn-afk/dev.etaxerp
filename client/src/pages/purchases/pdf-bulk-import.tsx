@@ -14,9 +14,10 @@ import ImportBatchHistory from "@/components/import-batch-history";
 import { useDateSettings } from "@/hooks/use-date-settings";
 import { formatDate } from "@/lib/format";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import {
   Upload, CheckCircle2, XCircle, AlertCircle, ArrowLeft, FileText,
-  Loader2, ChevronDown, ChevronUp, File, X, BookOpen, Trash2, FolderOpen, Settings2,
+  Loader2, ChevronDown, ChevronUp, File, X, BookOpen, Trash2, FolderOpen, Settings2, Plus, Pencil, RotateCcw,
 } from "lucide-react";
 import { ImportTemplatesContent } from "@/pages/settings/import-templates";
 
@@ -171,6 +172,8 @@ export default function PdfBulkImport() {
   const [showJournalPreview, setShowJournalPreview] = useState(false);
   const [previewPage, setPreviewPage] = useState(0);
   const [selectedFormulaIdx, setSelectedFormulaIdx] = useState("0");
+  const [editingJournal, setEditingJournal] = useState(false);
+  const [journalOverrideLines, setJournalOverrideLines] = useState<{ accountCode: string; accountName: string; debit: string; credit: string }[]>([]);
   const PAGE_SIZE = 50;
 
   const { data: companyPaymentMethods = [] } = useQuery<any[]>({
@@ -182,6 +185,18 @@ export default function PdfBulkImport() {
     },
     enabled: !!companyId,
   });
+
+  const { data: chartOfAccounts = [] } = useQuery<any[]>({
+    queryKey: ["/api/chart-of-accounts", companyId],
+    queryFn: async () => {
+      const res = await fetch(`/api/chart-of-accounts?companyId=${companyId}`, { credentials: "include" });
+      if (!res.ok) return [];
+      const data = await res.json();
+      return (Array.isArray(data) ? data : data.accounts || []).filter((a: any) => a.code && a.code.length >= 7);
+    },
+    enabled: !!companyId,
+  });
+  const accountMap = new Map(chartOfAccounts.map((a: any) => [a.code, a]));
 
   const formulaDocType = docType === "expense" ? "purchase" : "purchase";
   const { data: availableFormulas = [] } = useQuery<any[]>({
@@ -392,6 +407,7 @@ export default function PdfBulkImport() {
           formulaBusinessType: autoJournal
             ? (selectedFormulaIdx === "auto-detect" ? "auto-detect" : (selectedFormula?.businessType || undefined))
             : undefined,
+          journalOverrideLines: editingJournal && journalOverrideLines.length > 0 ? journalOverrideLines : undefined,
         }),
       });
       if (!res.ok) {
@@ -1055,10 +1071,62 @@ export default function PdfBulkImport() {
 
                 {showJournalPreview && autoJournal && selectedDocsList.length > 0 && (
                   <div className="mt-4 border rounded-lg p-4 bg-blue-50/50">
-                    <div className="text-sm font-medium mb-3 text-blue-800 flex items-center gap-2">
-                      <BookOpen className="h-4 w-4" /> พรีวิวการบันทึกบัญชี (ตัวอย่าง — ต่อเอกสาร)
+                    <div className="text-sm font-medium mb-3 text-blue-800 flex items-center justify-between">
+                      <span className="flex items-center gap-2">
+                        <BookOpen className="h-4 w-4" /> พรีวิวการบันทึกบัญชี (DXP — ยอดรวมทั้งหมด)
+                      </span>
+                      {selectedFormulaIdx !== "auto-detect" && (
+                        <div className="flex items-center gap-1">
+                          {!editingJournal ? (
+                            <Button variant="outline" size="sm" className="text-xs h-7" data-testid="button-edit-journal"
+                              onClick={() => {
+                                const lines = selectedFormula?.lines?.length > 0
+                                  ? [...selectedFormula.lines].sort((a: any, b: any) => (a.sortOrder || 0) - (b.sortOrder || 0))
+                                  : [{ accountCode: "5210000", accountName: "ค่าใช้จ่าย", direction: "debit" }, { accountCode: "1432000", accountName: "ภาษีซื้อ", direction: "debit" }, { accountCode: "1001000", accountName: "เงินสด", direction: "credit" }];
+                                const isVatLine = (l: any) => l.accountCode?.startsWith("143") || (l.accountName || "").includes("ภาษีซื้อ");
+                                const debitMain = lines.filter((l: any) => l.direction === "debit" && !isVatLine(l));
+                                const debitVat = lines.filter((l: any) => l.direction === "debit" && isVatLine(l));
+                                const creditL = lines.filter((l: any) => l.direction === "credit");
+                                const autoLines: typeof journalOverrideLines = [];
+                                const expSub = totalPaidAds > 0 ? expenseSubtotal : totalSubtotal;
+                                for (const dl of debitMain) {
+                                  const perLine = debitMain.length > 1 ? Math.round(expSub / debitMain.length * 100) / 100 : expSub;
+                                  autoLines.push({ accountCode: dl.accountCode, accountName: dl.accountName, debit: perLine.toFixed(2), credit: "0" });
+                                }
+                                if (totalPaidAds > 0) {
+                                  const platform = selectedDocsList[0]?.platform || "other";
+                                  const adCodeMap: Record<string, string> = { shopee: "1449100", lazada: "1449200", tiktok: "1449300", facebook: "1449400", google: "1449500" };
+                                  const adCode = adCodeMap[platform] || "1449900";
+                                  const adAcc = accountMap.get(adCode);
+                                  autoLines.push({ accountCode: adCode, accountName: adAcc?.nameTh || "เงินเครดิตค่าโฆษณา", debit: totalPaidAds.toFixed(2), credit: "0" });
+                                }
+                                for (const vl of debitVat) {
+                                  if (totalVat > 0) autoLines.push({ accountCode: vl.accountCode, accountName: vl.accountName, debit: totalVat.toFixed(2), credit: "0" });
+                                }
+                                if (totalWht > 0) autoLines.push({ accountCode: "2341000", accountName: "ภาษีหัก ณ ที่จ่าย", debit: "0", credit: totalWht.toFixed(2) });
+                                const totalDr = autoLines.reduce((s, l) => s + parseFloat(l.debit), 0);
+                                const totalCr = autoLines.reduce((s, l) => s + parseFloat(l.credit), 0);
+                                const remaining = totalDr - totalCr;
+                                if (creditL.length > 0 && remaining > 0) {
+                                  autoLines.push({ accountCode: creditL[0].accountCode, accountName: creditL[0].accountName, debit: "0", credit: remaining.toFixed(2) });
+                                }
+                                setJournalOverrideLines(autoLines);
+                                setEditingJournal(true);
+                              }}>
+                              <Pencil className="h-3 w-3 mr-1" /> แก้ไข
+                            </Button>
+                          ) : (
+                            <>
+                              <Button variant="outline" size="sm" className="text-xs h-7" data-testid="button-reset-journal"
+                                onClick={() => { setEditingJournal(false); setJournalOverrideLines([]); }}>
+                                <RotateCcw className="h-3 w-3 mr-1" /> รีเซ็ต
+                              </Button>
+                            </>
+                          )}
+                        </div>
+                      )}
                     </div>
-                    {selectedFormulaIdx === "auto-detect" ? (
+                    {selectedFormulaIdx === "auto-detect" && !editingJournal ? (
                       <div className="bg-white rounded border p-4 text-sm text-gray-600">
                         <p className="font-medium text-gray-800 mb-2">โหมด Auto-Detect — สูตรจะถูกเลือกตามประเภทเอกสารอัตโนมัติ</p>
                         <p className="text-xs text-gray-500 mb-3">แต่ละเอกสารจะถูกจับคู่สูตรบัญชีจาก Invoice No. prefix โดยอัตโนมัติ<br/>Journal Entry จะแยกตามวันที่ + ประเภทแพลตฟอร์ม</p>
@@ -1081,6 +1149,101 @@ export default function PdfBulkImport() {
                           ))}
                         </div>
                       </div>
+                    ) : editingJournal ? (
+                    <div className="bg-white rounded border overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="text-xs w-[130px]">รหัสบัญชี</TableHead>
+                            <TableHead className="text-xs">ชื่อบัญชี</TableHead>
+                            <TableHead className="text-xs text-right w-[120px]">เดบิต</TableHead>
+                            <TableHead className="text-xs text-right w-[120px]">เครดิต</TableHead>
+                            <TableHead className="text-xs w-[40px]"></TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {journalOverrideLines.map((line, idx) => {
+                            const acc = accountMap.get(line.accountCode);
+                            const isValid = !!acc;
+                            return (
+                              <TableRow key={idx} className={!isValid && line.accountCode ? "bg-red-50" : ""}>
+                                <TableCell className="p-1">
+                                  <Input className="text-xs font-mono h-7" value={line.accountCode}
+                                    data-testid={`input-journal-code-${idx}`}
+                                    onChange={e => {
+                                      const newLines = [...journalOverrideLines];
+                                      newLines[idx] = { ...newLines[idx], accountCode: e.target.value };
+                                      const foundAcc = accountMap.get(e.target.value);
+                                      if (foundAcc) newLines[idx].accountName = foundAcc.nameTh || foundAcc.name || "";
+                                      setJournalOverrideLines(newLines);
+                                    }}
+                                    list={`acct-list-${idx}`} />
+                                  <datalist id={`acct-list-${idx}`}>
+                                    {chartOfAccounts.filter((a: any) => a.code.startsWith(line.accountCode.slice(0, 3))).slice(0, 15).map((a: any) => (
+                                      <option key={a.code} value={a.code}>{a.nameTh || a.name}</option>
+                                    ))}
+                                  </datalist>
+                                </TableCell>
+                                <TableCell className="p-1 text-xs">
+                                  {isValid ? (acc.nameTh || acc.name) : (line.accountName || <span className="text-red-500">ไม่พบบัญชี</span>)}
+                                </TableCell>
+                                <TableCell className="p-1">
+                                  <Input className="text-xs text-right h-7" value={line.debit}
+                                    data-testid={`input-journal-debit-${idx}`}
+                                    onChange={e => {
+                                      const newLines = [...journalOverrideLines];
+                                      newLines[idx] = { ...newLines[idx], debit: e.target.value };
+                                      if (parseFloat(e.target.value) > 0) newLines[idx].credit = "0";
+                                      setJournalOverrideLines(newLines);
+                                    }} />
+                                </TableCell>
+                                <TableCell className="p-1">
+                                  <Input className="text-xs text-right h-7" value={line.credit}
+                                    data-testid={`input-journal-credit-${idx}`}
+                                    onChange={e => {
+                                      const newLines = [...journalOverrideLines];
+                                      newLines[idx] = { ...newLines[idx], credit: e.target.value };
+                                      if (parseFloat(e.target.value) > 0) newLines[idx].debit = "0";
+                                      setJournalOverrideLines(newLines);
+                                    }} />
+                                </TableCell>
+                                <TableCell className="p-1">
+                                  <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-red-400 hover:text-red-600"
+                                    data-testid={`button-remove-journal-line-${idx}`}
+                                    onClick={() => setJournalOverrideLines(journalOverrideLines.filter((_, i) => i !== idx))}>
+                                    <X className="h-3 w-3" />
+                                  </Button>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                          <TableRow>
+                            <TableCell colSpan={5} className="p-1">
+                              <Button variant="ghost" size="sm" className="text-xs h-7 text-blue-600"
+                                data-testid="button-add-journal-line"
+                                onClick={() => setJournalOverrideLines([...journalOverrideLines, { accountCode: "", accountName: "", debit: "0", credit: "0" }])}>
+                                <Plus className="h-3 w-3 mr-1" /> เพิ่มบรรทัด
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                          {(() => {
+                            const totalDr = journalOverrideLines.reduce((s, l) => s + (parseFloat(l.debit) || 0), 0);
+                            const totalCr = journalOverrideLines.reduce((s, l) => s + (parseFloat(l.credit) || 0), 0);
+                            const balanced = Math.abs(totalDr - totalCr) < 0.01;
+                            return (
+                              <TableRow className={`font-bold ${balanced ? "bg-green-50" : "bg-red-50"}`}>
+                                <TableCell className="text-xs" colSpan={2}>
+                                  รวม {!balanced && <span className="text-red-600 font-normal ml-1">(ไม่สมดุล: {fmt(Math.abs(totalDr - totalCr))})</span>}
+                                </TableCell>
+                                <TableCell className="text-xs text-right">{fmt(totalDr)}</TableCell>
+                                <TableCell className="text-xs text-right">{fmt(totalCr)}</TableCell>
+                                <TableCell></TableCell>
+                              </TableRow>
+                            );
+                          })()}
+                        </TableBody>
+                      </Table>
+                    </div>
                     ) : (
                     <div className="bg-white rounded border overflow-x-auto">
                       <Table>
@@ -1115,7 +1278,6 @@ export default function PdfBulkImport() {
 
                             let totalDebitAmt = 0;
                             let totalCreditAmt = 0;
-
                             const rows: { code: string; name: string; debit: number; credit: number }[] = [];
 
                             if (totalPaidAds > 0) {
@@ -1130,35 +1292,22 @@ export default function PdfBulkImport() {
                               rows.push({ code: "1449x00", name: "เงินเครดิตค่าโฆษณา (Paid Ads)", debit: totalPaidAds, credit: 0 });
                               totalDebitAmt += totalPaidAds;
                             } else {
-                            if (debitMainLines.length === 1) {
-                              rows.push({ code: debitMainLines[0].accountCode, name: debitMainLines[0].accountName, debit: totalSubtotal, credit: 0 });
-                              totalDebitAmt += totalSubtotal;
-                            } else if (debitMainLines.length > 1) {
-                              rows.push({ code: debitMainLines.map(l => l.accountCode).join(", "), name: debitMainLines.map(l => l.accountName).join(" + "), debit: totalSubtotal, credit: 0 });
-                              totalDebitAmt += totalSubtotal;
-                            }
-                            }
-
-                            for (const l of debitVatLines) {
-                              if (totalVat > 0) {
-                                rows.push({ code: l.accountCode, name: l.accountName, debit: totalVat, credit: 0 });
-                                totalDebitAmt += totalVat;
+                              if (debitMainLines.length === 1) {
+                                rows.push({ code: debitMainLines[0].accountCode, name: debitMainLines[0].accountName, debit: totalSubtotal, credit: 0 });
+                                totalDebitAmt += totalSubtotal;
+                              } else if (debitMainLines.length > 1) {
+                                rows.push({ code: debitMainLines.map(l => l.accountCode).join(", "), name: debitMainLines.map(l => l.accountName).join(" + "), debit: totalSubtotal, credit: 0 });
+                                totalDebitAmt += totalSubtotal;
                               }
                             }
 
-                            if (totalWht > 0) {
-                              rows.push({ code: "2341000", name: "ภาษีหัก ณ ที่จ่าย", debit: 0, credit: totalWht });
-                              totalCreditAmt += totalWht;
+                            for (const l of debitVatLines) {
+                              if (totalVat > 0) { rows.push({ code: l.accountCode, name: l.accountName, debit: totalVat, credit: 0 }); totalDebitAmt += totalVat; }
                             }
-
+                            if (totalWht > 0) { rows.push({ code: "2341000", name: "ภาษีหัก ณ ที่จ่าย", debit: 0, credit: totalWht }); totalCreditAmt += totalWht; }
                             const remainingCredit = totalDebitAmt - totalCreditAmt;
-                            if (creditLines.length === 1) {
-                              rows.push({ code: creditLines[0].accountCode, name: creditLines[0].accountName, debit: 0, credit: remainingCredit });
-                              totalCreditAmt += remainingCredit;
-                            } else if (creditLines.length > 1) {
-                              rows.push({ code: creditLines.map(l => l.accountCode).join(", "), name: creditLines.map(l => l.accountName).join(" + "), debit: 0, credit: remainingCredit });
-                              totalCreditAmt += remainingCredit;
-                            }
+                            if (creditLines.length === 1) { rows.push({ code: creditLines[0].accountCode, name: creditLines[0].accountName, debit: 0, credit: remainingCredit }); totalCreditAmt += remainingCredit; }
+                            else if (creditLines.length > 1) { rows.push({ code: creditLines.map(l => l.accountCode).join(", "), name: creditLines.map(l => l.accountName).join(" + "), debit: 0, credit: remainingCredit }); totalCreditAmt += remainingCredit; }
 
                             return (
                               <>
@@ -1182,7 +1331,11 @@ export default function PdfBulkImport() {
                       </Table>
                     </div>
                     )}
-                    <p className="text-xs text-gray-500 mt-2">* พรีวิวยอดรวม — การบันทึกจริงจะสร้าง Journal Entry แยกต่อเอกสาร</p>
+                    <p className="text-xs text-gray-500 mt-2">
+                      {editingJournal
+                        ? "* กำลังแก้ไข — บรรทัดที่กำหนดจะถูกใช้แทนสูตรอัตโนมัติสำหรับ DXP Journal"
+                        : "* พรีวิวยอดรวม — กด \"แก้ไข\" เพื่อปรับบัญชีก่อนบันทึก"}
+                    </p>
                   </div>
                 )}
 
