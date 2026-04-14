@@ -459,7 +459,17 @@ function parseShopeeInvoice(rows: TextItem[][], fullText: string): ParsedInvoice
     totalAmount = subtotal + vatAmount;
   }
 
-  
+  if (isTaxInvoice && vatAmount > 0 && subtotal > 0) {
+    const expectedVat = Math.round(subtotal * 0.07 * 100) / 100;
+    if (Math.abs(expectedVat - vatAmount) > 1.0) {
+      const derivedSubtotal = Math.round((subtotal - vatAmount) * 100) / 100;
+      const checkVat = Math.round(derivedSubtotal * 0.07 * 100) / 100;
+      if (Math.abs(checkVat - vatAmount) < 1.0 && derivedSubtotal > 0) {
+        totalAmount = Math.round(subtotal * 100) / 100;
+        subtotal = derivedSubtotal;
+      }
+    }
+  }
 
   const prefixInfo = classifyByPrefix(invoiceNo);
   return {
