@@ -387,25 +387,37 @@ function parseShopeeInvoice(rows: TextItem[][], fullText: string): ParsedInvoice
 
     if (/ภาษีมูลค่าเพิ่ม\s*7%|VAT\s*7%/i.test(text)) {
       const nums = text.match(/[\d,]+\.\d{2}/g);
-      if (nums) vatAmount = cleanNumber(nums[nums.length - 1]);
+      if (nums) { vatAmount = cleanNumber(nums[nums.length - 1]); console.log(`[PDF-Parse-VAL] VAT line: "${text.substring(0,80)}" → ${vatAmount}`); }
     }
 
     if (/มูลค่าบริการรวมภาษี|Total\s*Value.*Included\s*VAT/i.test(text)) {
       const nums = text.match(/[\d,]+\.\d{2}/g);
-      if (nums) totalAmount = cleanNumber(nums[nums.length - 1]);
+      if (nums) { totalAmount = cleanNumber(nums[nums.length - 1]); console.log(`[PDF-Parse-VAL] Total(incl) line: "${text.substring(0,80)}" → ${totalAmount}`); }
     }
 
     if (/มูลค่าก่อนภาษี.*หลังส่วนลด|after\s*discount/i.test(text)) {
       const nums = text.match(/[\d,]+\.\d{2}/g);
-      if (nums) subtotal = cleanNumber(nums[nums.length - 1]);
+      if (nums) {
+        const meaningful = nums.map(n => cleanNumber(n)).filter(v => v > 10);
+        subtotal = meaningful.length > 0 ? meaningful[0] : cleanNumber(nums[nums.length - 1]);
+        console.log(`[PDF-Parse-VAL] Subtotal(discount) line: "${text.substring(0,120)}" nums=[${nums}] → picked: ${subtotal}`);
+      }
     } else if (!subtotal && /มูลค่าก่อนภาษี|Total\s*Value.*Excluded\s*VAT/i.test(text) && !/หลังส่วนลด|after\s*discount/i.test(text)) {
       const nums = text.match(/[\d,]+\.\d{2}/g);
-      if (nums) subtotal = cleanNumber(nums[nums.length - 1]);
+      if (nums) {
+        const meaningful = nums.map(n => cleanNumber(n)).filter(v => v > 10);
+        subtotal = meaningful.length > 0 ? meaningful[0] : cleanNumber(nums[nums.length - 1]);
+        console.log(`[PDF-Parse-VAL] Subtotal line: "${text.substring(0,120)}" nums=[${nums}] → picked: ${subtotal}`);
+      }
     }
 
     if (/จำนวนเงินรวม|Total\s*amount/i.test(text) && !totalAmount) {
       const nums = text.match(/[\d,]+\.\d{2}/g);
-      if (nums) totalAmount = cleanNumber(nums[nums.length - 1]);
+      if (nums) { totalAmount = cleanNumber(nums[nums.length - 1]); console.log(`[PDF-Parse-VAL] Total(amount) line: "${text.substring(0,80)}" → ${totalAmount}`); }
+    }
+
+    if (/total|subtotal|มูลค่า|ภาษี|จำนวนเงิน|amount|value/i.test(text) && /[\d,]+\.\d{2}/.test(text)) {
+      console.log(`[PDF-Parse-LINE] "${text.substring(0,120)}"`);
     }
 
     const lineMatch = text.match(/^\d+\s+(.+?)\s+(\d+)\s+([\d,]+\.\d{2})\s+([\d,]+\.\d{2})$/);
@@ -452,25 +464,28 @@ function parseShopeeInvoice(rows: TextItem[][], fullText: string): ParsedInvoice
     });
   }
 
+  const subtotalFromPdf = subtotal > 0;
+  const totalFromPdf = totalAmount > 0;
+
   if (!subtotal && items.length > 0) {
     subtotal = items.reduce((s, it) => s + it.amount, 0);
   }
-  if (vatAmount > 0 && subtotal > 0 && !totalAmount) {
-    totalAmount = subtotal + vatAmount;
-  }
-  if (vatAmount > 0 && totalAmount > 0 && !subtotal) {
-    subtotal = totalAmount - vatAmount;
-  }
-  if (!totalAmount && subtotal > 0) {
-    totalAmount = subtotal + vatAmount;
-  }
 
-  if (vatAmount > 0 && totalAmount > 0 && subtotal > 0) {
-    const diff = Math.abs(subtotal + vatAmount - totalAmount);
-    if (diff > 1.0) {
-      if (Math.abs(subtotal - totalAmount) < 1.0) {
-        subtotal = totalAmount - vatAmount;
-      }
+  console.log(`[PDF-Parse] ${invoiceNo}: subtotalFromPdf=${subtotalFromPdf} totalFromPdf=${totalFromPdf} | subtotal=${subtotal} vat=${vatAmount} total=${totalAmount} items=${items.length}`);
+
+  if (subtotalFromPdf && totalFromPdf) {
+    // both read from PDF — trust them
+  } else if (subtotalFromPdf && !totalFromPdf) {
+    totalAmount = subtotal + vatAmount;
+  } else if (!subtotalFromPdf && totalFromPdf) {
+    subtotal = vatAmount > 0 ? totalAmount - vatAmount : totalAmount;
+  } else {
+    // neither from PDF — items sum is subtotal, but might be VAT-inclusive
+    if (vatAmount > 0 && subtotal > 0) {
+      totalAmount = subtotal;
+      subtotal = totalAmount - vatAmount;
+    } else {
+      totalAmount = subtotal + vatAmount;
     }
   }
 
