@@ -696,6 +696,9 @@ function parseTikTokInvoice(rows: TextItem[][], fullText: string): ParsedInvoice
     if (/Subtotal\s*\(excluding\s*VAT\)/i.test(text)) {
       subtotal = extractBahtAmount(text);
     }
+    if (isCreditNote && /Different\s*amount\s*\(excluding\s*VAT\)/i.test(text)) {
+      subtotal = extractBahtAmount(text);
+    }
     if (/Total\s*VAT\s*7%/i.test(text)) {
       vatAmount = extractBahtAmount(text);
     }

@@ -2350,7 +2350,7 @@ export function registerPurchaseRoutes(app: Express) {
         "TRSPEMKP": "SH", "TRSPESPF": "SHF", "TRSPXADB": "SPXA",
         "RCSPXSPR": "SPX", "RCSPXSPB": "SPX",
         "TRSLZD": "LZ", "THMPTI": "LZ", "THLPTI": "LZX",
-        "TTSTH": "TK", "TTSTHCN": "TK", "TTSTHAC": "EC",
+        "TTSTH": "TK", "TTSTHCN": "TKCN", "TTSTHAC": "EC",
         "THJV": "TKX", "IM": "GR",
       };
       function getBatchSuffix(doc: any): string {
@@ -2694,11 +2694,12 @@ export function registerPurchaseRoutes(app: Express) {
           return Object.keys(map).length >= 2 ? map : null;
         };
 
-        const formulaGroups = new Map<string, { date: string; formulaBt: string; subtotal: number; vat: number; total: number; wht: number; expIds: number[]; expNos: string[]; batchId: number | null; adCreditItems: { accountCode: string; accountName: string; amount: number; description: string }[]; feeBreakdown: Map<string, number> }>();
+        const formulaGroups = new Map<string, { date: string; formulaBt: string; subtotal: number; vat: number; total: number; wht: number; expIds: number[]; expNos: string[]; batchId: number | null; adCreditItems: { accountCode: string; accountName: string; amount: number; description: string }[]; feeBreakdown: Map<string, number>; batchSuffix: string }>();
         for (const { result, doc, validItems } of pendingJournals) {
           const resolvedBt = doc.resolvedFormulaBt || (formulaBusinessType && formulaBusinessType !== "auto-detect" ? formulaBusinessType : null) || "platform_fee";
-          const groupKey = `${result.expDate}||${resolvedBt}`;
-          const group = formulaGroups.get(groupKey) || { date: result.expDate, formulaBt: resolvedBt, subtotal: 0, vat: 0, total: 0, wht: 0, expIds: [], expNos: [], batchId: result.batchId || null, adCreditItems: [], feeBreakdown: new Map<string, number>() };
+          const docBatchSuffix = getBatchSuffix(doc);
+          const groupKey = `${result.expDate}||${resolvedBt}||${docBatchSuffix}`;
+          const group = formulaGroups.get(groupKey) || { date: result.expDate, formulaBt: resolvedBt, subtotal: 0, vat: 0, total: 0, wht: 0, expIds: [], expNos: [], batchId: result.batchId || null, adCreditItems: [], feeBreakdown: new Map<string, number>(), batchSuffix: docBatchSuffix };
           group.subtotal += parseFloat(String(result.subtotal || "0"));
           group.vat += parseFloat(String(result.vatAmount || "0"));
           group.total += parseFloat(String(result.totalAmount || "0"));
@@ -2747,7 +2748,7 @@ export function registerPurchaseRoutes(app: Express) {
 
         for (const [groupKey, group] of formulaGroups) {
           try {
-            const suffix = FORMULA_SUFFIX_MAP[group.formulaBt] || "PF";
+            const suffix = group.batchSuffix || FORMULA_SUFFIX_MAP[group.formulaBt] || "PF";
             const dxpNo = `DXP-${group.date.replace(/-/g, "")}-${suffix}`;
             const dxpBatchId = group.batchId;
 
