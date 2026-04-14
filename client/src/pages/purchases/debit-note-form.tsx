@@ -493,23 +493,19 @@ export default function DebitNoteForm() {
                     <td className="px-3 pt-1.5 pb-1 align-top" colSpan={2}>
                       <div className="text-[10px] text-slate-400 mb-0.5">อ้างอิงเอกสาร</div>
                       <div className="flex flex-col gap-0.5">
-                        {form.taxInvoiceRef && (
-                          <span data-testid="text-tax-invoice-ref" className="h-7 flex items-center text-xs text-slate-700 font-medium" title="เลขที่ใบกำกับภาษีต้นฉบับ">
-                            {form.taxInvoiceRef}
-                          </span>
-                        )}
-                        {form.refPurchaseInvoiceNo && !form.taxInvoiceRef && (
+                        {form.refPurchaseInvoiceNo && (
                           <span data-testid="input-ref-invoice" className="h-7 flex items-center text-xs text-slate-600">
                             {form.refPurchaseInvoiceNo}
                           </span>
                         )}
-                        {form.refExpenseNo ? (
+                        {form.refExpenseNo && (
                           <span data-testid="text-ref-expense" className="h-7 flex items-center text-xs text-slate-600">
                             {form.refExpenseNo}
                           </span>
-                        ) : !form.taxInvoiceRef && !form.refPurchaseInvoiceNo ? (
+                        )}
+                        {!form.refPurchaseInvoiceNo && !form.refExpenseNo && (
                           <span className="h-7 flex items-center text-xs text-slate-400">-</span>
-                        ) : null}
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -612,13 +608,23 @@ export default function DebitNoteForm() {
                         </Select>
                       </div>
                     </td>
-                    <td className="px-3 pt-1.5 pb-1 align-top" colSpan={2}>
+                    <td className="px-3 pt-1.5 pb-1 border-r align-top">
                       <div className="text-[10px] text-slate-400 mb-0.5">เลขที่ใบลดหนี้ซื้อ</div>
                       <div className="flex items-center gap-1">
                         <span className="text-xs text-slate-500 font-medium">DN</span>
                         <span className="text-slate-300">|</span>
                         <Input data-testid="input-debit-note-no" value={form.debitNoteNo} onChange={e => setForm(p => ({ ...p, debitNoteNo: e.target.value }))} className="h-7 text-xs border-dashed flex-1" placeholder="AUTO" />
                       </div>
+                    </td>
+                    <td className="px-3 pt-1.5 pb-1 align-top">
+                      <div className="text-[10px] text-slate-400 mb-0.5">เลขที่เอกสารต้นฉบับ</div>
+                      <Input
+                        data-testid="input-tax-invoice-ref"
+                        value={form.taxInvoiceRef}
+                        onChange={e => setForm(p => ({ ...p, taxInvoiceRef: e.target.value }))}
+                        className="h-7 text-xs border-dashed"
+                        placeholder="เลขที่ใบกำกับภาษีเดิม"
+                      />
                     </td>
                   </tr>
 
