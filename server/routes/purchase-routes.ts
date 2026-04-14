@@ -2746,11 +2746,18 @@ export function registerPurchaseRoutes(app: Express) {
           "platform_fee": "PF",
         };
 
+        const SKIP_AUTO_JOURNAL_SUFFIXES = new Set(["TKCN"]);
+
         for (const [groupKey, group] of formulaGroups) {
           try {
             const suffix = group.batchSuffix || FORMULA_SUFFIX_MAP[group.formulaBt] || "PF";
             const dxpNo = `DXP-${group.date.replace(/-/g, "")}-${suffix}`;
             const dxpBatchId = group.batchId;
+
+            if (SKIP_AUTO_JOURNAL_SUFFIXES.has(suffix)) {
+              console.log(`[PDF-Import] Skipping auto-journal for ${dxpNo} (credit note — manual journal required)`);
+              continue;
+            }
 
             const existingDxpJournals = await db.select({ id: journalEntries.id })
               .from(journalEntries)
