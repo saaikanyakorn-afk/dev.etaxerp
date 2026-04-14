@@ -504,13 +504,9 @@ export default function DebitNoteForm() {
                           </span>
                         )}
                         {form.refExpenseNo ? (
-                          <button
-                            data-testid="link-ref-expense"
-                            className="h-7 flex items-center text-xs text-[#03c9d7] hover:text-[#029baa] hover:underline font-medium"
-                            onClick={() => navigate(`/purchases/exp/edit/${form.refExpenseId}`)}
-                          >
-                            ↪ {form.refExpenseNo}
-                          </button>
+                          <span data-testid="text-ref-expense" className="h-7 flex items-center text-xs text-slate-600">
+                            {form.refExpenseNo}
+                          </span>
                         ) : !form.taxInvoiceRef && !form.refPurchaseInvoiceNo ? (
                           <span className="h-7 flex items-center text-xs text-slate-400">-</span>
                         ) : null}
