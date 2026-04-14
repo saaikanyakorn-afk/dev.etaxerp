@@ -21,6 +21,8 @@ interface ParsedInvoice {
   withholdingTax: number;
   notes: string;
   rawText: string;
+  platform?: "shopee" | "tiktok" | "lazada" | "other";
+  docSubType?: "platform_fee" | "shipping" | "commission" | "ads" | "mixed";
 }
 
 interface ParsedLineItem {
@@ -418,6 +420,7 @@ function parseShopeeInvoice(rows: TextItem[][], fullText: string): ParsedInvoice
     totalAmount = subtotal + vatAmount;
   }
 
+  const isSpx = vendorName.includes("SPX");
   return {
     invoiceNo,
     date,
@@ -433,6 +436,8 @@ function parseShopeeInvoice(rows: TextItem[][], fullText: string): ParsedInvoice
     withholdingTax: Math.round(withholdingTax * 100) / 100,
     notes: "",
     rawText: fullText.substring(0, 3000),
+    platform: "shopee" as const,
+    docSubType: isSpx ? "shipping" as const : "platform_fee" as const,
   };
 }
 
@@ -567,6 +572,8 @@ function parseTikTokReceipt(rows: TextItem[][], fullText: string): ParsedInvoice
     withholdingTax: Math.round(withholdingTax * 100) / 100,
     notes: "",
     rawText: fullText.substring(0, 3000),
+    platform: "tiktok" as const,
+    docSubType: "commission" as const,
   };
 }
 
@@ -684,6 +691,7 @@ function parseTikTokInvoice(rows: TextItem[][], fullText: string): ParsedInvoice
     totalAmount = subtotal + vatAmount;
   }
 
+  const isLogistics = /Thai\s*Happy\s*Logistics/i.test(fullText);
   return {
     invoiceNo,
     date,
@@ -699,6 +707,8 @@ function parseTikTokInvoice(rows: TextItem[][], fullText: string): ParsedInvoice
     withholdingTax: Math.round(withholdingTax * 100) / 100,
     notes: isCreditNote ? "CREDIT NOTE" : "",
     rawText: fullText.substring(0, 3000),
+    platform: "tiktok" as const,
+    docSubType: isLogistics ? "shipping" as const : "platform_fee" as const,
   };
 }
 
@@ -815,6 +825,7 @@ function parseLazadaInvoice(rows: TextItem[][], fullText: string): ParsedInvoice
     totalAmount = subtotal + vatAmount;
   }
 
+  const isLazExpress = /Lazada\s*Express/i.test(vendorName);
   return {
     invoiceNo,
     date,
@@ -830,6 +841,8 @@ function parseLazadaInvoice(rows: TextItem[][], fullText: string): ParsedInvoice
     withholdingTax: Math.round(withholdingTax * 100) / 100,
     notes: "",
     rawText: fullText.substring(0, 3000),
+    platform: "lazada" as const,
+    docSubType: isLazExpress ? "shipping" as const : "platform_fee" as const,
   };
 }
 
@@ -1098,6 +1111,8 @@ function parseGenericInvoice(rows: TextItem[][], fullText: string): ParsedInvoic
     withholdingTax: Math.round(withholdingTax * 100) / 100,
     notes: "",
     rawText: fullText.substring(0, 3000),
+    platform: "other" as const,
+    docSubType: "mixed" as const,
   };
 }
 

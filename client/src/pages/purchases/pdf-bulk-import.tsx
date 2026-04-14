@@ -57,6 +57,8 @@ interface ParsedDoc {
   folderPath: string;
   hasErrors: boolean;
   errors: string[];
+  platform?: string;
+  docSubType?: string;
 }
 
 interface BulkParseResult {
@@ -330,6 +332,8 @@ export default function PdfBulkImport() {
             archivedFileUrl: d.archivedFileUrl || null,
             folderPath: d.folderPath || "",
             fileName: d.fileName,
+            platform: d.platform || "other",
+            docSubType: d.docSubType || "mixed",
             items: d.items.map(it => ({
               description: it.description || it.productName,
               amount: it.amount || it.total,
@@ -356,6 +360,8 @@ export default function PdfBulkImport() {
             priceMode: "excluded",
             attachedUrl: d.archivedFileUrl || null,
             folderPath: d.folderPath || "",
+            platform: d.platform || "other",
+            docSubType: d.docSubType || "mixed",
             items: d.items.map(it => ({
               productName: it.description || it.productName,
               description: it.description,
@@ -742,6 +748,7 @@ export default function PdfBulkImport() {
                         <TableHead>วันที่</TableHead>
                         <TableHead>ผู้ขาย/ผู้รับเงิน</TableHead>
                         <TableHead>เลขผู้เสียภาษี</TableHead>
+                        <TableHead>แพลตฟอร์ม</TableHead>
                         <TableHead>รายการ</TableHead>
                         <TableHead className="text-right">ยอดรวม</TableHead>
                         <TableHead className="text-right">VAT</TableHead>
@@ -790,6 +797,29 @@ export default function PdfBulkImport() {
                               )}
                             </TableCell>
                             <TableCell className="text-sm font-mono">{doc.vendorTaxId || "-"}</TableCell>
+                            <TableCell className="text-sm">
+                              {(() => {
+                                const pf = doc.platform || "other";
+                                const st = doc.docSubType || "mixed";
+                                const PLATFORM_LABELS: Record<string, { label: string; color: string }> = {
+                                  "shopee:platform_fee": { label: "Shopee ค่าบริการ", color: "bg-orange-100 text-orange-700" },
+                                  "shopee:shipping": { label: "SPX ค่าขนส่ง", color: "bg-orange-50 text-orange-600" },
+                                  "shopee:commission": { label: "Shopee คอมมิชชั่น", color: "bg-orange-100 text-orange-700" },
+                                  "tiktok:platform_fee": { label: "TikTok ค่าบริการ", color: "bg-slate-100 text-slate-700" },
+                                  "tiktok:shipping": { label: "TikTok ค่าขนส่ง", color: "bg-slate-50 text-slate-600" },
+                                  "tiktok:commission": { label: "TikTok Affiliate", color: "bg-purple-100 text-purple-700" },
+                                  "lazada:platform_fee": { label: "Lazada ค่าบริการ", color: "bg-blue-100 text-blue-700" },
+                                  "lazada:shipping": { label: "Lazada ค่าขนส่ง", color: "bg-blue-50 text-blue-600" },
+                                  "lazada:commission": { label: "Lazada คอมมิชชั่น", color: "bg-blue-100 text-blue-700" },
+                                };
+                                const key = `${pf}:${st}`;
+                                const info = PLATFORM_LABELS[key];
+                                if (info) {
+                                  return <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${info.color}`}>{info.label}</span>;
+                                }
+                                return <span className="text-gray-400 text-xs">ทั่วไป</span>;
+                              })()}
+                            </TableCell>
                             <TableCell className="text-sm max-w-[250px]">
                               {doc.items.length > 0 ? (
                                 <div className="space-y-0.5">
@@ -933,26 +963,66 @@ export default function PdfBulkImport() {
                   </div>
                 </div>
 
-                {autoJournal && availableFormulas.length > 0 && (
-                  <div className="mt-3 flex items-center gap-3">
-                    <label className="text-sm font-medium whitespace-nowrap">สูตรบัญชี:</label>
-                    <Select value={selectedFormulaIdx} onValueChange={setSelectedFormulaIdx} data-testid="select-formula">
-                      <SelectTrigger className="w-[400px]" data-testid="select-formula-trigger">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {availableFormulas.map((f: any, idx: number) => (
-                          <SelectItem key={idx} value={String(idx)} data-testid={`formula-option-${idx}`}>
-                            {f.nameTh} {f.source === "default" ? `(${f.businessType})` : ""}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    {selectedFormula?.source === "default" && (
-                      <Badge variant="outline" className="text-xs">สูตรเริ่มต้น</Badge>
-                    )}
-                  </div>
-                )}
+                {autoJournal && availableFormulas.length > 0 && (() => {
+                  const platformSet = new Set(selectedDocsList.map(d => `${d.platform || "other"}:${d.docSubType || "mixed"}`));
+                  const hasMultiplePlatforms = platformSet.size > 1;
+                  const hasPlatformDocs = selectedDocsList.some(d => d.platform && d.platform !== "other");
+
+                  const FORMULA_LABEL_MAP: Record<string, string> = {
+                    "shopee:platform_fee": "Shopee ค่าบริการ → 5241000+5251000+5271000",
+                    "shopee:shipping": "SPX ค่าขนส่ง → 5265000",
+                    "shopee:commission": "Shopee คอมมิชชั่น → 5241000",
+                    "tiktok:platform_fee": "TikTok ค่าบริการ → 5243000+5253000+5273000",
+                    "tiktok:shipping": "TikTok ค่าขนส่ง → 5267000",
+                    "tiktok:commission": "TikTok Affiliate → 5243000",
+                    "lazada:platform_fee": "Lazada ค่าบริการ → 5242000+5252000+5272000",
+                    "lazada:shipping": "Lazada ค่าขนส่ง → 5266000",
+                    "lazada:commission": "Lazada คอมมิชชั่น → 5242000",
+                  };
+
+                  if (hasPlatformDocs) {
+                    return (
+                      <div className="mt-3 space-y-2">
+                        <div className="flex items-center gap-2">
+                          <label className="text-sm font-medium">สูตรบัญชี:</label>
+                          <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200">Auto-Detect ตามแพลตฟอร์ม</Badge>
+                          {hasMultiplePlatforms && (
+                            <span className="text-xs text-gray-500">({platformSet.size} ประเภท — journal จะแยกอัตโนมัติ)</span>
+                          )}
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {Array.from(platformSet).map(key => {
+                            const info = FORMULA_LABEL_MAP[key];
+                            return info ? (
+                              <div key={key} className="text-xs bg-gray-50 border rounded px-2 py-1 text-gray-600">{info}</div>
+                            ) : null;
+                          })}
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="mt-3 flex items-center gap-3">
+                      <label className="text-sm font-medium whitespace-nowrap">สูตรบัญชี:</label>
+                      <Select value={selectedFormulaIdx} onValueChange={setSelectedFormulaIdx} data-testid="select-formula">
+                        <SelectTrigger className="w-[400px]" data-testid="select-formula-trigger">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {availableFormulas.map((f: any, idx: number) => (
+                            <SelectItem key={idx} value={String(idx)} data-testid={`formula-option-${idx}`}>
+                              {f.nameTh} {f.source === "default" ? `(${f.businessType})` : ""}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {selectedFormula?.source === "default" && (
+                        <Badge variant="outline" className="text-xs">สูตรเริ่มต้น</Badge>
+                      )}
+                    </div>
+                  );
+                })()}
 
                 {showJournalPreview && autoJournal && selectedDocsList.length > 0 && (
                   <div className="mt-4 border rounded-lg p-4 bg-blue-50/50">

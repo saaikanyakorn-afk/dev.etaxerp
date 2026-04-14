@@ -2354,14 +2354,44 @@ export function registerPurchaseRoutes(app: Express) {
         }
       }
 
-      let formulaDebitCode: string | null = null;
-      if (formulaBusinessType) {
-        const defFormula = DEFAULT_FORMULAS.find((f: any) => f.documentType === "purchase" && f.businessType === formulaBusinessType)
-          || DEFAULT_FORMULAS.find((f: any) => f.documentType === "expense" && f.businessType === formulaBusinessType);
+      const PLATFORM_FORMULA_MAP: Record<string, string> = {
+        "shopee:platform_fee": "shopee_platform_fee",
+        "shopee:shipping": "shopee_shipping",
+        "shopee:commission": "shopee_commission",
+        "shopee:ads": "shopee_platform_fee",
+        "shopee:mixed": "shopee_platform_fee",
+        "tiktok:platform_fee": "tiktok_platform_fee",
+        "tiktok:shipping": "tiktok_shipping",
+        "tiktok:commission": "ecommerce_commission",
+        "tiktok:ads": "tiktok_platform_fee",
+        "tiktok:mixed": "tiktok_platform_fee",
+        "lazada:platform_fee": "lazada_platform_fee",
+        "lazada:shipping": "lazada_shipping",
+        "lazada:commission": "lazada_commission",
+        "lazada:ads": "lazada_platform_fee",
+        "lazada:mixed": "lazada_platform_fee",
+        "other:mixed": "platform_fee",
+      };
+
+      function resolveFormulaForDoc(doc: any): string | null {
+        if (doc.formulaBusinessType) return doc.formulaBusinessType;
+        const key = `${doc.platform || "other"}:${doc.docSubType || "mixed"}`;
+        return PLATFORM_FORMULA_MAP[key] || formulaBusinessType || null;
+      }
+
+      function getDebitCodeForFormula(bt: string): string | null {
+        const defFormula = DEFAULT_FORMULAS.find((f: any) => f.documentType === "purchase" && f.businessType === bt)
+          || DEFAULT_FORMULAS.find((f: any) => f.documentType === "expense" && f.businessType === bt);
         if (defFormula) {
           const debitLine = defFormula.lines.find((l: any) => l.direction === "debit" && !l.accountCode.startsWith("143"));
-          if (debitLine) formulaDebitCode = debitLine.accountCode;
+          if (debitLine) return debitLine.accountCode;
         }
+        return null;
+      }
+
+      let formulaDebitCode: string | null = null;
+      if (formulaBusinessType) {
+        formulaDebitCode = getDebitCodeForFormula(formulaBusinessType);
       }
 
       const created: any[] = [];
@@ -2474,11 +2504,14 @@ export function registerPurchaseRoutes(app: Express) {
               createdBy: user.id,
             }).returning();
 
+            const docFormulaBt = resolveFormulaForDoc(doc);
+            const docDebitCode = docFormulaBt ? getDebitCodeForFormula(docFormulaBt) : formulaDebitCode;
+
             const itemValues = validItems.map((item: any) => {
               let acctCode = item.accountCode || "";
               let acct = accountMap.get(acctCode);
-              if (!acct && formulaDebitCode) {
-                acctCode = formulaDebitCode;
+              if (!acct && docDebitCode) {
+                acctCode = docDebitCode;
                 acct = accountMap.get(acctCode) || null;
               }
               if (!acct) {
@@ -2506,7 +2539,8 @@ export function registerPurchaseRoutes(app: Express) {
           });
 
           if (autoJournal || autoWht) {
-            pendingJournals.push({ result, doc, validItems });
+            const resolvedBt = resolveFormulaForDoc(doc);
+            pendingJournals.push({ result, doc: { ...doc, resolvedFormulaBt: resolvedBt }, validItems });
           }
 
           
@@ -2524,23 +2558,40 @@ export function registerPurchaseRoutes(app: Express) {
         }
       }
 
-      if (autoJournal && (formulaId || formulaBusinessType) && pendingJournals.length > 0) {
-        const dailyGroups = new Map<string, { date: string; subtotal: number; vat: number; total: number; wht: number; expNos: string[]; batchId: number | null }>();
-        for (const { result } of pendingJournals) {
-          const dateKey = result.expDate;
-          const group = dailyGroups.get(dateKey) || { date: dateKey, subtotal: 0, vat: 0, total: 0, wht: 0, expNos: [], batchId: result.batchId || null };
+      const hasAutoJournal = autoJournal && pendingJournals.length > 0;
+      if (hasAutoJournal) {
+        const formulaGroups = new Map<string, { date: string; formulaBt: string; subtotal: number; vat: number; total: number; wht: number; expIds: number[]; expNos: string[]; batchId: number | null }>();
+        for (const { result, doc } of pendingJournals) {
+          const resolvedBt = doc.resolvedFormulaBt || formulaBusinessType || "platform_fee";
+          const groupKey = `${result.expDate}||${resolvedBt}`;
+          const group = formulaGroups.get(groupKey) || { date: result.expDate, formulaBt: resolvedBt, subtotal: 0, vat: 0, total: 0, wht: 0, expIds: [], expNos: [], batchId: result.batchId || null };
           group.subtotal += parseFloat(String(result.subtotal || "0"));
           group.vat += parseFloat(String(result.vatAmount || "0"));
           group.total += parseFloat(String(result.totalAmount || "0"));
           group.wht += parseFloat(String(result.withholdingTax || "0"));
+          group.expIds.push(result.id);
           group.expNos.push(result.expNo);
-          dailyGroups.set(dateKey, group);
+          formulaGroups.set(groupKey, group);
         }
 
-        for (const [dateKey, group] of dailyGroups) {
+        const FORMULA_SUFFIX_MAP: Record<string, string> = {
+          "shopee_platform_fee": "SH",
+          "shopee_shipping": "SPX",
+          "shopee_commission": "SHC",
+          "lazada_platform_fee": "LZ",
+          "lazada_shipping": "LZX",
+          "lazada_commission": "LZC",
+          "tiktok_platform_fee": "TK",
+          "tiktok_shipping": "TKX",
+          "ecommerce_commission": "EC",
+          "platform_fee": "PF",
+        };
+
+        for (const [groupKey, group] of formulaGroups) {
           try {
+            const suffix = FORMULA_SUFFIX_MAP[group.formulaBt] || "PF";
+            const dxpNo = `DXP-${group.date.replace(/-/g, "")}-${suffix}`;
             const dxpBatchId = group.batchId;
-            const dxpNo = `DXP-${dateKey.replace(/-/g, "")}`;
 
             const existingDxpJournals = await db.select({ id: journalEntries.id })
               .from(journalEntries)
@@ -2551,7 +2602,7 @@ export function registerPurchaseRoutes(app: Express) {
               ));
 
             if (existingDxpJournals.length > 0) {
-              console.log(`[PDF-Import] DXP journal ${dxpNo} already exists (${existingDxpJournals.length} entries), deleting to recreate with combined totals...`);
+              console.log(`[PDF-Import] DXP journal ${dxpNo} already exists (${existingDxpJournals.length} entries), deleting to recreate...`);
               for (const ej of existingDxpJournals) {
                 const ejId = ej.id;
                 const clearRef = async (stmt: string) => { try { await db.execute(sql.raw(stmt)); } catch {} };
@@ -2561,64 +2612,35 @@ export function registerPurchaseRoutes(app: Express) {
               }
             }
 
-            const allDayExps = await db.select({
-              expNo: expenses.expNo,
-              subtotal: expenses.subtotal,
-              vatAmount: expenses.vatAmount,
-              totalAmount: expenses.totalAmount,
-              withholdingTax: expenses.withholdingTax,
-            }).from(expenses).where(and(
-              eq(expenses.companyId, companyId),
-              eq(expenses.expDate, dateKey),
-            ));
-
-            let daySubtotal = 0, dayVat = 0, dayTotal = 0, dayWht = 0;
-            const dayExpNos: string[] = [];
-            for (const e of allDayExps) {
-              daySubtotal += parseFloat(String(e.subtotal || "0"));
-              dayVat += parseFloat(String(e.vatAmount || "0"));
-              dayTotal += parseFloat(String(e.totalAmount || "0"));
-              dayWht += parseFloat(String(e.withholdingTax || "0"));
-              dayExpNos.push(e.expNo);
-            }
-
-            if (allDayExps.length === 0) {
-              console.log(`[PDF-Import] DXP ${dxpNo}: no expenses found for this date, skipping journal`);
-              continue;
-            }
-
-            console.log(`[PDF-Import] Auto journal for DXP ${dxpNo}: ${allDayExps.length} expenses (all day), total=${dayTotal.toFixed(2)}`);
+            console.log(`[PDF-Import] Auto journal ${dxpNo}: ${group.expNos.length} expenses, formula=${group.formulaBt}, total=${group.total.toFixed(2)}`);
             const journalResult = await createAutoJournalEntry({
               companyId,
               documentType: "expense",
               sourceDocType: "expense_daily_batch",
               sourceDocId: dxpBatchId || 0,
-              docDate: dateKey,
+              docDate: group.date,
               docNo: dxpNo,
-              subtotal: daySubtotal.toFixed(2),
-              vatAmount: dayVat.toFixed(2),
-              totalAmount: dayTotal.toFixed(2),
-              withholdingTax: dayWht.toFixed(2),
+              subtotal: group.subtotal.toFixed(2),
+              vatAmount: group.vat.toFixed(2),
+              totalAmount: group.total.toFixed(2),
+              withholdingTax: group.wht.toFixed(2),
               userId: user.id,
-              customerName: `สรุปค่าใช้จ่ายรายวัน (${allDayExps.length} ใบ)`,
+              customerName: `สรุปค่าใช้จ่าย ${suffix} (${group.expNos.length} ใบ)`,
               paymentMethod: globalPayMethod || undefined,
               paymentMethodAccountCode: pmAccCode,
-              formulaId: formulaId || undefined,
-              formulaBusinessType: formulaBusinessType || undefined,
+              formulaId: undefined,
+              formulaBusinessType: group.formulaBt,
               overrideLines: req?.body?.journalOverrideLines || undefined,
             });
             console.log(`[PDF-Import] DXP Journal result for ${dxpNo}:`, JSON.stringify(journalResult));
-            if (journalResult) {
+            if (journalResult && group.expIds.length > 0) {
               await db.update(expenses)
                 .set({ linkJournal: true })
-                .where(and(
-                  eq(expenses.companyId, companyId),
-                  eq(expenses.expDate, dateKey),
-                ));
-              console.log(`[PDF-Import] Updated linkJournal=true for ${dayExpNos.length} expenses on ${dateKey}`);
+                .where(inArray(expenses.id, group.expIds));
+              console.log(`[PDF-Import] Updated linkJournal=true for ${group.expIds.length} expenses`);
             }
           } catch (e) {
-            console.log(`Auto journal for DXP ${dateKey} skipped:`, (e as any).message);
+            console.log(`Auto journal for group ${groupKey} skipped:`, (e as any).message);
           }
         }
       }
@@ -3247,6 +3269,8 @@ export function registerPurchaseRoutes(app: Express) {
             })),
             isTikTok: parsed.invoiceNo?.startsWith("TTSTHAC") || false,
             isPlatformFee: /Shopee|SPX\s*Express/i.test(parsed.vendorName || "") || parsed.invoiceNo?.startsWith("TRSPEMKP") || parsed.invoiceNo?.startsWith("RCSPXSP") || false,
+            platform: parsed.platform || "other",
+            docSubType: parsed.docSubType || "mixed",
             archivedFileUrl,
             folderPath: folderPaths[fi] || "",
             hasErrors: docErrors.length > 0,
