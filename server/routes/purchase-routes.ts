@@ -2350,7 +2350,7 @@ export function registerPurchaseRoutes(app: Express) {
         "TRSPEMKP": "SH", "TRSPESPF": "SHF", "TRSPXADB": "SPXA",
         "RCSPXSPR": "SPX", "RCSPXSPB": "SPX",
         "TRSLZD": "LZ", "THMPTI": "LZ", "THLPTI": "LZX",
-        "TTSTH": "TK", "TTSTHCN": "TK", "TTSTHAC": "TKC",
+        "TTSTH": "TK", "TTSTHCN": "TK", "TTSTHAC": "EC",
         "THJV": "TKX", "IM": "GR",
       };
       function getBatchSuffix(doc: any): string {
