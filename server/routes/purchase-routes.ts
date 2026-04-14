@@ -2246,7 +2246,32 @@ export function registerPurchaseRoutes(app: Express) {
                 lineItemDescriptions: _jiDescs.length > 0 ? _jiDescs : undefined,
                 lineItemAccounts: _jiAccounts.length > 0 ? _jiAccounts : undefined,
                 formulaId: formulaId || undefined,
-                formulaBusinessType: formulaBusinessType || undefined,
+                formulaBusinessType: formulaBusinessType && formulaBusinessType !== "auto-detect"
+                  ? formulaBusinessType
+                  : (doc.platform && doc.platform !== "other"
+                    ? (() => {
+                        const invNo = doc.taxInvoiceRef || "";
+                        const upper = invNo.toUpperCase();
+                        const PREFIX_MAP: Record<string, string> = {
+                          "TRSPEMKP": "shopee_platform_fee", "TRSPESPF": "shopeefood_fee",
+                          "TRSPXADB": "spx_admin_fee", "RCSPXSPR": "shopee_shipping", "RCSPXSPB": "shopee_shipping",
+                          "TTSTH": "tiktok_platform_fee", "TTSTHCN": "tiktok_platform_fee",
+                          "TTSTHAC": "ecommerce_commission", "THJV": "tiktok_shipping",
+                          "THMPTI": "lazada_platform_fee", "THLPTI": "lazada_shipping",
+                          "IM": "grab_service_fee",
+                        };
+                        const sorted = Object.keys(PREFIX_MAP).sort((a, b) => b.length - a.length);
+                        for (const p of sorted) { if (upper.startsWith(p)) return PREFIX_MAP[p]; }
+                        const key = `${doc.platform || "other"}:${doc.docSubType || "mixed"}`;
+                        const PLAT_MAP: Record<string, string> = {
+                          "shopee:platform_fee": "shopee_platform_fee", "shopee:shipping": "shopee_shipping",
+                          "tiktok:platform_fee": "tiktok_platform_fee", "tiktok:shipping": "tiktok_shipping",
+                          "lazada:platform_fee": "lazada_platform_fee", "lazada:shipping": "lazada_shipping",
+                          "grab:service_fee": "grab_service_fee",
+                        };
+                        return PLAT_MAP[key] || undefined;
+                      })()
+                    : undefined),
                 overrideLines: body?.journalOverrideLines || req?.body?.journalOverrideLines || undefined,
               });
             } catch (e: any) {
@@ -2409,7 +2434,8 @@ export function registerPurchaseRoutes(app: Express) {
           }
         }
         const key = `${doc.platform || "other"}:${doc.docSubType || "mixed"}`;
-        return PLATFORM_FORMULA_MAP[key] || formulaBusinessType || null;
+        const fallbackBt = formulaBusinessType && formulaBusinessType !== "auto-detect" ? formulaBusinessType : null;
+        return PLATFORM_FORMULA_MAP[key] || fallbackBt || null;
       }
 
       function getDebitCodeForFormula(bt: string): string | null {
@@ -2423,7 +2449,7 @@ export function registerPurchaseRoutes(app: Express) {
       }
 
       let formulaDebitCode: string | null = null;
-      if (formulaBusinessType) {
+      if (formulaBusinessType && formulaBusinessType !== "auto-detect") {
         formulaDebitCode = getDebitCodeForFormula(formulaBusinessType);
       }
 
@@ -2595,7 +2621,7 @@ export function registerPurchaseRoutes(app: Express) {
       if (hasAutoJournal) {
         const formulaGroups = new Map<string, { date: string; formulaBt: string; subtotal: number; vat: number; total: number; wht: number; expIds: number[]; expNos: string[]; batchId: number | null }>();
         for (const { result, doc } of pendingJournals) {
-          const resolvedBt = doc.resolvedFormulaBt || formulaBusinessType || "platform_fee";
+          const resolvedBt = doc.resolvedFormulaBt || (formulaBusinessType && formulaBusinessType !== "auto-detect" ? formulaBusinessType : null) || "platform_fee";
           const groupKey = `${result.expDate}||${resolvedBt}`;
           const group = formulaGroups.get(groupKey) || { date: result.expDate, formulaBt: resolvedBt, subtotal: 0, vat: 0, total: 0, wht: 0, expIds: [], expNos: [], batchId: result.batchId || null };
           group.subtotal += parseFloat(String(result.subtotal || "0"));

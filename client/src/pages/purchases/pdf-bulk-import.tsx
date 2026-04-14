@@ -193,7 +193,7 @@ export default function PdfBulkImport() {
     },
     enabled: !!companyId,
   });
-  const selectedFormula = availableFormulas[Number(selectedFormulaIdx)] || availableFormulas[0] || null;
+  const selectedFormula = selectedFormulaIdx === "auto-detect" ? null : (availableFormulas[Number(selectedFormulaIdx)] || availableFormulas[0] || null);
   const PAYMENT_METHODS = companyPaymentMethods.length > 0
     ? companyPaymentMethods.map((m: any) => ({ value: m.code || m.name, label: m.name }))
     : FALLBACK_PAYMENT_METHODS;
@@ -291,10 +291,9 @@ export default function PdfBulkImport() {
       }
       const hasTikTok = data.documents.some(d => d.isTikTok);
       if (hasTikTok) setDocType("expense");
-      const hasPlatformFee = data.documents.some((d: any) => d.isPlatformFee);
-      if (hasPlatformFee && availableFormulas.length > 0) {
-        const pfIdx = availableFormulas.findIndex((f: any) => f.businessType === "platform_fee");
-        if (pfIdx >= 0) setSelectedFormulaIdx(String(pfIdx));
+      const hasPlatformDocs = data.documents.some((d: any) => d.platform && d.platform !== "other");
+      if (hasPlatformDocs) {
+        setSelectedFormulaIdx("auto-detect");
       }
     },
     onError: (err: any) => {
@@ -387,8 +386,10 @@ export default function PdfBulkImport() {
           autoJournal,
           autoWht: docType === "expense" && whtRate > 0,
           paymentMethod,
-          formulaId: autoJournal && selectedFormula?.id ? selectedFormula.id : undefined,
-          formulaBusinessType: autoJournal && !selectedFormula?.id && selectedFormula?.businessType ? selectedFormula.businessType : undefined,
+          formulaId: autoJournal && selectedFormulaIdx !== "auto-detect" && selectedFormula?.id ? selectedFormula.id : undefined,
+          formulaBusinessType: autoJournal
+            ? (selectedFormulaIdx === "auto-detect" ? "auto-detect" : (selectedFormula?.businessType || undefined))
+            : undefined,
         }),
       });
       if (!res.ok) {
@@ -965,61 +966,54 @@ export default function PdfBulkImport() {
 
                 {autoJournal && availableFormulas.length > 0 && (() => {
                   const platformSet = new Set(selectedDocsList.map(d => `${d.platform || "other"}:${d.docSubType || "mixed"}`));
-                  const hasMultiplePlatforms = platformSet.size > 1;
                   const hasPlatformDocs = selectedDocsList.some(d => d.platform && d.platform !== "other");
 
-                  const FORMULA_LABEL_MAP: Record<string, string> = {
-                    "shopee:platform_fee": "Shopee ค่าบริการ → 5241000+5251000+5271000",
-                    "shopee:shipping": "SPX ค่าขนส่ง → 5265000",
-                    "shopee:commission": "Shopee คอมมิชชั่น → 5241000",
-                    "tiktok:platform_fee": "TikTok ค่าบริการ → 5243000+5253000+5273000",
-                    "tiktok:shipping": "TikTok ค่าขนส่ง → 5267000",
-                    "tiktok:commission": "TikTok Affiliate → 5243000",
-                    "lazada:platform_fee": "Lazada ค่าบริการ → 5242000+5252000+5272000",
-                    "lazada:shipping": "Lazada ค่าขนส่ง → 5266000",
-                    "lazada:commission": "Lazada คอมมิชชั่น → 5242000",
-                  };
-
-                  if (hasPlatformDocs) {
-                    return (
-                      <div className="mt-3 space-y-2">
-                        <div className="flex items-center gap-2">
-                          <label className="text-sm font-medium">สูตรบัญชี:</label>
-                          <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200">Auto-Detect ตามแพลตฟอร์ม</Badge>
-                          {hasMultiplePlatforms && (
-                            <span className="text-xs text-gray-500">({platformSet.size} ประเภท — journal จะแยกอัตโนมัติ)</span>
-                          )}
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                          {Array.from(platformSet).map(key => {
-                            const info = FORMULA_LABEL_MAP[key];
-                            return info ? (
-                              <div key={key} className="text-xs bg-gray-50 border rounded px-2 py-1 text-gray-600">{info}</div>
-                            ) : null;
-                          })}
-                        </div>
-                      </div>
-                    );
-                  }
-
                   return (
-                    <div className="mt-3 flex items-center gap-3">
-                      <label className="text-sm font-medium whitespace-nowrap">สูตรบัญชี:</label>
-                      <Select value={selectedFormulaIdx} onValueChange={setSelectedFormulaIdx} data-testid="select-formula">
-                        <SelectTrigger className="w-[400px]" data-testid="select-formula-trigger">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {availableFormulas.map((f: any, idx: number) => (
-                            <SelectItem key={idx} value={String(idx)} data-testid={`formula-option-${idx}`}>
-                              {f.nameTh} {f.source === "default" ? `(${f.businessType})` : ""}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      {selectedFormula?.source === "default" && (
-                        <Badge variant="outline" className="text-xs">สูตรเริ่มต้น</Badge>
-                      )}
+                    <div className="mt-3 flex flex-wrap items-start gap-3">
+                      <label className="text-sm font-medium whitespace-nowrap mt-2">สูตรบัญชี:</label>
+                      <div className="flex flex-col gap-2">
+                        <Select value={selectedFormulaIdx} onValueChange={setSelectedFormulaIdx} data-testid="select-formula">
+                          <SelectTrigger className="w-[480px]" data-testid="select-formula-trigger">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {hasPlatformDocs && (
+                              <SelectItem value="auto-detect" data-testid="formula-option-auto">
+                                🔍 Auto-Detect ตามแพลตฟอร์ม (แยก journal อัตโนมัติ)
+                              </SelectItem>
+                            )}
+                            {availableFormulas.map((f: any, idx: number) => (
+                              <SelectItem key={idx} value={String(idx)} data-testid={`formula-option-${idx}`}>
+                                {f.nameTh} {f.source === "default" ? `(${f.businessType})` : ""}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {selectedFormulaIdx === "auto-detect" && hasPlatformDocs && (
+                          <div className="flex flex-wrap gap-1.5">
+                            {Array.from(platformSet).map(key => {
+                              const FORMULA_LABEL_MAP: Record<string, string> = {
+                                "shopee:platform_fee": "Shopee ค่าบริการ",
+                                "shopee:shipping": "SPX ค่าขนส่ง",
+                                "shopee:service_fee": "ShopeeFood/SPX Admin",
+                                "tiktok:platform_fee": "TikTok ค่าบริการ",
+                                "tiktok:shipping": "TikTok ค่าขนส่ง",
+                                "tiktok:commission": "TikTok Affiliate",
+                                "lazada:platform_fee": "Lazada ค่าบริการ",
+                                "lazada:shipping": "Lazada ค่าขนส่ง",
+                                "grab:service_fee": "Grab ค่าบริการ",
+                              };
+                              const info = FORMULA_LABEL_MAP[key];
+                              return info ? (
+                                <div key={key} className="text-xs bg-gray-50 border rounded px-2 py-0.5 text-gray-600">{info}</div>
+                              ) : null;
+                            })}
+                          </div>
+                        )}
+                        {selectedFormula?.source === "default" && selectedFormulaIdx !== "auto-detect" && (
+                          <span className="text-xs text-gray-500">สูตรเริ่มต้นระบบ ({selectedFormula.businessType})</span>
+                        )}
+                      </div>
                     </div>
                   );
                 })()}
@@ -1029,6 +1023,30 @@ export default function PdfBulkImport() {
                     <div className="text-sm font-medium mb-3 text-blue-800 flex items-center gap-2">
                       <BookOpen className="h-4 w-4" /> พรีวิวการบันทึกบัญชี (ตัวอย่าง — ต่อเอกสาร)
                     </div>
+                    {selectedFormulaIdx === "auto-detect" ? (
+                      <div className="bg-white rounded border p-4 text-sm text-gray-600">
+                        <p className="font-medium text-gray-800 mb-2">โหมด Auto-Detect — สูตรจะถูกเลือกตามประเภทเอกสารอัตโนมัติ</p>
+                        <p className="text-xs text-gray-500 mb-3">แต่ละเอกสารจะถูกจับคู่สูตรบัญชีจาก Invoice No. prefix โดยอัตโนมัติ<br/>Journal Entry จะแยกตามวันที่ + ประเภทแพลตฟอร์ม</p>
+                        <div className="grid grid-cols-2 gap-2 text-xs">
+                          {[
+                            { prefix: "TRSPEMKP", label: "Shopee ค่าบริการ", acct: "5241+5251+5271" },
+                            { prefix: "TRSPESPF", label: "ShopeeFood", acct: "5245+5255" },
+                            { prefix: "TRSPXADB", label: "SPX Admin Fee", acct: "5256" },
+                            { prefix: "RCSPXSPR/B", label: "SPX ค่าขนส่ง", acct: "5265" },
+                            { prefix: "TTSTH", label: "TikTok ค่าบริการ", acct: "5243+5253+5273" },
+                            { prefix: "THJV", label: "TikTok ค่าขนส่ง", acct: "5267" },
+                            { prefix: "THMPTI", label: "Lazada ค่าบริการ", acct: "5242+5252+5272" },
+                            { prefix: "THLPTI", label: "Lazada ค่าขนส่ง", acct: "5266" },
+                            { prefix: "IM", label: "Grab ค่าบริการ", acct: "5244+5254" },
+                          ].map(r => (
+                            <div key={r.prefix} className="flex justify-between bg-gray-50 rounded px-2 py-1">
+                              <span className="font-mono text-gray-500">{r.prefix}</span>
+                              <span>{r.label} → {r.acct}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
                     <div className="bg-white rounded border overflow-x-auto">
                       <Table>
                         <TableHeader>
@@ -1111,6 +1129,7 @@ export default function PdfBulkImport() {
                         </TableBody>
                       </Table>
                     </div>
+                    )}
                     <p className="text-xs text-gray-500 mt-2">* พรีวิวยอดรวม — การบันทึกจริงจะสร้าง Journal Entry แยกต่อเอกสาร</p>
                   </div>
                 )}
