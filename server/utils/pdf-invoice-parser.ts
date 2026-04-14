@@ -460,6 +460,37 @@ function parseShopeeInvoice(rows: TextItem[][], fullText: string): ParsedInvoice
     totalAmount = subtotal + vatAmount;
   }
 
+  if (isTaxInvoice && vatAmount > 0 && subtotal > 0 && items.length > 0) {
+    const itemsTotal = items.reduce((s, it) => s + it.amount, 0);
+    const expectedVat = Math.round(itemsTotal * 0.07 * 100) / 100;
+    if (Math.abs(expectedVat - vatAmount) > 1.0) {
+      const vatableAmount = Math.round((vatAmount / 0.07) * 100) / 100;
+      const nonVatAmount = Math.round((subtotal - vatableAmount) * 100) / 100;
+      if (nonVatAmount > 0.5) {
+        const knownNonVatItems = items.filter(it => /^paid\s*ads$/i.test((it.description || "").trim()));
+        const knownNonVatTotal = knownNonVatItems.reduce((s, it) => s + it.amount, 0);
+
+        if (Math.abs(knownNonVatTotal - nonVatAmount) < 1.0) {
+          for (const it of knownNonVatItems) it.vatType = "non_vat";
+        } else {
+          let remaining = nonVatAmount;
+          const candidates = [...items].sort((a, b) => {
+            const aIsAd = /paid\s*ads/i.test(a.description) ? 0 : 1;
+            const bIsAd = /paid\s*ads/i.test(b.description) ? 0 : 1;
+            return aIsAd - bIsAd;
+          });
+          for (const it of candidates) {
+            if (remaining <= 0.5) break;
+            if (it.amount <= remaining + 0.5) {
+              it.vatType = "non_vat";
+              remaining -= it.amount;
+            }
+          }
+        }
+      }
+    }
+  }
+
   const prefixInfo = classifyByPrefix(invoiceNo);
   return {
     invoiceNo,

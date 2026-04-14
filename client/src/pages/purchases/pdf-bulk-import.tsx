@@ -528,7 +528,15 @@ export default function PdfBulkImport() {
   const totalVat = selectedDocsList.reduce((s, d) => s + d.vatAmount, 0);
   const totalWht = whtRate > 0 ? Math.round(totalSubtotal * whtRate * 100) / 100 : 0;
   const grandTotal = totalSubtotal + totalVat - totalWht;
-  const totalPaidAds = selectedDocsList.reduce((s, d) => s + (d.items || []).filter((it: any) => /^paid\s*ads$/i.test((it.description || "").trim())).reduce((is: number, it: any) => is + (parseFloat(it.amount) || 0), 0), 0);
+  const totalNonVat = selectedDocsList.reduce((s, d) => {
+    if (d.vatAmount > 0 && d.subtotal > 0) {
+      const vatableAmt = Math.round((d.vatAmount / 0.07) * 100) / 100;
+      const nonVat = d.subtotal - vatableAmt;
+      return s + (nonVat > 0.5 ? nonVat : 0);
+    }
+    return s;
+  }, 0);
+  const totalPaidAds = Math.round(totalNonVat * 100) / 100;
   const expenseSubtotal = totalSubtotal - totalPaidAds;
 
   const paginatedDocs = parseResult?.documents.slice(previewPage * PAGE_SIZE, (previewPage + 1) * PAGE_SIZE) || [];
@@ -845,14 +853,14 @@ export default function PdfBulkImport() {
                               {doc.items.length > 0 ? (
                                 <div className="space-y-0.5">
                                   {doc.items.slice(0, 3).map((item, iIdx) => {
-                                    const isAd = /^paid\s*ads$/i.test((item.description || "").trim());
+                                    const isNonVat = item.vatType === "non_vat";
                                     return (
-                                    <div key={iIdx} className={`flex items-center justify-between gap-2 text-xs ${isAd ? "bg-amber-50 rounded px-1" : ""}`}>
-                                      <span className={`truncate ${isAd ? "text-amber-700 font-medium" : "text-gray-700"}`}>
+                                    <div key={iIdx} className={`flex items-center justify-between gap-2 text-xs ${isNonVat ? "bg-amber-50 rounded px-1" : ""}`}>
+                                      <span className={`truncate ${isNonVat ? "text-amber-700 font-medium" : "text-gray-700"}`}>
                                         {item.description || item.productName || "-"}
-                                        {isAd && <span className="ml-1 text-[9px] bg-amber-200 text-amber-800 px-1 rounded">เครดิตโฆษณา</span>}
+                                        {isNonVat && <span className="ml-1 text-[9px] bg-amber-200 text-amber-800 px-1 rounded">ไม่มี VAT</span>}
                                       </span>
-                                      <span className={`whitespace-nowrap ${isAd ? "text-amber-600" : "text-gray-500"}`}>
+                                      <span className={`whitespace-nowrap ${isNonVat ? "text-amber-600" : "text-gray-500"}`}>
                                         {item.qty && item.qty > 1 ? `${item.qty} × ` : ""}
                                         {fmt(item.amount || item.total)}
                                       </span>
@@ -919,8 +927,8 @@ export default function PdfBulkImport() {
                                         <TableCell className="text-xs text-right">{fmt(item.unitPrice)}</TableCell>
                                         <TableCell className="text-xs text-right">{fmt(item.amount || item.total)}</TableCell>
                                         <TableCell className="text-xs">
-                                          <Badge variant="outline" className="text-[10px]">
-                                            {item.vatType === "vat7" ? "7%" : item.vatType === "zero_rated" ? "0%" : "N/A"}
+                                          <Badge variant="outline" className={`text-[10px] ${item.vatType === "non_vat" ? "border-amber-400 text-amber-700 bg-amber-50" : ""}`}>
+                                            {item.vatType === "vat7" ? "7%" : item.vatType === "zero_rated" ? "0%" : "ไม่มี VAT"}
                                           </Badge>
                                         </TableCell>
                                       </TableRow>
@@ -984,8 +992,8 @@ export default function PdfBulkImport() {
                   </div>
                   <div className="flex items-center gap-4 text-sm">
                     <div>ยอดรวม: <span className="font-bold">{fmt(totalSubtotal)}</span></div>
-                    {totalPaidAds > 0 && <div className="text-xs">├ ค่าใช้จ่าย: <span className="font-medium">{fmt(expenseSubtotal)}</span></div>}
-                    {totalPaidAds > 0 && <div className="text-xs">└ เครดิตโฆษณา: <span className="font-medium text-amber-600">{fmt(totalPaidAds)}</span></div>}
+                    {totalPaidAds > 0 && <div className="text-xs">├ มี VAT 7%: <span className="font-medium">{fmt(expenseSubtotal)}</span> <span className="text-gray-400">(×7% = {fmt(Math.round(expenseSubtotal * 0.07 * 100) / 100)})</span></div>}
+                    {totalPaidAds > 0 && <div className="text-xs">└ ไม่มี VAT: <span className="font-medium text-amber-600">{fmt(totalPaidAds)}</span></div>}
                     {totalVat > 0 && <div>VAT: <span className="font-medium text-blue-600">{fmt(totalVat)}</span></div>}
                     {totalWht > 0 && <div>WHT: <span className="font-medium text-red-600">-{fmt(totalWht)}</span></div>}
                     <div>สุทธิ: <span className="font-bold text-[#fb9678]">{fmt(grandTotal)}</span></div>
