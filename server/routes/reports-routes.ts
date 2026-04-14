@@ -2012,6 +2012,8 @@ app.get("/api/reports/purchase-tax", requireAuth, requireModule("accounting"), a
     const combined: any[] = [];
 
     for (const pi of piRows) {
+      const piVat = parseFloat(pi.vatAmount || "0");
+      if (Math.abs(piVat) < 0.005) continue;
       combined.push({
         date: pi.apDate,
         taxInvoiceRef: pi.taxInvoiceRef || "",
@@ -2021,7 +2023,7 @@ app.get("/api/reports/purchase-tax", requireAuth, requireModule("accounting"), a
         vendorTaxId: pi.vendorTaxId || "-",
         branch: pi.branch || "สำนักงานใหญ่",
         subtotal: parseFloat(pi.subtotal || "0"),
-        vatAmount: parseFloat(pi.vatAmount || "0"),
+        vatAmount: piVat,
         totalAmount: parseFloat(pi.totalAmount || "0"),
       });
     }
@@ -2086,6 +2088,8 @@ app.get("/api/reports/purchase-tax", requireAuth, requireModule("accounting"), a
         reportSubtotal = deductibleBase;
         reportVat = deductibleBase * 0.07;
       }
+
+      if (Math.abs(reportVat) < 0.005) continue;
 
       combined.push({
         date: exp.expDate,
