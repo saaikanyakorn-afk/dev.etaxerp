@@ -2467,7 +2467,7 @@ export function registerPurchaseRoutes(app: Express) {
               notes: doc.notes || null,
               refDoc: doc.refDoc || null,
               attachedUrl: doc.attachedUrl || doc.archivedFileUrl || null,
-              linkJournal: autoJournal ? true : false,
+              linkJournal: false,
               batchId: batchMap.get(doc.expDate || doc.date || new Date().toISOString().split("T")[0]) || null,
               createdBy: user.id,
             }).returning();
@@ -2606,6 +2606,15 @@ export function registerPurchaseRoutes(app: Express) {
               overrideLines: req?.body?.journalOverrideLines || undefined,
             });
             console.log(`[PDF-Import] DXP Journal result for ${dxpNo}:`, JSON.stringify(journalResult));
+            if (journalResult) {
+              await db.update(expenses)
+                .set({ linkJournal: true })
+                .where(and(
+                  eq(expenses.companyId, companyId),
+                  eq(expenses.expDate, dateKey),
+                ));
+              console.log(`[PDF-Import] Updated linkJournal=true for ${dayExpNos.length} expenses on ${dateKey}`);
+            }
           } catch (e) {
             console.log(`Auto journal for DXP ${dateKey} skipped:`, (e as any).message);
           }

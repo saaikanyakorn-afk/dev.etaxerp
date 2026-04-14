@@ -572,7 +572,7 @@ export default function ExpenseList() {
                             </button>
                           </TableCell>
                           <TableCell className="text-center text-sm text-muted-foreground">{idx + 1}</TableCell>
-                          <TableCell className="text-sm">{formatDate(exp.expDate, dateEra, dateFmt)}</TableCell>
+                          <TableCell className="text-sm">{formatDate(exp.expDate, dateFmt, dateEra)}</TableCell>
                           <TableCell>
                             <button
                               data-testid={`link-exp-${exp.id}`}
