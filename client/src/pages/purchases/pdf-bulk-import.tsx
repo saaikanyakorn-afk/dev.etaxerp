@@ -524,11 +524,17 @@ export default function PdfBulkImport() {
   const deselectAll = () => setSelectedDocs(new Set());
 
   const selectedDocsList = parseResult?.documents.filter(d => selectedDocs.has(d.key)) || [];
+  const isCreditNoteDoc = (d: any) => (d.invoiceNo || "").match(/CN\d/i) || (d.invoicePrefix || "").includes("CN");
+  const normalDocsList = selectedDocsList.filter(d => !isCreditNoteDoc(d));
+  const creditNoteDocsList = selectedDocsList.filter(d => isCreditNoteDoc(d));
   const whtRate = parseFloat(globalWhtRate) / 100;
-  const totalSubtotal = selectedDocsList.reduce((s, d) => s + d.subtotal, 0);
-  const totalVat = selectedDocsList.reduce((s, d) => s + d.vatAmount, 0);
+  const totalSubtotal = normalDocsList.reduce((s, d) => s + d.subtotal, 0);
+  const totalVat = normalDocsList.reduce((s, d) => s + d.vatAmount, 0);
   const totalWht = whtRate > 0 ? Math.round(totalSubtotal * whtRate * 100) / 100 : 0;
   const grandTotal = totalSubtotal + totalVat - totalWht;
+  const cnTotalSubtotal = creditNoteDocsList.reduce((s, d) => s + d.subtotal, 0);
+  const cnTotalVat = creditNoteDocsList.reduce((s, d) => s + d.vatAmount, 0);
+  const cnGrandTotal = cnTotalSubtotal + cnTotalVat;
   const isPaidAdsItem = (desc: string) => /^paid\s*ads$/i.test((desc || "").trim());
   const totalPaidAds = selectedDocsList.reduce((s, d) => s + (d.items || []).filter((it: any) => isPaidAdsItem(it.description)).reduce((is: number, it: any) => is + (parseFloat(it.amount) || 0), 0), 0);
   const expenseSubtotal = totalSubtotal - totalPaidAds;
@@ -1097,12 +1103,22 @@ export default function PdfBulkImport() {
                     )}
                   </div>
                   <div className="flex items-center gap-4 text-sm">
-                    <div>ยอดรวม: <span className="font-bold">{fmt(totalSubtotal)}</span></div>
-                    {totalPaidAds > 0 && <div className="text-xs">├ มี VAT 7%: <span className="font-medium">{fmt(expenseSubtotal)}</span> <span className="text-gray-400">(×7% = {fmt(Math.round(expenseSubtotal * 0.07 * 100) / 100)})</span></div>}
-                    {totalPaidAds > 0 && <div className="text-xs">└ ไม่มี VAT: <span className="font-medium text-amber-600">{fmt(totalPaidAds)}</span></div>}
-                    {totalVat > 0 && <div>VAT: <span className="font-medium text-blue-600">{fmt(totalVat)}</span></div>}
-                    {totalWht > 0 && <div>WHT: <span className="font-medium text-red-600">-{fmt(totalWht)}</span></div>}
-                    <div>สุทธิ: <span className="font-bold text-[#fb9678]">{fmt(grandTotal)}</span></div>
+                    {normalDocsList.length > 0 && (
+                      <>
+                        <div>ยอดรวม: <span className="font-bold">{fmt(totalSubtotal)}</span></div>
+                        {totalPaidAds > 0 && <div className="text-xs">├ มี VAT 7%: <span className="font-medium">{fmt(expenseSubtotal)}</span> <span className="text-gray-400">(×7% = {fmt(Math.round(expenseSubtotal * 0.07 * 100) / 100)})</span></div>}
+                        {totalPaidAds > 0 && <div className="text-xs">└ ไม่มี VAT: <span className="font-medium text-amber-600">{fmt(totalPaidAds)}</span></div>}
+                        {totalVat > 0 && <div>VAT: <span className="font-medium text-blue-600">{fmt(totalVat)}</span></div>}
+                        {totalWht > 0 && <div>WHT: <span className="font-medium text-red-600">-{fmt(totalWht)}</span></div>}
+                        <div>สุทธิ: <span className="font-bold text-[#fb9678]">{fmt(grandTotal)}</span></div>
+                      </>
+                    )}
+                    {creditNoteDocsList.length > 0 && (
+                      <>
+                        {normalDocsList.length > 0 && <span className="text-slate-300">|</span>}
+                        <div className="text-green-700">ใบลดหนี้ ({creditNoteDocsList.length}): <span className="font-bold">{fmt(cnGrandTotal)}</span></div>
+                      </>
+                    )}
                   </div>
                 </div>
 
@@ -1464,6 +1480,59 @@ export default function PdfBulkImport() {
                         ? "* กำลังแก้ไข — บรรทัดที่กำหนดจะถูกใช้แทนสูตรอัตโนมัติสำหรับ DXP Journal"
                         : "* พรีวิวยอดรวม — กด \"แก้ไข\" เพื่อปรับบัญชีก่อนบันทึก"}
                     </p>
+
+                    {creditNoteDocsList.length > 0 && (
+                      <div className="mt-4 border-t pt-4">
+                        <div className="text-sm font-medium mb-3 text-green-800 flex items-center gap-2">
+                          <BookOpen className="h-4 w-4" /> พรีวิวบัญชีใบลดหนี้ ({creditNoteDocsList.length} ใบ) — กลับรายการ
+                        </div>
+                        <div className="bg-white rounded border overflow-x-auto">
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead className="text-xs w-[130px]">รหัสบัญชี</TableHead>
+                                <TableHead className="text-xs">ชื่อบัญชี</TableHead>
+                                <TableHead className="text-xs text-right w-[120px]">เดบิต</TableHead>
+                                <TableHead className="text-xs text-right w-[120px]">เครดิต</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {(() => {
+                                const walletCode = "1043000";
+                                const vatCode = "1432000";
+                                const expCode = "5301100";
+                                const walletAcc = accountMap.get(walletCode);
+                                const vatAcc = accountMap.get(vatCode);
+                                const expAcc = accountMap.get(expCode);
+                                const cnRows = [
+                                  { code: walletCode, name: walletAcc?.nameTh || walletAcc?.name || "เงินฝาก TikTok Shop Wallet", debit: cnGrandTotal, credit: 0 },
+                                  { code: vatCode, name: vatAcc?.nameTh || vatAcc?.name || "ภาษีซื้อ", debit: 0, credit: cnTotalVat },
+                                  { code: expCode, name: expAcc?.nameTh || expAcc?.name || "ค่าบริการแพลตฟอร์ม", debit: 0, credit: cnTotalSubtotal },
+                                ];
+                                return (
+                                  <>
+                                    {cnRows.map((r, idx) => (
+                                      <TableRow key={idx}>
+                                        <TableCell className="text-xs font-mono">{r.code}</TableCell>
+                                        <TableCell className="text-xs">{r.name}</TableCell>
+                                        <TableCell className="text-xs text-right font-medium">{r.debit > 0 ? fmt(r.debit) : "-"}</TableCell>
+                                        <TableCell className="text-xs text-right font-medium">{r.credit > 0 ? fmt(r.credit) : "-"}</TableCell>
+                                      </TableRow>
+                                    ))}
+                                    <TableRow className="bg-green-50 font-bold">
+                                      <TableCell className="text-xs" colSpan={2}>รวมใบลดหนี้ ({creditNoteDocsList.length} ใบ)</TableCell>
+                                      <TableCell className="text-xs text-right">{fmt(cnGrandTotal)}</TableCell>
+                                      <TableCell className="text-xs text-right">{fmt(cnGrandTotal)}</TableCell>
+                                    </TableRow>
+                                  </>
+                                );
+                              })()}
+                            </TableBody>
+                          </Table>
+                        </div>
+                        <p className="text-xs text-green-600 mt-1">Dr. Wallet (เงินในกระเป๋าเพิ่ม) / Cr. ภาษีซื้อ + ค่าบริการ (กลับรายการ)</p>
+                      </div>
+                    )}
                   </div>
                 )}
 
