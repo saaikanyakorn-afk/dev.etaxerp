@@ -1076,33 +1076,34 @@ app.post("/api/ecommerce/settlement-batches", requireAuth, requireModule("ecomme
       let settleJournalId = null;
       if (autoCreateJournal && matchedItems.length > 0) {
         const PLATFORM_CODES: Record<string, { wallet: string; receivable: string; commission: string; serviceFee: string; transactionFee: string; infraFee: string; shipping: string; subsidyRevenue: string; buyerRefund: string; sellerShippingPromo: string; returnShipping: string; withholdingTax: string; adsDeduction: string }> = {
-          shopee: { wallet: "1041000", receivable: "1231000", commission: "5291000", serviceFee: "5292000", transactionFee: "5294000", infraFee: "5293000", shipping: "5295000", subsidyRevenue: "4210000", buyerRefund: "5296000", sellerShippingPromo: "5297000", returnShipping: "5298000", withholdingTax: "1143000", adsDeduction: "5271000" },
-          lazada: { wallet: "1042000", receivable: "1232000", commission: "5291000", serviceFee: "5292000", transactionFee: "5294000", infraFee: "5293000", shipping: "5295000", subsidyRevenue: "4210000", buyerRefund: "5296000", sellerShippingPromo: "5297000", returnShipping: "5298000", withholdingTax: "1143000", adsDeduction: "5271000" },
-          tiktok: { wallet: "1043000", receivable: "1233000", commission: "5291000", serviceFee: "5292000", transactionFee: "5294000", infraFee: "5293000", shipping: "5295000", subsidyRevenue: "4210000", buyerRefund: "5296000", sellerShippingPromo: "5297000", returnShipping: "5298000", withholdingTax: "1143000", adsDeduction: "5271000" },
+          shopee: { wallet: "1041000", receivable: "1231000", commission: "1441100", serviceFee: "1442100", transactionFee: "1444100", infraFee: "1443100", shipping: "1445100", subsidyRevenue: "4210000", buyerRefund: "1446100", sellerShippingPromo: "1447100", returnShipping: "1448100", withholdingTax: "1143000", adsDeduction: "5271000" },
+          lazada: { wallet: "1042000", receivable: "1232000", commission: "1441200", serviceFee: "1442200", transactionFee: "1444200", infraFee: "1443200", shipping: "1445200", subsidyRevenue: "4210000", buyerRefund: "1446200", sellerShippingPromo: "1447200", returnShipping: "1448200", withholdingTax: "1143000", adsDeduction: "5271000" },
+          tiktok: { wallet: "1043000", receivable: "1233000", commission: "1441300", serviceFee: "1442300", transactionFee: "1444300", infraFee: "1443300", shipping: "1445300", subsidyRevenue: "4210000", buyerRefund: "1446300", sellerShippingPromo: "1447300", returnShipping: "1448300", withholdingTax: "1143000", adsDeduction: "5271000" },
         };
-        const codes = PLATFORM_CODES[settlementData.platform] || { wallet: "1044000", receivable: "1234000", commission: "5291000", serviceFee: "5292000", transactionFee: "5294000", infraFee: "5293000", shipping: "5295000", subsidyRevenue: "4210000", buyerRefund: "5296000", sellerShippingPromo: "5297000", returnShipping: "5298000", withholdingTax: "1143000", adsDeduction: "5271000" };
+        const codes = PLATFORM_CODES[settlementData.platform] || { wallet: "1044000", receivable: "1234000", commission: "1441900", serviceFee: "1442900", transactionFee: "1444900", infraFee: "1443900", shipping: "1445900", subsidyRevenue: "4210000", buyerRefund: "1446900", sellerShippingPromo: "1447900", returnShipping: "1448900", withholdingTax: "1143000", adsDeduction: "5271000" };
 
-        const { ECOMMERCE_EXTRA_ACCOUNTS } = await import("../../shared/chart-of-accounts");
+        const { ECOMMERCE_EXTRA_ACCOUNTS, STANDARD_CHART_OF_ACCOUNTS } = await import("../../shared/chart-of-accounts");
+        const ALL_TEMPLATES = [...STANDARD_CHART_OF_ACCOUNTS, ...ECOMMERCE_EXTRA_ACCOUNTS];
 
         const ensureAccount = async (code: string): Promise<number> => {
           const [existing] = await tx.select({ id: accounts.id }).from(accounts)
             .where(and(eq(accounts.companyId, settlementData.companyId), eq(accounts.code, code)));
           if (existing) return existing.id;
 
-          const template = ECOMMERCE_EXTRA_ACCOUNTS.find((a: any) => a.code === code);
+          const template = ALL_TEMPLATES.find((a: any) => a.code === code);
           if (!template) throw new Error(`ไม่พบผังบัญชี ${code}`);
 
           if (template.parentCode) {
             const [parentExists] = await tx.select({ id: accounts.id }).from(accounts)
               .where(and(eq(accounts.companyId, settlementData.companyId), eq(accounts.code, template.parentCode)));
             if (!parentExists) {
-              const parentTpl = ECOMMERCE_EXTRA_ACCOUNTS.find((a: any) => a.code === template.parentCode);
+              const parentTpl = ALL_TEMPLATES.find((a: any) => a.code === template.parentCode);
               if (parentTpl) {
                 if (parentTpl.parentCode) {
                   const [gpExists] = await tx.select({ id: accounts.id }).from(accounts)
                     .where(and(eq(accounts.companyId, settlementData.companyId), eq(accounts.code, parentTpl.parentCode)));
                   if (!gpExists) {
-                    const gpTpl = ECOMMERCE_EXTRA_ACCOUNTS.find((a: any) => a.code === parentTpl.parentCode);
+                    const gpTpl = ALL_TEMPLATES.find((a: any) => a.code === parentTpl.parentCode);
                     if (gpTpl) {
                       await tx.insert(accounts).values({
                         companyId: settlementData.companyId, code: gpTpl.code, name: gpTpl.name,
@@ -1121,10 +1122,11 @@ app.post("/api/ecommerce/settlement-batches", requireAuth, requireModule("ecomme
             }
           }
 
+          const isHeader = code.length <= 4;
           const [created] = await tx.insert(accounts).values({
             companyId: settlementData.companyId, code: template.code, name: template.name,
             nameTh: template.nameTh || template.name, nameZh: template.nameZh || "", type: template.type,
-            parentCode: template.parentCode || null, isHeader: false,
+            parentCode: template.parentCode || null, isHeader,
           }).returning();
           return created.id;
         };
@@ -1611,9 +1613,9 @@ app.post("/api/ecommerce/settlement-batches/:id/record-invoice", requireAuth, re
     const vatRatio = totalFees > 0 ? (1 - taxInvoiceVat / totalFees) : 1;
 
     const PLATFORM_ESTIMATED_CODES: Record<string, string> = {
-      shopee: "5291000", lazada: "5292000", tiktok: "5293000",
+      shopee: "1441100", lazada: "1441200", tiktok: "1441300",
     };
-    const estimatedExpCode = PLATFORM_ESTIMATED_CODES[settlement.platform] || "5294000";
+    const estimatedExpCode = PLATFORM_ESTIMATED_CODES[settlement.platform] || "1441900";
     const PLATFORM_ACTUAL_EXPENSE_CODES: Record<string, string> = {
       shopee: "5281000", lazada: "5282000", tiktok: "5283000",
     };

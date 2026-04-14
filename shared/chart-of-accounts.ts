@@ -125,6 +125,9 @@ export const STANDARD_CHART_OF_ACCOUNTS: ChartAccountTemplate[] = [
   { code: "1433000", name: "Undue Input VAT", nameTh: "ภาษีซื้อยังไม่ถึงกำหนด", nameZh: "待抵扣进项税额", type: "asset", parentCode: "143" },
   { code: "1434000", name: "Withholding Tax Receivable", nameTh: "ภาษีหัก ณ ที่จ่าย (ถูกหัก)", nameZh: "预扣税款（被扣）", type: "asset", parentCode: "143" },
 
+  // --- Prepaid Platform Expenses (ค่าใช้จ่ายแพลตฟอร์มรับรู้ล่วงหน้า) ---
+  { code: "144", name: "Prepaid Platform Expenses", nameTh: "ค่าใช้จ่ายแพลตฟอร์มรับรู้ล่วงหน้า", nameZh: "预付平台费用", type: "asset", parentCode: null },
+
   // --- Non-Current Assets (header) ---
   { code: "150", name: "Non-Current Assets", nameTh: "สินทรัพย์ไม่หมุนเวียน", nameZh: "非流动资产", type: "asset", parentCode: null },
 
@@ -608,16 +611,54 @@ export const ECOMMERCE_EXTRA_ACCOUNTS: ChartAccountTemplate[] = [
   { code: "5281000", name: "Warehouse Rent", nameTh: "ค่าเช่าคลังสินค้า", nameZh: "仓库租金", type: "expense", parentCode: "528" },
   { code: "5282000", name: "Fulfillment Fee", nameTh: "ค่าบริการ Fulfillment", nameZh: "履约服务费", type: "expense", parentCode: "528" },
 
-  // --- Estimated Platform Expenses ---
-  { code: "529", name: "Estimated Platform Expenses", nameTh: "ประมาณการค่าใช้จ่ายแพลตฟอร์ม", nameZh: "预估平台费用", type: "expense", parentCode: null },
-  { code: "5291000", name: "Estimated Commission", nameTh: "ประมาณการค่าคอมมิชชั่น", nameZh: "预估佣金", type: "expense", parentCode: "529" },
-  { code: "5292000", name: "Estimated Service Fee", nameTh: "ประมาณการค่าบริการแพลตฟอร์ม", nameZh: "预估平台服务费", type: "expense", parentCode: "529" },
-  { code: "5293000", name: "Estimated Infrastructure Fee", nameTh: "ประมาณการค่าโครงสร้างพื้นฐาน", nameZh: "预估平台基础设施费", type: "expense", parentCode: "529" },
-  { code: "5294000", name: "Estimated Transaction Fee", nameTh: "ประมาณการค่าธรรมเนียมธุรกรรม", nameZh: "预估交易手续费", type: "expense", parentCode: "529" },
-  { code: "5295000", name: "Estimated Shipping Cost", nameTh: "ประมาณการค่าขนส่ง", nameZh: "预估运费", type: "expense", parentCode: "529" },
-  { code: "5296000", name: "Buyer Refund Expense", nameTh: "ค่าใช้จ่ายเงินคืนผู้ซื้อ", nameZh: "买家退款费用", type: "expense", parentCode: "529" },
-  { code: "5297000", name: "Seller Shipping Promotion", nameTh: "โปรโมชั่นค่าส่งผู้ขาย", nameZh: "卖家运费促销", type: "expense", parentCode: "529" },
-  { code: "5298000", name: "Return Shipping Cost", nameTh: "ค่าจัดส่งสินค้าคืน", nameZh: "退货运费", type: "expense", parentCode: "529" },
+  // --- Prepaid Platform Expenses by Platform (หมวด 1 สินทรัพย์ — ค่าใช้จ่ายแพลตฟอร์มรับรู้ล่วงหน้า) ---
+  { code: "1441", name: "Prepaid Commission", nameTh: "ค่าคอมมิชชั่นรับรู้ล่วงหน้า", nameZh: "预付佣金", type: "asset", parentCode: "144" },
+  { code: "1441100", name: "Prepaid Commission - Shopee", nameTh: "ค่าคอมมิชชั่น Shopee รับรู้ล่วงหน้า", nameZh: "预付佣金-Shopee", type: "asset", parentCode: "1441" },
+  { code: "1441200", name: "Prepaid Commission - Lazada", nameTh: "ค่าคอมมิชชั่น Lazada รับรู้ล่วงหน้า", nameZh: "预付佣金-Lazada", type: "asset", parentCode: "1441" },
+  { code: "1441300", name: "Prepaid Commission - TikTok", nameTh: "ค่าคอมมิชชั่น TikTok รับรู้ล่วงหน้า", nameZh: "预付佣金-TikTok", type: "asset", parentCode: "1441" },
+  { code: "1441900", name: "Prepaid Commission - Other", nameTh: "ค่าคอมมิชชั่นแพลตฟอร์มอื่นรับรู้ล่วงหน้า", nameZh: "预付佣金-其他", type: "asset", parentCode: "1441" },
+
+  { code: "1442", name: "Prepaid Service Fee", nameTh: "ค่าบริการแพลตฟอร์มรับรู้ล่วงหน้า", nameZh: "预付服务费", type: "asset", parentCode: "144" },
+  { code: "1442100", name: "Prepaid Service Fee - Shopee", nameTh: "ค่าบริการ Shopee รับรู้ล่วงหน้า", nameZh: "预付服务费-Shopee", type: "asset", parentCode: "1442" },
+  { code: "1442200", name: "Prepaid Service Fee - Lazada", nameTh: "ค่าบริการ Lazada รับรู้ล่วงหน้า", nameZh: "预付服务费-Lazada", type: "asset", parentCode: "1442" },
+  { code: "1442300", name: "Prepaid Service Fee - TikTok", nameTh: "ค่าบริการ TikTok รับรู้ล่วงหน้า", nameZh: "预付服务费-TikTok", type: "asset", parentCode: "1442" },
+  { code: "1442900", name: "Prepaid Service Fee - Other", nameTh: "ค่าบริการแพลตฟอร์มอื่นรับรู้ล่วงหน้า", nameZh: "预付服务费-其他", type: "asset", parentCode: "1442" },
+
+  { code: "1443", name: "Prepaid Infrastructure Fee", nameTh: "ค่าโครงสร้างพื้นฐานรับรู้ล่วงหน้า", nameZh: "预付基础设施费", type: "asset", parentCode: "144" },
+  { code: "1443100", name: "Prepaid Infra Fee - Shopee", nameTh: "ค่าโครงสร้างพื้นฐาน Shopee รับรู้ล่วงหน้า", nameZh: "预付基础设施费-Shopee", type: "asset", parentCode: "1443" },
+  { code: "1443200", name: "Prepaid Infra Fee - Lazada", nameTh: "ค่าโครงสร้างพื้นฐาน Lazada รับรู้ล่วงหน้า", nameZh: "预付基础设施费-Lazada", type: "asset", parentCode: "1443" },
+  { code: "1443300", name: "Prepaid Infra Fee - TikTok", nameTh: "ค่าโครงสร้างพื้นฐาน TikTok รับรู้ล่วงหน้า", nameZh: "预付基础设施费-TikTok", type: "asset", parentCode: "1443" },
+  { code: "1443900", name: "Prepaid Infra Fee - Other", nameTh: "ค่าโครงสร้างพื้นฐานแพลตฟอร์มอื่นรับรู้ล่วงหน้า", nameZh: "预付基础设施费-其他", type: "asset", parentCode: "1443" },
+
+  { code: "1444", name: "Prepaid Transaction Fee", nameTh: "ค่าธรรมเนียมธุรกรรมรับรู้ล่วงหน้า", nameZh: "预付交易手续费", type: "asset", parentCode: "144" },
+  { code: "1444100", name: "Prepaid Transaction Fee - Shopee", nameTh: "ค่าธรรมเนียมธุรกรรม Shopee รับรู้ล่วงหน้า", nameZh: "预付交易手续费-Shopee", type: "asset", parentCode: "1444" },
+  { code: "1444200", name: "Prepaid Transaction Fee - Lazada", nameTh: "ค่าธรรมเนียมธุรกรรม Lazada รับรู้ล่วงหน้า", nameZh: "预付交易手续费-Lazada", type: "asset", parentCode: "1444" },
+  { code: "1444300", name: "Prepaid Transaction Fee - TikTok", nameTh: "ค่าธรรมเนียมธุรกรรม TikTok รับรู้ล่วงหน้า", nameZh: "预付交易手续费-TikTok", type: "asset", parentCode: "1444" },
+  { code: "1444900", name: "Prepaid Transaction Fee - Other", nameTh: "ค่าธรรมเนียมธุรกรรมแพลตฟอร์มอื่นรับรู้ล่วงหน้า", nameZh: "预付交易手续费-其他", type: "asset", parentCode: "1444" },
+
+  { code: "1445", name: "Prepaid Shipping Cost", nameTh: "ค่าขนส่งรับรู้ล่วงหน้า", nameZh: "预付运费", type: "asset", parentCode: "144" },
+  { code: "1445100", name: "Prepaid Shipping - Shopee", nameTh: "ค่าขนส่ง Shopee รับรู้ล่วงหน้า", nameZh: "预付运费-Shopee", type: "asset", parentCode: "1445" },
+  { code: "1445200", name: "Prepaid Shipping - Lazada", nameTh: "ค่าขนส่ง Lazada รับรู้ล่วงหน้า", nameZh: "预付运费-Lazada", type: "asset", parentCode: "1445" },
+  { code: "1445300", name: "Prepaid Shipping - TikTok", nameTh: "ค่าขนส่ง TikTok รับรู้ล่วงหน้า", nameZh: "预付运费-TikTok", type: "asset", parentCode: "1445" },
+  { code: "1445900", name: "Prepaid Shipping - Other", nameTh: "ค่าขนส่งแพลตฟอร์มอื่นรับรู้ล่วงหน้า", nameZh: "预付运费-其他", type: "asset", parentCode: "1445" },
+
+  { code: "1446", name: "Prepaid Buyer Refund", nameTh: "เงินคืนผู้ซื้อรับรู้ล่วงหน้า", nameZh: "预付买家退款", type: "asset", parentCode: "144" },
+  { code: "1446100", name: "Prepaid Buyer Refund - Shopee", nameTh: "เงินคืนผู้ซื้อ Shopee รับรู้ล่วงหน้า", nameZh: "预付买家退款-Shopee", type: "asset", parentCode: "1446" },
+  { code: "1446200", name: "Prepaid Buyer Refund - Lazada", nameTh: "เงินคืนผู้ซื้อ Lazada รับรู้ล่วงหน้า", nameZh: "预付买家退款-Lazada", type: "asset", parentCode: "1446" },
+  { code: "1446300", name: "Prepaid Buyer Refund - TikTok", nameTh: "เงินคืนผู้ซื้อ TikTok รับรู้ล่วงหน้า", nameZh: "预付买家退款-TikTok", type: "asset", parentCode: "1446" },
+  { code: "1446900", name: "Prepaid Buyer Refund - Other", nameTh: "เงินคืนผู้ซื้อแพลตฟอร์มอื่นรับรู้ล่วงหน้า", nameZh: "预付买家退款-其他", type: "asset", parentCode: "1446" },
+
+  { code: "1447", name: "Prepaid Seller Shipping Promo", nameTh: "โปรโมชั่นค่าส่งผู้ขายรับรู้ล่วงหน้า", nameZh: "预付卖家运费促销", type: "asset", parentCode: "144" },
+  { code: "1447100", name: "Prepaid Seller Ship Promo - Shopee", nameTh: "โปรโมชั่นค่าส่ง Shopee รับรู้ล่วงหน้า", nameZh: "预付卖家运费促销-Shopee", type: "asset", parentCode: "1447" },
+  { code: "1447200", name: "Prepaid Seller Ship Promo - Lazada", nameTh: "โปรโมชั่นค่าส่ง Lazada รับรู้ล่วงหน้า", nameZh: "预付卖家运费促销-Lazada", type: "asset", parentCode: "1447" },
+  { code: "1447300", name: "Prepaid Seller Ship Promo - TikTok", nameTh: "โปรโมชั่นค่าส่ง TikTok รับรู้ล่วงหน้า", nameZh: "预付卖家运费促销-TikTok", type: "asset", parentCode: "1447" },
+  { code: "1447900", name: "Prepaid Seller Ship Promo - Other", nameTh: "โปรโมชั่นค่าส่งแพลตฟอร์มอื่นรับรู้ล่วงหน้า", nameZh: "预付卖家运费促销-其他", type: "asset", parentCode: "1447" },
+
+  { code: "1448", name: "Prepaid Return Shipping", nameTh: "ค่าจัดส่งสินค้าคืนรับรู้ล่วงหน้า", nameZh: "预付退货运费", type: "asset", parentCode: "144" },
+  { code: "1448100", name: "Prepaid Return Shipping - Shopee", nameTh: "ค่าจัดส่งคืน Shopee รับรู้ล่วงหน้า", nameZh: "预付退货运费-Shopee", type: "asset", parentCode: "1448" },
+  { code: "1448200", name: "Prepaid Return Shipping - Lazada", nameTh: "ค่าจัดส่งคืน Lazada รับรู้ล่วงหน้า", nameZh: "预付退货运费-Lazada", type: "asset", parentCode: "1448" },
+  { code: "1448300", name: "Prepaid Return Shipping - TikTok", nameTh: "ค่าจัดส่งคืน TikTok รับรู้ล่วงหน้า", nameZh: "预付退货运费-TikTok", type: "asset", parentCode: "1448" },
+  { code: "1448900", name: "Prepaid Return Shipping - Other", nameTh: "ค่าจัดส่งคืนแพลตฟอร์มอื่นรับรู้ล่วงหน้า", nameZh: "预付退货运费-其他", type: "asset", parentCode: "1448" },
 
   // --- WHT Receivable from Platform ---
   { code: "114", name: "Withholding Tax Receivable", nameTh: "ภาษีหัก ณ ที่จ่ายรอเครดิต", nameZh: "预扣税待抵扣", type: "asset", parentCode: null },
