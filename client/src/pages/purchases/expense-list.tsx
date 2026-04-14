@@ -676,7 +676,7 @@ export default function ExpenseList() {
                           <TableCell className="text-right tabular-nums">
                             <div className="text-sm font-normal">{fmt(exp.totalAmount)}</div>
                           </TableCell>
-                          <TableCell className="text-right text-sm text-gray-500">{fmt(exp.vatAmount)}</TableCell>
+                          <TableCell className="text-right text-sm text-gray-500">{exp.showInTaxReport ? fmt(exp.vatAmount) : "-"}</TableCell>
                           <TableCell className="text-right text-sm text-gray-500">{fmt(exp.withholdingTax)}</TableCell>
                           <TableCell>
                             <DropdownMenu>
