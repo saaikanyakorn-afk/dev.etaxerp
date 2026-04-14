@@ -838,11 +838,27 @@ function parseGenericInvoice(rows: TextItem[][], fullText: string): ParsedInvoic
   };
 }
 
-export async function parsePdfInvoice(pdfBuffer: Buffer): Promise<ParsedInvoice> {
+export async function extractPdfFullText(pdfBuffer: Buffer): Promise<string> {
+  const { items: pages } = await extractTextItems(pdfBuffer);
+  const pageRows = pages.map(pageItems => groupIntoRows(pageItems));
+  const rows = pageRows.flat();
+  return rows.map(r => rowText(r)).join("\n");
+}
+
+export async function parsePdfInvoice(pdfBuffer: Buffer, templates?: import("./pdf-template-engine").TemplateConfig[]): Promise<ParsedInvoice & { templateId?: number; templateName?: string }> {
   const { items: pages, rawText } = await extractTextItems(pdfBuffer);
   const pageRows = pages.map(pageItems => groupIntoRows(pageItems));
   const rows = pageRows.flat();
   const fullText = rows.map(r => rowText(r)).join("\n");
+
+  if (templates && templates.length > 0) {
+    const { matchTemplate, applyTemplate } = await import("./pdf-template-engine");
+    const matched = matchTemplate(fullText, templates);
+    if (matched) {
+      const result = applyTemplate(fullText, matched);
+      return result;
+    }
+  }
 
   if (isShopeeOrSpxInvoice(fullText)) {
     return parseShopeeInvoice(rows, fullText);

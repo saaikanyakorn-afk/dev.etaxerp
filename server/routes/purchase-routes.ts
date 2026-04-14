@@ -3,7 +3,7 @@ import * as XLSX from "xlsx";
 import { db } from "../db";
 import { storage } from "../storage";
 import { eq, and, desc, or, sql, count, not, ilike, inArray } from "drizzle-orm";
-import { purchaseRequests, purchaseRequestItems, bidComparisons, bidComparisonItems, bidVendors, purchaseOrders, purchaseOrderItems, purchaseInvoices, purchaseInvoiceItems, companies, accounts, contacts, products, journalEntries, journalLines, productStock, stockMovements, expenses, expenseItems, withholdingTaxCerts, whtCertItems, documentImportBatches, firmClients, clientUploadLinks, clientUploadFiles, expenseDailyBatches } from "@shared/schema";
+import { purchaseRequests, purchaseRequestItems, bidComparisons, bidComparisonItems, bidVendors, purchaseOrders, purchaseOrderItems, purchaseInvoices, purchaseInvoiceItems, companies, accounts, contacts, products, journalEntries, journalLines, productStock, stockMovements, expenses, expenseItems, withholdingTaxCerts, whtCertItems, documentImportBatches, firmClients, clientUploadLinks, clientUploadFiles, expenseDailyBatches, pdfImportTemplates } from "@shared/schema";
 import { requireAuth, requireModule, requireRole, checkDocOwnership } from "../route-middleware";
 import { getNextDocNo, validateDocNo, createAutoJournalEntry, resolvePaymentMethodAccountCode, getNextJournalEntryNo, checkDocumentLimit, deleteStockMovementsForDoc, deleteJournalEntriesForDoc, logActivity } from "../route-helpers";
 import { parsePagination, paginatedResponse } from "./pagination";
@@ -3130,6 +3130,24 @@ export function registerPurchaseRoutes(app: Express) {
         saveLocalFn = saveBufferLocally;
       } catch {}
 
+      let activeTemplates: any[] = [];
+      try {
+        const tplRows = await db.select().from(pdfImportTemplates).where(eq(pdfImportTemplates.active, true));
+        activeTemplates = tplRows
+          .filter(t => !t.companyId || t.companyId === companyId)
+          .map(t => ({
+            id: t.id,
+            name: t.name,
+            detectKeywords: t.detectKeywords,
+            fieldRules: t.fieldRules as any,
+            dateFormat: t.dateFormat || "DD/MM/YYYY",
+            defaultVatType: t.defaultVatType || "vat7",
+            priority: t.priority || 0,
+          }));
+      } catch (e: any) {
+        console.log("[PDF-Import] Template load skipped:", e.message);
+      }
+
       const companyContacts = await db.select({
         id: contacts.id,
         name: contacts.name,
@@ -3159,7 +3177,7 @@ export function registerPurchaseRoutes(app: Express) {
       for (let fi = 0; fi < files.length; fi++) {
         const file = files[fi];
         try {
-          const parsed = await parsePdfInvoice(file.buffer);
+          const parsed = await parsePdfInvoice(file.buffer, activeTemplates);
 
           let vendorId: number | null = null;
           let vendorMatchName: string | null = null;

@@ -6313,3 +6313,25 @@ export const sysAdminAuditLog = pgTable("sys_admin_audit_log", {
   ipAddress: text("ip_address"),
   createdAt: timestamp("created_at").defaultNow(),
 });
+
+export const pdfImportTemplates = pgTable("pdf_import_templates", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id"),
+  name: text("name").notNull(),
+  description: text("description"),
+  detectKeywords: text("detect_keywords").array().notNull(),
+  fieldRules: jsonb("field_rules").notNull(),
+  dateFormat: text("date_format").default("DD/MM/YYYY"),
+  defaultVatType: text("default_vat_type").default("vat7"),
+  active: boolean("active").default(true),
+  priority: integer("priority").default(0),
+  isBuiltIn: boolean("is_built_in").default(false),
+  createdBy: integer("created_by"),
+  updatedBy: integer("updated_by"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertPdfImportTemplateSchema = createInsertSchema(pdfImportTemplates).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertPdfImportTemplate = z.infer<typeof insertPdfImportTemplateSchema>;
+export type PdfImportTemplate = typeof pdfImportTemplates.$inferSelect;
