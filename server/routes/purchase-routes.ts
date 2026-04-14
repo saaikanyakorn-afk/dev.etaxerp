@@ -2594,6 +2594,25 @@ export function registerPurchaseRoutes(app: Express) {
               await db.insert(purchaseDebitNoteItems).values(itemValues);
             }
 
+            if (refInvoiceNo) {
+              const [matchedExp] = await db.select({ id: expenses.id, expNo: expenses.expNo })
+                .from(expenses)
+                .where(and(
+                  eq(expenses.companyId, companyId),
+                  eq(expenses.taxInvoiceRef, refInvoiceNo),
+                ))
+                .limit(1);
+              if (matchedExp) {
+                await db.update(purchaseDebitNotes)
+                  .set({ refExpenseId: matchedExp.id, refExpenseNo: matchedExp.expNo })
+                  .where(eq(purchaseDebitNotes.id, newDn.id));
+                await db.update(expenses)
+                  .set({ refDebitNoteId: newDn.id, refDebitNoteNo: newDn.debitNoteNo })
+                  .where(eq(expenses.id, matchedExp.id));
+                console.log(`[PDF-Import] Linked DN ${dnNo} ↔ EXP ${matchedExp.expNo} (ref: ${refInvoiceNo})`);
+              }
+            }
+
             created.push({
               expNo: newDn.debitNoteNo, id: newDn.id,
               vendorName: newDn.vendorName,

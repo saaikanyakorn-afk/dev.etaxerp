@@ -220,7 +220,19 @@ export default function DebitNoteList() {
                         <TableCell>
                           <div className="text-sm font-normal">{dn.vendorName}</div>
                         </TableCell>
-                        <TableCell className="text-sm">{dn.refPurchaseInvoiceNo || "-"}</TableCell>
+                        <TableCell className="text-sm">
+                          {dn.refPurchaseInvoiceNo || "-"}
+                          {dn.refExpenseNo && (
+                            <div className="text-[11px] mt-0.5">
+                              <span
+                                className="text-[#03c9d7] hover:text-[#029baa] hover:underline cursor-pointer font-medium"
+                                onClick={(e) => { e.stopPropagation(); navigate(`/purchases/expense/${dn.refExpenseId}`); }}
+                              >
+                                ↪ ค่าใช้จ่าย {dn.refExpenseNo}
+                              </span>
+                            </div>
+                          )}
+                        </TableCell>
                         <TableCell className="text-right tabular-nums">
                           <div className="text-sm font-normal">
                             {fmt(dn.totalAmount)}

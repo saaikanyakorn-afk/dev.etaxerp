@@ -549,6 +549,16 @@ export default function ExpenseList() {
                                     {exp.taxInvoiceRef && <span className="ml-1">#{exp.taxInvoiceRef}</span>}
                                   </div>
                                 )}
+                                {exp.refDebitNoteNo && (
+                                  <div className="text-[11px] mt-0.5">
+                                    <span
+                                      className="text-red-500 hover:text-red-700 hover:underline cursor-pointer font-medium"
+                                      onClick={(e) => { e.stopPropagation(); navigate(`/purchases/debit-note/${exp.refDebitNoteId}`); }}
+                                    >
+                                      ↩ ใบลดหนี้ {exp.refDebitNoteNo}
+                                    </span>
+                                  </div>
+                                )}
                                 <div className="flex items-center gap-2 mt-0.5 text-[11px]">
                                   <button
                                     data-testid={`button-dxp-related-${exp.id}`}
@@ -634,6 +644,16 @@ export default function ExpenseList() {
                           <TableCell>
                             <div className="text-sm font-normal">{exp.vendorName}</div>
                             {(exp.firstItemDescription || exp.notes || exp.refDoc) && <div className="text-xs text-muted-foreground mt-0.5">{exp.firstItemDescription || exp.notes || exp.refDoc}</div>}
+                            {exp.refDebitNoteNo && (
+                              <div className="text-[11px] mt-0.5">
+                                <span
+                                  className="text-red-500 hover:text-red-700 hover:underline cursor-pointer font-medium"
+                                  onClick={(e) => { e.stopPropagation(); navigate(`/purchases/debit-note/${exp.refDebitNoteId}`); }}
+                                >
+                                  ↩ ใบลดหนี้ {exp.refDebitNoteNo}
+                                </span>
+                              </div>
+                            )}
                             <div className="flex items-center gap-2 mt-1 text-xs">
                               <button
                                 data-testid={`button-journal-inline-${exp.id}`}
