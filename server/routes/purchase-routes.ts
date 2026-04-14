@@ -2346,29 +2346,49 @@ export function registerPurchaseRoutes(app: Express) {
 
       const vendorCache = new Map<string, number>();
 
-      const dateGroups = new Map<string, typeof documents>();
+      const BATCH_SUFFIX_MAP: Record<string, string> = {
+        "TRSPEMKP": "SH", "TRSPESPF": "SHF", "TRSPXADB": "SPXA",
+        "RCSPXSPR": "SPX", "RCSPXSPB": "SPX",
+        "TRSLZD": "LZ", "THMPTI": "LZ", "THLPTI": "LZX",
+        "TTSTH": "TK", "TTSTHCN": "TK", "TTSTHAC": "TKC",
+        "THJV": "TKX", "IM": "GR",
+      };
+      function getBatchSuffix(doc: any): string {
+        const prefix = doc.invoicePrefix || "";
+        if (BATCH_SUFFIX_MAP[prefix]) return BATCH_SUFFIX_MAP[prefix];
+        const sortedKeys = Object.keys(BATCH_SUFFIX_MAP).sort((a, b) => b.length - a.length);
+        for (const k of sortedKeys) {
+          if (prefix.startsWith(k)) return BATCH_SUFFIX_MAP[k];
+        }
+        return "OT";
+      }
+
+      const datePrefixGroups = new Map<string, typeof documents>();
       for (const doc of documents) {
         const d = doc.expDate || doc.date || new Date().toISOString().split("T")[0];
-        const existing = dateGroups.get(d) || [];
+        const suffix = getBatchSuffix(doc);
+        const groupKey = `${d}|${suffix}`;
+        const existing = datePrefixGroups.get(groupKey) || [];
         existing.push(doc);
-        dateGroups.set(d, existing);
+        datePrefixGroups.set(groupKey, existing);
       }
 
       const batchMap = new Map<string, number>();
-      for (const [dateStr, dateDocs] of dateGroups) {
+      for (const [groupKey, dateDocs] of datePrefixGroups) {
+        const [dateStr, suffix] = groupKey.split("|");
+        const dateObj = new Date(dateStr + "T00:00:00");
+        const dd = String(dateObj.getDate()).padStart(2, "0");
+        const mm = String(dateObj.getMonth() + 1).padStart(2, "0");
+        const yyyy = String(dateObj.getFullYear());
+        const batchNo = `DXP-${yyyy}${mm}${dd}-${suffix}`;
+
         const existingBatches = await db.select({ id: expenseDailyBatches.id, batchNo: expenseDailyBatches.batchNo })
           .from(expenseDailyBatches)
-          .where(and(eq(expenseDailyBatches.companyId, companyId), eq(expenseDailyBatches.batchDate, dateStr)));
+          .where(and(eq(expenseDailyBatches.companyId, companyId), eq(expenseDailyBatches.batchNo, batchNo)));
 
         if (existingBatches.length > 0) {
-          batchMap.set(dateStr, existingBatches[0].id);
+          batchMap.set(groupKey, existingBatches[0].id);
         } else {
-          const dateObj = new Date(dateStr + "T00:00:00");
-          const dd = String(dateObj.getDate()).padStart(2, "0");
-          const mm = String(dateObj.getMonth() + 1).padStart(2, "0");
-          const yyyy = String(dateObj.getFullYear());
-          const batchNo = `DXP-${yyyy}${mm}${dd}`;
-
           const totalSub = dateDocs.reduce((s: number, d: any) => s + (Number(d.subtotal) || 0), 0);
           const totalV = dateDocs.reduce((s: number, d: any) => s + (Number(d.vatAmount) || 0), 0);
           const totalW = dateDocs.reduce((s: number, d: any) => s + (Number(d.withholdingTax) || 0), 0);
@@ -2386,7 +2406,7 @@ export function registerPurchaseRoutes(app: Express) {
             status: "active",
             createdBy: user.id,
           }).returning();
-          batchMap.set(dateStr, batch.id);
+          batchMap.set(groupKey, batch.id);
         }
       }
 
@@ -2586,7 +2606,7 @@ export function registerPurchaseRoutes(app: Express) {
               attachedUrl: doc.attachedUrl || doc.archivedFileUrl || null,
               attachedFolder: doc.folderPath || null,
               linkJournal: false,
-              batchId: batchMap.get(doc.expDate || doc.date || new Date().toISOString().split("T")[0]) || null,
+              batchId: batchMap.get(`${doc.expDate || doc.date || new Date().toISOString().split("T")[0]}|${getBatchSuffix(doc)}`) || null,
               createdBy: user.id,
             }).returning();
 
