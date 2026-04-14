@@ -177,7 +177,8 @@ export function registerImportBatchRoutes(app: Express) {
                 const dxpNo = dxpBatch.batch_no;
                 const dxpJResult = await tx.execute(sql`
                   SELECT id FROM journal_entries 
-                  WHERE company_id = ${batch.companyId} AND reference = ${dxpNo} AND source_doc_type = 'expense_daily_batch'
+                  WHERE company_id = ${batch.companyId} AND source_doc_type = 'expense_daily_batch'
+                    AND (source_doc_id = ${dxpId} OR reference = ${dxpNo} OR reference LIKE ${dxpNo + '-%'})
                 `);
                 const djIds = (dxpJResult.rows as any[]).map((dj: any) => dj.id);
                 if (djIds.length > 0) {
