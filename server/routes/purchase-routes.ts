@@ -2652,17 +2652,26 @@ export function registerPurchaseRoutes(app: Express) {
 
       const hasAutoJournal = autoJournal && pendingJournals.length > 0;
       if (hasAutoJournal) {
-        const SHOPEE_ITEM_ACCOUNT_MAP: Record<string, { code: string; name: string }> = {
-          "commission": { code: "5241000", name: "ค่าคอมมิชชั่น Shopee" },
-          "service": { code: "5251000", name: "ค่าบริการ Shopee" },
-          "ads": { code: "5271000", name: "ค่าโฆษณา Shopee Ads" },
-        };
-        const classifyShopeeItem = (desc: string): string => {
+        const classifyFeeItem = (desc: string): string => {
           const d = (desc || "").toLowerCase().trim();
           if (/^paid\s*ads$/i.test(d)) return "ads";
           if (/commission/i.test(d) || /ค่าคอมมิชชั่น/i.test(d)) return "commission";
           if (/ads|โฆษณา|AMS.*Fee/i.test(d)) return "ads";
           return "service";
+        };
+        const buildFormulaAcctMap = (bt: string): Record<string, { code: string; name: string }> | null => {
+          const formula = DEFAULT_FORMULAS.find((f: any) => f.businessType === bt && f.documentType === "purchase");
+          if (!formula) return null;
+          const expLines = formula.lines.filter((l: any) => l.direction === "debit" && l.accountCode?.startsWith("5"));
+          if (expLines.length < 2) return null;
+          const map: Record<string, { code: string; name: string }> = {};
+          for (const el of expLines) {
+            const n = (el.accountName || "").toLowerCase();
+            if (/commission|คอมมิชชั่น/.test(n)) map["commission"] = { code: el.accountCode, name: el.accountName };
+            else if (/โฆษณา|ads/.test(n)) map["ads"] = { code: el.accountCode, name: el.accountName };
+            else map["service"] = { code: el.accountCode, name: el.accountName };
+          }
+          return Object.keys(map).length >= 2 ? map : null;
         };
 
         const formulaGroups = new Map<string, { date: string; formulaBt: string; subtotal: number; vat: number; total: number; wht: number; expIds: number[]; expNos: string[]; batchId: number | null; adCreditItems: { accountCode: string; accountName: string; amount: number; description: string }[]; feeBreakdown: Map<string, number> }>();
@@ -2690,8 +2699,10 @@ export function registerPurchaseRoutes(app: Express) {
                   description: `Paid ads (${result.expNo})`,
                 });
               }
-              const feeType = classifyShopeeItem(item.description);
-              group.feeBreakdown.set(feeType, (group.feeBreakdown.get(feeType) || 0) + amt);
+              if (!isPaidAdsItem(item.description)) {
+                const feeType = classifyFeeItem(item.description);
+                group.feeBreakdown.set(feeType, (group.feeBreakdown.get(feeType) || 0) + amt);
+              }
             }
           }
 
@@ -2744,10 +2755,11 @@ export function registerPurchaseRoutes(app: Express) {
 
             let dxpLineItemAccounts: { accountCode: string; accountName: string; amount: number; description?: string }[] | undefined;
 
-            if (group.feeBreakdown.size > 0) {
+            const formulaItemMap = buildFormulaAcctMap(group.formulaBt);
+            if (formulaItemMap && group.feeBreakdown.size > 0) {
               dxpLineItemAccounts = [];
               for (const [feeType, feeAmt] of group.feeBreakdown) {
-                const mapping = SHOPEE_ITEM_ACCOUNT_MAP[feeType];
+                const mapping = formulaItemMap[feeType];
                 if (mapping && feeAmt > 0) {
                   const acc = accountMap.get(mapping.code);
                   dxpLineItemAccounts.push({
@@ -2758,7 +2770,7 @@ export function registerPurchaseRoutes(app: Express) {
                   });
                 }
               }
-              console.log(`[PDF-Import] DXP ${dxpNo}: feeBreakdown=${JSON.stringify(Object.fromEntries(group.feeBreakdown))}`);
+              console.log(`[PDF-Import] DXP ${dxpNo}: feeBreakdown=${JSON.stringify(Object.fromEntries(group.feeBreakdown))}, formulaMap=${JSON.stringify(formulaItemMap)}`);
             }
 
             if (adCreditTotal > 0) {

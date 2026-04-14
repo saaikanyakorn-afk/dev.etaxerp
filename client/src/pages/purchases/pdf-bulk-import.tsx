@@ -529,7 +529,8 @@ export default function PdfBulkImport() {
   const totalVat = selectedDocsList.reduce((s, d) => s + d.vatAmount, 0);
   const totalWht = whtRate > 0 ? Math.round(totalSubtotal * whtRate * 100) / 100 : 0;
   const grandTotal = totalSubtotal + totalVat - totalWht;
-  const totalPaidAds = selectedDocsList.reduce((s, d) => s + (d.items || []).filter((it: any) => it.vatType === "non_vat").reduce((is: number, it: any) => is + (parseFloat(it.amount) || 0), 0), 0);
+  const isPaidAdsItem = (desc: string) => /^paid\s*ads$/i.test((desc || "").trim());
+  const totalPaidAds = selectedDocsList.reduce((s, d) => s + (d.items || []).filter((it: any) => isPaidAdsItem(it.description)).reduce((is: number, it: any) => is + (parseFloat(it.amount) || 0), 0), 0);
   const expenseSubtotal = totalSubtotal - totalPaidAds;
 
   const classifyItem = (desc: string): string => {
@@ -539,26 +540,40 @@ export default function PdfBulkImport() {
     if (/ads|โฆษณา|ams.*fee/i.test(d)) return "ads";
     return "service";
   };
-  const ITEM_ACCT_MAP: Record<string, { code: string; name: string }> = {
-    commission: { code: "5241000", name: "ค่าคอมมิชชั่น Shopee" },
-    service: { code: "5251000", name: "ค่าบริการ Shopee" },
-    ads: { code: "5271000", name: "ค่าโฆษณา Shopee Ads" },
+
+  const buildItemAcctMap = (): Record<string, { code: string; name: string }> | null => {
+    if (!selectedFormula?.lines) return null;
+    const expLines = selectedFormula.lines.filter((l: any) => l.direction === "debit" && l.accountCode?.startsWith("5"));
+    if (expLines.length < 2) return null;
+    const map: Record<string, { code: string; name: string }> = {};
+    for (const el of expLines) {
+      const n = (el.accountName || "").toLowerCase();
+      if (/commission|คอมมิชชั่น/.test(n)) map["commission"] = { code: el.accountCode, name: el.accountName };
+      else if (/โฆษณา|ads/.test(n)) map["ads"] = { code: el.accountCode, name: el.accountName };
+      else map["service"] = { code: el.accountCode, name: el.accountName };
+    }
+    return Object.keys(map).length >= 2 ? map : null;
   };
+  const itemAcctMap = buildItemAcctMap();
+
   const feeBreakdownMap = new Map<string, { code: string; name: string; total: number }>();
-  for (const doc of selectedDocsList) {
-    for (const item of (doc.items || [])) {
-      const cat = classifyItem(item.description);
-      const mapping = ITEM_ACCT_MAP[cat];
-      if (mapping) {
-        const amt = parseFloat(item.amount) || 0;
-        if (amt > 0) {
-          const existing = feeBreakdownMap.get(mapping.code);
-          if (existing) { existing.total += amt; } else { feeBreakdownMap.set(mapping.code, { ...mapping, total: amt }); }
+  if (itemAcctMap) {
+    for (const doc of selectedDocsList) {
+      for (const item of (doc.items || [])) {
+        if (isPaidAdsItem(item.description)) continue;
+        const cat = classifyItem(item.description);
+        const mapping = itemAcctMap[cat];
+        if (mapping) {
+          const amt = parseFloat(item.amount) || 0;
+          if (amt > 0) {
+            const existing = feeBreakdownMap.get(mapping.code);
+            if (existing) { existing.total += amt; } else { feeBreakdownMap.set(mapping.code, { ...mapping, total: amt }); }
+          }
         }
       }
     }
   }
-  const hasFeeBreakdown = feeBreakdownMap.size > 1;
+  const hasFeeBreakdown = feeBreakdownMap.size > 0 && itemAcctMap !== null;
 
   const paginatedDocs = parseResult?.documents.slice(previewPage * PAGE_SIZE, (previewPage + 1) * PAGE_SIZE) || [];
   const totalPages = parseResult ? Math.ceil(parseResult.documents.length / PAGE_SIZE) : 0;
