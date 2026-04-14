@@ -210,7 +210,7 @@ export default function PdfBulkImport() {
     },
     enabled: !!companyId,
   });
-  const selectedFormula = selectedFormulaIdx === "auto-detect" ? null : (availableFormulas[Number(selectedFormulaIdx)] || availableFormulas[0] || null);
+  const selectedFormula = selectedFormulaIdx === "auto-detect" ? null : (filteredExpFormulas[Number(selectedFormulaIdx)] || filteredExpFormulas[0] || null);
 
   const { data: dnFormulas = [] } = useQuery<any[]>({
     queryKey: ["/api/accounting-formulas/available", companyId, "debit_note"],
@@ -221,7 +221,7 @@ export default function PdfBulkImport() {
     },
     enabled: !!companyId,
   });
-  const selectedDnFormula = dnFormulas[Number(selectedDnFormulaIdx)] || dnFormulas[0] || null;
+  const selectedDnFormula = filteredDnFormulas[Number(selectedDnFormulaIdx)] || filteredDnFormulas[0] || null;
   const PAYMENT_METHODS = companyPaymentMethods.length > 0
     ? companyPaymentMethods.map((m: any) => ({ value: m.code || m.name, label: m.name }))
     : FALLBACK_PAYMENT_METHODS;
@@ -541,6 +541,50 @@ export default function PdfBulkImport() {
   const isCreditNoteDoc = (d: any) => (d.invoiceNo || "").match(/CN\d/i) || (d.invoicePrefix || "").includes("CN");
   const normalDocsList = selectedDocsList.filter(d => !isCreditNoteDoc(d));
   const creditNoteDocsList = selectedDocsList.filter(d => isCreditNoteDoc(d));
+
+  const PLATFORM_BIZ_TYPES: Record<string, Record<string, string[]>> = {
+    shopee: {
+      platform_fee: ["shopee_platform_fee", "shopee_commission", "platform_fee", "ecommerce_commission", "ecommerce"],
+      commission: ["shopee_commission", "ecommerce_commission", "shopee_platform_fee", "ecommerce"],
+      shipping: ["shopee_shipping", "ecommerce"],
+      mixed: ["shopee_platform_fee", "ecommerce", "ecommerce_commission"],
+    },
+    tiktok: {
+      platform_fee: ["tiktok_platform_fee", "platform_fee", "ecommerce_commission", "ecommerce"],
+      commission: ["tiktok_platform_fee", "ecommerce_commission", "ecommerce"],
+      shipping: ["tiktok_shipping", "ecommerce"],
+      mixed: ["tiktok_platform_fee", "ecommerce", "ecommerce_commission"],
+    },
+    lazada: {
+      platform_fee: ["lazada_platform_fee", "platform_fee", "ecommerce_commission", "ecommerce"],
+      commission: ["lazada_platform_fee", "ecommerce_commission", "ecommerce"],
+      shipping: ["lazada_shipping", "ecommerce"],
+      mixed: ["lazada_platform_fee", "ecommerce", "ecommerce_commission"],
+    },
+    grab: { service_fee: ["ecommerce", "mixed"], mixed: ["ecommerce", "mixed"] },
+    other: { mixed: [] },
+  };
+
+  const detectRelevantBizTypes = (docs: any[]): Set<string> => {
+    const relevant = new Set<string>();
+    for (const d of docs) {
+      const pf = d.platform || "other";
+      const st = d.docSubType || "mixed";
+      const mapping = PLATFORM_BIZ_TYPES[pf]?.[st] || PLATFORM_BIZ_TYPES[pf]?.["mixed"] || [];
+      for (const bt of mapping) relevant.add(bt);
+    }
+    relevant.add("mixed");
+    return relevant;
+  };
+
+  const expRelevantBizTypes = detectRelevantBizTypes(normalDocsList);
+  const filteredExpFormulas = availableFormulas.filter((f: any) =>
+    f.source === "company" || expRelevantBizTypes.has(f.businessType)
+  );
+  const dnRelevantBizTypes = detectRelevantBizTypes(creditNoteDocsList);
+  const filteredDnFormulas = dnFormulas.filter((f: any) =>
+    f.source === "company" || dnRelevantBizTypes.has(f.businessType)
+  );
   const whtRate = parseFloat(globalWhtRate) / 100;
   const totalSubtotal = normalDocsList.reduce((s, d) => s + d.subtotal, 0);
   const totalVat = normalDocsList.reduce((s, d) => s + d.vatAmount, 0);
@@ -1136,7 +1180,7 @@ export default function PdfBulkImport() {
                   </div>
                 </div>
 
-                {autoJournal && availableFormulas.length > 0 && (() => {
+                {autoJournal && filteredExpFormulas.length > 0 && (() => {
                   const platformSet = new Set(selectedDocsList.map(d => `${d.platform || "other"}:${d.docSubType || "mixed"}`));
                   const hasPlatformDocs = selectedDocsList.some(d => d.platform && d.platform !== "other");
 
@@ -1154,7 +1198,7 @@ export default function PdfBulkImport() {
                                 🔍 Auto-Detect ตามแพลตฟอร์ม (แยก journal อัตโนมัติ)
                               </SelectItem>
                             )}
-                            {availableFormulas.map((f: any, idx: number) => (
+                            {filteredExpFormulas.map((f: any, idx: number) => (
                               <SelectItem key={idx} value={String(idx)} data-testid={`formula-option-${idx}`}>
                                 {f.nameTh} {f.source === "default" ? `(${f.businessType})` : ""}
                               </SelectItem>
@@ -1507,7 +1551,7 @@ export default function PdfBulkImport() {
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                              {dnFormulas.map((f: any, i: number) => (
+                              {filteredDnFormulas.map((f: any, i: number) => (
                                 <SelectItem key={i} value={String(i)} className="text-xs">
                                   {f.nameTh || f.name}
                                 </SelectItem>
