@@ -478,6 +478,11 @@ async function _createAutoJournalEntryInner(params: AutoJournalParams): Promise<
       }
     } else {
 
+    const isExpenseDebit = (c: string) => c.startsWith("5") || (c.startsWith("130") && !c.startsWith("1301")) || c.startsWith("140");
+    const isVatDebit = (c: string) => c.startsWith("234") || c.startsWith("143");
+    const expenseDebitCount = formulaLines.filter(l => l.direction === "debit" && isExpenseDebit(l.accountCode) && !isVatDebit(l.accountCode)).length;
+    const creditNonWhtCount = formulaLines.filter(l => l.direction === "credit").length;
+
     for (const line of formulaLines) {
       const c = line.accountCode;
       const isCashBankLine = c.startsWith("1001") || c.startsWith("1011") || c.startsWith("1021") || c.startsWith("1041") || c.startsWith("1042");
@@ -529,11 +534,10 @@ async function _createAutoJournalEntryInner(params: AutoJournalParams): Promise<
       } else if (code.startsWith("233") || code.startsWith("238")) {
         amount = sub;
       } else if (code.startsWith("4")) {
-        amount = sub;
-      } else if (code.startsWith("5")) {
-        amount = sub;
-      } else if (code.startsWith("130") || code.startsWith("140")) {
-        amount = sub;
+        const revenueLineCount = formulaLines.filter(l => l.direction === "credit" && l.accountCode.startsWith("4")).length;
+        amount = revenueLineCount > 1 ? sub / revenueLineCount : sub;
+      } else if (code.startsWith("5") || (code.startsWith("130") && !code.startsWith("1301")) || code.startsWith("140")) {
+        amount = expenseDebitCount > 1 ? sub / expenseDebitCount : sub;
       } else {
         amount = sub;
       }

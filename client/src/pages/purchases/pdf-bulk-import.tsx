@@ -1108,10 +1108,12 @@ export default function PdfBulkImport() {
 
                             const rows: { code: string; name: string; debit: number; credit: number }[] = [];
 
-                            for (const l of debitMainLines) {
-                              const amt = totalSubtotal / (debitMainLines.length || 1);
-                              rows.push({ code: l.accountCode, name: l.accountName, debit: amt, credit: 0 });
-                              totalDebitAmt += amt;
+                            if (debitMainLines.length === 1) {
+                              rows.push({ code: debitMainLines[0].accountCode, name: debitMainLines[0].accountName, debit: totalSubtotal, credit: 0 });
+                              totalDebitAmt += totalSubtotal;
+                            } else if (debitMainLines.length > 1) {
+                              rows.push({ code: debitMainLines.map(l => l.accountCode).join(", "), name: debitMainLines.map(l => l.accountName).join(" + "), debit: totalSubtotal, credit: 0 });
+                              totalDebitAmt += totalSubtotal;
                             }
 
                             for (const l of debitVatLines) {
@@ -1127,10 +1129,12 @@ export default function PdfBulkImport() {
                             }
 
                             const remainingCredit = totalDebitAmt - totalCreditAmt;
-                            for (const l of creditLines) {
-                              const amt = remainingCredit / (creditLines.length || 1);
-                              rows.push({ code: l.accountCode, name: l.accountName, debit: 0, credit: amt });
-                              totalCreditAmt += amt;
+                            if (creditLines.length === 1) {
+                              rows.push({ code: creditLines[0].accountCode, name: creditLines[0].accountName, debit: 0, credit: remainingCredit });
+                              totalCreditAmt += remainingCredit;
+                            } else if (creditLines.length > 1) {
+                              rows.push({ code: creditLines.map(l => l.accountCode).join(", "), name: creditLines.map(l => l.accountName).join(" + "), debit: 0, credit: remainingCredit });
+                              totalCreditAmt += remainingCredit;
                             }
 
                             return (
