@@ -1081,13 +1081,20 @@ export default function PdfBulkImport() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {createResult.created.map((saved, idx) => {
-                          const pdfDoc = parseResult.documents.find(d =>
-                            selectedDocs.has(d.key) && (
-                              (saved.taxInvoiceRef && d.invoiceNo === saved.taxInvoiceRef) ||
-                              (d.vendorName && saved.vendorName && d.vendorName === saved.vendorName && idx < parseResult.documents.filter(dd => selectedDocs.has(dd.key)).length)
-                            )
-                          ) || parseResult.documents.filter(d => selectedDocs.has(d.key) && !d.hasErrors && !d.isDuplicate)[idx];
+                        {(() => {
+                          const selectedPdfDocs = parseResult.documents.filter(d => selectedDocs.has(d.key) && !d.hasErrors && !d.isDuplicate);
+                          const usedPdfKeys = new Set<string>();
+                          return createResult.created.map((saved, idx) => {
+                          let pdfDoc = saved.taxInvoiceRef
+                            ? selectedPdfDocs.find(d => d.invoiceNo === saved.taxInvoiceRef && !usedPdfKeys.has(d.key))
+                            : undefined;
+                          if (!pdfDoc) {
+                            pdfDoc = selectedPdfDocs.find(d => !usedPdfKeys.has(d.key) && d.vendorName === saved.vendorName && Math.abs(d.subtotal - parseFloat(String(saved.subtotal || "0"))) < 0.02);
+                          }
+                          if (!pdfDoc) {
+                            pdfDoc = selectedPdfDocs.filter(d => !usedPdfKeys.has(d.key))[0];
+                          }
+                          if (pdfDoc) usedPdfKeys.add(pdfDoc.key);
                           const pdfSub = pdfDoc?.subtotal || 0;
                           const savedSub = parseFloat(String(saved.subtotal || "0"));
                           const pdfVat = pdfDoc?.vatAmount || 0;
@@ -1114,7 +1121,8 @@ export default function PdfBulkImport() {
                               </TableCell>
                             </TableRow>
                           );
-                        })}
+                        });
+                        })()}
                       </TableBody>
                     </Table>
                   </div>
