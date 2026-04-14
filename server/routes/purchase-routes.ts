@@ -3347,10 +3347,8 @@ export function registerPurchaseRoutes(app: Express) {
           const isDuplicate = parsed.invoiceNo ? usedNos.has(parsed.invoiceNo) : false;
 
           const itemsTotal = parsed.items.reduce((s, it) => s + (it.amount || 0), 0);
-          const subtotal = parsed.totalAmount || itemsTotal;
-          const hasVat = parsed.items.some(it => it.vatType === "vat7");
-          const vatBase = parsed.items.filter(it => it.vatType === "vat7").reduce((s, it) => s + (it.amount || 0), 0);
-          const vatAmount = parsed.vatAmount || (hasVat ? Math.round(vatBase * 0.07 * 100) / 100 : 0);
+          const vatAmount = parsed.vatAmount || 0;
+          const subtotal = parsed.subtotal || (parsed.totalAmount ? parsed.totalAmount - vatAmount : itemsTotal);
           const wht = parsed.withholdingTax || 0;
 
           const docDate = parsed.date || "";
@@ -3384,9 +3382,9 @@ export function registerPurchaseRoutes(app: Express) {
             vendorId,
             vendorMatchName,
             isDuplicate,
-            subtotal: parsed.totalAmount || subtotal,
+            subtotal,
             vatAmount,
-            totalAmount: (parsed.totalAmount || subtotal) + vatAmount - wht,
+            totalAmount: subtotal + vatAmount - wht,
             withholdingTax: wht,
             items: parsed.items.map((it, idx) => ({
               rowNum: idx + 1,
