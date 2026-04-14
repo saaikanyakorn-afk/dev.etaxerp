@@ -333,6 +333,7 @@ export default function PdfBulkImport() {
             fileName: d.fileName,
             platform: d.platform || "other",
             docSubType: d.docSubType || "mixed",
+            invoicePrefix: d.invoicePrefix || "",
             items: d.items.map(it => ({
               description: it.description || it.productName,
               amount: it.amount || it.total,
@@ -361,6 +362,7 @@ export default function PdfBulkImport() {
             folderPath: d.folderPath || "",
             platform: d.platform || "other",
             docSubType: d.docSubType || "mixed",
+            invoicePrefix: d.invoicePrefix || "",
             items: d.items.map(it => ({
               productName: it.description || it.productName,
               description: it.description,

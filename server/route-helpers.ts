@@ -106,6 +106,7 @@ export async function getNextDocNo(
   docDate?: string,
   docTypeKey?: string,
   dbConn?: any,
+  skipPrefixOverride?: boolean,
 ): Promise<string> {
   const conn = dbConn || db;
   const [settings] = await conn.select().from(documentSettings).where(eq(documentSettings.companyId, companyId));
@@ -113,7 +114,7 @@ export async function getNextDocNo(
   const digits = settings?.docNumberDigits || 5;
   const era = (settings?.dateEra || "BE") as DateEra;
 
-  if (settings?.docPrefixes) {
+  if (settings?.docPrefixes && !skipPrefixOverride) {
     try {
       const { resolvePrefix, getPrefixOptions, DOCUMENT_TYPES_FULL } = await import("@shared/document-types");
       let key = docTypeKey;

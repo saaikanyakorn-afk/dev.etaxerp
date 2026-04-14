@@ -2155,7 +2155,8 @@ export function registerPurchaseRoutes(app: Express) {
           const docDateStr = doc.apDate || new Date().toISOString().split("T")[0];
           if (!apNo || apNo === "(สร้างอัตโนมัติ)") {
             const docPrefix = doc.invoicePrefix || "AP";
-            apNo = await getNextDocNo(companyId, docPrefix, purchaseInvoices, purchaseInvoices.apNo, purchaseInvoices.companyId, docDateStr);
+            const useInvoicePrefix = !!doc.invoicePrefix;
+            apNo = await getNextDocNo(companyId, docPrefix, purchaseInvoices, purchaseInvoices.apNo, purchaseInvoices.companyId, docDateStr, "purchase_invoice", undefined, useInvoicePrefix);
           } else {
             const existing = await db.select({ apNo: purchaseInvoices.apNo })
               .from(purchaseInvoices).where(and(eq(purchaseInvoices.companyId, companyId), eq(purchaseInvoices.apNo, apNo)));
@@ -3066,7 +3067,9 @@ export function registerPurchaseRoutes(app: Express) {
 
           let apNo = doc.apNo;
           if (!apNo || apNo === "(สร้างอัตโนมัติ)") {
-            apNo = await getNextDocNo(companyId, "AP", purchaseInvoices, purchaseInvoices.apNo, purchaseInvoices.companyId, doc.apDate);
+            const docPrefix = doc.invoicePrefix || "AP";
+            const useInvoicePrefix = !!doc.invoicePrefix;
+            apNo = await getNextDocNo(companyId, docPrefix, purchaseInvoices, purchaseInvoices.apNo, purchaseInvoices.companyId, doc.apDate, "purchase_invoice", undefined, useInvoicePrefix);
           }
 
           const validItems = (doc.items || []).filter((i: any) =>

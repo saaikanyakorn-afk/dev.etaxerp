@@ -956,7 +956,9 @@ export function registerExpenseRoutes(app: Express) {
 
           let expNo = doc.expNo;
           if (!expNo || expNo === "(สร้างอัตโนมัติ)") {
-            expNo = await getNextDocNo(companyId, "EXP", expenses, expenses.expNo, expenses.companyId, doc.expDate);
+            const docPrefix = doc.invoicePrefix || "EXP";
+            const useInvoicePrefix = !!doc.invoicePrefix;
+            expNo = await getNextDocNo(companyId, docPrefix, expenses, expenses.expNo, expenses.companyId, doc.expDate, "expense", undefined, useInvoicePrefix);
           }
 
           const validItems = (doc.items || []).filter((i: any) => {
