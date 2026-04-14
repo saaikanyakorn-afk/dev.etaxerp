@@ -660,6 +660,15 @@ export const ECOMMERCE_EXTRA_ACCOUNTS: ChartAccountTemplate[] = [
   { code: "1448300", name: "Prepaid Return Shipping - TikTok", nameTh: "ค่าจัดส่งคืน TikTok รับรู้ล่วงหน้า", nameZh: "预付退货运费-TikTok", type: "asset", parentCode: "1448" },
   { code: "1448900", name: "Prepaid Return Shipping - Other", nameTh: "ค่าจัดส่งคืนแพลตฟอร์มอื่นรับรู้ล่วงหน้า", nameZh: "预付退货运费-其他", type: "asset", parentCode: "1448" },
 
+  // --- Advertising Credit (เงินเครดิตค่าโฆษณา) ---
+  { code: "1449", name: "Advertising Credit", nameTh: "เงินเครดิตค่าโฆษณา", nameZh: "广告信用额度", type: "asset", parentCode: "144" },
+  { code: "1449100", name: "Advertising Credit - Shopee", nameTh: "เงินเครดิตค่าโฆษณา Shopee", nameZh: "广告信用额度-Shopee", type: "asset", parentCode: "1449" },
+  { code: "1449200", name: "Advertising Credit - Lazada", nameTh: "เงินเครดิตค่าโฆษณา Lazada", nameZh: "广告信用额度-Lazada", type: "asset", parentCode: "1449" },
+  { code: "1449300", name: "Advertising Credit - TikTok", nameTh: "เงินเครดิตค่าโฆษณา TikTok", nameZh: "广告信用额度-TikTok", type: "asset", parentCode: "1449" },
+  { code: "1449400", name: "Advertising Credit - Facebook", nameTh: "เงินเครดิตค่าโฆษณา Facebook", nameZh: "广告信用额度-Facebook", type: "asset", parentCode: "1449" },
+  { code: "1449500", name: "Advertising Credit - Google", nameTh: "เงินเครดิตค่าโฆษณา Google", nameZh: "广告信用额度-Google", type: "asset", parentCode: "1449" },
+  { code: "1449900", name: "Advertising Credit - Other", nameTh: "เงินเครดิตค่าโฆษณาแพลตฟอร์มอื่น", nameZh: "广告信用额度-其他", type: "asset", parentCode: "1449" },
+
   // --- WHT Receivable from Platform ---
   { code: "114", name: "Withholding Tax Receivable", nameTh: "ภาษีหัก ณ ที่จ่ายรอเครดิต", nameZh: "预扣税待抵扣", type: "asset", parentCode: null },
   { code: "1143000", name: "WHT from E-Commerce Platform", nameTh: "ภาษีหัก ณ ที่จ่ายจากแพลตฟอร์ม", nameZh: "电商平台预扣税", type: "asset", parentCode: "114" },

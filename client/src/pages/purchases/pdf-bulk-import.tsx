@@ -512,6 +512,8 @@ export default function PdfBulkImport() {
   const totalVat = selectedDocsList.reduce((s, d) => s + d.vatAmount, 0);
   const totalWht = whtRate > 0 ? Math.round(totalSubtotal * whtRate * 100) / 100 : 0;
   const grandTotal = totalSubtotal + totalVat - totalWht;
+  const totalPaidAds = selectedDocsList.reduce((s, d) => s + (d.items || []).filter((it: any) => /^paid\s*ads$/i.test((it.description || "").trim())).reduce((is: number, it: any) => is + (parseFloat(it.amount) || 0), 0), 0);
+  const expenseSubtotal = totalSubtotal - totalPaidAds;
 
   const paginatedDocs = parseResult?.documents.slice(previewPage * PAGE_SIZE, (previewPage + 1) * PAGE_SIZE) || [];
   const totalPages = parseResult ? Math.ceil(parseResult.documents.length / PAGE_SIZE) : 0;
@@ -826,15 +828,21 @@ export default function PdfBulkImport() {
                             <TableCell className="text-sm max-w-[250px]">
                               {doc.items.length > 0 ? (
                                 <div className="space-y-0.5">
-                                  {doc.items.slice(0, 3).map((item, iIdx) => (
-                                    <div key={iIdx} className="flex items-center justify-between gap-2 text-xs">
-                                      <span className="truncate text-gray-700">{item.description || item.productName || "-"}</span>
-                                      <span className="text-gray-500 whitespace-nowrap">
+                                  {doc.items.slice(0, 3).map((item, iIdx) => {
+                                    const isAd = /^paid\s*ads$/i.test((item.description || "").trim());
+                                    return (
+                                    <div key={iIdx} className={`flex items-center justify-between gap-2 text-xs ${isAd ? "bg-amber-50 rounded px-1" : ""}`}>
+                                      <span className={`truncate ${isAd ? "text-amber-700 font-medium" : "text-gray-700"}`}>
+                                        {item.description || item.productName || "-"}
+                                        {isAd && <span className="ml-1 text-[9px] bg-amber-200 text-amber-800 px-1 rounded">เครดิตโฆษณา</span>}
+                                      </span>
+                                      <span className={`whitespace-nowrap ${isAd ? "text-amber-600" : "text-gray-500"}`}>
                                         {item.qty && item.qty > 1 ? `${item.qty} × ` : ""}
                                         {fmt(item.amount || item.total)}
                                       </span>
                                     </div>
-                                  ))}
+                                    );
+                                  })}
                                   {doc.items.length > 3 && (
                                     <div className="text-[10px] text-gray-400">+{doc.items.length - 3} รายการ</div>
                                   )}
@@ -960,6 +968,8 @@ export default function PdfBulkImport() {
                   </div>
                   <div className="flex items-center gap-4 text-sm">
                     <div>ยอดรวม: <span className="font-bold">{fmt(totalSubtotal)}</span></div>
+                    {totalPaidAds > 0 && <div className="text-xs">├ ค่าใช้จ่าย: <span className="font-medium">{fmt(expenseSubtotal)}</span></div>}
+                    {totalPaidAds > 0 && <div className="text-xs">└ เครดิตโฆษณา: <span className="font-medium text-amber-600">{fmt(totalPaidAds)}</span></div>}
                     {totalVat > 0 && <div>VAT: <span className="font-medium text-blue-600">{fmt(totalVat)}</span></div>}
                     {totalWht > 0 && <div>WHT: <span className="font-medium text-red-600">-{fmt(totalWht)}</span></div>}
                     <div>สุทธิ: <span className="font-bold text-[#fb9678]">{fmt(grandTotal)}</span></div>
@@ -1108,12 +1118,25 @@ export default function PdfBulkImport() {
 
                             const rows: { code: string; name: string; debit: number; credit: number }[] = [];
 
+                            if (totalPaidAds > 0) {
+                              const adSubtotal = expenseSubtotal;
+                              if (debitMainLines.length === 1) {
+                                rows.push({ code: debitMainLines[0].accountCode, name: debitMainLines[0].accountName, debit: adSubtotal, credit: 0 });
+                                totalDebitAmt += adSubtotal;
+                              } else if (debitMainLines.length > 1) {
+                                rows.push({ code: debitMainLines.map(l => l.accountCode).join(", "), name: debitMainLines.map(l => l.accountName).join(" + "), debit: adSubtotal, credit: 0 });
+                                totalDebitAmt += adSubtotal;
+                              }
+                              rows.push({ code: "1449x00", name: "เงินเครดิตค่าโฆษณา (Paid Ads)", debit: totalPaidAds, credit: 0 });
+                              totalDebitAmt += totalPaidAds;
+                            } else {
                             if (debitMainLines.length === 1) {
                               rows.push({ code: debitMainLines[0].accountCode, name: debitMainLines[0].accountName, debit: totalSubtotal, credit: 0 });
                               totalDebitAmt += totalSubtotal;
                             } else if (debitMainLines.length > 1) {
                               rows.push({ code: debitMainLines.map(l => l.accountCode).join(", "), name: debitMainLines.map(l => l.accountName).join(" + "), debit: totalSubtotal, credit: 0 });
                               totalDebitAmt += totalSubtotal;
+                            }
                             }
 
                             for (const l of debitVatLines) {

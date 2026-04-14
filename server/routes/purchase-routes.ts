@@ -2459,6 +2459,23 @@ export function registerPurchaseRoutes(app: Express) {
         return null;
       }
 
+      const AD_CREDIT_ACCOUNT_MAP: Record<string, string> = {
+        "shopee": "1449100",
+        "lazada": "1449200",
+        "tiktok": "1449300",
+        "facebook": "1449400",
+        "google": "1449500",
+      };
+
+      function getAdCreditAccountCode(doc: any): string {
+        const platform = (doc.platform || "").toLowerCase();
+        return AD_CREDIT_ACCOUNT_MAP[platform] || "1449900";
+      }
+
+      function isPaidAdsItem(desc: string): boolean {
+        return /^paid\s*ads$/i.test((desc || "").trim());
+      }
+
       let formulaDebitCode: string | null = null;
       if (formulaBusinessType && formulaBusinessType !== "auto-detect") {
         formulaDebitCode = getDebitCodeForFormula(formulaBusinessType);
@@ -2579,6 +2596,12 @@ export function registerPurchaseRoutes(app: Express) {
             const itemValues = validItems.map((item: any) => {
               let acctCode = item.accountCode || "";
               let acct = accountMap.get(acctCode);
+
+              if (isPaidAdsItem(item.description)) {
+                acctCode = getAdCreditAccountCode(doc);
+                acct = accountMap.get(acctCode) || null;
+              }
+
               if (!acct && docDebitCode) {
                 acctCode = docDebitCode;
                 acct = accountMap.get(acctCode) || null;
@@ -2629,17 +2652,33 @@ export function registerPurchaseRoutes(app: Express) {
 
       const hasAutoJournal = autoJournal && pendingJournals.length > 0;
       if (hasAutoJournal) {
-        const formulaGroups = new Map<string, { date: string; formulaBt: string; subtotal: number; vat: number; total: number; wht: number; expIds: number[]; expNos: string[]; batchId: number | null }>();
-        for (const { result, doc } of pendingJournals) {
+        const formulaGroups = new Map<string, { date: string; formulaBt: string; subtotal: number; vat: number; total: number; wht: number; expIds: number[]; expNos: string[]; batchId: number | null; adCreditItems: { accountCode: string; accountName: string; amount: number; description: string }[] }>();
+        for (const { result, doc, validItems } of pendingJournals) {
           const resolvedBt = doc.resolvedFormulaBt || (formulaBusinessType && formulaBusinessType !== "auto-detect" ? formulaBusinessType : null) || "platform_fee";
           const groupKey = `${result.expDate}||${resolvedBt}`;
-          const group = formulaGroups.get(groupKey) || { date: result.expDate, formulaBt: resolvedBt, subtotal: 0, vat: 0, total: 0, wht: 0, expIds: [], expNos: [], batchId: result.batchId || null };
+          const group = formulaGroups.get(groupKey) || { date: result.expDate, formulaBt: resolvedBt, subtotal: 0, vat: 0, total: 0, wht: 0, expIds: [], expNos: [], batchId: result.batchId || null, adCreditItems: [] };
           group.subtotal += parseFloat(String(result.subtotal || "0"));
           group.vat += parseFloat(String(result.vatAmount || "0"));
           group.total += parseFloat(String(result.totalAmount || "0"));
           group.wht += parseFloat(String(result.withholdingTax || "0"));
           group.expIds.push(result.id);
           group.expNos.push(result.expNo);
+
+          if (validItems) {
+            for (const item of validItems) {
+              if (isPaidAdsItem(item.description)) {
+                const adCode = getAdCreditAccountCode(doc);
+                const adAcc = accountMap.get(adCode);
+                group.adCreditItems.push({
+                  accountCode: adCode,
+                  accountName: adAcc ? (adAcc.nameTh || adAcc.name || "เงินเครดิตค่าโฆษณา") : "เงินเครดิตค่าโฆษณา",
+                  amount: parseFloat(String(item.amount || item.total || "0")),
+                  description: `Paid ads (${result.expNo})`,
+                });
+              }
+            }
+          }
+
           formulaGroups.set(groupKey, group);
         }
 
@@ -2684,6 +2723,27 @@ export function registerPurchaseRoutes(app: Express) {
               }
             }
 
+            const adCreditTotal = group.adCreditItems.reduce((s, i) => s + i.amount, 0);
+            const expenseSubtotal = group.subtotal - adCreditTotal;
+
+            let dxpLineItemAccounts: { accountCode: string; accountName: string; amount: number; description?: string }[] | undefined;
+            if (adCreditTotal > 0) {
+              const adGrouped = new Map<string, { accountCode: string; accountName: string; amount: number }>();
+              for (const adItem of group.adCreditItems) {
+                const existing = adGrouped.get(adItem.accountCode);
+                if (existing) {
+                  existing.amount += adItem.amount;
+                } else {
+                  adGrouped.set(adItem.accountCode, { accountCode: adItem.accountCode, accountName: adItem.accountName, amount: adItem.amount });
+                }
+              }
+              dxpLineItemAccounts = [];
+              for (const [, adg] of adGrouped) {
+                dxpLineItemAccounts.push({ accountCode: adg.accountCode, accountName: adg.accountName, amount: adg.amount, description: `เงินเครดิตค่าโฆษณา (${group.expNos.length} ใบ)` });
+              }
+              console.log(`[PDF-Import] DXP ${dxpNo}: Paid ads separated: adCredit=${adCreditTotal.toFixed(2)}, expenseSub=${expenseSubtotal.toFixed(2)}`);
+            }
+
             console.log(`[PDF-Import] Auto journal ${dxpNo}: ${group.expNos.length} expenses, formula=${group.formulaBt}, total=${group.total.toFixed(2)}`);
             const journalResult = await createAutoJournalEntry({
               companyId,
@@ -2703,6 +2763,7 @@ export function registerPurchaseRoutes(app: Express) {
               formulaId: undefined,
               formulaBusinessType: group.formulaBt,
               overrideLines: req?.body?.journalOverrideLines || undefined,
+              lineItemAccounts: dxpLineItemAccounts,
             });
             console.log(`[PDF-Import] DXP Journal result for ${dxpNo}:`, JSON.stringify(journalResult));
             if (journalResult && group.expIds.length > 0) {

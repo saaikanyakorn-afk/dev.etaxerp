@@ -427,13 +427,15 @@ function parseShopeeInvoice(rows: TextItem[][], fullText: string): ParsedInvoice
     for (const fp of feePatterns) {
       const fm = text.match(fp);
       if (fm) {
+        const descTrimmed = fm[2].trim();
+        const isPaidAds = /^paid\s*ads$/i.test(descTrimmed);
         items.push({
-          description: fm[2].trim(),
+          description: descTrimmed,
           qty: parseInt(fm[3]),
           unit: "ครั้ง",
           unitPrice: cleanNumber(fm[4]),
           amount: cleanNumber(fm[5]),
-          vatType: defaultVatType,
+          vatType: isPaidAds ? "non_vat" : defaultVatType,
         });
         break;
       }
