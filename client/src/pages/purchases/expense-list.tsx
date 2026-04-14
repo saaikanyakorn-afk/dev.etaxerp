@@ -217,9 +217,8 @@ export default function ExpenseList() {
     if (exp.batchId) return false;
     if (filterStatus && filterStatus !== "all" && exp.status !== filterStatus) return false;
     if (filterBranch !== "all" && exp.sellerBranchId !== filterBranch) return false;
-    const hasVat = parseFloat(String(exp.vatAmount || "0")) > 0.005;
-    if (filterTaxReport === "in" && !hasVat) return false;
-    if (filterTaxReport === "out" && hasVat) return false;
+    if (filterTaxReport === "in" && !exp.showInTaxReport) return false;
+    if (filterTaxReport === "out" && exp.showInTaxReport) return false;
     if (dateFrom && exp.expDate && exp.expDate < dateFrom) return false;
     if (dateTo && exp.expDate && exp.expDate > dateTo) return false;
     if (searchText) {
