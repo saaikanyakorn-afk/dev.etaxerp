@@ -2544,7 +2544,7 @@ export function registerPurchaseRoutes(app: Express) {
               .from(journalEntries)
               .where(and(
                 eq(journalEntries.companyId, companyId),
-                eq(journalEntries.docNo, dxpNo),
+                eq(journalEntries.reference, dxpNo),
                 eq(journalEntries.sourceDocType, "expense_daily_batch"),
               ));
 

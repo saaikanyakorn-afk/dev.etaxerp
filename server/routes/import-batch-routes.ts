@@ -162,7 +162,7 @@ export function registerImportBatchRoutes(app: Express) {
                 const dxpNo = dxpBatch.batch_no;
                 const dxpJResult = await tx.execute(sql`
                   SELECT id FROM journal_entries 
-                  WHERE company_id = ${batch.companyId} AND doc_no = ${dxpNo} AND source_doc_type = 'expense_daily_batch'
+                  WHERE company_id = ${batch.companyId} AND reference = ${dxpNo} AND source_doc_type = 'expense_daily_batch'
                 `);
                 const djIds = (dxpJResult.rows as any[]).map((dj: any) => dj.id);
                 if (djIds.length > 0) {
