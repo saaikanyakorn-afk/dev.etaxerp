@@ -576,26 +576,28 @@ async function _createAutoJournalEntryInner(params: AutoJournalParams): Promise<
           grouped.set(la.accountCode, { accountCode: la.accountCode, accountName: la.accountName, total: la.amount, descriptions: la.description ? [la.description] : [] });
         }
       }
-      const expenseLineIdx = pendingLines.findIndex(l => l.debit !== "0" && (l.accountCode.startsWith("5") || l.accountCode.startsWith("130") || l.accountCode.startsWith("140")));
-      if (expenseLineIdx >= 0) {
-        const origAmount = parseFloat(pendingLines[expenseLineIdx].debit);
+
+      const isExpLine = (l: typeof pendingLines[0]) => l.debit !== "0" && (l.accountCode.startsWith("5") || (l.accountCode.startsWith("130") && !l.accountCode.startsWith("1301")) || l.accountCode.startsWith("140"));
+      const expenseIdxes = pendingLines.map((l, i) => isExpLine(l) ? i : -1).filter(i => i >= 0);
+
+      if (expenseIdxes.length > 0) {
+        const origTotalExpense = expenseIdxes.reduce((s, i) => s + parseFloat(pendingLines[i].debit), 0);
         const rawItemTotal = Array.from(grouped.values()).reduce((s, g) => s + Math.abs(g.total), 0);
-        const scale = rawItemTotal > 0 ? origAmount / rawItemTotal : 1;
 
         const replacementLines: typeof pendingLines = [];
-        let scaledTotal = 0;
+        let runningTotal = 0;
         const groupedArr = Array.from(grouped.values());
         for (let gi = 0; gi < groupedArr.length; gi++) {
           const g = groupedArr[gi];
           const gAcc = accountMap.get(g.accountCode);
           if (gAcc) {
             let amt: number;
-            if (gi === groupedArr.length - 1 && Math.abs(scale - 1) > 0.0001) {
-              amt = Math.abs(origAmount - scaledTotal);
+            if (gi === groupedArr.length - 1) {
+              amt = Math.round((origTotalExpense - runningTotal) * 100) / 100;
             } else {
-              amt = Math.round(Math.abs(g.total) * scale * 100) / 100;
+              amt = Math.round(Math.abs(g.total) * (origTotalExpense / rawItemTotal) * 100) / 100;
             }
-            scaledTotal += amt;
+            runningTotal += amt;
             const gDesc = g.descriptions.length > 0 ? g.descriptions.join(", ") : (gAcc.nameTh && gAcc.name ? `${gAcc.nameTh} (${gAcc.name})` : gAcc.nameTh || gAcc.name || g.accountName);
             replacementLines.push({
               accountId: gAcc.id,
@@ -607,16 +609,11 @@ async function _createAutoJournalEntryInner(params: AutoJournalParams): Promise<
           }
         }
         if (replacementLines.length > 0) {
-          const codedItemsRawTotal = rawItemTotal;
-          const allItemsRawTotal = sub;
-          const uncodedRaw = allItemsRawTotal - codedItemsRawTotal;
-          if (uncodedRaw > 0.005) {
-            const uncodedScaled = Math.round(uncodedRaw * scale * 100) / 100;
-            pendingLines[expenseLineIdx].debit = uncodedScaled.toFixed(2);
-            pendingLines.splice(expenseLineIdx + 1, 0, ...replacementLines);
-          } else {
-            pendingLines.splice(expenseLineIdx, 1, ...replacementLines);
+          for (let r = expenseIdxes.length - 1; r >= 0; r--) {
+            pendingLines.splice(expenseIdxes[r], 1);
           }
+          const insertAt = expenseIdxes[0];
+          pendingLines.splice(insertAt, 0, ...replacementLines);
         }
       }
     }

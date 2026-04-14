@@ -2652,11 +2652,24 @@ export function registerPurchaseRoutes(app: Express) {
 
       const hasAutoJournal = autoJournal && pendingJournals.length > 0;
       if (hasAutoJournal) {
-        const formulaGroups = new Map<string, { date: string; formulaBt: string; subtotal: number; vat: number; total: number; wht: number; expIds: number[]; expNos: string[]; batchId: number | null; adCreditItems: { accountCode: string; accountName: string; amount: number; description: string }[] }>();
+        const SHOPEE_ITEM_ACCOUNT_MAP: Record<string, { code: string; name: string }> = {
+          "commission": { code: "5241000", name: "ค่าคอมมิชชั่น Shopee" },
+          "service": { code: "5251000", name: "ค่าบริการ Shopee" },
+          "ads": { code: "5271000", name: "ค่าโฆษณา Shopee Ads" },
+        };
+        const classifyShopeeItem = (desc: string): string => {
+          const d = (desc || "").toLowerCase().trim();
+          if (/^paid\s*ads$/i.test(d)) return "ads";
+          if (/commission/i.test(d) || /ค่าคอมมิชชั่น/i.test(d)) return "commission";
+          if (/ads|โฆษณา|AMS.*Fee/i.test(d)) return "ads";
+          return "service";
+        };
+
+        const formulaGroups = new Map<string, { date: string; formulaBt: string; subtotal: number; vat: number; total: number; wht: number; expIds: number[]; expNos: string[]; batchId: number | null; adCreditItems: { accountCode: string; accountName: string; amount: number; description: string }[]; feeBreakdown: Map<string, number> }>();
         for (const { result, doc, validItems } of pendingJournals) {
           const resolvedBt = doc.resolvedFormulaBt || (formulaBusinessType && formulaBusinessType !== "auto-detect" ? formulaBusinessType : null) || "platform_fee";
           const groupKey = `${result.expDate}||${resolvedBt}`;
-          const group = formulaGroups.get(groupKey) || { date: result.expDate, formulaBt: resolvedBt, subtotal: 0, vat: 0, total: 0, wht: 0, expIds: [], expNos: [], batchId: result.batchId || null, adCreditItems: [] };
+          const group = formulaGroups.get(groupKey) || { date: result.expDate, formulaBt: resolvedBt, subtotal: 0, vat: 0, total: 0, wht: 0, expIds: [], expNos: [], batchId: result.batchId || null, adCreditItems: [], feeBreakdown: new Map<string, number>() };
           group.subtotal += parseFloat(String(result.subtotal || "0"));
           group.vat += parseFloat(String(result.vatAmount || "0"));
           group.total += parseFloat(String(result.totalAmount || "0"));
@@ -2666,16 +2679,19 @@ export function registerPurchaseRoutes(app: Express) {
 
           if (validItems) {
             for (const item of validItems) {
+              const amt = parseFloat(String(item.amount || item.total || "0"));
               if (isPaidAdsItem(item.description)) {
                 const adCode = getAdCreditAccountCode(doc);
                 const adAcc = accountMap.get(adCode);
                 group.adCreditItems.push({
                   accountCode: adCode,
                   accountName: adAcc ? (adAcc.nameTh || adAcc.name || "เงินเครดิตค่าโฆษณา") : "เงินเครดิตค่าโฆษณา",
-                  amount: parseFloat(String(item.amount || item.total || "0")),
+                  amount: amt,
                   description: `Paid ads (${result.expNo})`,
                 });
               }
+              const feeType = classifyShopeeItem(item.description);
+              group.feeBreakdown.set(feeType, (group.feeBreakdown.get(feeType) || 0) + amt);
             }
           }
 
@@ -2727,7 +2743,26 @@ export function registerPurchaseRoutes(app: Express) {
             const expenseSubtotal = group.subtotal - adCreditTotal;
 
             let dxpLineItemAccounts: { accountCode: string; accountName: string; amount: number; description?: string }[] | undefined;
+
+            if (group.feeBreakdown.size > 0) {
+              dxpLineItemAccounts = [];
+              for (const [feeType, feeAmt] of group.feeBreakdown) {
+                const mapping = SHOPEE_ITEM_ACCOUNT_MAP[feeType];
+                if (mapping && feeAmt > 0) {
+                  const acc = accountMap.get(mapping.code);
+                  dxpLineItemAccounts.push({
+                    accountCode: mapping.code,
+                    accountName: acc ? (acc.nameTh || acc.name || mapping.name) : mapping.name,
+                    amount: Math.round(feeAmt * 100) / 100,
+                    description: `${mapping.name} (${group.expNos.length} ใบ)`,
+                  });
+                }
+              }
+              console.log(`[PDF-Import] DXP ${dxpNo}: feeBreakdown=${JSON.stringify(Object.fromEntries(group.feeBreakdown))}`);
+            }
+
             if (adCreditTotal > 0) {
+              if (!dxpLineItemAccounts) dxpLineItemAccounts = [];
               const adGrouped = new Map<string, { accountCode: string; accountName: string; amount: number }>();
               for (const adItem of group.adCreditItems) {
                 const existing = adGrouped.get(adItem.accountCode);
@@ -2737,7 +2772,6 @@ export function registerPurchaseRoutes(app: Express) {
                   adGrouped.set(adItem.accountCode, { accountCode: adItem.accountCode, accountName: adItem.accountName, amount: adItem.amount });
                 }
               }
-              dxpLineItemAccounts = [];
               for (const [, adg] of adGrouped) {
                 dxpLineItemAccounts.push({ accountCode: adg.accountCode, accountName: adg.accountName, amount: adg.amount, description: `เงินเครดิตค่าโฆษณา (${group.expNos.length} ใบ)` });
               }
