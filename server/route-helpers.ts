@@ -537,6 +537,9 @@ async function _createAutoJournalEntryInner(params: AutoJournalParams): Promise<
         const revenueLineCount = formulaLines.filter(l => l.direction === "credit" && l.accountCode.startsWith("4")).length;
         amount = revenueLineCount > 1 ? sub / revenueLineCount : sub;
       } else if (code.startsWith("5") || (code.startsWith("130") && !code.startsWith("1301")) || code.startsWith("140")) {
+        if (params.lineItemAccounts && params.lineItemAccounts.length > 0 && expenseDebitCount > 1) {
+          continue;
+        }
         amount = expenseDebitCount > 1 ? sub / expenseDebitCount : sub;
       } else {
         amount = sub;
@@ -580,28 +583,28 @@ async function _createAutoJournalEntryInner(params: AutoJournalParams): Promise<
       const isExpLine = (l: typeof pendingLines[0]) => l.debit !== "0" && (l.accountCode.startsWith("5") || (l.accountCode.startsWith("130") && !l.accountCode.startsWith("1301")) || l.accountCode.startsWith("140"));
       const expenseIdxes = pendingLines.map((l, i) => isExpLine(l) ? i : -1).filter(i => i >= 0);
 
-      if (expenseIdxes.length > 0) {
-        const replacementLines: typeof pendingLines = [];
-        for (const [, g] of grouped) {
-          const gAcc = accountMap.get(g.accountCode);
-          if (gAcc && Math.abs(g.total) > 0.004) {
-            const amt = Math.round(Math.abs(g.total) * 100) / 100;
-            const gDesc = g.descriptions.length > 0 ? g.descriptions.join(", ") : (gAcc.nameTh && gAcc.name ? `${gAcc.nameTh} (${gAcc.name})` : gAcc.nameTh || gAcc.name || g.accountName);
-            replacementLines.push({
-              accountId: gAcc.id,
-              description: gDesc,
-              debit: amt.toFixed(2),
-              credit: "0",
-              accountCode: g.accountCode,
-            });
-          }
+      for (let r = expenseIdxes.length - 1; r >= 0; r--) {
+        pendingLines.splice(expenseIdxes[r], 1);
+      }
+
+      const insertAt = expenseIdxes.length > 0 ? expenseIdxes[0] : 0;
+      const newLines: typeof pendingLines = [];
+      for (const [, g] of grouped) {
+        const gAcc = accountMap.get(g.accountCode);
+        if (gAcc && Math.abs(g.total) > 0.004) {
+          const amt = Math.round(Math.abs(g.total) * 100) / 100;
+          const gDesc = g.descriptions.length > 0 ? g.descriptions.join(", ") : (gAcc.nameTh && gAcc.name ? `${gAcc.nameTh} (${gAcc.name})` : gAcc.nameTh || gAcc.name || g.accountName);
+          newLines.push({
+            accountId: gAcc.id,
+            description: gDesc,
+            debit: amt.toFixed(2),
+            credit: "0",
+            accountCode: g.accountCode,
+          });
         }
-        if (replacementLines.length > 0) {
-          for (let r = expenseIdxes.length - 1; r >= 0; r--) {
-            pendingLines.splice(expenseIdxes[r], 1);
-          }
-          pendingLines.splice(expenseIdxes[0], 0, ...replacementLines);
-        }
+      }
+      if (newLines.length > 0) {
+        pendingLines.splice(insertAt, 0, ...newLines);
       }
     }
     }
