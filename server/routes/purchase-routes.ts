@@ -3422,10 +3422,15 @@ export function registerPurchaseRoutes(app: Express) {
       let deletedClientFiles = 0;
 
       for (const exp of batchExpenses) {
-        const deleted = await db.delete(journalEntries)
-          .where(and(eq(journalEntries.refDocType, "expense"), eq(journalEntries.refDocId, exp.id)))
-          .returning({ id: journalEntries.id });
-        deletedJournals += deleted.length;
+        const expJournals = await db.select({ id: journalEntries.id })
+          .from(journalEntries)
+          .where(and(eq(journalEntries.sourceDocType, "expense"), eq(journalEntries.sourceDocId, exp.id)));
+        for (const ej of expJournals) {
+          await db.execute(sql`UPDATE bank_statements SET matched_journal_id = NULL WHERE matched_journal_id = ${ej.id}`);
+          await db.delete(journalLines).where(eq(journalLines.journalEntryId, ej.id));
+          await db.delete(journalEntries).where(eq(journalEntries.id, ej.id));
+          deletedJournals++;
+        }
 
         if (user.tenantId) {
           const files = await db.delete(clientUploadFiles)
@@ -3440,7 +3445,17 @@ export function registerPurchaseRoutes(app: Express) {
         await db.delete(expenseItems).where(eq(expenseItems.expenseId, exp.id));
 
         await db.delete(withholdingTaxCerts)
-          .where(and(eq(withholdingTaxCerts.refDocType, "expense"), eq(withholdingTaxCerts.refDocId, exp.id)));
+          .where(and(eq(withholdingTaxCerts.sourceDocType, "expense"), eq(withholdingTaxCerts.sourceDocId, exp.id)));
+      }
+
+      const batchJournals = await db.select({ id: journalEntries.id })
+        .from(journalEntries)
+        .where(and(eq(journalEntries.sourceDocType, "expense_daily_batch"), eq(journalEntries.sourceDocId, batchId)));
+      for (const bj of batchJournals) {
+        await db.execute(sql`UPDATE bank_statements SET matched_journal_id = NULL WHERE matched_journal_id = ${bj.id}`);
+        await db.delete(journalLines).where(eq(journalLines.journalEntryId, bj.id));
+        await db.delete(journalEntries).where(eq(journalEntries.id, bj.id));
+        deletedJournals++;
       }
 
       await db.delete(expenses).where(eq(expenses.batchId, batchId));
