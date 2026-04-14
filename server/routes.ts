@@ -13,7 +13,7 @@ import businessInsightsRouter from "./routes/business-insights";
 import { registerHrRoutes } from "./routes/hr-routes";
 import { registerPurchaseRoutes } from "./routes/purchase-routes";
 import { registerImportBatchRoutes } from "./routes/import-batch-routes";
-import { registerPdfTemplateRoutes } from "./routes/pdf-template-routes";
+import { registerPdfTemplateRoutes, seedDefaultPdfTemplates } from "./routes/pdf-template-routes";
 import { registerManufacturingRoutes } from "./routes/manufacturing-routes";
 import { registerManufacturingModuleRoutes } from "./routes/manufacturing-module-routes";
 import { registerExpenseRoutes } from "./routes/expense-routes";
@@ -153,6 +153,7 @@ export async function registerRoutes(
   registerPurchaseRoutes(app);
   registerImportBatchRoutes(app);
   registerPdfTemplateRoutes(app);
+  seedDefaultPdfTemplates();
   registerManufacturingRoutes(app);
   registerManufacturingModuleRoutes(app);
   registerExpenseRoutes(app);

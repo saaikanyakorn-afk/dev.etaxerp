@@ -7,6 +7,64 @@ import multer from "multer";
 
 const pdfUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
 
+export async function seedDefaultPdfTemplates() {
+  try {
+    const existing = await db.select({ id: pdfImportTemplates.id }).from(pdfImportTemplates)
+      .where(eq(pdfImportTemplates.isBuiltIn, true));
+    if (existing.length > 0) return;
+
+    const shopeeTemplate = {
+      companyId: null as number | null,
+      name: "Shopee / SPX Express Invoice",
+      description: "ใบแจ้งค่าบริการ Shopee และ SPX Express (Thailand)",
+      detectKeywords: ["Shopee", "Seller ID"],
+      fieldRules: {
+        invoiceNo: { keyword: "เลขที่/No.", extractionType: "afterKeyword", pattern: "([A-Z0-9\\-]{10,})" },
+        date: { keyword: "วันที่/Date", extractionType: "afterKeyword", pattern: "(\\d{1,2}/\\d{1,2}/\\d{4})" },
+        vendorName: { keyword: "Shopee|SPX Express", extractionType: "afterKeyword", pattern: "((?:Shopee|SPX\\s*Express)\\s*\\(Thailand\\)\\s*Co\\.?,?\\s*Ltd\\.?)" },
+        vendorTaxId: { keyword: "Tax ID No", extractionType: "afterKeyword", pattern: "(\\d{13})" },
+        subtotal: { keyword: "มูลค่าก่อนภาษี|Total Value.*Excluded VAT", extractionType: "lastNumberOnLine" },
+        vatAmount: { keyword: "ภาษีมูลค่าเพิ่ม 7%|VAT 7%", extractionType: "lastNumberOnLine" },
+        totalAmount: { keyword: "มูลค่าบริการรวมภาษี|Total Value.*Included VAT|จำนวนเงินรวม|Total amount", extractionType: "lastNumberOnLine" },
+        withholdingTax: { keyword: "หักภาษีเงินได้ ณ ที่จ่าย|withholding tax", extractionType: "lastNumberOnLine" },
+      },
+      dateFormat: "DD/MM/YYYY",
+      defaultVatType: "vat7",
+      active: true,
+      priority: 100,
+      isBuiltIn: true,
+      createdBy: null as number | null,
+    };
+
+    const tiktokTemplate = {
+      companyId: null as number | null,
+      name: "TikTok Creator Receipt",
+      description: "ใบเสร็จค่าคอมมิชชั่น TikTok Creator",
+      detectKeywords: ["Receipt Number", "Creator"],
+      fieldRules: {
+        invoiceNo: { keyword: "Receipt Number", extractionType: "afterKeyword", pattern: "([A-Za-z0-9]+)" },
+        date: { keyword: "Receipt Date", extractionType: "afterKeyword" },
+        vendorName: { keyword: "Client Name", extractionType: "afterKeyword" },
+        vendorTaxId: { keyword: "Tax Number", extractionType: "afterKeyword", pattern: "(\\d{13})" },
+        vendorAddress: { keyword: "Billing Address", extractionType: "afterKeyword" },
+        totalAmount: { keyword: "total amount", extractionType: "lastNumberOnLine" },
+        withholdingTax: { keyword: "personal income tax", extractionType: "lastNumberOnLine" },
+      },
+      dateFormat: "DD/MM/YYYY",
+      defaultVatType: "non_vat",
+      active: true,
+      priority: 90,
+      isBuiltIn: true,
+      createdBy: null as number | null,
+    };
+
+    await db.insert(pdfImportTemplates).values([shopeeTemplate, tiktokTemplate]);
+    console.log("[PDF Templates] Seeded 2 built-in templates (Shopee, TikTok)");
+  } catch (err: any) {
+    console.error("[PDF Templates] Seed error:", err.message);
+  }
+}
+
 export function registerPdfTemplateRoutes(app: Express) {
   app.get("/api/pdf-import-templates", requireAuth, requireModule("purchases"), async (req, res) => {
     try {
@@ -134,6 +192,17 @@ export function registerPdfTemplateRoutes(app: Express) {
         rawText: fullText.substring(0, 5000),
         result,
       });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/pdf-import-templates/seed-defaults", requireAuth, requireModule("purchases"), async (_req, res) => {
+    try {
+      await seedDefaultPdfTemplates();
+      const rows = await db.select({ id: pdfImportTemplates.id, name: pdfImportTemplates.name }).from(pdfImportTemplates)
+        .where(eq(pdfImportTemplates.isBuiltIn, true));
+      res.json({ message: `Built-in templates: ${rows.length}`, templates: rows });
     } catch (err: any) {
       res.status(500).json({ message: err.message });
     }

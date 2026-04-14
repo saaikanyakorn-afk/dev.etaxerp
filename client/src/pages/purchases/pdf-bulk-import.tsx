@@ -13,10 +13,12 @@ import { useCompany } from "@/lib/company-context";
 import ImportBatchHistory from "@/components/import-batch-history";
 import { useDateSettings } from "@/hooks/use-date-settings";
 import { formatDate } from "@/lib/format";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   Upload, CheckCircle2, XCircle, AlertCircle, ArrowLeft, FileText,
-  Loader2, ChevronDown, ChevronUp, File, X, BookOpen, Trash2, FolderOpen,
+  Loader2, ChevronDown, ChevronUp, File, X, BookOpen, Trash2, FolderOpen, Settings2,
 } from "lucide-react";
+import { ImportTemplatesContent } from "@/pages/settings/import-templates";
 
 interface ParsedItem {
   rowNum: number;
@@ -403,6 +405,7 @@ export default function PdfBulkImport() {
 
   const [scanningFolders, setScanningFolders] = useState(false);
   const [scannedFileCount, setScannedFileCount] = useState(0);
+  const [showTemplateDialog, setShowTemplateDialog] = useState(false);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -518,7 +521,21 @@ export default function PdfBulkImport() {
             <h1 className="text-xl font-bold" data-testid="text-page-title">นำเข้า PDF แบบกลุ่ม (ฟรี)</h1>
             <p className="text-sm text-gray-500">อัปโหลด Receipt / ใบกำกับภาษี หลายไฟล์พร้อมกัน — ไม่ใช้ AI</p>
           </div>
+          <div className="ml-auto">
+            <Button variant="outline" size="sm" onClick={() => setShowTemplateDialog(true)} data-testid="btn-open-templates">
+              <Settings2 className="w-4 h-4 mr-1" /> ตั้งค่ารูปแบบนำเข้า
+            </Button>
+          </div>
         </div>
+
+        <Dialog open={showTemplateDialog} onOpenChange={setShowTemplateDialog}>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>จัดการรูปแบบนำเข้า PDF</DialogTitle>
+            </DialogHeader>
+            <ImportTemplatesContent />
+          </DialogContent>
+        </Dialog>
 
         <ImportBatchHistory
           docType={docType === "expense" ? "expense" : "purchase_invoice"}

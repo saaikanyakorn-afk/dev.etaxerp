@@ -259,7 +259,6 @@ const Login = lazy(() => import("@/pages/login"));
 const UserManagement = lazy(() => import("@/pages/settings/user-management"));
 const AccountingFormulas = lazy(() => import("@/pages/accounting-formulas"));
 const DocumentTemplates = lazy(() => import("@/pages/settings/document-templates"));
-const ImportTemplates = lazy(() => import("@/pages/settings/import-templates"));
 const UserProfile = lazy(() => import("@/pages/settings/user-profile"));
 const FirmLinkPage = lazy(() => import("@/pages/settings/firm-link"));
 const ModuleSelectPage = lazy(() => import("@/pages/module-select"));
@@ -889,7 +888,6 @@ function Router() {
       <Route path="/office/work-board" component={WorkBoardPage} />
       <Route path="/settings/users" component={UserManagement} />
       <Route path="/settings/document-templates" component={DocumentTemplates} />
-      <Route path="/settings/import-templates" component={ImportTemplates} />
       <Route path="/settings/profile" component={UserProfile} />
       <Route path="/settings/firm-link" component={FirmLinkPage} />
       <Route path="/module-select" component={ModuleSelectPage} />
