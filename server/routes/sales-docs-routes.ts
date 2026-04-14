@@ -2,7 +2,7 @@ import type { Express, Request, Response } from "express";
 import { db } from "../db";
 import { storage } from "../storage";
 import { eq, desc, and, inArray, count, sql, isNull } from "drizzle-orm";
-import { salesOrders, invoices, salesOrderItems, quotations, companies, documentSettings, quotationItems, users, invoiceItems, journalEntries, journalLines, accounts, products, contacts, documentImportBatches, taxInvoices, taxInvoiceItems, receipts, receiptItems, purchaseInvoices, expenses, commissionRules, commissionRecords, employees, liveCfOrders, salesCreditNotes, billingNotes, billingNoteLinkedDocs, purchaseRequests, bidComparisons, purchaseOrders, productBundles } from "@shared/schema";
+import { salesOrders, invoices, salesOrderItems, quotations, companies, documentSettings, quotationItems, users, invoiceItems, journalEntries, journalLines, accounts, products, contacts, documentImportBatches, taxInvoices, taxInvoiceItems, receipts, receiptItems, purchaseInvoices, expenses, commissionRules, commissionRecords, employees, liveCfOrders, salesCreditNotes, billingNotes, billingNoteLinkedDocs, purchaseRequests, bidComparisons, purchaseOrders, productBundles, purchaseDebitNotes } from "@shared/schema";
 import { gte, lte, or } from "drizzle-orm";
 import { requireAuth, requireRole, requireAnyModule, getCompanyTenantId, checkDocOwnership } from "../route-middleware";
 import { getNextDocNo, validateDocNo, getNextJournalEntryNo, createAutoJournalEntry, resolvePaymentMethodAccountCode, logActivity, checkDocumentLimit, deleteStockMovementsForDoc, deleteJournalEntriesForDoc, recomputePaymentStatus, deductStockBundleAware } from "../route-helpers";
@@ -2890,6 +2890,31 @@ app.get("/api/related-documents/:docType/:docId", requireAuth, async (req, res) 
     } else if (docType === "expense") {
       const [exp] = await db.select().from(expenses).where(and(eq(expenses.id, id), eq(expenses.companyId, companyId)));
       if (!exp) return res.status(404).json({ message: "Document not found" });
+      if (exp.refDebitNoteId) {
+        const [dn] = await db.select().from(purchaseDebitNotes).where(eq(purchaseDebitNotes.id, exp.refDebitNoteId));
+        if (dn) related.push({ type: "purchase_debit_note", id: dn.id, docNo: dn.debitNoteNo, date: dn.debitNoteDate, status: dn.status, totalAmount: dn.totalAmount });
+      }
+      const linkedDns = await db.select().from(purchaseDebitNotes).where(and(eq(purchaseDebitNotes.refExpenseId, id), eq(purchaseDebitNotes.companyId, companyId)));
+      for (const dn of linkedDns) {
+        if (!related.find(r => r.type === "purchase_debit_note" && r.id === dn.id)) {
+          related.push({ type: "purchase_debit_note", id: dn.id, docNo: dn.debitNoteNo, date: dn.debitNoteDate, status: dn.status, totalAmount: dn.totalAmount });
+        }
+      }
+      const jes = await db.select().from(journalEntries).where(and(eq(journalEntries.companyId, companyId), eq(journalEntries.refDocType, "expense"), eq(journalEntries.refDocId, id)));
+      for (const je of jes) related.push({ type: "journal", id: je.id, docNo: je.entryNo, date: je.entryDate, status: je.status || "approved", totalAmount: je.totalDebit || "0" });
+    } else if (docType === "purchase_debit_note") {
+      const [dn] = await db.select().from(purchaseDebitNotes).where(and(eq(purchaseDebitNotes.id, id), eq(purchaseDebitNotes.companyId, companyId)));
+      if (!dn) return res.status(404).json({ message: "Document not found" });
+      if (dn.refExpenseId) {
+        const [exp] = await db.select().from(expenses).where(eq(expenses.id, dn.refExpenseId));
+        if (exp) related.push({ type: "expense", id: exp.id, docNo: exp.expNo, date: exp.expDate, status: exp.status, totalAmount: exp.totalAmount });
+      }
+      if (dn.refPurchaseInvoiceId) {
+        const [pi] = await db.select().from(purchaseInvoices).where(eq(purchaseInvoices.id, dn.refPurchaseInvoiceId));
+        if (pi) related.push({ type: "purchase_invoice", id: pi.id, docNo: pi.apNo, date: pi.apDate, status: pi.status, totalAmount: pi.totalAmount });
+      }
+      const jes = await db.select().from(journalEntries).where(and(eq(journalEntries.companyId, companyId), eq(journalEntries.refDocType, "purchase_debit_note"), eq(journalEntries.refDocId, id)));
+      for (const je of jes) related.push({ type: "journal", id: je.id, docNo: je.entryNo, date: je.entryDate, status: je.status || "approved", totalAmount: je.totalDebit || "0" });
     }
 
     const tableMap: Record<string, any> = {
@@ -2903,6 +2928,7 @@ app.get("/api/related-documents/:docType/:docId", requireAuth, async (req, res) 
       purchase_order: purchaseOrders,
       purchase_invoice: purchaseInvoices,
       expense: expenses,
+      purchase_debit_note: purchaseDebitNotes,
     };
     for (const doc of related) {
       const tbl = tableMap[doc.type];

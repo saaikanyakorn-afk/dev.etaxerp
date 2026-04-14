@@ -26,6 +26,7 @@ const docTypeConfig: Record<string, { label: string; icon: any; color: string; l
   purchase_order: { label: "ใบสั่งซื้อ", icon: ClipboardList, color: "#05b187", listPath: "/purchases/po", searchParam: "poNo" },
   purchase_invoice: { label: "เอกสารซื้อ", icon: FileText, color: "var(--theme-primary)", listPath: "/purchases/invoice", searchParam: "apNo" },
   expense: { label: "รายจ่ายอื่น", icon: Receipt, color: "#03c9d7", listPath: "/purchases/expense", searchParam: "expNo" },
+  purchase_debit_note: { label: "ใบลดหนี้ซื้อ", icon: FileText, color: "#f94d4d", listPath: "/purchases/debit-note", searchParam: "debitNoteNo" },
   billing_note: { label: "ใบวางบิล", icon: FileText, color: "#fec90f", listPath: "/finance/billing-notes", searchParam: "billingNo" },
 };
 

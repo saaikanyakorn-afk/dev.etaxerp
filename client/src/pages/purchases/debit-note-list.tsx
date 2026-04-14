@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { useCompany } from "@/lib/company-context";
 import {
-  Search, Plus, FileText, Edit2, Trash2, Eye,
+  Search, Plus, FileText, Edit2, Trash2, Eye, ExternalLink, BookOpen,
   CheckCircle2, Clock, XCircle, AlertCircle, MoreHorizontal, Calendar as CalendarIcon
 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -28,6 +28,8 @@ import { formatDate } from "@/lib/format";
 import ThaiDateInput from "@/components/thai-date-input";
 import { useDateSettings } from "@/hooks/use-date-settings";
 import { toLocalDateStr } from "@/lib/utils";
+import JournalViewDialog from "@/components/journal-view-dialog";
+import RelatedDocsDialog from "@/components/related-docs-dialog";
 
 const STATUS_MAP: Record<string, { label: string; color: string; icon: any }> = {
   draft: { label: "ร่าง", color: "bg-slate-100 text-slate-700 border-slate-200", icon: Clock },
@@ -62,6 +64,8 @@ export default function DebitNoteList() {
 
   const bulk = useBulkDelete({ endpoint: "/api/purchase-debit-notes/bulk-delete", queryKey: "/api/purchase-debit-notes", docLabel: "ใบลดหนี้ซื้อ", companyId });
   const { dateEra, dateFmt } = useDateSettings();
+  const [journalDoc, setJournalDoc] = useState<{ open: boolean; id: number } | null>(null);
+  const [relatedInline, setRelatedInline] = useState<{ open: boolean; id: number } | null>(null);
 
   const { data: debitNotes = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/purchase-debit-notes", companyId, searchText],
@@ -219,6 +223,23 @@ export default function DebitNoteList() {
                         <TableCell className="text-sm">{formatDate(dn.debitNoteDate, dateEra, dateFmt)}</TableCell>
                         <TableCell>
                           <div className="text-sm font-normal">{dn.vendorName}</div>
+                          <div className="flex items-center gap-2 mt-0.5 text-[11px]">
+                            <button
+                              data-testid={`button-journal-${dn.id}`}
+                              onClick={(e) => { e.stopPropagation(); setJournalDoc({ open: true, id: dn.id }); }}
+                              className="flex items-center gap-0.5 text-blue-500 hover:text-blue-700 hover:underline"
+                            >
+                              <BookOpen className="h-2.5 w-2.5" /> ดูบัญชี
+                            </button>
+                            <span className="text-slate-300">|</span>
+                            <button
+                              data-testid={`button-related-${dn.id}`}
+                              onClick={(e) => { e.stopPropagation(); setRelatedInline({ open: true, id: dn.id }); }}
+                              className="flex items-center gap-0.5 text-[#03c9d7] hover:text-[#029baa] hover:underline"
+                            >
+                              <ExternalLink className="h-2.5 w-2.5" /> เอกสารที่เกี่ยวข้อง
+                            </button>
+                          </div>
                         </TableCell>
                         <TableCell className="text-sm">
                           {dn.refPurchaseInvoiceNo || "-"}
@@ -286,6 +307,12 @@ export default function DebitNoteList() {
         </Card>
       </div>
       <BulkDeleteConfirmDialog open={bulk.showConfirm} onOpenChange={bulk.setShowConfirm} count={bulk.selectedIds.size} docLabel="ใบลดหนี้ซื้อ" onConfirm={bulk.confirmDelete} />
+      {journalDoc && (
+        <JournalViewDialog open={journalDoc.open} onOpenChange={(open) => { if (!open) setJournalDoc(null); }} docType="purchase_debit_note" docId={journalDoc.id} />
+      )}
+      {relatedInline && (
+        <RelatedDocsDialog open={relatedInline.open} onOpenChange={(open) => { if (!open) setRelatedInline(null); }} docType="purchase_debit_note" docId={relatedInline.id} />
+      )}
     </Layout>
   );
 }
