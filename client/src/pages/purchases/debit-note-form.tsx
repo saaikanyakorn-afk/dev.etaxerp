@@ -488,29 +488,26 @@ export default function DebitNoteForm() {
                         placeholder="จะเติมอัตโนมัติจากเอกสารซื้อ"
                       />
                     </td>
-                    <td className="px-3 pt-1.5 pb-1 border-r align-top" colSpan={1}>
-                      <div className="text-[10px] text-slate-400 mb-0.5">อ้างอิงเอกสารซื้อ</div>
-                      <Input
-                        data-testid="input-ref-invoice"
-                        value={form.refPurchaseInvoiceNo}
-                        readOnly
-                        className="h-7 text-xs border-dashed bg-slate-50"
-                        placeholder="เลือกอ้างอิง..."
-                      />
-                    </td>
-                    <td className="px-3 pt-1.5 pb-1 align-top" colSpan={1}>
-                      <div className="text-[10px] text-slate-400 mb-0.5">เอกสารที่เกี่ยวข้อง</div>
-                      {form.refExpenseNo ? (
-                        <button
-                          data-testid="link-ref-expense"
-                          className="h-7 flex items-center text-xs text-[#03c9d7] hover:text-[#029baa] hover:underline font-medium"
-                          onClick={() => navigate(`/purchases/exp/edit/${form.refExpenseId}`)}
-                        >
-                          ↪ {form.refExpenseNo}
-                        </button>
-                      ) : (
-                        <span className="h-7 flex items-center text-xs text-slate-400">-</span>
-                      )}
+                    <td className="px-3 pt-1.5 pb-1 align-top" colSpan={2}>
+                      <div className="text-[10px] text-slate-400 mb-0.5">อ้างอิงเอกสาร</div>
+                      <div className="flex flex-col gap-0.5">
+                        {form.refPurchaseInvoiceNo && (
+                          <span data-testid="input-ref-invoice" className="h-7 flex items-center text-xs text-slate-600">
+                            {form.refPurchaseInvoiceNo}
+                          </span>
+                        )}
+                        {form.refExpenseNo ? (
+                          <button
+                            data-testid="link-ref-expense"
+                            className="h-7 flex items-center text-xs text-[#03c9d7] hover:text-[#029baa] hover:underline font-medium"
+                            onClick={() => navigate(`/purchases/exp/edit/${form.refExpenseId}`)}
+                          >
+                            ↪ {form.refExpenseNo}
+                          </button>
+                        ) : !form.refPurchaseInvoiceNo ? (
+                          <span className="h-7 flex items-center text-xs text-slate-400">-</span>
+                        ) : null}
+                      </div>
                     </td>
                   </tr>
 
