@@ -541,6 +541,8 @@ async function _createAutoJournalEntryInner(params: AutoJournalParams): Promise<
           continue;
         }
         amount = expenseDebitCount > 1 ? sub / expenseDebitCount : sub;
+      } else if (code.startsWith("144") && line.direction === "credit") {
+        amount = grossTotal;
       } else {
         amount = sub;
       }
