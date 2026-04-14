@@ -2,7 +2,7 @@ import type { Express, Request, Response } from "express";
 import { db } from "../db";
 import { storage } from "../storage";
 import { eq, desc, and, inArray, gte, lte, sum , sql } from "drizzle-orm";
-import { companies, accounts, journalEntries, journalLines, expenses, taxInvoices, salesCreditNotes, purchaseInvoices, expenseItems, quotations, salesOrders, invoices, quotationItems, salesOrderItems, taxInvoiceItems, invoiceItems, products, fixedAssets } from "@shared/schema";
+import { companies, accounts, journalEntries, journalLines, expenses, taxInvoices, salesCreditNotes, purchaseInvoices, expenseItems, quotations, salesOrders, invoices, quotationItems, salesOrderItems, taxInvoiceItems, invoiceItems, products, fixedAssets, purchaseDebitNotes } from "@shared/schema";
 import { requireAuth, requireModule, checkDocOwnership } from "../route-middleware";
 import { getNextJournalEntryNo } from "../route-helpers";
 import multer from "multer";
@@ -2004,9 +2004,20 @@ app.get("/api/reports/purchase-tax", requireAuth, requireModule("accounting"), a
     if (filterDepartment) expConditions.push(sql`${expenses.department} = ${filterDepartment}`);
     if (filterSalesperson) expConditions.push(sql`${expenses.salesperson} = ${filterSalesperson}`);
 
-    const [piRows, expRows] = await Promise.all([
+    const dnConditions = [
+      eq(purchaseDebitNotes.companyId, companyId),
+      sql`${purchaseDebitNotes.debitNoteDate} >= ${startDate}`,
+      sql`${purchaseDebitNotes.debitNoteDate} <= ${endDate}`,
+      sql`${purchaseDebitNotes.status} != 'cancelled'`,
+      eq(purchaseDebitNotes.showInTaxReport, true),
+    ];
+    if (filterBranch) dnConditions.push(sql`${purchaseDebitNotes.branch} = ${filterBranch}`);
+    if (filterSellerBranch) dnConditions.push(sql`${purchaseDebitNotes.sellerBranchId} = ${filterSellerBranch}`);
+
+    const [piRows, expRows, dnRows] = await Promise.all([
       db.select().from(purchaseInvoices).where(and(...piConditions)),
       db.select().from(expenses).where(and(...expConditions)),
+      db.select().from(purchaseDebitNotes).where(and(...dnConditions)),
     ]);
 
     const combined: any[] = [];
@@ -2105,6 +2116,24 @@ app.get("/api/reports/purchase-tax", requireAuth, requireModule("accounting"), a
       });
     }
 
+    for (const dn of dnRows) {
+      const dnVat = parseFloat(dn.vatAmount || "0");
+      if (Math.abs(dnVat) < 0.005) continue;
+      const dnSub = parseFloat(dn.subtotal || "0");
+      combined.push({
+        date: dn.debitNoteDate,
+        taxInvoiceRef: dn.taxInvoiceRef || dn.debitNoteNo || "",
+        docNo: dn.debitNoteNo,
+        docType: "DN",
+        vendorName: dn.vendorName,
+        vendorTaxId: dn.vendorTaxId || "-",
+        branch: dn.branch || "สำนักงานใหญ่",
+        subtotal: -dnSub,
+        vatAmount: -dnVat,
+        totalAmount: -(dnSub + dnVat),
+      });
+    }
+
     if (sortBy === "number") {
       combined.sort((a, b) => a.docNo.localeCompare(b.docNo));
     } else {
@@ -2164,13 +2193,25 @@ app.get("/api/reports/vat-pp30", requireAuth, requireModule("accounting"), async
         eq(expenses.showInTaxReport, true),
       ));
 
+    const dnPp30Rows = await db.select().from(purchaseDebitNotes)
+      .where(and(
+        eq(purchaseDebitNotes.companyId, companyId),
+        sql`${purchaseDebitNotes.debitNoteDate} >= ${startDate}`,
+        sql`${purchaseDebitNotes.debitNoteDate} <= ${endDate}`,
+        sql`${purchaseDebitNotes.status} != 'cancelled'`,
+        eq(purchaseDebitNotes.showInTaxReport, true),
+      ));
+
     const salesTaxBase = salesRows.reduce((s, r) => s + parseFloat(r.subtotal || "0"), 0);
     const salesVat = salesRows.reduce((s, r) => s + parseFloat(r.vatAmount || "0"), 0);
     const salesCount = salesRows.length;
 
-    const purchaseTaxBase = [...piRows, ...expRows].reduce((s, r) => s + parseFloat((r as any).subtotal || "0"), 0);
-    const purchaseVat = [...piRows, ...expRows].reduce((s, r) => s + parseFloat((r as any).vatAmount || "0"), 0);
-    const purchaseCount = piRows.length + expRows.length;
+    const dnTaxBase = dnPp30Rows.reduce((s, r) => s + parseFloat(r.subtotal || "0"), 0);
+    const dnVatTotal = dnPp30Rows.reduce((s, r) => s + parseFloat(r.vatAmount || "0"), 0);
+
+    const purchaseTaxBase = [...piRows, ...expRows].reduce((s, r) => s + parseFloat((r as any).subtotal || "0"), 0) - dnTaxBase;
+    const purchaseVat = [...piRows, ...expRows].reduce((s, r) => s + parseFloat((r as any).vatAmount || "0"), 0) - dnVatTotal;
+    const purchaseCount = piRows.length + expRows.length + dnPp30Rows.length;
 
     const netVat = salesVat - purchaseVat;
 

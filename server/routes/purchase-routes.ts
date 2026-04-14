@@ -3,7 +3,7 @@ import * as XLSX from "xlsx";
 import { db } from "../db";
 import { storage } from "../storage";
 import { eq, and, desc, or, sql, count, not, ilike, inArray } from "drizzle-orm";
-import { purchaseRequests, purchaseRequestItems, bidComparisons, bidComparisonItems, bidVendors, purchaseOrders, purchaseOrderItems, purchaseInvoices, purchaseInvoiceItems, companies, accounts, contacts, products, journalEntries, journalLines, productStock, stockMovements, expenses, expenseItems, withholdingTaxCerts, whtCertItems, documentImportBatches, firmClients, clientUploadLinks, clientUploadFiles, expenseDailyBatches, pdfImportTemplates } from "@shared/schema";
+import { purchaseRequests, purchaseRequestItems, bidComparisons, bidComparisonItems, bidVendors, purchaseOrders, purchaseOrderItems, purchaseInvoices, purchaseInvoiceItems, companies, accounts, contacts, products, journalEntries, journalLines, productStock, stockMovements, expenses, expenseItems, withholdingTaxCerts, whtCertItems, documentImportBatches, firmClients, clientUploadLinks, clientUploadFiles, expenseDailyBatches, pdfImportTemplates, purchaseDebitNotes, purchaseDebitNoteItems } from "@shared/schema";
 import { requireAuth, requireModule, requireRole, checkDocOwnership } from "../route-middleware";
 import { getNextDocNo, validateDocNo, createAutoJournalEntry, resolvePaymentMethodAccountCode, getNextJournalEntryNo, checkDocumentLimit, deleteStockMovementsForDoc, deleteJournalEntriesForDoc, logActivity } from "../route-helpers";
 import { parsePagination, paginatedResponse } from "./pagination";
@@ -2501,6 +2501,8 @@ export function registerPurchaseRoutes(app: Express) {
         formulaDebitCode = getDebitCodeForFormula(formulaBusinessType);
       }
 
+      const CREDIT_NOTE_PREFIXES = new Set(["TTSTHCN"]);
+
       const created: any[] = [];
       const skipped: any[] = [];
       const errors: any[] = [];
@@ -2508,10 +2510,103 @@ export function registerPurchaseRoutes(app: Express) {
 
       for (const doc of documents) {
         try {
-          let expNo = doc.expNo;
+          const docPrefix = doc.invoicePrefix || "EXP";
           const docDateStr = doc.expDate || doc.apDate || new Date().toISOString().split("T")[0];
 
-          const docPrefix = doc.invoicePrefix || "EXP";
+          if (CREDIT_NOTE_PREFIXES.has(docPrefix)) {
+            let dnNo = doc.expNo;
+            if (!dnNo || dnNo === "(สร้างอัตโนมัติ)") {
+              dnNo = await getNextDocNo(companyId, docPrefix, purchaseDebitNotes, purchaseDebitNotes.debitNoteNo, purchaseDebitNotes.companyId, docDateStr, "purchase_debit_note", undefined, true);
+            } else {
+              const existing = await db.select({ id: purchaseDebitNotes.id })
+                .from(purchaseDebitNotes).where(and(eq(purchaseDebitNotes.companyId, companyId), eq(purchaseDebitNotes.debitNoteNo, dnNo)));
+              if (existing.length > 0) {
+                skipped.push({ expNo: dnNo, reason: "เลขที่ใบลดหนี้ซ้ำ" });
+                continue;
+              }
+            }
+
+            const validItems = (doc.items || []).filter((i: any) => {
+              const amt = parseFloat(i.amount) || parseFloat(i.total) || 0;
+              return amt > 0;
+            });
+
+            let resolvedVendorId = doc.vendorId || null;
+            if (!resolvedVendorId && doc.vendorName && doc.vendorName !== "ไม่ระบุ") {
+              const cacheKey = `${doc.vendorTaxId || ""}|${doc.vendorName}`;
+              if (vendorCache.has(cacheKey)) {
+                resolvedVendorId = vendorCache.get(cacheKey)!;
+              } else {
+                const contact = doc.vendorTaxId
+                  ? contactByTaxId.get(doc.vendorTaxId)
+                  : contactByName.get((doc.vendorName || "").toLowerCase());
+                if (contact) {
+                  resolvedVendorId = contact.id;
+                  vendorCache.set(cacheKey, resolvedVendorId!);
+                }
+              }
+            }
+
+            const sanitize = (s: string | null | undefined) => s ? s.replace(/\x00/g, "") : null;
+            const batchKey = `${docDateStr}|${getBatchSuffix(doc)}`;
+
+            const refInvoiceNo = doc.refInvoiceNo || null;
+
+            const [newDn] = await db.insert(purchaseDebitNotes).values({
+              companyId,
+              debitNoteNo: dnNo,
+              debitNoteDate: docDateStr,
+              vendorId: resolvedVendorId,
+              vendorName: sanitize(doc.vendorName) || "ไม่ระบุ",
+              vendorAddress: sanitize(doc.vendorAddress),
+              vendorTaxId: sanitize(doc.vendorTaxId),
+              branch: sanitize(doc.branch),
+              sellerBranchId: doc.sellerBranchId || null,
+              refPurchaseInvoiceNo: refInvoiceNo,
+              reason: "Miscalculated service fee",
+              reasonDetail: doc.notes || "CREDIT NOTE",
+              subtotal: String(doc.subtotal || "0"),
+              discountAmount: "0",
+              vatAmount: String(doc.vatAmount || "0"),
+              totalAmount: String(doc.totalAmount || "0"),
+              status: "approved",
+              priceMode: doc.priceMode || "excluded",
+              docPrefix: docPrefix,
+              notes: doc.notes || "CREDIT NOTE",
+              linkJournal: false,
+              showInTaxReport: parseFloat(String(doc.vatAmount || "0")) > 0.005,
+              taxInvoiceRef: sanitize(doc.taxInvoiceRef) || dnNo,
+              batchId: batchMap.get(batchKey) || null,
+              createdBy: user.id,
+            }).returning();
+
+            if (validItems.length > 0) {
+              const itemValues = validItems.map((item: any) => ({
+                debitNoteId: newDn.id,
+                productName: item.description || "ค่าบริการ",
+                description: item.description || "",
+                qty: "1",
+                unit: "ครั้ง",
+                unitPrice: String(parseFloat(item.amount || item.total || "0")),
+                total: String(parseFloat(item.amount || item.total || "0")),
+                vatType: item.vatType || "vat7",
+              }));
+              await db.insert(purchaseDebitNoteItems).values(itemValues);
+            }
+
+            created.push({
+              expNo: newDn.debitNoteNo, id: newDn.id,
+              vendorName: newDn.vendorName,
+              subtotal: newDn.subtotal,
+              vatAmount: newDn.vatAmount,
+              totalAmount: newDn.totalAmount,
+              docType: "purchase_debit_note",
+            });
+            console.log(`[PDF-Import] Created purchase debit note ${dnNo} (credit note) total=${doc.totalAmount}`);
+            continue;
+          }
+
+          let expNo = doc.expNo;
 
           if (!expNo || expNo === "(สร้างอัตโนมัติ)") {
             const useInvoicePrefix = !!doc.invoicePrefix;

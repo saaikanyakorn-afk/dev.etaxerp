@@ -20,6 +20,7 @@ interface ParsedInvoice {
   totalAmount: number;
   withholdingTax: number;
   notes: string;
+  refInvoiceNo?: string;
   rawText: string;
   platform?: "shopee" | "tiktok" | "lazada" | "grab" | "other";
   docSubType?: "platform_fee" | "shipping" | "commission" | "ads" | "service_fee" | "mixed";
@@ -640,6 +641,7 @@ function parseTikTokInvoice(rows: TextItem[][], fullText: string): ParsedInvoice
   const isTaxInvoice = /Tax\s*Invoice/i.test(fullText);
   const isCreditNote = /CREDIT\s*NOTE/i.test(fullText);
   const defaultVatType = isTaxInvoice || isCreditNote ? "vat7" : "non_vat";
+  let refInvoiceNo = "";
 
   for (let i = 0; i < rows.length; i++) {
     const text = rowText(rows[i]);
@@ -665,6 +667,11 @@ function parseTikTokInvoice(rows: TextItem[][], fullText: string): ParsedInvoice
     if (!vendorTaxId) {
       const m = text.match(/Tax\s*Registration\s*Number\s*[:：]\s*(\d{13})/i);
       if (m) vendorTaxId = m[1];
+    }
+
+    if (isCreditNote && !refInvoiceNo) {
+      const m = text.match(/Original\s*invoice\s*number\s*[:：]\s*([A-Za-z0-9\-\/_.]+)/i);
+      if (m) refInvoiceNo = m[1];
     }
 
     const feeMatch = text.match(/^-\s+(.+?)\s+฿([\d,]+\.?\d*)\s+฿([\d,]+\.?\d*)\s+฿([\d,]+\.?\d*)$/);
@@ -752,6 +759,7 @@ function parseTikTokInvoice(rows: TextItem[][], fullText: string): ParsedInvoice
     totalAmount: Math.round(totalAmount * 100) / 100,
     withholdingTax: Math.round(withholdingTax * 100) / 100,
     notes: isCreditNote ? "CREDIT NOTE" : "",
+    refInvoiceNo: refInvoiceNo || "",
     rawText: fullText.substring(0, 3000),
     platform: prefixInfo?.platform || "tiktok",
     docSubType: prefixInfo?.docSubType || (isLogistics ? "shipping" : "platform_fee"),
