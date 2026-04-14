@@ -340,6 +340,9 @@ export default function DebitNoteForm() {
       refPurchaseInvoiceNo: "",
       refPurchaseInvoiceDate: "",
       refPurchaseInvoiceId: null,
+      refExpenseId: null,
+      refExpenseNo: "",
+      taxInvoiceRef: "",
       reason: "return",
       reasonDetail: "",
       paymentMethod: activePaymentMethods.find((m: any) => m.isDefault)?.accountCode || activePaymentMethods[0]?.accountCode || "transfer",
@@ -608,23 +611,13 @@ export default function DebitNoteForm() {
                         </Select>
                       </div>
                     </td>
-                    <td className="px-3 pt-1.5 pb-1 border-r align-top">
+                    <td className="px-3 pt-1.5 pb-1 align-top" colSpan={2}>
                       <div className="text-[10px] text-slate-400 mb-0.5">เลขที่ใบลดหนี้ซื้อ</div>
                       <div className="flex items-center gap-1">
                         <span className="text-xs text-slate-500 font-medium">DN</span>
                         <span className="text-slate-300">|</span>
                         <Input data-testid="input-debit-note-no" value={form.debitNoteNo} onChange={e => setForm(p => ({ ...p, debitNoteNo: e.target.value }))} className="h-7 text-xs border-dashed flex-1" placeholder="AUTO" />
                       </div>
-                    </td>
-                    <td className="px-3 pt-1.5 pb-1 align-top">
-                      <div className="text-[10px] text-slate-400 mb-0.5">เลขที่เอกสารต้นฉบับ</div>
-                      <Input
-                        data-testid="input-tax-invoice-ref"
-                        value={form.taxInvoiceRef}
-                        onChange={e => setForm(p => ({ ...p, taxInvoiceRef: e.target.value }))}
-                        className="h-7 text-xs border-dashed"
-                        placeholder="เลขที่ใบกำกับภาษีเดิม"
-                      />
                     </td>
                   </tr>
 
@@ -637,6 +630,16 @@ export default function DebitNoteForm() {
                             <option value="">-- ไม่ระบุ --</option>
                             {branchList.map(b => <option key={b.id} value={b.code}>{b.code} - {b.name}</option>)}
                           </select>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-slate-500">เลขที่เอกสารต้นฉบับ:</span>
+                          <Input
+                            data-testid="input-tax-invoice-ref"
+                            value={form.taxInvoiceRef}
+                            onChange={e => setForm(p => ({ ...p, taxInvoiceRef: e.target.value }))}
+                            className="h-7 text-xs border-dashed w-[240px]"
+                            placeholder="เลขที่ใบกำกับภาษีเดิมที่ลดหนี้"
+                          />
                         </div>
                       </div>
                     </td>
