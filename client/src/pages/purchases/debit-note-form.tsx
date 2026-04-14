@@ -108,6 +108,7 @@ export default function DebitNoteForm() {
     refPurchaseInvoiceId: null as number | null,
     refExpenseId: null as number | null,
     refExpenseNo: "",
+    taxInvoiceRef: "",
     reason: "return",
     reasonDetail: "",
     paymentMethod: "transfer" as string,
@@ -192,6 +193,7 @@ export default function DebitNoteForm() {
               refPurchaseInvoiceId: data.refPurchaseInvoiceId || null,
               refExpenseId: data.refExpenseId || null,
               refExpenseNo: data.refExpenseNo || "",
+              taxInvoiceRef: data.taxInvoiceRef || "",
               reason: data.reason || "return",
               reasonDetail: data.reasonDetail || "",
               paymentMethod: data.paymentMethod || "transfer",
@@ -491,7 +493,12 @@ export default function DebitNoteForm() {
                     <td className="px-3 pt-1.5 pb-1 align-top" colSpan={2}>
                       <div className="text-[10px] text-slate-400 mb-0.5">อ้างอิงเอกสาร</div>
                       <div className="flex flex-col gap-0.5">
-                        {form.refPurchaseInvoiceNo && (
+                        {form.taxInvoiceRef && (
+                          <span data-testid="text-tax-invoice-ref" className="h-7 flex items-center text-xs text-slate-700 font-medium" title="เลขที่ใบกำกับภาษีต้นฉบับ">
+                            {form.taxInvoiceRef}
+                          </span>
+                        )}
+                        {form.refPurchaseInvoiceNo && !form.taxInvoiceRef && (
                           <span data-testid="input-ref-invoice" className="h-7 flex items-center text-xs text-slate-600">
                             {form.refPurchaseInvoiceNo}
                           </span>
@@ -504,7 +511,7 @@ export default function DebitNoteForm() {
                           >
                             ↪ {form.refExpenseNo}
                           </button>
-                        ) : !form.refPurchaseInvoiceNo ? (
+                        ) : !form.taxInvoiceRef && !form.refPurchaseInvoiceNo ? (
                           <span className="h-7 flex items-center text-xs text-slate-400">-</span>
                         ) : null}
                       </div>
