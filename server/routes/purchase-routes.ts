@@ -2980,6 +2980,9 @@ export function registerPurchaseRoutes(app: Express) {
       }
 
       if (pendingDnJournals.length > 0 && autoJournal) {
+        const dnFormulaLines = req?.body?.dnFormulaLines || undefined;
+        const dnFormulaBusinessType = req?.body?.dnFormulaBusinessType || undefined;
+
         const dnGroups = new Map<string, { date: string; subtotal: number; vat: number; total: number; dnIds: number[]; dnNos: string[]; batchId: number | null; batchSuffix: string }>();
         for (const dn of pendingDnJournals) {
           const gk = `${dn.date}||${dn.batchSuffix}`;
@@ -2990,6 +2993,20 @@ export function registerPurchaseRoutes(app: Express) {
           g.dnIds.push(dn.dnId);
           g.dnNos.push(dn.dnNo);
           dnGroups.set(gk, g);
+        }
+
+        let formulaLines: { accountCode: string; accountName: string; direction: string; sortOrder: number }[] | null = null;
+        if (dnFormulaLines && Array.isArray(dnFormulaLines) && dnFormulaLines.length > 0) {
+          formulaLines = dnFormulaLines;
+        } else if (dnFormulaBusinessType) {
+          const defF = DEFAULT_FORMULAS.find((f: any) => f.documentType === "debit_note" && f.businessType === dnFormulaBusinessType);
+          if (defF) formulaLines = defF.lines;
+        }
+        if (!formulaLines) {
+          const defF = DEFAULT_FORMULAS.find((f: any) => f.documentType === "debit_note" && f.businessType === "tiktok_platform_fee")
+            || DEFAULT_FORMULAS.find((f: any) => f.documentType === "debit_note" && f.businessType === "ecommerce")
+            || DEFAULT_FORMULAS.find((f: any) => f.documentType === "debit_note");
+          if (defF) formulaLines = defF.lines;
         }
 
         for (const [gk, g] of dnGroups) {
@@ -3012,17 +3029,8 @@ export function registerPurchaseRoutes(app: Express) {
               }
             }
 
-            const resolveAcc = (...codes: string[]) => {
-              for (const c of codes) { const a = accountMap.get(c); if (a) return a; }
-              return null;
-            };
-
-            const walletAcc = resolveAcc("1043000", "1001300", "1001000");
-            const vatAcc = resolveAcc("1432000", "1431000", "1430000");
-            const expAcc = resolveAcc("5301100", "5301000", "5300000", "5301");
-
-            if (!walletAcc || !vatAcc || !expAcc) {
-              console.log(`[PDF-Import] DN journal ${dxpNo}: Missing accounts wallet=${!!walletAcc} vat=${!!vatAcc} exp=${!!expAcc}`);
+            if (!formulaLines || formulaLines.length === 0) {
+              console.log(`[PDF-Import] DN journal ${dxpNo}: No formula found, skipping`);
               continue;
             }
 
@@ -3036,7 +3044,7 @@ export function registerPurchaseRoutes(app: Express) {
               entryNo,
               entryDate: g.date,
               reference: dxpNo,
-              description: `ใบลดหนี้ซื้อ ${suffix} (${g.dnNos.length} ใบ) — กลับรายการค่าบริการแพลตฟอร์ม`,
+              description: `ใบลดหนี้ซื้อ ${suffix} (${g.dnNos.length} ใบ) — กลับรายการ`,
               journalBook: "general",
               contactName: `ใบลดหนี้ซื้อ ${suffix} (${g.dnNos.length} ใบ)`,
               createdBy: user.id,
@@ -3047,35 +3055,35 @@ export function registerPurchaseRoutes(app: Express) {
               totalCredit: total.toFixed(2),
             }).returning();
 
-            await db.insert(journalLines).values([
-              {
+            const sortedFL = [...formulaLines].sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+            const jLines = sortedFL.map(fl => {
+              const acc = accountMap.get(fl.accountCode);
+              if (!acc) return null;
+              const isVat = fl.accountCode.startsWith("143");
+              let amount: number;
+              if (fl.direction === "debit") {
+                amount = total;
+              } else {
+                amount = isVat ? vat : sub;
+              }
+              return {
                 journalEntryId: je.id,
-                accountId: walletAcc.id,
-                description: walletAcc.nameTh || walletAcc.name || "เงินฝาก Wallet",
-                debit: total.toFixed(2),
-                credit: "0",
-              },
-              {
-                journalEntryId: je.id,
-                accountId: vatAcc.id,
-                description: vatAcc.nameTh || vatAcc.name || "ภาษีซื้อ",
-                debit: "0",
-                credit: vat.toFixed(2),
-              },
-              {
-                journalEntryId: je.id,
-                accountId: expAcc.id,
-                description: expAcc.nameTh || expAcc.name || "ค่าบริการแพลตฟอร์ม",
-                debit: "0",
-                credit: sub.toFixed(2),
-              },
-            ]);
+                accountId: acc.id,
+                description: acc.nameTh || acc.name || fl.accountName,
+                debit: fl.direction === "debit" ? amount.toFixed(2) : "0",
+                credit: fl.direction === "credit" ? amount.toFixed(2) : "0",
+              };
+            }).filter(Boolean);
+
+            if (jLines.length > 0) {
+              await db.insert(journalLines).values(jLines as any);
+            }
 
             await db.update(purchaseDebitNotes)
               .set({ linkJournal: true })
               .where(inArray(purchaseDebitNotes.id, g.dnIds));
 
-            console.log(`[PDF-Import] DN journal ${dxpNo}: Dr.Wallet ${total} / Cr.VAT ${vat} + Cr.Exp ${sub} (${g.dnNos.length} DN)`);
+            console.log(`[PDF-Import] DN journal ${dxpNo}: formula-based (${sortedFL.length} lines, ${g.dnNos.length} DN)`);
           } catch (e) {
             console.log(`[PDF-Import] DN journal for group ${gk} failed:`, (e as any).message);
           }

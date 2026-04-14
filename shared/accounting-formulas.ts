@@ -907,4 +907,56 @@ export const DEFAULT_FORMULAS: DefaultFormulaTemplate[] = [
       { accountCode: "1441300", accountName: "ค่าคอมมิชชั่นรับรู้ล่วงหน้า", direction: "credit", sortOrder: 3 },
     ],
   },
+
+  // ============================================
+  // DEBIT NOTE — PLATFORM FEE (ใบลดหนี้ค่าบริการแพลตฟอร์ม)
+  // ============================================
+  {
+    documentType: "debit_note",
+    businessType: "tiktok_platform_fee",
+    name: "TikTok Platform Fee Credit Note",
+    nameTh: "ใบลดหนี้ — ค่าบริการ TikTok",
+    description: "กลับรายการค่าบริการ TikTok — Dr. Wallet / Cr. ค่าใช้จ่าย + ภาษีซื้อ",
+    lines: [
+      { accountCode: "1043000", accountName: "เงินฝาก TikTok Shop Wallet", direction: "debit", sortOrder: 1 },
+      { accountCode: "5301100", accountName: "ค่าบริการแพลตฟอร์ม TikTok", direction: "credit", sortOrder: 2 },
+      { accountCode: "1432000", accountName: "ภาษีซื้อ", direction: "credit", sortOrder: 3 },
+    ],
+  },
+  {
+    documentType: "debit_note",
+    businessType: "shopee_platform_fee",
+    name: "Shopee Platform Fee Credit Note",
+    nameTh: "ใบลดหนี้ — ค่าบริการ Shopee",
+    description: "กลับรายการค่าบริการ Shopee — Dr. Wallet / Cr. ค่าใช้จ่าย + ภาษีซื้อ",
+    lines: [
+      { accountCode: "1041000", accountName: "เงินฝาก Shopee Wallet", direction: "debit", sortOrder: 1 },
+      { accountCode: "5301100", accountName: "ค่าบริการแพลตฟอร์ม Shopee", direction: "credit", sortOrder: 2 },
+      { accountCode: "1432000", accountName: "ภาษีซื้อ", direction: "credit", sortOrder: 3 },
+    ],
+  },
+  {
+    documentType: "debit_note",
+    businessType: "lazada_platform_fee",
+    name: "Lazada Platform Fee Credit Note",
+    nameTh: "ใบลดหนี้ — ค่าบริการ Lazada",
+    description: "กลับรายการค่าบริการ Lazada — Dr. Wallet / Cr. ค่าใช้จ่าย + ภาษีซื้อ",
+    lines: [
+      { accountCode: "1042000", accountName: "เงินฝาก Lazada Wallet", direction: "debit", sortOrder: 1 },
+      { accountCode: "5301100", accountName: "ค่าบริการแพลตฟอร์ม Lazada", direction: "credit", sortOrder: 2 },
+      { accountCode: "1432000", accountName: "ภาษีซื้อ", direction: "credit", sortOrder: 3 },
+    ],
+  },
+  {
+    documentType: "debit_note",
+    businessType: "platform_fee",
+    name: "Platform Fee Credit Note (General)",
+    nameTh: "ใบลดหนี้ — ค่าบริการแพลตฟอร์ม (รวม)",
+    description: "กลับรายการค่าบริการแพลตฟอร์ม — Dr. Wallet / Cr. ค่าใช้จ่าย + ภาษีซื้อ",
+    lines: [
+      { accountCode: "1001000", accountName: "เงินสด/ธนาคาร", direction: "debit", sortOrder: 1 },
+      { accountCode: "5301100", accountName: "ค่าบริการแพลตฟอร์ม", direction: "credit", sortOrder: 2 },
+      { accountCode: "1432000", accountName: "ภาษีซื้อ", direction: "credit", sortOrder: 3 },
+    ],
+  },
 ];

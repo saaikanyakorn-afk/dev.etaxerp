@@ -173,6 +173,7 @@ export default function PdfBulkImport() {
   const [showJournalPreview, setShowJournalPreview] = useState(false);
   const [previewPage, setPreviewPage] = useState(0);
   const [selectedFormulaIdx, setSelectedFormulaIdx] = useState("0");
+  const [selectedDnFormulaIdx, setSelectedDnFormulaIdx] = useState("0");
   const [editingJournal, setEditingJournal] = useState(false);
   const [journalOverrideLines, setJournalOverrideLines] = useState<{ accountCode: string; accountName: string; debit: string; credit: string }[]>([]);
   const PAGE_SIZE = 50;
@@ -210,6 +211,17 @@ export default function PdfBulkImport() {
     enabled: !!companyId,
   });
   const selectedFormula = selectedFormulaIdx === "auto-detect" ? null : (availableFormulas[Number(selectedFormulaIdx)] || availableFormulas[0] || null);
+
+  const { data: dnFormulas = [] } = useQuery<any[]>({
+    queryKey: ["/api/accounting-formulas/available", companyId, "debit_note"],
+    queryFn: async () => {
+      const res = await fetch(`/api/accounting-formulas/available?companyId=${companyId}&documentType=debit_note`, { credentials: "include" });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!companyId,
+  });
+  const selectedDnFormula = dnFormulas[Number(selectedDnFormulaIdx)] || dnFormulas[0] || null;
   const PAYMENT_METHODS = companyPaymentMethods.length > 0
     ? companyPaymentMethods.map((m: any) => ({ value: m.code || m.name, label: m.name }))
     : FALLBACK_PAYMENT_METHODS;
@@ -409,6 +421,8 @@ export default function PdfBulkImport() {
             ? (selectedFormulaIdx === "auto-detect" ? "auto-detect" : (selectedFormula?.businessType || undefined))
             : undefined,
           journalOverrideLines: editingJournal && journalOverrideLines.length > 0 ? journalOverrideLines : undefined,
+          dnFormulaBusinessType: autoJournal && selectedDnFormula?.businessType ? selectedDnFormula.businessType : undefined,
+          dnFormulaLines: autoJournal && selectedDnFormula?.lines ? selectedDnFormula.lines : undefined,
         }),
       });
       if (!res.ok) {
@@ -1486,51 +1500,73 @@ export default function PdfBulkImport() {
                         <div className="text-sm font-medium mb-3 text-green-800 flex items-center gap-2">
                           <BookOpen className="h-4 w-4" /> พรีวิวบัญชีใบลดหนี้ ({creditNoteDocsList.length} ใบ) — กลับรายการ
                         </div>
-                        <div className="bg-white rounded border overflow-x-auto">
-                          <Table>
-                            <TableHeader>
-                              <TableRow>
-                                <TableHead className="text-xs w-[130px]">รหัสบัญชี</TableHead>
-                                <TableHead className="text-xs">ชื่อบัญชี</TableHead>
-                                <TableHead className="text-xs text-right w-[120px]">เดบิต</TableHead>
-                                <TableHead className="text-xs text-right w-[120px]">เครดิต</TableHead>
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {(() => {
-                                const walletCode = "1043000";
-                                const vatCode = "1432000";
-                                const expCode = "5301100";
-                                const walletAcc = accountMap.get(walletCode);
-                                const vatAcc = accountMap.get(vatCode);
-                                const expAcc = accountMap.get(expCode);
-                                const cnRows = [
-                                  { code: walletCode, name: walletAcc?.nameTh || walletAcc?.name || "เงินฝาก TikTok Shop Wallet", debit: cnGrandTotal, credit: 0 },
-                                  { code: vatCode, name: vatAcc?.nameTh || vatAcc?.name || "ภาษีซื้อ", debit: 0, credit: cnTotalVat },
-                                  { code: expCode, name: expAcc?.nameTh || expAcc?.name || "ค่าบริการแพลตฟอร์ม", debit: 0, credit: cnTotalSubtotal },
-                                ];
-                                return (
-                                  <>
-                                    {cnRows.map((r, idx) => (
-                                      <TableRow key={idx}>
-                                        <TableCell className="text-xs font-mono">{r.code}</TableCell>
-                                        <TableCell className="text-xs">{r.name}</TableCell>
-                                        <TableCell className="text-xs text-right font-medium">{r.debit > 0 ? fmt(r.debit) : "-"}</TableCell>
-                                        <TableCell className="text-xs text-right font-medium">{r.credit > 0 ? fmt(r.credit) : "-"}</TableCell>
-                                      </TableRow>
-                                    ))}
-                                    <TableRow className="bg-green-50 font-bold">
-                                      <TableCell className="text-xs" colSpan={2}>รวมใบลดหนี้ ({creditNoteDocsList.length} ใบ)</TableCell>
-                                      <TableCell className="text-xs text-right">{fmt(cnGrandTotal)}</TableCell>
-                                      <TableCell className="text-xs text-right">{fmt(cnGrandTotal)}</TableCell>
-                                    </TableRow>
-                                  </>
-                                );
-                              })()}
-                            </TableBody>
-                          </Table>
+                        <div className="flex items-center gap-3 mb-3">
+                          <label className="text-xs font-medium text-gray-600">สูตรใบลดหนี้:</label>
+                          <Select value={selectedDnFormulaIdx} onValueChange={setSelectedDnFormulaIdx} data-testid="select-dn-formula">
+                            <SelectTrigger className="w-[320px] h-8 text-xs">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {dnFormulas.map((f: any, i: number) => (
+                                <SelectItem key={i} value={String(i)} className="text-xs">
+                                  {f.nameTh || f.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          {selectedDnFormula?.source === "default" && (
+                            <span className="text-xs text-gray-500">สูตรเริ่มต้นระบบ ({selectedDnFormula.businessType})</span>
+                          )}
                         </div>
-                        <p className="text-xs text-green-600 mt-1">Dr. Wallet (เงินในกระเป๋าเพิ่ม) / Cr. ภาษีซื้อ + ค่าบริการ (กลับรายการ)</p>
+                        {selectedDnFormula?.lines && (
+                          <div className="bg-white rounded border overflow-x-auto">
+                            <Table>
+                              <TableHeader>
+                                <TableRow>
+                                  <TableHead className="text-xs w-[130px]">รหัสบัญชี</TableHead>
+                                  <TableHead className="text-xs">ชื่อบัญชี</TableHead>
+                                  <TableHead className="text-xs text-right w-[120px]">เดบิต</TableHead>
+                                  <TableHead className="text-xs text-right w-[120px]">เครดิต</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {(() => {
+                                  const sortedLines = [...selectedDnFormula.lines].sort((a: any, b: any) => (a.sortOrder || 0) - (b.sortOrder || 0));
+                                  const cnRows = sortedLines.map((line: any) => {
+                                    const acc = accountMap.get(line.accountCode);
+                                    const name = acc?.nameTh || acc?.name || line.accountName;
+                                    if (line.direction === "debit") {
+                                      return { code: line.accountCode, name, debit: cnGrandTotal, credit: 0 };
+                                    } else {
+                                      const isVat = line.accountCode.startsWith("143");
+                                      return { code: line.accountCode, name, debit: 0, credit: isVat ? cnTotalVat : cnTotalSubtotal };
+                                    }
+                                  });
+                                  return (
+                                    <>
+                                      {cnRows.map((r: any, idx: number) => (
+                                        <TableRow key={idx}>
+                                          <TableCell className="text-xs font-mono">{r.code}</TableCell>
+                                          <TableCell className="text-xs">{r.name}</TableCell>
+                                          <TableCell className="text-xs text-right font-medium">{r.debit > 0 ? fmt(r.debit) : "-"}</TableCell>
+                                          <TableCell className="text-xs text-right font-medium">{r.credit > 0 ? fmt(r.credit) : "-"}</TableCell>
+                                        </TableRow>
+                                      ))}
+                                      <TableRow className="bg-green-50 font-bold">
+                                        <TableCell className="text-xs" colSpan={2}>รวมใบลดหนี้ ({creditNoteDocsList.length} ใบ)</TableCell>
+                                        <TableCell className="text-xs text-right">{fmt(cnGrandTotal)}</TableCell>
+                                        <TableCell className="text-xs text-right">{fmt(cnGrandTotal)}</TableCell>
+                                      </TableRow>
+                                    </>
+                                  );
+                                })()}
+                              </TableBody>
+                            </Table>
+                          </div>
+                        )}
+                        {!selectedDnFormula?.lines && (
+                          <p className="text-xs text-amber-600">ไม่พบสูตรใบลดหนี้ — กรุณาตั้งสูตรในเมนู "สูตรบัญชีอัตโนมัติ"</p>
+                        )}
                       </div>
                     )}
                   </div>
