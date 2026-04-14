@@ -217,8 +217,9 @@ export default function ExpenseList() {
     if (exp.batchId) return false;
     if (filterStatus && filterStatus !== "all" && exp.status !== filterStatus) return false;
     if (filterBranch !== "all" && exp.sellerBranchId !== filterBranch) return false;
-    if (filterTaxReport === "in" && !exp.showInTaxReport) return false;
-    if (filterTaxReport === "out" && exp.showInTaxReport) return false;
+    const hasVat = parseFloat(String(exp.vatAmount || "0")) > 0.005;
+    if (filterTaxReport === "in" && !hasVat) return false;
+    if (filterTaxReport === "out" && hasVat) return false;
     if (dateFrom && exp.expDate && exp.expDate < dateFrom) return false;
     if (dateTo && exp.expDate && exp.expDate > dateTo) return false;
     if (searchText) {
@@ -230,8 +231,10 @@ export default function ExpenseList() {
 
   const filteredBatches = useMemo(() => {
     if (filterStatus && filterStatus !== "all" && filterStatus !== "approved") return [];
-    if (filterTaxReport === "out") return [];
     return dailyBatches.filter((b: any) => {
+      const batchHasVat = parseFloat(String(b.totalVat || "0")) > 0.005;
+      if (filterTaxReport === "in" && !batchHasVat) return false;
+      if (filterTaxReport === "out" && batchHasVat) return false;
       if (dateFrom && b.batchDate && b.batchDate < dateFrom) return false;
       if (dateTo && b.batchDate && b.batchDate > dateTo) return false;
       if (searchText) {
