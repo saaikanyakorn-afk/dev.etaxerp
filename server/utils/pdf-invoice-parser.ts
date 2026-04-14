@@ -1114,15 +1114,6 @@ export async function parsePdfInvoice(pdfBuffer: Buffer, templates?: import("./p
   const rows = pageRows.flat();
   const fullText = rows.map(r => rowText(r)).join("\n");
 
-  if (templates && templates.length > 0) {
-    const { matchTemplate, applyTemplate } = await import("./pdf-template-engine");
-    const matched = matchTemplate(fullText, templates);
-    if (matched) {
-      const result = applyTemplate(fullText, matched);
-      return result;
-    }
-  }
-
   if (isShopeeOrSpxInvoice(fullText)) {
     return parseShopeeInvoice(rows, fullText);
   }
@@ -1137,6 +1128,15 @@ export async function parsePdfInvoice(pdfBuffer: Buffer, templates?: import("./p
 
   if (isLazadaInvoice(fullText)) {
     return parseLazadaInvoice(rows, fullText);
+  }
+
+  if (templates && templates.length > 0) {
+    const { matchTemplate, applyTemplate } = await import("./pdf-template-engine");
+    const matched = matchTemplate(fullText, templates);
+    if (matched) {
+      const result = applyTemplate(fullText, matched);
+      return result;
+    }
   }
 
   return parseGenericInvoice(rows, fullText);
