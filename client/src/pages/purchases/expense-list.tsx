@@ -90,6 +90,7 @@ export default function ExpenseList() {
   const [journalDoc, setJournalDoc] = useState<{ open: boolean; id: number; docType?: string } | null>(null);
   const [relatedInline, setRelatedInline] = useState<{ open: boolean; id: number } | null>(null);
   const [filterStatus, setFilterStatus] = useState("all");
+  const [filterTaxReport, setFilterTaxReport] = useState<"all" | "in" | "out">("all");
   const [filterBranch, setFilterBranch] = useState("all");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
@@ -216,6 +217,8 @@ export default function ExpenseList() {
     if (exp.batchId) return false;
     if (filterStatus && filterStatus !== "all" && exp.status !== filterStatus) return false;
     if (filterBranch !== "all" && exp.sellerBranchId !== filterBranch) return false;
+    if (filterTaxReport === "in" && !exp.showInTaxReport) return false;
+    if (filterTaxReport === "out" && exp.showInTaxReport) return false;
     if (dateFrom && exp.expDate && exp.expDate < dateFrom) return false;
     if (dateTo && exp.expDate && exp.expDate > dateTo) return false;
     if (searchText) {
@@ -227,6 +230,7 @@ export default function ExpenseList() {
 
   const filteredBatches = useMemo(() => {
     if (filterStatus && filterStatus !== "all" && filterStatus !== "approved") return [];
+    if (filterTaxReport === "out") return [];
     return dailyBatches.filter((b: any) => {
       if (dateFrom && b.batchDate && b.batchDate < dateFrom) return false;
       if (dateTo && b.batchDate && b.batchDate > dateTo) return false;
@@ -236,7 +240,7 @@ export default function ExpenseList() {
       }
       return true;
     });
-  }, [dailyBatches, dateFrom, dateTo, searchText, filterStatus]);
+  }, [dailyBatches, dateFrom, dateTo, searchText, filterStatus, filterTaxReport]);
 
   const unifiedList = useMemo(() => {
     const items: Array<{ type: "exp" | "batch"; date: string; data: any }> = [];
@@ -281,6 +285,28 @@ export default function ExpenseList() {
             <h1 className="text-2xl font-heading font-medium" data-testid="text-page-title">รายจ่ายอื่น</h1>
             <span className="text-sm text-muted-foreground">รายจ่าย</span>
           </div>
+        </div>
+
+        <div className="flex border-b">
+          {([
+            { key: "all" as const, label: "ทั้งหมด", icon: "🛒" },
+            { key: "in" as const, label: "อยู่ในรายงานภาษีซื้อ", icon: "$" },
+            { key: "out" as const, label: "ไม่อยู่ในรายงานภาษีซื้อ", icon: "⊘" },
+          ] as const).map(tab => (
+            <button
+              key={tab.key}
+              data-testid={`tab-tax-${tab.key}`}
+              onClick={() => setFilterTaxReport(tab.key)}
+              className={`px-5 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+                filterTaxReport === tab.key
+                  ? "border-[#05b187] text-[#05b187]"
+                  : "border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300"
+              }`}
+            >
+              <span className="mr-1.5">{tab.icon}</span>
+              {tab.label}
+            </button>
+          ))}
         </div>
 
         <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded px-3 py-1.5">
@@ -362,8 +388,8 @@ export default function ExpenseList() {
                   </Select>
                 </div>
               )}
-              {(dateFrom || dateTo || (filterStatus && filterStatus !== "all") || filterBranch !== "all") && (
-                <Button variant="ghost" size="sm" className="h-8 text-xs text-muted-foreground" onClick={() => { setDateFrom(""); setDateTo(""); setFilterStatus("all"); setFilterBranch("all"); }} data-testid="button-clear-filters">
+              {(dateFrom || dateTo || (filterStatus && filterStatus !== "all") || filterBranch !== "all" || filterTaxReport !== "all") && (
+                <Button variant="ghost" size="sm" className="h-8 text-xs text-muted-foreground" onClick={() => { setDateFrom(""); setDateTo(""); setFilterStatus("all"); setFilterBranch("all"); setFilterTaxReport("all"); }} data-testid="button-clear-filters">
                   ล้างตัวกรอง
                 </Button>
               )}
