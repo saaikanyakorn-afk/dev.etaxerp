@@ -455,18 +455,21 @@ function parseShopeeInvoice(rows: TextItem[][], fullText: string): ParsedInvoice
   if (!subtotal && items.length > 0) {
     subtotal = items.reduce((s, it) => s + it.amount, 0);
   }
-  if (!totalAmount) {
+  if (vatAmount > 0 && subtotal > 0 && !totalAmount) {
+    totalAmount = subtotal + vatAmount;
+  }
+  if (vatAmount > 0 && totalAmount > 0 && !subtotal) {
+    subtotal = totalAmount - vatAmount;
+  }
+  if (!totalAmount && subtotal > 0) {
     totalAmount = subtotal + vatAmount;
   }
 
-  if (isTaxInvoice && vatAmount > 0 && subtotal > 0) {
-    const expectedVat = Math.round(subtotal * 0.07 * 100) / 100;
-    if (Math.abs(expectedVat - vatAmount) > 1.0) {
-      const derivedSubtotal = Math.round((subtotal - vatAmount) * 100) / 100;
-      const checkVat = Math.round(derivedSubtotal * 0.07 * 100) / 100;
-      if (Math.abs(checkVat - vatAmount) < 1.0 && derivedSubtotal > 0) {
-        totalAmount = Math.round(subtotal * 100) / 100;
-        subtotal = derivedSubtotal;
+  if (vatAmount > 0 && totalAmount > 0 && subtotal > 0) {
+    const diff = Math.abs(subtotal + vatAmount - totalAmount);
+    if (diff > 1.0) {
+      if (Math.abs(subtotal - totalAmount) < 1.0) {
+        subtotal = totalAmount - vatAmount;
       }
     }
   }
