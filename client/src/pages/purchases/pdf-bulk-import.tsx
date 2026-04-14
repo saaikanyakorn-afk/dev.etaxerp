@@ -1,4 +1,5 @@
 import React, { useState, useRef, useCallback } from "react";
+import * as XLSX from "xlsx";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import Layout from "@/components/layout";
@@ -528,19 +529,71 @@ export default function PdfBulkImport() {
   const totalVat = selectedDocsList.reduce((s, d) => s + d.vatAmount, 0);
   const totalWht = whtRate > 0 ? Math.round(totalSubtotal * whtRate * 100) / 100 : 0;
   const grandTotal = totalSubtotal + totalVat - totalWht;
-  const totalNonVat = selectedDocsList.reduce((s, d) => {
-    if (d.vatAmount > 0 && d.subtotal > 0) {
-      const vatableAmt = Math.round((d.vatAmount / 0.07) * 100) / 100;
-      const nonVat = d.subtotal - vatableAmt;
-      return s + (nonVat > 0.5 ? nonVat : 0);
-    }
-    return s;
-  }, 0);
-  const totalPaidAds = Math.round(totalNonVat * 100) / 100;
+  const totalPaidAds = selectedDocsList.reduce((s, d) => s + (d.items || []).filter((it: any) => it.vatType === "non_vat").reduce((is: number, it: any) => is + (parseFloat(it.amount) || 0), 0), 0);
   const expenseSubtotal = totalSubtotal - totalPaidAds;
 
   const paginatedDocs = parseResult?.documents.slice(previewPage * PAGE_SIZE, (previewPage + 1) * PAGE_SIZE) || [];
   const totalPages = parseResult ? Math.ceil(parseResult.documents.length / PAGE_SIZE) : 0;
+
+  const exportExcel = () => {
+    if (!parseResult) return;
+    const docs = parseResult.documents;
+    const summaryRows: any[] = [];
+    const detailRows: any[] = [];
+    docs.forEach((doc, dIdx) => {
+      const docWht = whtRate > 0 ? Math.round(doc.subtotal * whtRate * 100) / 100 : 0;
+      const selected = selectedDocs.has(doc.key);
+      summaryRows.push({
+        "#": dIdx + 1,
+        "เลือก": selected ? "✓" : "",
+        "ไฟล์": doc.fileName,
+        "เลขที่เอกสาร": doc.invoiceNo || "-",
+        "วันที่": doc.date || "",
+        "ผู้ขาย/ผู้รับเงิน": doc.vendorMatchName || doc.vendorName || "-",
+        "เลขผู้เสียภาษี": doc.vendorTaxId || "",
+        "แพลตฟอร์ม": doc.platform || "",
+        "ยอดรวม (ก่อน VAT)": doc.subtotal,
+        "VAT": doc.vatAmount,
+        "WHT": docWht,
+        "สุทธิ": doc.subtotal + doc.vatAmount - docWht,
+        "สถานะ": doc.isDuplicate ? "ซ้ำ" : doc.hasErrors ? "ผิดพลาด" : doc.vendorId ? "จับคู่แล้ว" : "สร้างใหม่",
+        "สูตร": doc.formulaKey || "-",
+      });
+      (doc.items || []).forEach((item: any, iIdx: number) => {
+        detailRows.push({
+          "#": `${dIdx + 1}.${iIdx + 1}`,
+          "เลขที่เอกสาร": doc.invoiceNo || "-",
+          "วันที่": doc.date || "",
+          "ผู้ขาย": doc.vendorMatchName || doc.vendorName || "-",
+          "รายการ": item.description || item.productName || "-",
+          "จำนวน": item.qty,
+          "หน่วย": item.unit,
+          "ราคา/หน่วย": item.unitPrice,
+          "ยอดรวม": item.amount || item.total,
+          "VAT Type": item.vatType === "vat7" ? "7%" : item.vatType === "zero_rated" ? "0%" : "ไม่มี VAT",
+        });
+      });
+    });
+    const wb = XLSX.utils.book_new();
+    const wsSummary = XLSX.utils.json_to_sheet(summaryRows);
+    wsSummary["!cols"] = [
+      { wch: 5 }, { wch: 6 }, { wch: 30 }, { wch: 25 }, { wch: 12 }, { wch: 35 },
+      { wch: 15 }, { wch: 12 }, { wch: 15 }, { wch: 12 }, { wch: 12 }, { wch: 15 }, { wch: 10 }, { wch: 20 },
+    ];
+    XLSX.utils.book_append_sheet(wb, wsSummary, "สรุปเอกสาร");
+    const wsDetail = XLSX.utils.json_to_sheet(detailRows);
+    wsDetail["!cols"] = [
+      { wch: 8 }, { wch: 25 }, { wch: 12 }, { wch: 35 }, { wch: 35 },
+      { wch: 8 }, { wch: 8 }, { wch: 15 }, { wch: 15 }, { wch: 12 },
+    ];
+    XLSX.utils.book_append_sheet(wb, wsDetail, "รายการย่อย");
+    const totalRow: any[] = [
+      { "#": "", "เลือก": "", "ไฟล์": "รวมที่เลือก", "เลขที่เอกสาร": `${selectedDocsList.length} รายการ`, "วันที่": "", "ผู้ขาย/ผู้รับเงิน": "", "เลขผู้เสียภาษี": "", "แพลตฟอร์ม": "",
+        "ยอดรวม (ก่อน VAT)": totalSubtotal, "VAT": totalVat, "WHT": totalWht, "สุทธิ": grandTotal, "สถานะ": "", "สูตร": "" },
+    ];
+    XLSX.utils.sheet_add_json(wsSummary, totalRow, { skipHeader: true, origin: -1 });
+    XLSX.writeFile(wb, `PDF-Import-Review_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  };
 
   return (
     <Layout>
@@ -749,6 +802,17 @@ export default function PdfBulkImport() {
                     >
                       <FolderOpen className="h-3.5 w-3.5" /> เพิ่มโฟลเดอร์
                     </Button>
+                    {parseResult && parseResult.documents.length > 0 && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={exportExcel}
+                      className="gap-1.5 text-xs border-emerald-500 text-emerald-600 hover:bg-emerald-50"
+                      data-testid="button-export-excel"
+                    >
+                      <FileText className="h-3.5 w-3.5" /> Export Excel
+                    </Button>
+                    )}
                     <input
                       ref={addFileInputRef}
                       type="file"
