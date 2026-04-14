@@ -20,6 +20,7 @@ import {
   demandForecasts,
   withholdingTaxCerts, whtCertItems,
   expenseDailyBatches,
+  clientUploadFiles,
 } from "@shared/schema";
 import { requireAuth, requireModule, requireRole } from "../route-middleware";
 import { logActivity, deleteJournalEntriesForDoc, deleteStockMovementsForDoc } from "../route-helpers";
@@ -142,6 +143,20 @@ export function registerImportBatchRoutes(app: Express) {
                 const pgWhtIds = sql.raw(`ARRAY[${whtIds.join(',')}]::int[]`);
                 await tx.execute(sql`DELETE FROM wht_cert_items WHERE wht_cert_id = ANY(${pgWhtIds})`);
                 await tx.execute(sql`DELETE FROM withholding_tax_certs WHERE id = ANY(${pgWhtIds})`);
+              }
+
+              console.log(`[import-batch-delete] Step 4b: deleting client upload files...`);
+              const expNos = expRows.map((e: any) => e.exp_no).filter(Boolean);
+              if (expNos.length > 0) {
+                let deletedClientFiles = 0;
+                for (const expNo of expNos) {
+                  const delFiles = await tx.execute(sql`
+                    DELETE FROM client_upload_files 
+                    WHERE file_name LIKE ${expNo + ' -%'}
+                  `);
+                  deletedClientFiles += delFiles.rowCount || 0;
+                }
+                console.log(`[import-batch-delete] Deleted ${deletedClientFiles} client upload files`);
               }
 
               console.log(`[import-batch-delete] Step 5: deleting ${expIds.length} expenses...`);
