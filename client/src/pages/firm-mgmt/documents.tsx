@@ -1152,6 +1152,7 @@ interface AttachmentDoc {
   vendorName: string;
   totalAmount: string;
   attachedUrl: string;
+  attachedFolder?: string | null;
   status: string;
   docType: "ap" | "expense";
   createdAt: string;
@@ -1375,11 +1376,19 @@ function AccountingAttachmentsTab({ companyId }: { companyId: number | null }) {
     enabled: !!companyId,
   });
 
+  const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(new Set());
+  const toggleFolder = (key: string) => setCollapsedFolders(prev => {
+    const next = new Set(prev);
+    next.has(key) ? next.delete(key) : next.add(key);
+    return next;
+  });
+
   const grouped = useMemo(() => {
     const filtered = searchTerm
       ? attachments.filter(a =>
           a.docNo.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          a.vendorName.toLowerCase().includes(searchTerm.toLowerCase())
+          a.vendorName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          (a.attachedFolder || "").toLowerCase().includes(searchTerm.toLowerCase())
         )
       : attachments;
 
@@ -1396,7 +1405,20 @@ function AccountingAttachmentsTab({ companyId }: { companyId: number | null }) {
       .sort((a, b) => b[0].localeCompare(a[0]))
       .map(([key, docs]) => {
         const [y, m] = key.split("-").map(Number);
-        return { key, label: `${THAI_MONTHS[m - 1]} ${y + 543}`, docs };
+        const folderMap = new Map<string, AttachmentDoc[]>();
+        docs.forEach(d => {
+          const folder = d.attachedFolder || "";
+          if (!folderMap.has(folder)) folderMap.set(folder, []);
+          folderMap.get(folder)!.push(d);
+        });
+        const folders = Array.from(folderMap.entries())
+          .sort((a, b) => {
+            if (!a[0] && b[0]) return 1;
+            if (a[0] && !b[0]) return -1;
+            return a[0].localeCompare(b[0]);
+          })
+          .map(([folder, fDocs]) => ({ folder, docs: fDocs }));
+        return { key, label: `${THAI_MONTHS[m - 1]} ${y + 543}`, docs, folders };
       });
   }, [attachments, searchTerm]);
 
@@ -1506,11 +1528,42 @@ function AccountingAttachmentsTab({ companyId }: { companyId: number | null }) {
                   <Calendar className="w-4 h-4 text-[#fb9678]" />
                   {g.label}
                   <Badge variant="secondary" className="text-[10px] ml-1">{g.docs.length}</Badge>
+                  {g.folders.length > 1 && (
+                    <Badge variant="outline" className="text-[10px] ml-1 border-[#03c9d7] text-[#03c9d7]">
+                      {g.folders.filter(f => f.folder).length} โฟลเดอร์
+                    </Badge>
+                  )}
                 </CardTitle>
               </CardHeader>
               <CardContent className="px-4 pb-3">
-                <div className="divide-y">
-                  {g.docs.map(doc => {
+                {g.folders.map((fg, fIdx) => {
+                  const hasFolderName = !!fg.folder;
+                  const folderKey = `${g.key}::${fg.folder}`;
+                  const isCollapsed = collapsedFolders.has(folderKey);
+                  const showFolderHeader = hasFolderName || g.folders.length > 1;
+
+                  return (
+                    <div key={fIdx} className={hasFolderName ? "mb-2" : ""}>
+                      {showFolderHeader && (
+                        <button
+                          className="flex items-center gap-2 w-full text-left py-1.5 px-2 rounded hover:bg-gray-50 transition-colors"
+                          onClick={() => toggleFolder(folderKey)}
+                          data-testid={`folder-toggle-${g.key}-${fIdx}`}
+                        >
+                          {isCollapsed ? <ChevronRight className="w-3.5 h-3.5 text-gray-400" /> : <ChevronDown className="w-3.5 h-3.5 text-gray-400" />}
+                          <Folder className="w-3.5 h-3.5 text-[#fec90f]" />
+                          <span className="text-xs font-medium text-gray-600 truncate">
+                            {hasFolderName ? fg.folder.split("/").pop() : "ไม่ระบุโฟลเดอร์"}
+                          </span>
+                          <Badge variant="secondary" className="text-[10px]">{fg.docs.length}</Badge>
+                          {hasFolderName && fg.folder.includes("/") && (
+                            <span className="text-[10px] text-gray-400 truncate hidden sm:inline" title={fg.folder}>{fg.folder}</span>
+                          )}
+                        </button>
+                      )}
+                      {!isCollapsed && (
+                        <div className={`divide-y ${showFolderHeader ? "ml-4 border-l border-gray-100 pl-2" : ""}`}>
+                          {fg.docs.map(doc => {
                     const url = resolveUrl(doc.attachedUrl);
                     const mime = getMimeGuess(doc.attachedUrl);
                     const FileIcon = mime === "pdf" ? FileText : mime === "image" ? FileImage : File;
@@ -1557,7 +1610,11 @@ function AccountingAttachmentsTab({ companyId }: { companyId: number | null }) {
                       </div>
                     );
                   })}
-                </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </CardContent>
             </Card>
           ))}

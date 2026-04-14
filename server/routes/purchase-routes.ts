@@ -2198,6 +2198,7 @@ export function registerPurchaseRoutes(app: Express) {
               notes: doc.notes || null,
               refDoc: doc.refDoc || null,
               attachedUrl: doc.attachedUrl || null,
+              attachedFolder: doc.folderPath || null,
               linkJournal: autoJournal ? true : false,
               createdBy: user.id,
             }).returning();
@@ -2467,6 +2468,7 @@ export function registerPurchaseRoutes(app: Express) {
               notes: doc.notes || null,
               refDoc: doc.refDoc || null,
               attachedUrl: doc.attachedUrl || doc.archivedFileUrl || null,
+              attachedFolder: doc.folderPath || null,
               linkJournal: false,
               batchId: batchMap.get(doc.expDate || doc.date || new Date().toISOString().split("T")[0]) || null,
               createdBy: user.id,
@@ -3148,10 +3150,14 @@ export function registerPurchaseRoutes(app: Express) {
         ...existingExpNos.map(r => r.expNo),
       ]);
 
+      let folderPaths: string[] = [];
+      try { if (req.body.folderPaths) folderPaths = JSON.parse(req.body.folderPaths); } catch {}
+
       const documents: any[] = [];
       const errors: { fileName: string; error: string }[] = [];
 
-      for (const file of files) {
+      for (let fi = 0; fi < files.length; fi++) {
+        const file = files[fi];
         try {
           const parsed = await parsePdfInvoice(file.buffer);
 
@@ -3224,6 +3230,7 @@ export function registerPurchaseRoutes(app: Express) {
             isTikTok: parsed.invoiceNo?.startsWith("TTSTHAC") || false,
             isPlatformFee: /Shopee|SPX\s*Express/i.test(parsed.vendorName || "") || parsed.invoiceNo?.startsWith("TRSPEMKP") || parsed.invoiceNo?.startsWith("RCSPXSP") || false,
             archivedFileUrl,
+            folderPath: folderPaths[fi] || "",
             hasErrors: docErrors.length > 0,
             errors: docErrors,
           });

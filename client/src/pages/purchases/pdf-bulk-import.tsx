@@ -52,6 +52,7 @@ interface ParsedDoc {
   items: ParsedItem[];
   isTikTok: boolean;
   archivedFileUrl: string | null;
+  folderPath: string;
   hasErrors: boolean;
   errors: string[];
 }
@@ -119,20 +120,23 @@ async function readDirectoryEntries(dirEntry: FileSystemDirectoryEntry): Promise
 
 async function collectPdfFiles(entries: FileSystemEntry[]): Promise<File[]> {
   const files: File[] = [];
-  const queue = [...entries];
+  const queue: { entry: FileSystemEntry; path: string }[] = entries.map(e => ({ entry: e, path: "" }));
   while (queue.length > 0) {
-    const entry = queue.shift()!;
+    const { entry, path } = queue.shift()!;
     if (entry.isFile) {
       if (entry.name.toLowerCase().endsWith(".pdf")) {
         try {
           const file = await readEntryAsFile(entry as FileSystemFileEntry);
+          const fullPath = path ? `${path}/${entry.name}` : entry.name;
+          Object.defineProperty(file, "webkitRelativePath", { value: fullPath, writable: false });
           files.push(file);
         } catch {}
       }
     } else if (entry.isDirectory) {
       try {
         const subEntries = await readDirectoryEntries(entry as FileSystemDirectoryEntry);
-        queue.push(...subEntries);
+        const dirPath = path ? `${path}/${entry.name}` : entry.name;
+        queue.push(...subEntries.map(e => ({ entry: e, path: dirPath })));
       } catch {}
     }
   }
@@ -208,9 +212,15 @@ export default function PdfBulkImport() {
       for (let i = 0; i < files.length; i += BATCH_SIZE) {
         const batch = files.slice(i, i + BATCH_SIZE);
         const formData = new FormData();
-        for (const f of batch) formData.append("files", f);
+        const folderPaths: string[] = [];
+        for (const f of batch) {
+          formData.append("files", f);
+          const rp = (f as any).webkitRelativePath || "";
+          const parts = rp.split("/");
+          folderPaths.push(parts.length > 1 ? parts.slice(0, -1).join("/") : "");
+        }
         formData.append("companyId", String(companyId));
-        
+        formData.append("folderPaths", JSON.stringify(folderPaths));
 
         const res = await fetch("/api/pdf-bulk-parse", {
           method: "POST",
@@ -316,6 +326,7 @@ export default function PdfBulkImport() {
             priceMode: "excluded",
             paymentMethod,
             archivedFileUrl: d.archivedFileUrl || null,
+            folderPath: d.folderPath || "",
             fileName: d.fileName,
             items: d.items.map(it => ({
               description: it.description || it.productName,
@@ -341,6 +352,8 @@ export default function PdfBulkImport() {
             totalAmount: d.subtotal + d.vatAmount - wht,
             withholdingTax: wht,
             priceMode: "excluded",
+            attachedUrl: d.archivedFileUrl || null,
+            folderPath: d.folderPath || "",
             items: d.items.map(it => ({
               productName: it.description || it.productName,
               description: it.description,
