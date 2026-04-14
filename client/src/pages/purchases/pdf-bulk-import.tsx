@@ -1015,6 +1015,29 @@ export default function PdfBulkImport() {
                         {selectedFormula?.source === "default" && selectedFormulaIdx !== "auto-detect" && (
                           <span className="text-xs text-gray-500">สูตรเริ่มต้นระบบ ({selectedFormula.businessType})</span>
                         )}
+                        {selectedFormulaIdx !== "auto-detect" && (() => {
+                          const PREFIX_FORMULA_LABELS: Record<string, string> = {
+                            "TRSPEMKP": "Shopee ค่าบริการ", "TRSPESPF": "ShopeeFood", "TRSPXADB": "SPX Admin",
+                            "RCSPXSPR": "SPX ค่าขนส่ง", "RCSPXSPB": "SPX ค่าขนส่ง",
+                            "TTSTH": "TikTok ค่าบริการ", "TTSTHAC": "TikTok Affiliate", "TTSTHCN": "TikTok CN",
+                            "THJV": "TikTok ค่าขนส่ง", "THMPTI": "Lazada ค่าบริการ", "THLPTI": "Lazada ค่าขนส่ง",
+                            "TRSLZD": "Lazada ค่าบริการ", "IM": "Grab ค่าบริการ",
+                          };
+                          const prefixes = new Set(selectedDocsList.map(d => d.invoicePrefix).filter(Boolean));
+                          if (prefixes.size > 1) {
+                            return (
+                              <div className="bg-amber-50 border border-amber-200 rounded p-2 text-xs text-amber-800">
+                                <span className="font-medium">พบ {prefixes.size} ประเภทเอกสาร</span> — ระบบจะแยกสูตรตาม Invoice prefix อัตโนมัติ
+                                <div className="flex flex-wrap gap-1 mt-1">
+                                  {Array.from(prefixes).map(p => (
+                                    <span key={p} className="bg-amber-100 rounded px-1.5 py-0.5 font-mono">{p} → {PREFIX_FORMULA_LABELS[p!] || p}</span>
+                                  ))}
+                                </div>
+                              </div>
+                            );
+                          }
+                          return null;
+                        })()}
                       </div>
                     </div>
                   );

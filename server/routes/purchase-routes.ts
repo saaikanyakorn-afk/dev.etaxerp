@@ -2431,7 +2431,6 @@ export function registerPurchaseRoutes(app: Express) {
       };
 
       function resolveFormulaForDoc(doc: any): string | null {
-        if (doc.formulaBusinessType) return doc.formulaBusinessType;
         if (doc.invoicePrefix && PREFIX_FORMULA_MAP[doc.invoicePrefix]) {
           return PREFIX_FORMULA_MAP[doc.invoicePrefix];
         }
@@ -2444,6 +2443,7 @@ export function registerPurchaseRoutes(app: Express) {
             }
           }
         }
+        if (doc.formulaBusinessType) return doc.formulaBusinessType;
         const key = `${doc.platform || "other"}:${doc.docSubType || "mixed"}`;
         const fallbackBt = formulaBusinessType && formulaBusinessType !== "auto-detect" ? formulaBusinessType : null;
         return PLATFORM_FORMULA_MAP[key] || fallbackBt || null;
