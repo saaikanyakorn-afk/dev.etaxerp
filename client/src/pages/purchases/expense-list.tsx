@@ -302,10 +302,10 @@ export default function ExpenseList() {
         <Card className="rounded border shadow-sm bg-white">
           <CardHeader className="p-3 border-b space-y-3">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3 text-sm text-slate-500">
+              <div className="flex items-center gap-1.5 text-sm text-slate-500 whitespace-nowrap">
                 <span>ทั้งหมด {unifiedList.length} รายการ</span>
-                {filtered.length > 0 && <span className="text-xs">(รายใบ {filtered.length})</span>}
-                {filteredBatches.length > 0 && <span className="text-xs text-[#fb9678]">(DXP {filteredBatches.length})</span>}
+                {filtered.length > 0 && <span className="text-xs text-slate-400">· รายใบ {filtered.length}</span>}
+                {filteredBatches.length > 0 && <span className="text-xs text-[#fb9678]">· DXP {filteredBatches.length}</span>}
               </div>
               <div className="flex items-center gap-2">
                 <Button variant="outline" data-testid="button-pdf-import" onClick={() => navigate("/purchases/exp/pdf-import")} className="h-9 text-sm px-4 rounded-full border-purple-400 text-purple-600">
