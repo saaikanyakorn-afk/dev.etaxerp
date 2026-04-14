@@ -96,8 +96,6 @@ export default function ExpenseList() {
   const [expandedBatches, setExpandedBatches] = useState<Set<number>>(new Set());
   const [batchExpenses, setBatchExpenses] = useState<Record<number, any[]>>({});
   const [loadingBatches, setLoadingBatches] = useState<Set<number>>(new Set());
-  const [viewMode, setViewMode] = useState<"normal" | "batch">("normal");
-
   const { dateEra, dateFmt } = useDateSettings();
 
   const { data: dailyBatches = [] } = useQuery<any[]>({
@@ -227,7 +225,32 @@ export default function ExpenseList() {
     return true;
   });
 
-  const { visibleItems, hasMore, remainingCount, totalCount, showMore } = useShowMore(filtered);
+  const filteredBatches = useMemo(() => {
+    if (filterStatus && filterStatus !== "all" && filterStatus !== "approved") return [];
+    return dailyBatches.filter((b: any) => {
+      if (dateFrom && b.batchDate && b.batchDate < dateFrom) return false;
+      if (dateTo && b.batchDate && b.batchDate > dateTo) return false;
+      if (searchText) {
+        const s = searchText.toLowerCase();
+        if (!(b.batchNo || "").toLowerCase().includes(s) && !(b.vendorSummary || "").toLowerCase().includes(s)) return false;
+      }
+      return true;
+    });
+  }, [dailyBatches, dateFrom, dateTo, searchText, filterStatus]);
+
+  const unifiedList = useMemo(() => {
+    const items: Array<{ type: "exp" | "batch"; date: string; data: any }> = [];
+    for (const exp of filtered) {
+      items.push({ type: "exp", date: exp.expDate || "", data: exp });
+    }
+    for (const batch of filteredBatches) {
+      items.push({ type: "batch", date: batch.batchDate || "", data: batch });
+    }
+    items.sort((a, b) => b.date.localeCompare(a.date));
+    return items;
+  }, [filtered, filteredBatches]);
+
+  const { visibleItems, hasMore, remainingCount, totalCount, showMore } = useShowMore(unifiedList);
 
   function toggleExpand(id: number) {
     setExpandedRows(prev => {
@@ -280,29 +303,11 @@ export default function ExpenseList() {
           <CardHeader className="p-3 border-b space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3 text-sm text-slate-500">
-                <span>รายละเอียด - {filtered.length} รายการ</span>
-                {dailyBatches.length > 0 && (
-                  <div className="flex items-center border rounded-lg overflow-hidden">
-                    <button
-                      onClick={() => setViewMode("normal")}
-                      className={`px-3 py-1 text-xs font-medium transition-colors ${viewMode === "normal" ? "bg-[#05b187] text-white" : "bg-white text-gray-500 hover:bg-gray-50"}`}
-                      data-testid="button-view-normal"
-                    >
-                      รายใบ
-                    </button>
-                    <button
-                      onClick={() => setViewMode("batch")}
-                      className={`px-3 py-1 text-xs font-medium transition-colors ${viewMode === "batch" ? "bg-[#fb9678] text-white" : "bg-white text-gray-500 hover:bg-gray-50"}`}
-                      data-testid="button-view-batch"
-                    >
-                      สรุปรายวัน (DXP) <span className="ml-1">{dailyBatches.length}</span>
-                    </button>
-                  </div>
-                )}
+                <span>ทั้งหมด {unifiedList.length} รายการ</span>
+                {filtered.length > 0 && <span className="text-xs">(รายใบ {filtered.length})</span>}
+                {filteredBatches.length > 0 && <span className="text-xs text-[#fb9678]">(DXP {filteredBatches.length})</span>}
               </div>
               <div className="flex items-center gap-2">
-                {/* ⚠️ AI FEATURE LINK — navigates to PDF import page (AI reads PDF via OpenAI).
-                    Remove this button to hide AI PDF import from the UI. */}
                 <Button variant="outline" data-testid="button-pdf-import" onClick={() => navigate("/purchases/exp/pdf-import")} className="h-9 text-sm px-4 rounded-full border-purple-400 text-purple-600">
                   <Sparkles className="h-3.5 w-3.5 mr-1" /> สร้างจาก PDF
                 </Button>
@@ -388,157 +393,9 @@ export default function ExpenseList() {
                 </Button>
               </div>
             )}
-            {viewMode === "batch" && dailyBatches.length > 0 ? (
-              <Table>
-                <TableHeader style={{ backgroundColor: '#fb9678' }}>
-                  <TableRow className="hover:bg-transparent h-11">
-                    <TableHead className="w-10 text-center text-sm font-medium text-white"></TableHead>
-                    <TableHead className="w-10 text-center text-sm font-medium text-white">#</TableHead>
-                    <TableHead className="w-[140px] text-sm font-medium text-white">DXP #</TableHead>
-                    <TableHead className="w-[100px] text-sm font-medium text-white">วันที่</TableHead>
-                    <TableHead className="text-sm font-medium text-white">รายละเอียด</TableHead>
-                    <TableHead className="w-[80px] text-center text-sm font-medium text-white">จำนวนใบ</TableHead>
-                    <TableHead className="w-[130px] text-right text-sm font-medium text-white">ยอดรวม</TableHead>
-                    <TableHead className="w-[100px] text-right text-sm font-medium text-white">VAT</TableHead>
-                    <TableHead className="w-[100px] text-right text-sm font-medium text-white">WHT</TableHead>
-                    <TableHead className="w-10"></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {dailyBatches.map((batch: any, idx: number) => {
-                    const isExpanded = expandedBatches.has(batch.id);
-                    const isLoading = loadingBatches.has(batch.id);
-                    const exps = batchExpenses[batch.id] || [];
-                    return (
-                      <Fragment key={batch.id}>
-                        <TableRow
-                          className="cursor-pointer hover:bg-[#fb9678]/5 h-12"
-                          onClick={(e) => {
-                            if ((e.target as HTMLElement).closest("button, a")) return;
-                            toggleBatch(batch.id);
-                          }}
-                          data-testid={`batch-row-${batch.id}`}
-                        >
-                          <TableCell className="text-center">
-                            {isLoading ? (
-                              <Loader2 className="h-4 w-4 animate-spin text-[#fb9678] mx-auto" />
-                            ) : isExpanded ? (
-                              <ChevronDown className="h-4 w-4 text-[#fb9678] mx-auto" />
-                            ) : (
-                              <ChevronRight className="h-4 w-4 text-gray-400 mx-auto" />
-                            )}
-                          </TableCell>
-                          <TableCell className="text-center text-sm text-gray-500">{idx + 1}</TableCell>
-                          <TableCell>
-                            <span className="font-medium text-sm text-[#fb9678]">{batch.batchNo}</span>
-                          </TableCell>
-                          <TableCell className="text-sm">{formatDate(batch.batchDate, dateEra, dateFmt)}</TableCell>
-                          <TableCell className="text-sm text-gray-600" title={batch.vendorSummary || "สรุปค่าใช้จ่ายรายวัน"}>
-                            <div>
-                              {batch.vendorSummary
-                                ? <span className="line-clamp-1">{batch.vendorSummary}</span>
-                                : "สรุปค่าใช้จ่ายรายวัน"}
-                            </div>
-                            <div className="flex items-center gap-2 mt-0.5 text-xs">
-                              <button
-                                data-testid={`button-batch-journal-${batch.id}`}
-                                onClick={(e) => { e.stopPropagation(); setJournalDoc({ open: true, id: batch.id, docType: "expense_daily_batch" }); }}
-                                className="flex items-center gap-0.5 text-blue-500 hover:text-blue-700 hover:underline"
-                              >
-                                <BookOpen className="h-3 w-3" /> ดูบัญชี
-                              </button>
-                              <span className="text-slate-300">|</span>
-                              <button
-                                data-testid={`button-batch-related-${batch.id}`}
-                                onClick={(e) => { e.stopPropagation(); setRelatedInline({ open: true, id: batch.id }); }}
-                                className="flex items-center gap-0.5 text-[#03c9d7] hover:text-[#029baa] hover:underline"
-                              >
-                                <ExternalLink className="h-3 w-3" /> เอกสารที่เกี่ยวข้อง
-                              </button>
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-center">
-                            <Badge variant="outline" className="text-xs px-2 py-0.5 bg-[#fb9678]/10 text-[#fb9678] border-[#fb9678]">
-                              {batch.actualExpenseCount || batch.totalExpenses} ใบ
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-right font-medium text-sm">{fmt(batch.totalAmount)}</TableCell>
-                          <TableCell className="text-right text-sm text-gray-500">{fmt(batch.totalVat)}</TableCell>
-                          <TableCell className="text-right text-sm text-gray-500">{fmt(batch.totalWht)}</TableCell>
-                          <TableCell>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-red-400 hover:text-red-600 hover:bg-red-50"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                if (confirm(`ยืนยันลบ ${batch.batchNo}?\nจะลบค่าใช้จ่าย ${batch.actualExpenseCount || batch.totalExpenses} ใบ พร้อมบันทึกบัญชีและเอกสารที่เกี่ยวข้องทั้งหมด`)) {
-                                  deleteBatchMutation.mutate(batch.id);
-                                }
-                              }}
-                              data-testid={`button-delete-batch-${batch.id}`}
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                        {isExpanded && exps.length > 0 && exps.map((exp: any, eIdx: number) => (
-                          <TableRow key={exp.id} className="bg-gray-50/50 hover:bg-gray-100/50">
-                            <TableCell></TableCell>
-                            <TableCell className="text-center text-xs text-gray-400">{eIdx + 1}</TableCell>
-                            <TableCell>
-                              <span
-                                className="text-xs text-[#05b187] cursor-pointer hover:underline"
-                                onClick={() => navigate(`/purchases/exp/${exp.id}`)}
-                              >
-                                {exp.expNo}
-                              </span>
-                            </TableCell>
-                            <TableCell className="text-xs">{formatDate(exp.expDate, dateEra, dateFmt)}</TableCell>
-                            <TableCell className="text-xs text-gray-600 max-w-[300px]">
-                              <div className="font-medium">{exp.vendorName}</div>
-                              {(exp.firstItemDescription || exp.taxInvoiceRef) && (
-                                <div className="text-[11px] text-gray-400 mt-0.5">
-                                  {exp.firstItemDescription || ""}
-                                  {exp.taxInvoiceRef && <span className="ml-1">#{exp.taxInvoiceRef}</span>}
-                                </div>
-                              )}
-                              <div className="flex items-center gap-2 mt-0.5 text-[11px]">
-                                <button
-                                  data-testid={`button-dxp-related-${exp.id}`}
-                                  onClick={(e) => { e.stopPropagation(); setRelatedInline({ open: true, id: exp.id }); }}
-                                  className="flex items-center gap-0.5 text-[#03c9d7] hover:text-[#029baa] hover:underline"
-                                >
-                                  <ExternalLink className="h-2.5 w-2.5" /> เอกสารที่เกี่ยวข้อง
-                                </button>
-                              </div>
-                            </TableCell>
-                            <TableCell></TableCell>
-                            <TableCell className="text-right text-xs">{fmt(exp.totalAmount)}</TableCell>
-                            <TableCell className="text-right text-xs text-gray-400">{fmt(exp.vatAmount)}</TableCell>
-                            <TableCell className="text-right text-xs text-gray-400">{fmt(exp.withholdingTax)}</TableCell>
-                            <TableCell>
-                              <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => navigate(`/purchases/exp/${exp.id}`)}>
-                                <Eye className="h-3 w-3" />
-                              </Button>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                        {isExpanded && isLoading && (
-                          <TableRow className="bg-gray-50/50">
-                            <TableCell colSpan={10} className="text-center py-4 text-sm text-gray-400">
-                              <Loader2 className="h-4 w-4 animate-spin inline mr-2" /> กำลังโหลดรายการ...
-                            </TableCell>
-                          </TableRow>
-                        )}
-                      </Fragment>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            ) : isLoading ? (
+            {isLoading ? (
               <div className="text-center py-12 text-muted-foreground">กำลังโหลด...</div>
-            ) : filtered.length === 0 ? (
+            ) : unifiedList.length === 0 ? (
               <div className="text-center py-12 text-muted-foreground">
                 <Receipt className="h-12 w-12 mx-auto mb-3 text-slate-300" />
                 <p className="text-sm">ยังไม่มีรายจ่าย</p>
@@ -550,64 +407,190 @@ export default function ExpenseList() {
               <Table>
                 <TableHeader style={{ backgroundColor: '#05b187' }}>
                   <TableRow className="hover:bg-transparent h-11">
-                    <TableHead className="w-8 text-center text-sm font-medium text-white">
-                      <Checkbox
-                        data-testid="check-select-all"
-                        checked={visibleItems.length > 0 && visibleItems.every((e: any) => selectedIds.has(e.id))}
-                        onCheckedChange={(checked) => {
-                          if (checked) {
-                            setSelectedIds(new Set(visibleItems.map((e: any) => e.id)));
-                          } else {
-                            setSelectedIds(new Set());
-                          }
-                        }}
-                        className="border-white data-[state=checked]:bg-white data-[state=checked]:text-[#05b187]"
-                      />
-                    </TableHead>
                     <TableHead className="w-8 text-center text-sm font-medium text-white"></TableHead>
                     <TableHead className="w-8 text-center text-sm font-medium text-white">#</TableHead>
                     <TableHead className="w-[85px] text-sm font-medium text-white">วันที่</TableHead>
-                    <TableHead className="w-[130px] text-sm font-medium text-white">EXP # ⇅</TableHead>
-                    <TableHead className="text-sm font-medium text-white min-w-[280px]">รายละเอียด - {visibleItems.length} รายการ</TableHead>
-                    <TableHead className="w-[50px] text-center text-xs font-medium text-white leading-tight px-1">ตรวจ<br/>สอบ</TableHead>
-                    <TableHead className="w-[110px] text-right text-sm font-medium text-white">ค้างชำระ</TableHead>
-                    <TableHead className="w-[110px] text-right text-sm font-medium text-white">ยอดรวม</TableHead>
+                    <TableHead className="w-[140px] text-sm font-medium text-white">เลขที่</TableHead>
+                    <TableHead className="text-sm font-medium text-white min-w-[260px]">รายละเอียด</TableHead>
                     <TableHead className="w-[90px] text-center text-sm font-medium text-white">สถานะ</TableHead>
-                    <TableHead className="w-8"></TableHead>
+                    <TableHead className="w-[120px] text-right text-sm font-medium text-white">ยอดรวม</TableHead>
+                    <TableHead className="w-[90px] text-right text-sm font-medium text-white">VAT</TableHead>
+                    <TableHead className="w-[90px] text-right text-sm font-medium text-white">WHT</TableHead>
+                    <TableHead className="w-8 text-center text-sm font-medium text-white"></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {visibleItems.map((exp: any, idx: number) => {
+                  {visibleItems.map((item: any, idx: number) => {
+                    if (item.type === "batch") {
+                      const batch = item.data;
+                      const isBatchExpanded = expandedBatches.has(batch.id);
+                      const isBatchLoading = loadingBatches.has(batch.id);
+                      const exps = batchExpenses[batch.id] || [];
+                      return (
+                        <Fragment key={`batch-${batch.id}`}>
+                          <TableRow
+                            className="cursor-pointer hover:bg-[#fb9678]/5 h-12 border-l-4 border-l-[#fb9678]"
+                            onClick={(e) => {
+                              if ((e.target as HTMLElement).closest("button, a")) return;
+                              toggleBatch(batch.id);
+                            }}
+                            data-testid={`batch-row-${batch.id}`}
+                          >
+                            <TableCell className="text-center">
+                              {isBatchLoading ? (
+                                <Loader2 className="h-4 w-4 animate-spin text-[#fb9678] mx-auto" />
+                              ) : isBatchExpanded ? (
+                                <ChevronDown className="h-4 w-4 text-[#fb9678] mx-auto" />
+                              ) : (
+                                <ChevronRight className="h-4 w-4 text-gray-400 mx-auto" />
+                              )}
+                            </TableCell>
+                            <TableCell className="text-center text-sm text-gray-500">{idx + 1}</TableCell>
+                            <TableCell className="text-sm">{formatDate(batch.batchDate, dateEra, dateFmt)}</TableCell>
+                            <TableCell>
+                              <span className="font-medium text-sm text-[#fb9678]">{batch.batchNo}</span>
+                            </TableCell>
+                            <TableCell className="text-sm text-gray-600" title={batch.vendorSummary || "สรุปค่าใช้จ่ายรายวัน"}>
+                              <div className="flex items-center gap-2">
+                                <span className="line-clamp-1">{batch.vendorSummary || "สรุปค่าใช้จ่ายรายวัน"}</span>
+                                <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-[#fb9678]/10 text-[#fb9678] border-[#fb9678] shrink-0">
+                                  {batch.actualExpenseCount || batch.totalExpenses} ใบ
+                                </Badge>
+                              </div>
+                              <div className="flex items-center gap-2 mt-0.5 text-xs">
+                                <button
+                                  data-testid={`button-batch-journal-${batch.id}`}
+                                  onClick={(e) => { e.stopPropagation(); setJournalDoc({ open: true, id: batch.id, docType: "expense_daily_batch" }); }}
+                                  className="flex items-center gap-0.5 text-blue-500 hover:text-blue-700 hover:underline"
+                                >
+                                  <BookOpen className="h-3 w-3" /> ดูบัญชี
+                                </button>
+                                <span className="text-slate-300">|</span>
+                                <button
+                                  data-testid={`button-batch-related-${batch.id}`}
+                                  onClick={(e) => { e.stopPropagation(); setRelatedInline({ open: true, id: batch.id }); }}
+                                  className="flex items-center gap-0.5 text-[#03c9d7] hover:text-[#029baa] hover:underline"
+                                >
+                                  <ExternalLink className="h-3 w-3" /> เอกสารที่เกี่ยวข้อง
+                                </button>
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-center">
+                              <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 border text-xs py-0.5 px-2 font-normal h-6">
+                                <CheckCircle2 className="h-3 w-3 mr-1" /> อนุมัติ
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-right font-medium text-sm">{fmt(batch.totalAmount)}</TableCell>
+                            <TableCell className="text-right text-sm text-gray-500">{fmt(batch.totalVat)}</TableCell>
+                            <TableCell className="text-right text-sm text-gray-500">{fmt(batch.totalWht)}</TableCell>
+                            <TableCell>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-red-400 hover:text-red-600 hover:bg-red-50"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (confirm(`ยืนยันลบ ${batch.batchNo}?\nจะลบค่าใช้จ่าย ${batch.actualExpenseCount || batch.totalExpenses} ใบ พร้อมบันทึกบัญชีและเอกสารที่เกี่ยวข้องทั้งหมด`)) {
+                                    deleteBatchMutation.mutate(batch.id);
+                                  }
+                                }}
+                                data-testid={`button-delete-batch-${batch.id}`}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                          {isBatchExpanded && exps.length > 0 && exps.map((exp: any, eIdx: number) => (
+                            <TableRow key={exp.id} className="bg-[#fb9678]/[0.03] hover:bg-[#fb9678]/[0.06] border-l-4 border-l-[#fb9678]/30">
+                              <TableCell></TableCell>
+                              <TableCell className="text-center text-xs text-gray-400">{eIdx + 1}</TableCell>
+                              <TableCell className="text-xs">{formatDate(exp.expDate, dateEra, dateFmt)}</TableCell>
+                              <TableCell>
+                                <span
+                                  className="text-xs text-[#05b187] cursor-pointer hover:underline"
+                                  onClick={() => navigate(`/purchases/exp/${exp.id}`)}
+                                >
+                                  {exp.expNo}
+                                </span>
+                              </TableCell>
+                              <TableCell className="text-xs text-gray-600 max-w-[300px]">
+                                <div className="font-medium">{exp.vendorName}</div>
+                                {(exp.firstItemDescription || exp.taxInvoiceRef) && (
+                                  <div className="text-[11px] text-gray-400 mt-0.5">
+                                    {exp.firstItemDescription || ""}
+                                    {exp.taxInvoiceRef && <span className="ml-1">#{exp.taxInvoiceRef}</span>}
+                                  </div>
+                                )}
+                                <div className="flex items-center gap-2 mt-0.5 text-[11px]">
+                                  <button
+                                    data-testid={`button-dxp-related-${exp.id}`}
+                                    onClick={(e) => { e.stopPropagation(); setRelatedInline({ open: true, id: exp.id }); }}
+                                    className="flex items-center gap-0.5 text-[#03c9d7] hover:text-[#029baa] hover:underline"
+                                  >
+                                    <ExternalLink className="h-2.5 w-2.5" /> เอกสารที่เกี่ยวข้อง
+                                  </button>
+                                </div>
+                              </TableCell>
+                              <TableCell></TableCell>
+                              <TableCell className="text-right text-xs">{fmt(exp.totalAmount)}</TableCell>
+                              <TableCell className="text-right text-xs text-gray-400">{fmt(exp.vatAmount)}</TableCell>
+                              <TableCell className="text-right text-xs text-gray-400">{fmt(exp.withholdingTax)}</TableCell>
+                              <TableCell>
+                                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => navigate(`/purchases/exp/${exp.id}`)}>
+                                  <Eye className="h-3 w-3" />
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                          {isBatchExpanded && isBatchLoading && (
+                            <TableRow className="bg-gray-50/50">
+                              <TableCell colSpan={10} className="text-center py-3">
+                                <Loader2 className="h-4 w-4 animate-spin inline-block mr-2 text-[#fb9678]" />
+                                <span className="text-xs text-muted-foreground">กำลังโหลด...</span>
+                              </TableCell>
+                            </TableRow>
+                          )}
+                          {isBatchExpanded && !isBatchLoading && exps.length === 0 && (
+                            <TableRow className="bg-gray-50/50">
+                              <TableCell colSpan={10} className="text-center text-xs text-muted-foreground py-3">
+                                ไม่พบรายจ่ายใน batch นี้
+                              </TableCell>
+                            </TableRow>
+                          )}
+                        </Fragment>
+                      );
+                    }
+
+                    const exp = item.data;
                     const st = STATUS_MAP[exp.status] || { label: exp.status || "ไม่ทราบ", color: "bg-gray-100 text-gray-600 border-gray-200", icon: Clock };
                     const StIcon = st.icon;
                     const isExpanded = expandedRows.has(exp.id);
-                    const paymentStatus = getPaymentStatus(exp);
-                    const ps = PAYMENT_STATUS_MAP[paymentStatus] || { label: paymentStatus || "ไม่ทราบ", color: "bg-gray-100 text-gray-600 border-gray-200" };
                     return (
-                      <Fragment key={exp.id}>
+                      <Fragment key={`exp-${exp.id}`}>
                         <TableRow data-testid={`row-exp-${exp.id}`} className={`hover:bg-slate-50/50 border-b ${selectedIds.has(exp.id) ? "bg-red-50/50" : ""}`}>
                           <TableCell className="text-center py-3">
-                            <Checkbox
-                              data-testid={`check-exp-${exp.id}`}
-                              checked={selectedIds.has(exp.id)}
-                              onCheckedChange={(checked) => {
-                                setSelectedIds(prev => {
-                                  const next = new Set(prev);
-                                  if (checked) next.add(exp.id); else next.delete(exp.id);
-                                  return next;
-                                });
-                              }}
-                            />
-                          </TableCell>
-                          <TableCell className="text-center py-3">
-                            <button
-                              data-testid={`button-expand-${exp.id}`}
-                              onClick={() => toggleExpand(exp.id)}
-                              className={`w-7 h-7 rounded-full flex items-center justify-center text-white ${isExpanded ? "bg-gray-400" : ""}`}
-                              style={!isExpanded ? { backgroundColor: 'var(--theme-primary)' } : undefined}
-                            >
-                              {isExpanded ? <Minus className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
-                            </button>
+                            <div className="flex items-center gap-1.5">
+                              <Checkbox
+                                data-testid={`check-exp-${exp.id}`}
+                                checked={selectedIds.has(exp.id)}
+                                onCheckedChange={(checked) => {
+                                  setSelectedIds(prev => {
+                                    const next = new Set(prev);
+                                    if (checked) next.add(exp.id); else next.delete(exp.id);
+                                    return next;
+                                  });
+                                }}
+                                className="h-3.5 w-3.5"
+                              />
+                              <button
+                                data-testid={`button-expand-${exp.id}`}
+                                onClick={() => toggleExpand(exp.id)}
+                                className={`w-6 h-6 rounded-full flex items-center justify-center text-white ${isExpanded ? "bg-gray-400" : ""}`}
+                                style={!isExpanded ? { backgroundColor: 'var(--theme-primary)' } : undefined}
+                              >
+                                {isExpanded ? <Minus className="h-3 w-3" /> : <Plus className="h-3 w-3" />}
+                              </button>
+                            </div>
                           </TableCell>
                           <TableCell className="text-center text-sm text-muted-foreground">{idx + 1}</TableCell>
                           <TableCell className="text-sm">{formatDate(exp.expDate, dateEra, dateFmt)}</TableCell>
@@ -623,18 +606,6 @@ export default function ExpenseList() {
                           <TableCell>
                             <div className="text-sm font-normal">{exp.vendorName}</div>
                             {(exp.firstItemDescription || exp.notes || exp.refDoc) && <div className="text-xs text-muted-foreground mt-0.5">{exp.firstItemDescription || exp.notes || exp.refDoc}</div>}
-                            <div className="flex items-center gap-3 mt-0.5 text-sm text-muted-foreground">
-                              {exp.contactPhone && (
-                                <span className="flex items-center gap-0.5">
-                                  <Phone className="h-3 w-3" /> {exp.contactPhone}
-                                </span>
-                              )}
-                              {exp.contactEmail && (
-                                <span className="flex items-center gap-0.5">
-                                  <Mail className="h-3 w-3" /> {exp.contactEmail}
-                                </span>
-                              )}
-                            </div>
                             <div className="flex items-center gap-2 mt-1 text-xs">
                               <button
                                 data-testid={`button-journal-inline-${exp.id}`}
@@ -668,34 +639,17 @@ export default function ExpenseList() {
                               )}
                             </div>
                           </TableCell>
-                          <TableCell>
-                            <select
-                              data-testid={`select-approval-${exp.id}`}
-                              value={exp.status}
-                              onChange={e => statusMutation.mutate({ id: exp.id, status: e.target.value })}
-                              className="h-7 text-xs border border-slate-300 rounded px-1.5 bg-white w-full cursor-pointer focus:outline-none focus:ring-1"
-                              style={{ '--tw-ring-color': 'var(--theme-primary)' } as React.CSSProperties}
-                            >
-                              {Object.entries(STATUS_MAP).map(([key, val]) => (
-                                <option key={key} value={key}>{val.label}</option>
-                              ))}
-                            </select>
-                          </TableCell>
-                          <TableCell>
-                            <Badge data-testid={`badge-payment-${exp.id}`} className={`${ps.color} border text-xs py-0.5 px-2.5 font-normal h-6`}>
-                              <CreditCard className="h-3 w-3 mr-1" />
-                              {ps.label}
+                          <TableCell className="text-center">
+                            <Badge data-testid={`badge-status-${exp.id}`} className={`${st.color} border text-xs py-0.5 px-2 font-normal h-6`}>
+                              <StIcon className="h-3 w-3 mr-1" />
+                              {st.label}
                             </Badge>
                           </TableCell>
                           <TableCell className="text-right tabular-nums">
                             <div className="text-sm font-normal">{fmt(exp.totalAmount)}</div>
                           </TableCell>
-                          <TableCell>
-                            <Badge data-testid={`badge-status-${exp.id}`} className={`${st.color} border text-xs py-0.5 px-2.5 font-normal h-6`}>
-                              <StIcon className="h-3 w-3 mr-1" />
-                              {st.label}
-                            </Badge>
-                          </TableCell>
+                          <TableCell className="text-right text-sm text-gray-500">{fmt(exp.vatAmount)}</TableCell>
+                          <TableCell className="text-right text-sm text-gray-500">{fmt(exp.withholdingTax)}</TableCell>
                           <TableCell>
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
@@ -791,7 +745,7 @@ export default function ExpenseList() {
 
                         {isExpanded && (
                           <TableRow className="bg-slate-50/80">
-                            <TableCell colSpan={11} className="p-4">
+                            <TableCell colSpan={10} className="p-4">
                               <ExpandedDetail doc={exp} accounts={accounts} />
                             </TableCell>
                           </TableRow>
