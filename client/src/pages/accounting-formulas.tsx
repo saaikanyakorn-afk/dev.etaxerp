@@ -32,7 +32,19 @@ const BIZ_TYPE_LABELS: Record<string, string> = {
   ecommerce: "E-Commerce",
   mixed: "ธุรกิจผสม",
   accounting: "สำนักงานบัญชี",
-  ecommerce_commission: "กลับประมาณการค่าคอมมิชชั่น",
+  ecommerce_commission: "ล้างค่าคอมมิชชั่น TikTok (TTSTHAC)",
+  shopee_commission: "ล้างค่าคอมมิชชั่น Shopee",
+  lazada_commission: "ล้างค่าคอมมิชชั่น Lazada",
+  shopee_platform_fee: "ล้างค่าบริการ Shopee (TIV)",
+  shopee_shipping: "ล้างค่าขนส่ง SPX (RCT)",
+  shopeefood_fee: "ล้างค่าบริการ ShopeeFood",
+  spx_admin_fee: "ล้างค่าบริการ SPX Admin",
+  lazada_platform_fee: "ล้างค่าบริการ Lazada (THMPTI)",
+  lazada_shipping: "ล้างค่าขนส่ง Lazada (THLPTI)",
+  tiktok_platform_fee: "ล้างค่าบริการ TikTok (TTSTH)",
+  tiktok_shipping: "ล้างค่าขนส่ง TikTok (THJV)",
+  grab_service_fee: "ล้างค่าบริการ Grab (IM)",
+  platform_fee: "ค่าธรรมเนียมแพลตฟอร์ม (รวม)",
 };
 
 const DOC_TYPE_COLORS: Record<string, string> = {
@@ -109,11 +121,7 @@ export default function AccountingFormulas() {
   });
 
   const mergedFormulas: MergedFormula[] = useMemo(() => {
-    const defaults = DEFAULT_FORMULAS.filter(f =>
-      f.businessType === mappedBusinessType ||
-      f.businessType === rawBusinessType ||
-      f.businessType === "mixed"
-    );
+    const defaults = DEFAULT_FORMULAS;
 
     const customMap = new Map<string, any>();
     customFormulas.forEach(f => customMap.set(`${f.documentType}|${f.businessType}`, f));
@@ -296,24 +304,65 @@ export default function AccountingFormulas() {
 
   const [newDocType, setNewDocType] = useState("purchase");
   const [newBizType, setNewBizType] = useState(mappedBusinessType);
+  const [customBizType, setCustomBizType] = useState("");
+  const [newInvoicePrefix, setNewInvoicePrefix] = useState("");
+
+  const BIZ_TYPE_OPTIONS = [
+    { group: "ทั่วไป", items: [
+      { value: "service", label: "ธุรกิจบริการ" },
+      { value: "trading", label: "ซื้อมา-ขายไป" },
+      { value: "ecommerce", label: "E-Commerce" },
+      { value: "mixed", label: "ผสม" },
+      { value: "accounting", label: "สำนักงานบัญชี" },
+    ]},
+    { group: "ล้างค่าใช้จ่ายล่วงหน้า — Shopee", items: [
+      { value: "shopee_commission", label: "ล้างค่าคอมมิชชั่น Shopee" },
+      { value: "shopee_platform_fee", label: "ล้างค่าบริการ Shopee (TIV)" },
+      { value: "shopee_shipping", label: "ล้างค่าขนส่ง SPX (RCT)" },
+      { value: "shopeefood_fee", label: "ล้างค่าบริการ ShopeeFood" },
+      { value: "spx_admin_fee", label: "ล้างค่าบริการ SPX Admin" },
+    ]},
+    { group: "ล้างค่าใช้จ่ายล่วงหน้า — TikTok", items: [
+      { value: "ecommerce_commission", label: "ล้างค่าคอมมิชชั่น TikTok (TTSTHAC)" },
+      { value: "tiktok_platform_fee", label: "ล้างค่าบริการ TikTok (TTSTH)" },
+      { value: "tiktok_shipping", label: "ล้างค่าขนส่ง TikTok (THJV)" },
+    ]},
+    { group: "ล้างค่าใช้จ่ายล่วงหน้า — Lazada", items: [
+      { value: "lazada_commission", label: "ล้างค่าคอมมิชชั่น Lazada" },
+      { value: "lazada_platform_fee", label: "ล้างค่าบริการ Lazada (THMPTI)" },
+      { value: "lazada_shipping", label: "ล้างค่าขนส่ง Lazada (THLPTI)" },
+    ]},
+    { group: "ล้างค่าใช้จ่ายล่วงหน้า — อื่นๆ", items: [
+      { value: "grab_service_fee", label: "ล้างค่าบริการ Grab (IM)" },
+      { value: "platform_fee", label: "ค่าธรรมเนียมแพลตฟอร์ม (รวม)" },
+    ]},
+    { group: "กำหนดเอง", items: [
+      { value: "__custom__", label: "พิมพ์ชื่อสูตรเอง..." },
+    ]},
+  ];
 
   const openCreate = () => {
     setNewDocType("purchase");
     setNewBizType(mappedBusinessType);
+    setCustomBizType("");
+    setNewInvoicePrefix("");
     setCreateOpen(true);
   };
 
   const confirmCreate = () => {
+    const finalBizType = newBizType === "__custom__" ? customBizType.trim() : newBizType;
+    if (!finalBizType) return;
     setCreateOpen(false);
+    const tpl = DEFAULT_FORMULAS.find(f => f.documentType === newDocType && f.businessType === finalBizType);
     setEditingFormula({
       id: null,
       documentType: newDocType,
-      businessType: newBizType,
-      name: "",
-      nameTh: "",
-      description: "",
+      businessType: finalBizType,
+      name: tpl?.name || "",
+      nameTh: tpl?.nameTh || "",
+      description: tpl?.description || "",
       noJournalEntry: false,
-      lines: [],
+      lines: tpl ? [...tpl.lines] : [],
       isCustom: false,
       companyId: null,
     });
@@ -496,10 +545,10 @@ export default function AccountingFormulas() {
       </div>
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>สร้างสูตรบัญชีใหม่</DialogTitle>
-            <DialogDescription>เลือกประเภทเอกสารและประเภทธุรกิจสำหรับสูตรใหม่</DialogDescription>
+            <DialogDescription>เลือกประเภทเอกสารและประเภทสูตรสำหรับสร้างใหม่</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div>
@@ -517,24 +566,50 @@ export default function AccountingFormulas() {
               </Select>
             </div>
             <div>
-              <Label>ประเภทธุรกิจ / สูตร</Label>
-              <Select value={newBizType} onValueChange={setNewBizType}>
+              <Label>ประเภทสูตร</Label>
+              <Select value={newBizType} onValueChange={(v) => { setNewBizType(v); if (v !== "__custom__") setCustomBizType(""); }}>
                 <SelectTrigger data-testid="select-new-biz-type">
-                  <SelectValue />
+                  <SelectValue placeholder="เลือกประเภทสูตร" />
                 </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="service">ธุรกิจบริการ</SelectItem>
-                  <SelectItem value="trading">ซื้อมา-ขายไป</SelectItem>
-                  <SelectItem value="ecommerce">E-Commerce</SelectItem>
-                  <SelectItem value="mixed">ผสม</SelectItem>
-                  <SelectItem value="accounting">สำนักงานบัญชี</SelectItem>
-                  <SelectItem value="ecommerce_commission">กลับประมาณการค่าคอมมิชชั่น</SelectItem>
+                <SelectContent className="max-h-72">
+                  {BIZ_TYPE_OPTIONS.map(group => (
+                    <div key={group.group}>
+                      <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/30">{group.group}</div>
+                      {group.items.map(item => (
+                        <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>
+                      ))}
+                    </div>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
+            {newBizType === "__custom__" && (
+              <div>
+                <Label>ชื่อสูตร (ภาษาอังกฤษ ไม่มีเว้นวรรค เช่น my_custom_fee)</Label>
+                <Input
+                  data-testid="input-custom-biz-type"
+                  value={customBizType}
+                  onChange={e => setCustomBizType(e.target.value.replace(/[^a-z0-9_]/g, ""))}
+                  placeholder="เช่น my_custom_fee"
+                  className="font-mono"
+                />
+              </div>
+            )}
+            {newBizType !== "__custom__" && newBizType !== mappedBusinessType && (
+              <div className="bg-blue-50 border border-blue-200 rounded p-2.5 text-xs text-blue-700">
+                {DEFAULT_FORMULAS.find(f => f.documentType === newDocType && f.businessType === newBizType)
+                  ? "จะสร้างจากสูตรเริ่มต้นของระบบ — คุณสามารถแก้ไขรายการบัญชีได้ในขั้นตอนถัดไป"
+                  : "จะสร้างสูตรเปล่า — คุณต้องเพิ่มรายการบัญชีเอง"}
+              </div>
+            )}
             <div className="flex justify-end gap-2 pt-2">
               <Button variant="outline" onClick={() => setCreateOpen(false)}>ยกเลิก</Button>
-              <Button className="bg-[#fb9678] hover:bg-[#e8856a] text-white" onClick={confirmCreate} data-testid="button-confirm-create">
+              <Button
+                className="bg-[#fb9678] hover:bg-[#e8856a] text-white"
+                onClick={confirmCreate}
+                disabled={newBizType === "__custom__" && !customBizType.trim()}
+                data-testid="button-confirm-create"
+              >
                 <Plus className="h-4 w-4 mr-1" /> สร้าง
               </Button>
             </div>
