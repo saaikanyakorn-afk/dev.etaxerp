@@ -586,6 +586,8 @@ export const ECOMMERCE_EXTRA_ACCOUNTS: ChartAccountTemplate[] = [
   { code: "5263000", name: "Shipping - Thailand Post", nameTh: "ค่าขนส่ง ไปรษณีย์ไทย", nameZh: "泰国邮政运费", type: "expense", parentCode: "526" },
   { code: "5264000", name: "Shipping - J&T Express", nameTh: "ค่าขนส่ง J&T Express", nameZh: "J&T Express运费", type: "expense", parentCode: "526" },
   { code: "5265000", name: "Shipping - SPX Express", nameTh: "ค่าขนส่ง SPX Express", nameZh: "SPX Express运费", type: "expense", parentCode: "526" },
+  { code: "5266000", name: "Shipping - Lazada Express", nameTh: "ค่าขนส่ง Lazada Express", nameZh: "Lazada Express运费", type: "expense", parentCode: "526" },
+  { code: "5267000", name: "Shipping - TikTok Logistics", nameTh: "ค่าขนส่ง TikTok (Thai Happy Logistics)", nameZh: "TikTok物流运费", type: "expense", parentCode: "526" },
   { code: "5269000", name: "Shipping - Other", nameTh: "ค่าขนส่งอื่น", nameZh: "其他运费", type: "expense", parentCode: "526" },
 
   // --- Marketplace Advertising ---
