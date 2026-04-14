@@ -2154,7 +2154,8 @@ export function registerPurchaseRoutes(app: Express) {
           let apNo = doc.apNo;
           const docDateStr = doc.apDate || new Date().toISOString().split("T")[0];
           if (!apNo || apNo === "(สร้างอัตโนมัติ)") {
-            apNo = await getNextDocNo(companyId, "AP", purchaseInvoices, purchaseInvoices.apNo, purchaseInvoices.companyId, docDateStr);
+            const docPrefix = doc.invoicePrefix || "AP";
+            apNo = await getNextDocNo(companyId, docPrefix, purchaseInvoices, purchaseInvoices.apNo, purchaseInvoices.companyId, docDateStr);
           } else {
             const existing = await db.select({ apNo: purchaseInvoices.apNo })
               .from(purchaseInvoices).where(and(eq(purchaseInvoices.companyId, companyId), eq(purchaseInvoices.apNo, apNo)));
