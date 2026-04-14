@@ -3018,7 +3018,7 @@ export function registerPurchaseRoutes(app: Express) {
             };
 
             const walletAcc = resolveAcc("1043000", "1001300", "1001000");
-            const vatAcc = resolveAcc("1431000", "1430000", "1431");
+            const vatAcc = resolveAcc("1432000", "1431000", "1430000");
             const expAcc = resolveAcc("5301100", "5301000", "5300000", "5301");
 
             if (!walletAcc || !vatAcc || !expAcc) {
