@@ -413,7 +413,10 @@ export default function ExpenseList() {
                       <Fragment key={batch.id}>
                         <TableRow
                           className="cursor-pointer hover:bg-[#fb9678]/5 h-12"
-                          onClick={() => toggleBatch(batch.id)}
+                          onClick={(e) => {
+                            if ((e.target as HTMLElement).closest("button, a")) return;
+                            toggleBatch(batch.id);
+                          }}
                           data-testid={`batch-row-${batch.id}`}
                         >
                           <TableCell className="text-center">
@@ -501,14 +504,6 @@ export default function ExpenseList() {
                                 </div>
                               )}
                               <div className="flex items-center gap-2 mt-0.5 text-[11px]">
-                                <button
-                                  data-testid={`button-dxp-journal-${exp.id}`}
-                                  onClick={(e) => { e.stopPropagation(); setJournalDoc({ open: true, id: batch.id, docType: "expense_daily_batch" }); }}
-                                  className="flex items-center gap-0.5 text-blue-500 hover:text-blue-700 hover:underline"
-                                >
-                                  <BookOpen className="h-2.5 w-2.5" /> ดูบัญชี (Batch)
-                                </button>
-                                <span className="text-slate-300">|</span>
                                 <button
                                   data-testid={`button-dxp-related-${exp.id}`}
                                   onClick={(e) => { e.stopPropagation(); setRelatedInline({ open: true, id: exp.id }); }}
