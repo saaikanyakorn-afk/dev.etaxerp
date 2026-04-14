@@ -3534,7 +3534,27 @@ export function registerPurchaseRoutes(app: Express) {
       const batchExpenses = await db.select().from(expenses)
         .where(eq(expenses.batchId, batchId))
         .orderBy(expenses.expNo);
-      res.json(batchExpenses);
+
+      const expIds = batchExpenses.map(e => e.id);
+      let itemsByExpense: Record<number, string> = {};
+      if (expIds.length > 0) {
+        const allItems = await db.select({
+          expenseId: expenseItems.expenseId,
+          description: expenseItems.description,
+          accountName: expenseItems.accountName,
+        }).from(expenseItems).where(inArray(expenseItems.expenseId, expIds));
+        for (const item of allItems) {
+          if (!itemsByExpense[item.expenseId] && (item.description || item.accountName)) {
+            itemsByExpense[item.expenseId] = item.description || item.accountName || "";
+          }
+        }
+      }
+
+      const result = batchExpenses.map(e => ({
+        ...e,
+        firstItemDescription: itemsByExpense[e.id] || null,
+      }));
+      res.json(result);
     } catch (err: any) {
       res.status(500).json({ message: err.message });
     }

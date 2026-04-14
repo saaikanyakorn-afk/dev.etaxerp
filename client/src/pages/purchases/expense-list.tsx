@@ -461,7 +461,7 @@ export default function ExpenseList() {
                           </TableCell>
                         </TableRow>
                         {isExpanded && exps.length > 0 && exps.map((exp: any, eIdx: number) => (
-                          <TableRow key={exp.id} className="bg-gray-50/50 hover:bg-gray-100/50 h-9">
+                          <TableRow key={exp.id} className="bg-gray-50/50 hover:bg-gray-100/50">
                             <TableCell></TableCell>
                             <TableCell className="text-center text-xs text-gray-400">{eIdx + 1}</TableCell>
                             <TableCell>
@@ -473,9 +473,31 @@ export default function ExpenseList() {
                               </span>
                             </TableCell>
                             <TableCell className="text-xs">{formatDate(exp.expDate, dateEra, dateFmt)}</TableCell>
-                            <TableCell className="text-xs text-gray-600 truncate max-w-[300px]">
-                              {exp.vendorName}
-                              {exp.taxInvoiceRef && <span className="text-gray-400 ml-2">#{exp.taxInvoiceRef}</span>}
+                            <TableCell className="text-xs text-gray-600 max-w-[300px]">
+                              <div className="font-medium">{exp.vendorName}</div>
+                              {(exp.firstItemDescription || exp.taxInvoiceRef) && (
+                                <div className="text-[11px] text-gray-400 mt-0.5">
+                                  {exp.firstItemDescription || ""}
+                                  {exp.taxInvoiceRef && <span className="ml-1">#{exp.taxInvoiceRef}</span>}
+                                </div>
+                              )}
+                              <div className="flex items-center gap-2 mt-0.5 text-[11px]">
+                                <button
+                                  data-testid={`button-dxp-journal-${exp.id}`}
+                                  onClick={(e) => { e.stopPropagation(); setJournalDoc({ open: true, id: exp.id }); }}
+                                  className="flex items-center gap-0.5 text-blue-500 hover:text-blue-700 hover:underline"
+                                >
+                                  <BookOpen className="h-2.5 w-2.5" /> ดูบัญชี
+                                </button>
+                                <span className="text-slate-300">|</span>
+                                <button
+                                  data-testid={`button-dxp-related-${exp.id}`}
+                                  onClick={(e) => { e.stopPropagation(); setRelatedInline({ open: true, id: exp.id }); }}
+                                  className="flex items-center gap-0.5 text-[#03c9d7] hover:text-[#029baa] hover:underline"
+                                >
+                                  <ExternalLink className="h-2.5 w-2.5" /> เอกสารที่เกี่ยวข้อง
+                                </button>
+                              </div>
                             </TableCell>
                             <TableCell></TableCell>
                             <TableCell className="text-right text-xs">{fmt(exp.totalAmount)}</TableCell>
