@@ -2412,7 +2412,7 @@ export function registerPurchaseRoutes(app: Express) {
         "TRSLZD":   "lazada_platform_fee",
         "TTSTH":    "tiktok_platform_fee",
         "TTSTHCN":  "tiktok_platform_fee",
-        "TTSTHAC":  "ecommerce_commission",
+        "TTSTHAC":  "tiktok_platform_fee",
         "THJV":     "tiktok_shipping",
         "THMPTI":   "lazada_platform_fee",
         "THLPTI":   "lazada_shipping",
