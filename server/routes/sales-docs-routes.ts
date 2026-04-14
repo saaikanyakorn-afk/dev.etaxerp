@@ -1043,11 +1043,23 @@ app.get("/api/journal-entries/by-source/:docType/:docId", requireAuth, async (re
   try {
     const { docType: rawDocType, docId } = req.params;
     const docType = rawDocType.replace(/-/g, "_");
-    const entries = await db.select().from(journalEntries)
+    let entries = await db.select().from(journalEntries)
       .where(and(
         eq(journalEntries.sourceDocType, docType as any),
         eq(journalEntries.sourceDocId, Number(docId)),
       ));
+    if (entries.length === 0 && docType === "purchase_debit_note") {
+      const [dn] = await db.select({ linkJournal: purchaseDebitNotes.linkJournal, debitNoteDate: purchaseDebitNotes.debitNoteDate, companyId: purchaseDebitNotes.companyId })
+        .from(purchaseDebitNotes).where(eq(purchaseDebitNotes.id, Number(docId)));
+      if (dn && dn.linkJournal) {
+        entries = await db.select().from(journalEntries)
+          .where(and(
+            eq(journalEntries.companyId, dn.companyId),
+            eq(journalEntries.sourceDocType, "purchase_debit_note"),
+            eq(journalEntries.entryDate, dn.debitNoteDate),
+          ));
+      }
+    }
     if (entries.length === 0) return res.json(null);
     const entry = entries[0];
     const lines = await db.select().from(journalLines)
