@@ -532,6 +532,34 @@ export default function PdfBulkImport() {
   const totalPaidAds = selectedDocsList.reduce((s, d) => s + (d.items || []).filter((it: any) => it.vatType === "non_vat").reduce((is: number, it: any) => is + (parseFloat(it.amount) || 0), 0), 0);
   const expenseSubtotal = totalSubtotal - totalPaidAds;
 
+  const classifyItem = (desc: string): string => {
+    const d = (desc || "").toLowerCase().trim();
+    if (/^paid\s*ads$/i.test(d)) return "ads";
+    if (/commission/i.test(d) || /ค่าคอมมิชชั่น/i.test(d)) return "commission";
+    if (/ads|โฆษณา|ams.*fee/i.test(d)) return "ads";
+    return "service";
+  };
+  const ITEM_ACCT_MAP: Record<string, { code: string; name: string }> = {
+    commission: { code: "5241000", name: "ค่าคอมมิชชั่น Shopee" },
+    service: { code: "5251000", name: "ค่าบริการ Shopee" },
+    ads: { code: "5271000", name: "ค่าโฆษณา Shopee Ads" },
+  };
+  const feeBreakdownMap = new Map<string, { code: string; name: string; total: number }>();
+  for (const doc of selectedDocsList) {
+    for (const item of (doc.items || [])) {
+      const cat = classifyItem(item.description);
+      const mapping = ITEM_ACCT_MAP[cat];
+      if (mapping) {
+        const amt = parseFloat(item.amount) || 0;
+        if (amt > 0) {
+          const existing = feeBreakdownMap.get(mapping.code);
+          if (existing) { existing.total += amt; } else { feeBreakdownMap.set(mapping.code, { ...mapping, total: amt }); }
+        }
+      }
+    }
+  }
+  const hasFeeBreakdown = feeBreakdownMap.size > 1;
+
   const paginatedDocs = parseResult?.documents.slice(previewPage * PAGE_SIZE, (previewPage + 1) * PAGE_SIZE) || [];
   const totalPages = parseResult ? Math.ceil(parseResult.documents.length / PAGE_SIZE) : 0;
 
@@ -1159,17 +1187,24 @@ export default function PdfBulkImport() {
                                 const debitVat = lines.filter((l: any) => l.direction === "debit" && isVatLine(l));
                                 const creditL = lines.filter((l: any) => l.direction === "credit");
                                 const autoLines: typeof journalOverrideLines = [];
-                                const expSub = totalPaidAds > 0 ? expenseSubtotal : totalSubtotal;
-                                for (const dl of debitMain) {
-                                  const perLine = debitMain.length > 1 ? Math.round(expSub / debitMain.length * 100) / 100 : expSub;
-                                  autoLines.push({ accountCode: dl.accountCode, accountName: dl.accountName, debit: perLine.toFixed(2), credit: "0" });
-                                }
-                                if (totalPaidAds > 0) {
-                                  const platform = selectedDocsList[0]?.platform || "other";
-                                  const adCodeMap: Record<string, string> = { shopee: "1449100", lazada: "1449200", tiktok: "1449300", facebook: "1449400", google: "1449500" };
-                                  const adCode = adCodeMap[platform] || "1449900";
-                                  const adAcc = accountMap.get(adCode);
-                                  autoLines.push({ accountCode: adCode, accountName: adAcc?.nameTh || "เงินเครดิตค่าโฆษณา", debit: totalPaidAds.toFixed(2), credit: "0" });
+                                if (hasFeeBreakdown) {
+                                  for (const [, fb] of feeBreakdownMap) {
+                                    const amt = Math.round(fb.total * 100) / 100;
+                                    const acc = accountMap.get(fb.code);
+                                    autoLines.push({ accountCode: fb.code, accountName: acc?.nameTh || fb.name, debit: amt.toFixed(2), credit: "0" });
+                                  }
+                                } else {
+                                  const expSub = totalPaidAds > 0 ? expenseSubtotal : totalSubtotal;
+                                  for (const dl of debitMain) {
+                                    autoLines.push({ accountCode: dl.accountCode, accountName: dl.accountName, debit: expSub.toFixed(2), credit: "0" });
+                                  }
+                                  if (totalPaidAds > 0) {
+                                    const platform = selectedDocsList[0]?.platform || "other";
+                                    const adCodeMap: Record<string, string> = { shopee: "1449100", lazada: "1449200", tiktok: "1449300", facebook: "1449400", google: "1449500" };
+                                    const adCode = adCodeMap[platform] || "1449900";
+                                    const adAcc = accountMap.get(adCode);
+                                    autoLines.push({ accountCode: adCode, accountName: adAcc?.nameTh || "เงินเครดิตค่าโฆษณา", debit: totalPaidAds.toFixed(2), credit: "0" });
+                                  }
                                 }
                                 for (const vl of debitVat) {
                                   if (totalVat > 0) autoLines.push({ accountCode: vl.accountCode, accountName: vl.accountName, debit: totalVat.toFixed(2), credit: "0" });
@@ -1351,7 +1386,14 @@ export default function PdfBulkImport() {
                             let totalCreditAmt = 0;
                             const rows: { code: string; name: string; debit: number; credit: number }[] = [];
 
-                            if (totalPaidAds > 0) {
+                            if (hasFeeBreakdown) {
+                              for (const [, fb] of feeBreakdownMap) {
+                                const amt = Math.round(fb.total * 100) / 100;
+                                const acc = accountMap.get(fb.code);
+                                rows.push({ code: fb.code, name: acc?.nameTh || fb.name, debit: amt, credit: 0 });
+                                totalDebitAmt += amt;
+                              }
+                            } else if (totalPaidAds > 0) {
                               const adSubtotal = expenseSubtotal;
                               if (debitMainLines.length === 1) {
                                 rows.push({ code: debitMainLines[0].accountCode, name: debitMainLines[0].accountName, debit: adSubtotal, credit: 0 });
