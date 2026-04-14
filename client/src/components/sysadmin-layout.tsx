@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Link, useLocation } from "wouter";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import {
   Shield,
@@ -11,11 +11,15 @@ import {
   Database,
   Wrench,
   Download,
-  FolderArchive,
-  Settings,
-  FileText,
+  Key,
+  Eye,
+  EyeOff,
+  AlertTriangle,
+  Lock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 const SYSADMIN_NAV = [
   { icon: UserCog, label: "จัดการ SysAdmin", href: "/sys-k7x9/users" },
@@ -32,10 +36,181 @@ interface SysAdminMe {
   fullName: string;
   isMaster: boolean;
   mustChangePassword: boolean;
+  sessionTimeoutMinutes?: number;
+}
+
+function ForceChangePasswordScreen({ me, onChanged }: { me: SysAdminMe; onChanged: () => void }) {
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showCurrent, setShowCurrent] = useState(false);
+  const [showNew, setShowNew] = useState(false);
+  const [error, setError] = useState("");
+  const [errors, setErrors] = useState<string[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentPassword || !newPassword) return;
+    if (newPassword !== confirmPassword) {
+      setError("รหัสผ่านใหม่ไม่ตรงกัน");
+      return;
+    }
+    setError("");
+    setErrors([]);
+    setLoading(true);
+    try {
+      const res = await fetch("/api/sysadmin/change-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ currentPassword, newPassword }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.message || "เปลี่ยนรหัสผ่านไม่สำเร็จ");
+        if (data.errors) setErrors(data.errors);
+        return;
+      }
+      onChanged();
+    } catch {
+      setError("เชื่อมต่อเซิร์ฟเวอร์ไม่ได้");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const passwordChecks = newPassword ? [
+    { ok: newPassword.length >= 8, label: "8+ ตัวอักษร" },
+    { ok: /[A-Z]/.test(newPassword), label: "A-Z" },
+    { ok: /[a-z]/.test(newPassword), label: "a-z" },
+    { ok: /[0-9]/.test(newPassword), label: "0-9" },
+    { ok: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?`~]/.test(newPassword), label: "อักขระพิเศษ" },
+  ] : [];
+
+  return (
+    <div className="min-h-screen bg-gray-900 flex items-center justify-center p-4" data-testid="screen-force-change-password">
+      <div className="w-full max-w-md">
+        <div className="text-center mb-8">
+          <div className="w-16 h-16 rounded-2xl bg-amber-600 flex items-center justify-center mx-auto mb-4 shadow-xl shadow-amber-900/30">
+            <Lock className="h-8 w-8 text-white" />
+          </div>
+          <h1 className="text-xl font-bold text-white">เปลี่ยนรหัสผ่าน</h1>
+          <p className="text-sm text-gray-400 mt-1">
+            {me.fullName} — กรุณาเปลี่ยนรหัสผ่านก่อนเข้าใช้งาน
+          </p>
+        </div>
+
+        <form onSubmit={handleSubmit} className="bg-gray-800 border border-amber-700/50 rounded-xl p-6 space-y-4 shadow-2xl">
+          {error && (
+            <div className="bg-red-900/30 border border-red-700/50 rounded-lg p-3 text-sm text-red-300">
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+                <div>
+                  <span>{error}</span>
+                  {errors.length > 0 && (
+                    <ul className="mt-1 space-y-0.5 text-xs text-red-400">
+                      {errors.map((e, i) => <li key={i}>• {e}</li>)}
+                    </ul>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div>
+            <Label className="text-gray-300 text-sm">รหัสผ่านปัจจุบัน</Label>
+            <div className="relative mt-1">
+              <Input
+                type={showCurrent ? "text" : "password"}
+                value={currentPassword}
+                onChange={e => setCurrentPassword(e.target.value)}
+                className="bg-gray-700 border-gray-600 text-white placeholder:text-gray-500 pr-10"
+                placeholder="••••••••"
+                autoFocus
+                autoComplete="off"
+                data-testid="input-current-password"
+              />
+              <button
+                type="button"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
+                onClick={() => setShowCurrent(!showCurrent)}
+              >
+                {showCurrent ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <Label className="text-gray-300 text-sm">รหัสผ่านใหม่</Label>
+            <div className="relative mt-1">
+              <Input
+                type={showNew ? "text" : "password"}
+                value={newPassword}
+                onChange={e => setNewPassword(e.target.value)}
+                className="bg-gray-700 border-gray-600 text-white placeholder:text-gray-500 pr-10"
+                placeholder="••••••••"
+                autoComplete="off"
+                data-testid="input-new-password"
+              />
+              <button
+                type="button"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
+                onClick={() => setShowNew(!showNew)}
+              >
+                {showNew ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+            {passwordChecks.length > 0 && (
+              <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1.5 text-[10px]">
+                {passwordChecks.map((c, i) => (
+                  <span key={i} className={c.ok ? "text-green-400" : "text-gray-500"}>
+                    {c.ok ? "✓" : "✗"} {c.label}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div>
+            <Label className="text-gray-300 text-sm">ยืนยันรหัสผ่านใหม่</Label>
+            <Input
+              type="password"
+              value={confirmPassword}
+              onChange={e => setConfirmPassword(e.target.value)}
+              className="bg-gray-700 border-gray-600 text-white placeholder:text-gray-500 mt-1"
+              placeholder="••••••••"
+              autoComplete="off"
+              data-testid="input-confirm-password"
+            />
+            {confirmPassword && newPassword !== confirmPassword && (
+              <p className="text-[10px] text-red-400 mt-1">รหัสผ่านไม่ตรงกัน</p>
+            )}
+          </div>
+
+          <Button
+            type="submit"
+            disabled={loading || !currentPassword || !newPassword || !confirmPassword || newPassword !== confirmPassword}
+            className="w-full bg-amber-600 hover:bg-amber-700 text-white"
+            data-testid="btn-change-password"
+          >
+            {loading ? "กำลังเปลี่ยน..." : (
+              <span className="flex items-center gap-2"><Key className="h-4 w-4" /> เปลี่ยนรหัสผ่าน</span>
+            )}
+          </Button>
+        </form>
+
+        <div className="text-center mt-4">
+          <p className="text-[10px] text-gray-600 font-mono">E-Tax Center — System Administration Console</p>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export default function SysAdminLayout({ children }: { children: React.ReactNode }) {
   const [location, setLocation] = useLocation();
+  const queryClient = useQueryClient();
 
   const { data: me, isLoading, isError } = useQuery<SysAdminMe>({
     queryKey: ["/api/sysadmin/me"],
@@ -48,9 +223,30 @@ export default function SysAdminLayout({ children }: { children: React.ReactNode
     }
   }, [isLoading, isError, me, setLocation]);
 
+  const handleSessionExpired = useCallback(() => {
+    queryClient.removeQueries({ queryKey: ["/api/sysadmin/me"] });
+    setLocation("/sys-k7x9");
+  }, [queryClient, setLocation]);
+
+  useEffect(() => {
+    const interceptor = (event: PromiseRejectionEvent) => {
+      const reason = event.reason;
+      if (reason?.status === 440 || reason?.sessionExpired) {
+        handleSessionExpired();
+      }
+    };
+    window.addEventListener("unhandledrejection", interceptor);
+    return () => window.removeEventListener("unhandledrejection", interceptor);
+  }, [handleSessionExpired]);
+
   const handleLogout = async () => {
     await fetch("/api/sysadmin/logout", { method: "POST", credentials: "include" });
+    queryClient.removeQueries({ queryKey: ["/api/sysadmin/me"] });
     setLocation("/sys-k7x9");
+  };
+
+  const handlePasswordChanged = () => {
+    queryClient.invalidateQueries({ queryKey: ["/api/sysadmin/me"] });
   };
 
   if (isLoading) {
@@ -62,6 +258,10 @@ export default function SysAdminLayout({ children }: { children: React.ReactNode
   }
 
   if (!me) return null;
+
+  if (me.mustChangePassword) {
+    return <ForceChangePasswordScreen me={me} onChanged={handlePasswordChanged} />;
+  }
 
   return (
     <div className="min-h-screen bg-gray-50/50 flex font-sans">

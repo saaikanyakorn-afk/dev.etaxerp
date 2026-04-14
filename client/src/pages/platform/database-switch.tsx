@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import PlatformLayout from "@/components/platform-layout";
+import SysAdminLayout from "@/components/sysadmin-layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Database, RefreshCw, Copy, Loader2, CheckCircle2, XCircle, AlertTriangle, ArrowRight, Server } from "lucide-react";
@@ -24,6 +26,8 @@ interface CloneProgress {
 }
 
 export default function DatabaseSwitch() {
+  const [loc] = useLocation();
+  const Layout = loc.startsWith("/sys-k7x9") ? SysAdminLayout : PlatformLayout;
   const queryClient = useQueryClient();
   const [switching, setSwitching] = useState(false);
   const [showCloneDialog, setShowCloneDialog] = useState(false);
@@ -99,7 +103,7 @@ export default function DatabaseSwitch() {
 
   if (isError || !status?.devMode) {
     return (
-      <PlatformLayout>
+      <Layout>
         <div>
           <Card>
             <CardContent className="p-12 text-center">
@@ -109,14 +113,14 @@ export default function DatabaseSwitch() {
             </CardContent>
           </Card>
         </div>
-      </PlatformLayout>
+      </Layout>
     );
   }
 
   const isUsa = status.target === "usa";
 
   return (
-    <PlatformLayout>
+    <Layout>
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-800" data-testid="page-title">สลับฐานข้อมูล</h1>
@@ -372,6 +376,6 @@ export default function DatabaseSwitch() {
           </div>
         </div>
       )}
-    </PlatformLayout>
+    </Layout>
   );
 }

@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import PlatformLayout from "@/components/platform-layout";
+import SysAdminLayout from "@/components/sysadmin-layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -48,6 +50,8 @@ interface HistoryRow {
 }
 
 export default function PlatformMaintenance() {
+  const [loc] = useLocation();
+  const Layout = loc.startsWith("/sys-k7x9") ? SysAdminLayout : PlatformLayout;
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [message, setMessage] = useState("ระบบอยู่ระหว่างการปรับปรุง กรุณารอสักครู่");
@@ -177,7 +181,7 @@ export default function PlatformMaintenance() {
   };
 
   return (
-    <PlatformLayout>
+    <Layout>
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900" data-testid="text-maintenance-title">ปรับปรุงระบบ (Maintenance Mode)</h1>
@@ -473,6 +477,6 @@ export default function PlatformMaintenance() {
           )}
         </Card>
       </div>
-    </PlatformLayout>
+    </Layout>
   );
 }

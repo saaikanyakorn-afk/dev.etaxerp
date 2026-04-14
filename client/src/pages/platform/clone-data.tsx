@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useLocation } from "wouter";
 import PlatformLayout from "@/components/platform-layout";
+import SysAdminLayout from "@/components/sysadmin-layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -12,7 +14,6 @@ import {
 } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
-import { useLocation } from "wouter";
 
 interface CompletedTable {
   tableName: string;
@@ -142,6 +143,8 @@ function formatThaiDate(isoStr: string): string {
 }
 
 export default function DatabaseBackup() {
+  const [loc] = useLocation();
+  const Layout = loc.startsWith("/sys-k7x9") ? SysAdminLayout : PlatformLayout;
   const [step, setStep] = useState<WizardStep>("select-target");
   const [targetDb, setTargetDb] = useState<CloneTarget>("");
   const [cloneDirection, setCloneDirection] = useState<"us_to_th" | "th_to_us">("us_to_th");
@@ -606,7 +609,7 @@ export default function DatabaseBackup() {
 
   if (screenLockError) {
     return (
-      <PlatformLayout>
+      <Layout>
         <div className="space-y-6">
           <h1 className="text-2xl font-bold text-gray-900">Clone ข้อมูล</h1>
           <Card className="border-red-300 bg-red-50">
@@ -617,12 +620,12 @@ export default function DatabaseBackup() {
             </CardContent>
           </Card>
         </div>
-      </PlatformLayout>
+      </Layout>
     );
   }
 
   return (
-    <PlatformLayout>
+    <Layout>
       {navWarningVisible && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[9999] animate-in fade-in slide-in-from-top-2 duration-300 max-w-lg w-full" data-testid="nav-warning-overlay">
           <div className="bg-white border-2 border-red-400 rounded-xl shadow-2xl overflow-hidden">
@@ -1676,6 +1679,6 @@ export default function DatabaseBackup() {
           </div>
         </div>
       </div>
-    </PlatformLayout>
+    </Layout>
   );
 }

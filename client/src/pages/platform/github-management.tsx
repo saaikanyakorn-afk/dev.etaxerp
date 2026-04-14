@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import PlatformLayout from "@/components/platform-layout";
+import SysAdminLayout from "@/components/sysadmin-layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -75,6 +77,8 @@ function InfoRow({ icon: Icon, label, value, mono }: { icon: any; label: string;
 }
 
 export default function GithubManagement() {
+  const [loc] = useLocation();
+  const Layout = loc.startsWith("/sys-k7x9") ? SysAdminLayout : PlatformLayout;
   const [pushLoading, setPushLoading] = useState(false);
   const [pullLoading, setPullLoading] = useState(false);
   const [commitMessage, setCommitMessage] = useState("");
@@ -226,7 +230,7 @@ export default function GithubManagement() {
   };
 
   return (
-    <PlatformLayout>
+    <Layout>
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900" data-testid="text-github-title">Github Push & Pull</h1>
@@ -664,6 +668,6 @@ export default function GithubManagement() {
           ) : null}
         </div>
       </div>
-    </PlatformLayout>
+    </Layout>
   );
 }

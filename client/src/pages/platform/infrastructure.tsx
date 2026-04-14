@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import PlatformLayout from "@/components/platform-layout";
+import SysAdminLayout from "@/components/sysadmin-layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -2884,6 +2886,8 @@ DB_MAIN_HOST=${dbServerName}
 }
 
 export default function AllServers() {
+  const [loc] = useLocation();
+  const Layout = loc.startsWith("/sys-k7x9") ? SysAdminLayout : PlatformLayout;
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [editingMachine, setEditingMachine] = useState<MachineRecord | null | undefined>(undefined);
@@ -3216,7 +3220,7 @@ export default function AllServers() {
   };
 
   return (
-    <PlatformLayout>
+    <Layout>
       <div className="max-w-7xl mx-auto" data-testid="page-all-servers">
         <div className="flex items-center justify-between mb-6">
           <div>
@@ -3535,6 +3539,6 @@ export default function AllServers() {
           />
         )}
       </div>
-    </PlatformLayout>
+    </Layout>
   );
 }
