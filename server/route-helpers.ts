@@ -581,23 +581,11 @@ async function _createAutoJournalEntryInner(params: AutoJournalParams): Promise<
       const expenseIdxes = pendingLines.map((l, i) => isExpLine(l) ? i : -1).filter(i => i >= 0);
 
       if (expenseIdxes.length > 0) {
-        const origTotalExpense = expenseIdxes.reduce((s, i) => s + parseFloat(pendingLines[i].debit), 0);
-        const rawItemTotal = Array.from(grouped.values()).reduce((s, g) => s + Math.abs(g.total), 0);
-
         const replacementLines: typeof pendingLines = [];
-        let runningTotal = 0;
-        const groupedArr = Array.from(grouped.values());
-        for (let gi = 0; gi < groupedArr.length; gi++) {
-          const g = groupedArr[gi];
+        for (const [, g] of grouped) {
           const gAcc = accountMap.get(g.accountCode);
-          if (gAcc) {
-            let amt: number;
-            if (gi === groupedArr.length - 1) {
-              amt = Math.round((origTotalExpense - runningTotal) * 100) / 100;
-            } else {
-              amt = Math.round(Math.abs(g.total) * (origTotalExpense / rawItemTotal) * 100) / 100;
-            }
-            runningTotal += amt;
+          if (gAcc && Math.abs(g.total) > 0.004) {
+            const amt = Math.round(Math.abs(g.total) * 100) / 100;
             const gDesc = g.descriptions.length > 0 ? g.descriptions.join(", ") : (gAcc.nameTh && gAcc.name ? `${gAcc.nameTh} (${gAcc.name})` : gAcc.nameTh || gAcc.name || g.accountName);
             replacementLines.push({
               accountId: gAcc.id,
@@ -612,8 +600,7 @@ async function _createAutoJournalEntryInner(params: AutoJournalParams): Promise<
           for (let r = expenseIdxes.length - 1; r >= 0; r--) {
             pendingLines.splice(expenseIdxes[r], 1);
           }
-          const insertAt = expenseIdxes[0];
-          pendingLines.splice(insertAt, 0, ...replacementLines);
+          pendingLines.splice(expenseIdxes[0], 0, ...replacementLines);
         }
       }
     }
