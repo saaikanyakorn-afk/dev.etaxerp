@@ -2465,12 +2465,11 @@ export function registerPurchaseRoutes(app: Express) {
           let expNo = doc.expNo;
           const docDateStr = doc.expDate || doc.apDate || new Date().toISOString().split("T")[0];
 
-          const taxRef = (doc.taxInvoiceRef || "").trim();
-          const prefixMatch = taxRef.match(/^([A-Za-z]{1,3})/);
-          const docPrefix = prefixMatch ? prefixMatch[1].toUpperCase() : "EXP";
+          const docPrefix = doc.invoicePrefix || "EXP";
 
           if (!expNo || expNo === "(สร้างอัตโนมัติ)") {
-            expNo = await getNextDocNo(companyId, docPrefix, expenses, expenses.expNo, expenses.companyId, docDateStr);
+            const useInvoicePrefix = !!doc.invoicePrefix;
+            expNo = await getNextDocNo(companyId, docPrefix, expenses, expenses.expNo, expenses.companyId, docDateStr, "expense", undefined, useInvoicePrefix);
           } else {
             const existing = await db.select({ expNo: expenses.expNo })
               .from(expenses).where(and(eq(expenses.companyId, companyId), eq(expenses.expNo, expNo)));
