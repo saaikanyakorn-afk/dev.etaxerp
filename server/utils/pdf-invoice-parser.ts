@@ -570,6 +570,269 @@ function parseTikTokReceipt(rows: TextItem[][], fullText: string): ParsedInvoice
   };
 }
 
+function isTikTokInvoice(fullText: string): boolean {
+  return /TikTok\s*Shop.*Ltd|Thai\s*Happy\s*Logistics/i.test(fullText)
+    && /(?:Invoice\s*number|Receipt\s*number|Credit\s*note\s*number)\s*[:：]/i.test(fullText);
+}
+
+function parseTikTokInvoice(rows: TextItem[][], fullText: string): ParsedInvoice {
+  let invoiceNo = "";
+  let date = "";
+  let vendorName = "";
+  let vendorTaxId = "";
+  let vendorAddress = "";
+  let vendorBranch = "สำนักงานใหญ่";
+  let subtotal = 0;
+  let vatAmount = 0;
+  let totalAmount = 0;
+  let withholdingTax = 0;
+  const items: ParsedLineItem[] = [];
+
+  const isTaxInvoice = /Tax\s*Invoice/i.test(fullText);
+  const isCreditNote = /CREDIT\s*NOTE/i.test(fullText);
+  const defaultVatType = isTaxInvoice || isCreditNote ? "vat7" : "non_vat";
+
+  for (let i = 0; i < rows.length; i++) {
+    const text = rowText(rows[i]);
+
+    if (!invoiceNo) {
+      const m = text.match(/(?:Invoice|Receipt|Credit\s*note)\s*number\s*[:：]\s*([A-Za-z0-9\-\/_.]+)/i);
+      if (m) invoiceNo = m[1];
+    }
+
+    if (!date) {
+      const m = text.match(/(?:Invoice|Receipt|Credit\s*note)\s*date\s*[:：]\s*(.+?)(?:\s*(?:Period|Credit)|$)/i);
+      if (m) date = parseDate(m[1].trim());
+    }
+
+    if (!vendorName) {
+      if (/TikTok\s*Shop\s*\(Thailand\)\s*Ltd/i.test(text)) {
+        vendorName = "TikTok Shop (Thailand) Ltd.";
+      } else if (/Thai\s*Happy\s*Logistics\s*Ltd/i.test(text)) {
+        vendorName = "Thai Happy Logistics Ltd.";
+      }
+    }
+
+    if (!vendorTaxId) {
+      const m = text.match(/Tax\s*Registration\s*Number\s*[:：]\s*(\d{13})/i);
+      if (m) vendorTaxId = m[1];
+    }
+
+    const feeMatch = text.match(/^-\s+(.+?)\s+฿([\d,]+\.?\d*)\s+฿([\d,]+\.?\d*)\s+฿([\d,]+\.?\d*)$/);
+    if (feeMatch) {
+      items.push({
+        description: feeMatch[1].trim(),
+        qty: 1,
+        unit: "ครั้ง",
+        unitPrice: cleanNumber(feeMatch[2]),
+        amount: cleanNumber(feeMatch[2]),
+        vatType: defaultVatType,
+      });
+      continue;
+    }
+
+    const feeSimple = text.match(/^-\s+(.+?)\s+\/?\s*฿([\d,]+\.?\d*)$/);
+    if (feeSimple) {
+      items.push({
+        description: feeSimple[1].trim(),
+        qty: 1,
+        unit: "ครั้ง",
+        unitPrice: cleanNumber(feeSimple[2]),
+        amount: cleanNumber(feeSimple[2]),
+        vatType: defaultVatType,
+      });
+      continue;
+    }
+
+    if (/Subtotal\s*\(excluding\s*VAT\)/i.test(text)) {
+      subtotal = extractBahtAmount(text);
+    }
+    if (/Total\s*VAT\s*7%/i.test(text)) {
+      vatAmount = extractBahtAmount(text);
+    }
+    if (/Total\s*amount.*(?:including\s*VAT|รวม)/i.test(text)) {
+      totalAmount = extractBahtAmount(text);
+    }
+    if (/Total\s*Amount\s*฿/i.test(text) && !totalAmount) {
+      totalAmount = extractBahtAmount(text);
+    }
+
+    const whtMatch = text.match(/(?:withheld\s*tax|หักภาษี\s*ณ\s*ที่จ่าย).*?(?:amounting\s*to|เป็นจำนวน)\s*฿?([\d,]+\.?\d*)/i);
+    if (whtMatch) withholdingTax = cleanNumber(whtMatch[1]);
+    if (!withholdingTax && /(?:ภาษี\s*ณ\s*ที่จ่าย|withholding)/i.test(text)) {
+      const whtAlt = text.match(/เป็นจำนวน\s*฿?([\d,]+\.?\d*)\s*(?:บาท|,)/);
+      if (whtAlt) withholdingTax = cleanNumber(whtAlt[1]);
+    }
+  }
+
+  if (items.length === 0 && totalAmount > 0) {
+    const desc = vendorName.includes("Logistics") ? "Logistics fee" : "Platform Service Fee";
+    items.push({
+      description: desc,
+      qty: 1,
+      unit: "ครั้ง",
+      unitPrice: subtotal || totalAmount,
+      amount: subtotal || totalAmount,
+      vatType: defaultVatType,
+    });
+  }
+
+  if (!subtotal && items.length > 0) {
+    subtotal = items.reduce((s, it) => s + it.amount, 0);
+  }
+  if (!totalAmount) {
+    totalAmount = subtotal + vatAmount;
+  }
+
+  return {
+    invoiceNo,
+    date,
+    dueDate: "",
+    vendorName,
+    vendorTaxId,
+    vendorAddress,
+    vendorBranch,
+    items,
+    subtotal: Math.round(subtotal * 100) / 100,
+    vatAmount: Math.round(vatAmount * 100) / 100,
+    totalAmount: Math.round(totalAmount * 100) / 100,
+    withholdingTax: Math.round(withholdingTax * 100) / 100,
+    notes: isCreditNote ? "CREDIT NOTE" : "",
+    rawText: fullText.substring(0, 3000),
+  };
+}
+
+function isLazadaInvoice(fullText: string): boolean {
+  return /Lazada\s*(?:Express\s*)?(?:Limited|จำกัด)/i.test(fullText)
+    && /Invoice\s*No\.?\s*[:：]/i.test(fullText);
+}
+
+function parseLazadaInvoice(rows: TextItem[][], fullText: string): ParsedInvoice {
+  let invoiceNo = "";
+  let date = "";
+  let vendorName = "";
+  let vendorTaxId = "";
+  let vendorAddress = "";
+  let vendorBranch = "สำนักงานใหญ่";
+  let subtotal = 0;
+  let vatAmount = 0;
+  let totalAmount = 0;
+  let withholdingTax = 0;
+  const items: ParsedLineItem[] = [];
+
+  const isTaxInvoice = /TAX\s*INVOICE/i.test(fullText);
+  const defaultVatType = isTaxInvoice ? "vat7" : "non_vat";
+
+  let vendorTaxFound = false;
+  let pastHeader = false;
+  let pastLineItemHeader = false;
+
+  for (let i = 0; i < rows.length; i++) {
+    const text = rowText(rows[i]);
+
+    if (!vendorName) {
+      if (/Lazada\s*Express\s*Limited/i.test(text)) {
+        vendorName = "Lazada Express Limited";
+      } else if (/Lazada\s*Limited/i.test(text)) {
+        vendorName = "Lazada Limited";
+      }
+    }
+
+    if (!vendorTaxFound && !pastHeader) {
+      const m = text.match(/Tax\s*ID\s*(\d{13})/i);
+      if (m) { vendorTaxId = m[1]; vendorTaxFound = true; }
+    }
+
+    if (!invoiceNo) {
+      const m = text.match(/Invoice\s*No\.?\s*[:：]\s*([A-Za-z0-9\-\/_.]+)/i);
+      if (m) { invoiceNo = m[1]; pastHeader = true; }
+    }
+
+    if (!date) {
+      const m = text.match(/Invoice\s*Date\s*[:：]\s*(.+?)(?:\s*Period|$)/i);
+      if (m) date = parseDate(m[1].trim());
+    }
+
+    if (/Code\/Descriptions/i.test(text) || /No\.\s*Code/i.test(text)) {
+      pastLineItemHeader = true;
+      continue;
+    }
+
+    if (pastLineItemHeader) {
+      if (/^(?:Net\s*)?Total/i.test(text) || /^7%\s*\(VAT\)/i.test(text) || /เอกสารฉบับนี้/i.test(text)) {
+        pastLineItemHeader = false;
+      } else {
+        const lineMatch = text.match(/^\d+\s+(.+?)\s+([\d,]+\.\d{2})$/);
+        if (lineMatch) {
+          const amount = cleanNumber(lineMatch[2]);
+          items.push({
+            description: lineMatch[1].trim(),
+            qty: 1,
+            unit: "ครั้ง",
+            unitPrice: amount,
+            amount,
+            vatType: defaultVatType,
+          });
+          continue;
+        }
+      }
+    }
+
+    if (/(?:Net\s*)?Total\s*Shipping\s*Fee/i.test(text) || (/^Total\s/i.test(text) && !/Including/i.test(text) && !/VAT/i.test(text))) {
+      const nums = text.match(/[\d,]+\.\d{2}/g);
+      if (nums) subtotal = cleanNumber(nums[nums.length - 1]);
+    }
+
+    if (/7%\s*\(VAT\)/i.test(text)) {
+      const nums = text.match(/[\d,]+\.\d{2}/g);
+      if (nums) vatAmount = cleanNumber(nums[nums.length - 1]);
+    }
+
+    if (/Total\s*\(Including\s*Tax\)/i.test(text)) {
+      const nums = text.match(/[\d,]+\.\d{2}/g);
+      if (nums) totalAmount = cleanNumber(nums[nums.length - 1]);
+    }
+
+    const whtMatch = text.match(/หักภาษี\s*ณ\s*ที่จ่าย.*?ร้อยละ\s*(\d+)%.*?เป็นจำนวน\s*([\d,]+\.?\d*)\s*บาท/);
+    if (whtMatch) withholdingTax = cleanNumber(whtMatch[2]);
+  }
+
+  if (items.length === 0 && (subtotal > 0 || totalAmount > 0)) {
+    items.push({
+      description: vendorName.includes("Express") ? "Shipping Fee" : "Platform Fee",
+      qty: 1,
+      unit: "ครั้ง",
+      unitPrice: subtotal || totalAmount,
+      amount: subtotal || totalAmount,
+      vatType: defaultVatType,
+    });
+  }
+
+  if (!subtotal && items.length > 0) {
+    subtotal = items.reduce((s, it) => s + it.amount, 0);
+  }
+  if (!totalAmount) {
+    totalAmount = subtotal + vatAmount;
+  }
+
+  return {
+    invoiceNo,
+    date,
+    dueDate: "",
+    vendorName,
+    vendorTaxId,
+    vendorAddress,
+    vendorBranch,
+    items,
+    subtotal: Math.round(subtotal * 100) / 100,
+    vatAmount: Math.round(vatAmount * 100) / 100,
+    totalAmount: Math.round(totalAmount * 100) / 100,
+    withholdingTax: Math.round(withholdingTax * 100) / 100,
+    notes: "",
+    rawText: fullText.substring(0, 3000),
+  };
+}
+
 const INVOICE_NO_PATTERNS = [
   /(?:tax\s*invoice\s*no\.?|invoice\s*no\.?|inv\s*no\.?|เลขที่ใบกำกับภาษี|เลขที่ใบแจ้งหนี้|เลขที่ใบกำกับ|เลขที่เอกสาร|document\s*no\.?|doc\s*no\.?|bill\s*no\.?|receipt\s*no\.?|receipt\s*number)[\s:：]*([A-Za-z0-9\-\/_.]+)/i,
   /(?:เลขที่)\s*[:：/]\s*([A-Za-z0-9\-\/_.]{4,})/i,
@@ -864,8 +1127,16 @@ export async function parsePdfInvoice(pdfBuffer: Buffer, templates?: import("./p
     return parseShopeeInvoice(rows, fullText);
   }
 
+  if (isTikTokInvoice(fullText)) {
+    return parseTikTokInvoice(rows, fullText);
+  }
+
   if (isTikTokReceipt(fullText)) {
     return parseTikTokReceipt(rows, fullText);
+  }
+
+  if (isLazadaInvoice(fullText)) {
+    return parseLazadaInvoice(rows, fullText);
   }
 
   return parseGenericInvoice(rows, fullText);
