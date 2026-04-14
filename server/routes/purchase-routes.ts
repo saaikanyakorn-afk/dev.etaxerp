@@ -3484,6 +3484,7 @@ export function registerPurchaseRoutes(app: Express) {
 
       const batchIds = batches.map(b => b.id);
       let expCounts = new Map<number, number>();
+      let batchVendors = new Map<number, string[]>();
       if (batchIds.length > 0) {
         const counts = await db.select({
           batchId: expenses.batchId,
@@ -3497,11 +3498,28 @@ export function registerPurchaseRoutes(app: Express) {
         for (const c of counts) {
           if (c.batchId) expCounts.set(c.batchId, Number(c.count));
         }
+
+        const vendorRows = await db.select({
+          batchId: expenses.batchId,
+          vendorName: expenses.vendorName,
+        }).from(expenses)
+          .where(and(
+            eq(expenses.companyId, companyId),
+            inArray(expenses.batchId, batchIds)
+          ));
+        for (const v of vendorRows) {
+          if (v.batchId && v.vendorName) {
+            const existing = batchVendors.get(v.batchId) || [];
+            if (!existing.includes(v.vendorName)) existing.push(v.vendorName);
+            batchVendors.set(v.batchId, existing);
+          }
+        }
       }
 
       const result = batches.map(b => ({
         ...b,
         actualExpenseCount: expCounts.get(b.id) || 0,
+        vendorSummary: (batchVendors.get(b.id) || []).join(", "),
       }));
 
       res.json(result);

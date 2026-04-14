@@ -430,8 +430,10 @@ export default function ExpenseList() {
                             <span className="font-medium text-sm text-[#fb9678]">{batch.batchNo}</span>
                           </TableCell>
                           <TableCell className="text-sm">{formatDate(batch.batchDate, dateEra, dateFmt)}</TableCell>
-                          <TableCell className="text-sm text-gray-600">
-                            สรุปค่าใช้จ่ายรายวัน
+                          <TableCell className="text-sm text-gray-600" title={batch.vendorSummary || "สรุปค่าใช้จ่ายรายวัน"}>
+                            {batch.vendorSummary
+                              ? <span className="line-clamp-1">{batch.vendorSummary}</span>
+                              : "สรุปค่าใช้จ่ายรายวัน"}
                           </TableCell>
                           <TableCell className="text-center">
                             <Badge variant="outline" className="text-xs px-2 py-0.5 bg-[#fb9678]/10 text-[#fb9678] border-[#fb9678]">
