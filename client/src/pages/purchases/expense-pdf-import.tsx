@@ -507,7 +507,7 @@ export default function ExpensePdfImport() {
                           className="rounded-full px-6 border-[#05b187] text-[#05b187] hover:bg-emerald-50"
                           data-testid="button-manual-entry"
                         >
-                          <PenLine className="h-4 w-4 mr-2" /> กรอกเอง (ฟรี)
+                          <PenLine className="h-4 w-4 mr-2" /> กรอกเอง
                         </Button>
                         {/* ⚠️ AI CALL BUTTON — Remove/comment this <Button> to disable AI.
                             The "กรอกเอง (ฟรี)" button above still works as manual fallback. */}

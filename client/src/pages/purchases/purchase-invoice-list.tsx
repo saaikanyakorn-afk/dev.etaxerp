@@ -219,7 +219,7 @@ export default function PurchaseInvoiceList() {
                   <Sparkles className="h-3.5 w-3.5 mr-1" /> สร้างจาก PDF
                 </Button>
                 <Button variant="outline" data-testid="button-pdf-bulk-import" onClick={() => navigate("/purchases/pdf-bulk-import")} className="h-9 text-sm px-4 rounded-full border-[#fb9678] text-[#fb9678]">
-                  <FileText className="h-3.5 w-3.5 mr-1" /> นำเข้า PDF กลุ่ม (ฟรี)
+                  <FileText className="h-3.5 w-3.5 mr-1" /> นำเข้า PDF กลุ่ม
                 </Button>
                 <Button variant="outline" data-testid="button-import" onClick={() => navigate("/purchases/ap/import")} className="h-9 text-sm px-4 rounded-full border-[#05b187] text-[#05b187]">
                   <Upload className="h-3.5 w-3.5 mr-1" /> นำเข้า Excel

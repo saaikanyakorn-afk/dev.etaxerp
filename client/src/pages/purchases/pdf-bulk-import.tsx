@@ -649,8 +649,8 @@ export default function PdfBulkImport() {
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <div>
-            <h1 className="text-xl font-bold" data-testid="text-page-title">นำเข้า PDF แบบกลุ่ม (ฟรี)</h1>
-            <p className="text-sm text-gray-500">อัปโหลด Receipt / ใบกำกับภาษี หลายไฟล์พร้อมกัน — ไม่ใช้ AI</p>
+            <h1 className="text-xl font-bold" data-testid="text-page-title">นำเข้า PDF แบบกลุ่ม</h1>
+            <p className="text-sm text-gray-500">อัปโหลด Receipt / ใบกำกับภาษี หลายไฟล์พร้อมกัน</p>
           </div>
           <div className="ml-auto">
             <Button variant="outline" size="sm" onClick={() => setShowTemplateDialog(true)} data-testid="btn-open-templates">
@@ -707,7 +707,7 @@ export default function PdfBulkImport() {
                     <Upload className="h-12 w-12 text-gray-400" />
                     <p className="text-lg font-medium">ลากไฟล์ PDF หรือโฟลเดอร์วางที่นี่</p>
                     <p className="text-sm text-gray-500">รองรับโฟลเดอร์ (อ่าน subfolder อัตโนมัติ) — ใบเสร็จ TikTok, Shopee, ใบกำกับภาษีทั่วไป</p>
-                    <p className="text-xs text-gray-400">สูงสุด 5,000 ไฟล์ — ไม่ใช้ AI</p>
+                    <p className="text-xs text-gray-400">สูงสุด 5,000 ไฟล์</p>
                   </div>
                 )}
               </div>
