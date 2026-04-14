@@ -87,7 +87,7 @@ export default function ExpenseList() {
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [lineDialog, setLineDialog] = useState<{ open: boolean; url: string; docNo: string; customerName: string }>({ open: false, url: "", docNo: "", customerName: "" });
-  const [journalDoc, setJournalDoc] = useState<{ open: boolean; id: number } | null>(null);
+  const [journalDoc, setJournalDoc] = useState<{ open: boolean; id: number; docType?: string } | null>(null);
   const [relatedInline, setRelatedInline] = useState<{ open: boolean; id: number } | null>(null);
   const [filterStatus, setFilterStatus] = useState("all");
   const [filterBranch, setFilterBranch] = useState("all");
@@ -431,9 +431,28 @@ export default function ExpenseList() {
                           </TableCell>
                           <TableCell className="text-sm">{formatDate(batch.batchDate, dateEra, dateFmt)}</TableCell>
                           <TableCell className="text-sm text-gray-600" title={batch.vendorSummary || "สรุปค่าใช้จ่ายรายวัน"}>
-                            {batch.vendorSummary
-                              ? <span className="line-clamp-1">{batch.vendorSummary}</span>
-                              : "สรุปค่าใช้จ่ายรายวัน"}
+                            <div>
+                              {batch.vendorSummary
+                                ? <span className="line-clamp-1">{batch.vendorSummary}</span>
+                                : "สรุปค่าใช้จ่ายรายวัน"}
+                            </div>
+                            <div className="flex items-center gap-2 mt-0.5 text-xs">
+                              <button
+                                data-testid={`button-batch-journal-${batch.id}`}
+                                onClick={(e) => { e.stopPropagation(); setJournalDoc({ open: true, id: batch.id, docType: "expense_daily_batch" }); }}
+                                className="flex items-center gap-0.5 text-blue-500 hover:text-blue-700 hover:underline"
+                              >
+                                <BookOpen className="h-3 w-3" /> ดูบัญชี
+                              </button>
+                              <span className="text-slate-300">|</span>
+                              <button
+                                data-testid={`button-batch-related-${batch.id}`}
+                                onClick={(e) => { e.stopPropagation(); setRelatedInline({ open: true, id: batch.id }); }}
+                                className="flex items-center gap-0.5 text-[#03c9d7] hover:text-[#029baa] hover:underline"
+                              >
+                                <ExternalLink className="h-3 w-3" /> เอกสารที่เกี่ยวข้อง
+                              </button>
+                            </div>
                           </TableCell>
                           <TableCell className="text-center">
                             <Badge variant="outline" className="text-xs px-2 py-0.5 bg-[#fb9678]/10 text-[#fb9678] border-[#fb9678]">
@@ -484,10 +503,10 @@ export default function ExpenseList() {
                               <div className="flex items-center gap-2 mt-0.5 text-[11px]">
                                 <button
                                   data-testid={`button-dxp-journal-${exp.id}`}
-                                  onClick={(e) => { e.stopPropagation(); setJournalDoc({ open: true, id: exp.id }); }}
+                                  onClick={(e) => { e.stopPropagation(); setJournalDoc({ open: true, id: batch.id, docType: "expense_daily_batch" }); }}
                                   className="flex items-center gap-0.5 text-blue-500 hover:text-blue-700 hover:underline"
                                 >
-                                  <BookOpen className="h-2.5 w-2.5" /> ดูบัญชี
+                                  <BookOpen className="h-2.5 w-2.5" /> ดูบัญชี (Batch)
                                 </button>
                                 <span className="text-slate-300">|</span>
                                 <button
@@ -813,7 +832,7 @@ export default function ExpenseList() {
         companyId={companyId}
       />
       {journalDoc && (
-        <JournalViewDialog open={journalDoc.open} onOpenChange={(open) => { if (!open) setJournalDoc(null); }} docType="expense" docId={journalDoc.id} />
+        <JournalViewDialog open={journalDoc.open} onOpenChange={(open) => { if (!open) setJournalDoc(null); }} docType={journalDoc.docType || "expense"} docId={journalDoc.id} />
       )}
       {relatedInline && (
         <RelatedDocsDialog open={relatedInline.open} onOpenChange={(open) => { if (!open) setRelatedInline(null); }} docType="expense" docId={relatedInline.id} />
