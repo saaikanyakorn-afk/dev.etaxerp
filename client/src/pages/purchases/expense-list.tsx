@@ -429,7 +429,7 @@ export default function ExpenseList() {
                           <TableCell>
                             <span className="font-medium text-sm text-[#fb9678]">{batch.batchNo}</span>
                           </TableCell>
-                          <TableCell className="text-sm">{formatDate(batch.batchDate, dateFmt, dateEra)}</TableCell>
+                          <TableCell className="text-sm">{formatDate(batch.batchDate, dateEra, dateFmt)}</TableCell>
                           <TableCell className="text-sm text-gray-600">
                             สรุปค่าใช้จ่ายรายวัน
                           </TableCell>
@@ -470,7 +470,7 @@ export default function ExpenseList() {
                                 {exp.expNo}
                               </span>
                             </TableCell>
-                            <TableCell className="text-xs">{formatDate(exp.expDate, dateFmt, dateEra)}</TableCell>
+                            <TableCell className="text-xs">{formatDate(exp.expDate, dateEra, dateFmt)}</TableCell>
                             <TableCell className="text-xs text-gray-600 truncate max-w-[300px]">
                               {exp.vendorName}
                               {exp.taxInvoiceRef && <span className="text-gray-400 ml-2">#{exp.taxInvoiceRef}</span>}
@@ -572,7 +572,7 @@ export default function ExpenseList() {
                             </button>
                           </TableCell>
                           <TableCell className="text-center text-sm text-muted-foreground">{idx + 1}</TableCell>
-                          <TableCell className="text-sm">{formatDate(exp.expDate, dateFmt, dateEra)}</TableCell>
+                          <TableCell className="text-sm">{formatDate(exp.expDate, dateEra, dateFmt)}</TableCell>
                           <TableCell>
                             <button
                               data-testid={`link-exp-${exp.id}`}

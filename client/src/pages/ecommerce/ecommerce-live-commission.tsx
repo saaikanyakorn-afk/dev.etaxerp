@@ -299,7 +299,7 @@ export default function EcommerceLiveCommission() {
                           </div>
                         </TableCell>
                         <TableCell className="text-sm">
-                          <div>{s.startedAt ? formatDate(new Date(s.startedAt), dateFmt, dateEra) : "-"}</div>
+                          <div>{s.startedAt ? formatDate(new Date(s.startedAt), dateEra, dateFmt) : "-"}</div>
                           <div className="text-xs text-muted-foreground">
                             {s.startedAt ? new Date(s.startedAt).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" }) : ""}
                             {s.endedAt ? ` - ${new Date(s.endedAt).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })}` : ""}

@@ -135,7 +135,7 @@ export default function AssetSalesReport() {
                           <TableCell className="text-sm font-mono">{a.assetCode}</TableCell>
                           <TableCell className="text-sm">{a.name}</TableCell>
                           <TableCell className="text-sm">{CATEGORY_NAMES[a.categoryAccountCode] || a.categoryAccountCode}</TableCell>
-                          <TableCell className="text-sm">{formatDate(a.disposalDate, dateFmt, dateEra)}</TableCell>
+                          <TableCell className="text-sm">{formatDate(a.disposalDate, dateEra, dateFmt)}</TableCell>
                           <TableCell className="text-sm text-right">{formatNumber(parseFloat(a.cost || "0"))}</TableCell>
                           <TableCell className="text-sm text-right">{formatNumber(parseFloat(a.accumDepreciation || "0"))}</TableCell>
                           <TableCell className="text-sm text-right">{formatNumber(parseFloat(a.netBookValue || "0"))}</TableCell>
