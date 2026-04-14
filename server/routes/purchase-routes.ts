@@ -2507,6 +2507,7 @@ export function registerPurchaseRoutes(app: Express) {
       const skipped: any[] = [];
       const errors: any[] = [];
       const pendingJournals: { result: any; doc: any; validItems: any[] }[] = [];
+      const pendingDnJournals: { dnId: number; dnNo: string; date: string; subtotal: string; vatAmount: string; totalAmount: string; vendorName: string; batchSuffix: string; batchId: number | null }[] = [];
 
       for (const doc of documents) {
         try {
@@ -2612,6 +2613,18 @@ export function registerPurchaseRoutes(app: Express) {
                 console.log(`[PDF-Import] Linked DN ${dnNo} ↔ EXP ${matchedExp.expNo} (ref: ${refInvoiceNo})`);
               }
             }
+
+            pendingDnJournals.push({
+              dnId: newDn.id,
+              dnNo: newDn.debitNoteNo,
+              date: docDateStr,
+              subtotal: newDn.subtotal,
+              vatAmount: newDn.vatAmount,
+              totalAmount: newDn.totalAmount,
+              vendorName: newDn.vendorName,
+              batchSuffix: getBatchSuffix(doc),
+              batchId: batchMap.get(batchKey) || null,
+            });
 
             created.push({
               expNo: newDn.debitNoteNo, id: newDn.id,
@@ -2860,7 +2873,7 @@ export function registerPurchaseRoutes(app: Express) {
           "platform_fee": "PF",
         };
 
-        const SKIP_AUTO_JOURNAL_SUFFIXES = new Set(["TKCN"]);
+        const SKIP_AUTO_JOURNAL_SUFFIXES = new Set<string>();
 
         for (const [groupKey, group] of formulaGroups) {
           try {
@@ -2962,6 +2975,109 @@ export function registerPurchaseRoutes(app: Express) {
             }
           } catch (e) {
             console.log(`Auto journal for group ${groupKey} skipped:`, (e as any).message);
+          }
+        }
+      }
+
+      if (pendingDnJournals.length > 0 && autoJournal) {
+        const dnGroups = new Map<string, { date: string; subtotal: number; vat: number; total: number; dnIds: number[]; dnNos: string[]; batchId: number | null; batchSuffix: string }>();
+        for (const dn of pendingDnJournals) {
+          const gk = `${dn.date}||${dn.batchSuffix}`;
+          const g = dnGroups.get(gk) || { date: dn.date, subtotal: 0, vat: 0, total: 0, dnIds: [], dnNos: [], batchId: dn.batchId, batchSuffix: dn.batchSuffix };
+          g.subtotal += parseFloat(dn.subtotal || "0");
+          g.vat += parseFloat(dn.vatAmount || "0");
+          g.total += parseFloat(dn.totalAmount || "0");
+          g.dnIds.push(dn.dnId);
+          g.dnNos.push(dn.dnNo);
+          dnGroups.set(gk, g);
+        }
+
+        for (const [gk, g] of dnGroups) {
+          try {
+            const suffix = g.batchSuffix || "TKCN";
+            const dxpNo = `DXP-${g.date.replace(/-/g, "")}-${suffix}`;
+
+            const existingDnJournals = await db.select({ id: journalEntries.id })
+              .from(journalEntries)
+              .where(and(
+                eq(journalEntries.companyId, companyId),
+                eq(journalEntries.reference, dxpNo),
+                eq(journalEntries.sourceDocType, "purchase_debit_note"),
+              ));
+
+            if (existingDnJournals.length > 0) {
+              for (const ej of existingDnJournals) {
+                await db.delete(journalLines).where(eq(journalLines.journalEntryId, ej.id));
+                await db.delete(journalEntries).where(eq(journalEntries.id, ej.id));
+              }
+            }
+
+            const resolveAcc = (...codes: string[]) => {
+              for (const c of codes) { const a = accountMap.get(c); if (a) return a; }
+              return null;
+            };
+
+            const walletAcc = resolveAcc("1043000", "1001300", "1001000");
+            const vatAcc = resolveAcc("1431000", "1430000", "1431");
+            const expAcc = resolveAcc("5301100", "5301000", "5300000", "5301");
+
+            if (!walletAcc || !vatAcc || !expAcc) {
+              console.log(`[PDF-Import] DN journal ${dxpNo}: Missing accounts wallet=${!!walletAcc} vat=${!!vatAcc} exp=${!!expAcc}`);
+              continue;
+            }
+
+            const sub = Math.round(g.subtotal * 100) / 100;
+            const vat = Math.round(g.vat * 100) / 100;
+            const total = Math.round(g.total * 100) / 100;
+
+            const entryNo = await getNextJournalEntryNo(companyId, g.date);
+            const [je] = await db.insert(journalEntries).values({
+              companyId,
+              entryNo,
+              entryDate: g.date,
+              reference: dxpNo,
+              description: `ใบลดหนี้ซื้อ ${suffix} (${g.dnNos.length} ใบ) — กลับรายการค่าบริการแพลตฟอร์ม`,
+              journalBook: "general",
+              contactName: `ใบลดหนี้ซื้อ ${suffix} (${g.dnNos.length} ใบ)`,
+              createdBy: user.id,
+              status: "posted",
+              sourceDocType: "purchase_debit_note",
+              sourceDocId: g.dnIds[0] || 0,
+              totalDebit: total.toFixed(2),
+              totalCredit: total.toFixed(2),
+            }).returning();
+
+            await db.insert(journalLines).values([
+              {
+                journalEntryId: je.id,
+                accountId: walletAcc.id,
+                description: `เงินในกระเป๋าเพิ่ม (ใบลดหนี้ ${g.dnNos.length} ใบ)`,
+                debit: total.toFixed(2),
+                credit: "0",
+              },
+              {
+                journalEntryId: je.id,
+                accountId: vatAcc.id,
+                description: `กลับรายการภาษีซื้อ`,
+                debit: "0",
+                credit: vat.toFixed(2),
+              },
+              {
+                journalEntryId: je.id,
+                accountId: expAcc.id,
+                description: `กลับรายการค่าบริการแพลตฟอร์ม`,
+                debit: "0",
+                credit: sub.toFixed(2),
+              },
+            ]);
+
+            await db.update(purchaseDebitNotes)
+              .set({ linkJournal: true })
+              .where(inArray(purchaseDebitNotes.id, g.dnIds));
+
+            console.log(`[PDF-Import] DN journal ${dxpNo}: Dr.Wallet ${total} / Cr.VAT ${vat} + Cr.Exp ${sub} (${g.dnNos.length} DN)`);
+          } catch (e) {
+            console.log(`[PDF-Import] DN journal for group ${gk} failed:`, (e as any).message);
           }
         }
       }
