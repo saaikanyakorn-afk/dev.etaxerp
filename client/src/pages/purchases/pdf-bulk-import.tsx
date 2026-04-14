@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import React, { useState, useRef, useCallback } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import Layout from "@/components/layout";
@@ -791,8 +791,8 @@ export default function PdfBulkImport() {
                         const docWht = whtRate > 0 ? Math.round(doc.subtotal * whtRate * 100) / 100 : 0;
                         const globalIdx = previewPage * PAGE_SIZE + idx + 1;
                         return (
+                          <React.Fragment key={doc.key}>
                           <TableRow
-                            key={doc.key}
                             className={doc.isDuplicate ? "bg-yellow-50" : doc.hasErrors ? "bg-red-50" : ""}
                             data-testid={`row-doc-${idx}`}
                           >
@@ -897,11 +897,8 @@ export default function PdfBulkImport() {
                               </Button>
                             </TableCell>
                           </TableRow>
-                        );
-                      })}
-                      {paginatedDocs.map((doc, idx) =>
-                        expandedDocs.has(doc.key) && (
-                          <TableRow key={`${doc.key}-detail`} className="bg-gray-50/50">
+                          {expandedDocs.has(doc.key) && (
+                          <TableRow className="bg-gray-50/50">
                             <TableCell colSpan={13} className="p-4">
                               <div className="text-sm space-y-2">
                                 <div className="font-medium text-gray-700 mb-2">รายการในเอกสาร</div>
@@ -941,8 +938,10 @@ export default function PdfBulkImport() {
                               </div>
                             </TableCell>
                           </TableRow>
-                        )
-                      )}
+                          )}
+                          </React.Fragment>
+                        );
+                      })}
                     </TableBody>
                   </Table>
                 </div>
