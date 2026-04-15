@@ -825,7 +825,7 @@ export const RESTAURANT_EXTRA_ACCOUNTS: ChartAccountTemplate[] = [
   { code: "1329000", name: "Other Food Materials", nameTh: "วัตถุดิบอื่น", nameZh: "其他食材", type: "asset", parentCode: "132" },
 
   // --- Prepaid Food Delivery Platform Expenses ---
-  { code: "145", name: "Prepaid Food Delivery Fee", nameTh: "ค่าธรรมเนียมแพลตฟอร์มอาหารรับรู้ล่วงหน้า", nameZh: "预付外卖平台费", type: "asset", parentCode: "144" },
+  { code: "145", name: "Prepaid Food Delivery Fee", nameTh: "ค่าธรรมเนียมแพลตฟอร์มอาหารรับรู้ล่วงหน้า", nameZh: "预付外卖平台费", type: "asset", parentCode: null },
   { code: "1451000", name: "Prepaid GP - Grab", nameTh: "ค่า GP Grab รับรู้ล่วงหน้า", nameZh: "预付Grab GP", type: "asset", parentCode: "145" },
   { code: "1452000", name: "Prepaid GP - LINE MAN", nameTh: "ค่า GP LINE MAN รับรู้ล่วงหน้า", nameZh: "预付LINE MAN GP", type: "asset", parentCode: "145" },
   { code: "1453000", name: "Prepaid GP - foodpanda", nameTh: "ค่า GP foodpanda รับรู้ล่วงหน้า", nameZh: "预付foodpanda GP", type: "asset", parentCode: "145" },
