@@ -304,10 +304,13 @@ export default function SalesTaxReport() {
         .page-break { border-bottom:2px dashed #ccc; margin-bottom:12px; }
         @media print {
           body { padding:0; margin:0; }
-          @page { size:landscape; margin:5mm; }
-          .page { width:auto; min-height:auto; padding:0; page-break-after:always; page-break-inside:avoid; }
+          @page { size: A4 landscape; margin:8mm; }
+          .page { width:100%; min-height:auto; padding:2mm 0; page-break-after:always; page-break-inside:avoid; }
           .page:last-child { page-break-after:auto; }
           .page-break { border-bottom:none; margin-bottom:0; }
+          table { font-size:9px; }
+          td { padding:2px 3px !important; font-size:9px !important; }
+          th { padding:2px 3px !important; font-size:8px !important; }
         }
       </style>
     </head><body>
@@ -321,10 +324,14 @@ export default function SalesTaxReport() {
   }
 
   function handlePrintFromPreview() {
-    const iframe = iframeRef.current;
-    if (iframe?.contentWindow) {
-      iframe.contentWindow.print();
-    }
+    const html = buildReportHtml();
+    const printWindow = window.open("", "_blank", "width=1100,height=700");
+    if (!printWindow) return;
+    printWindow.document.write(html);
+    printWindow.document.close();
+    printWindow.onload = () => {
+      setTimeout(() => { printWindow.print(); printWindow.close(); }, 400);
+    };
   }
 
   async function handleDownloadPdf() {
