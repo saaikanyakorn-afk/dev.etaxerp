@@ -1222,4 +1222,295 @@ export const DEFAULT_FORMULAS: DefaultFormulaTemplate[] = [
       { accountCode: "1432000", accountName: "ภาษีซื้อ", direction: "credit", sortOrder: 3 },
     ],
   },
+
+  // ============================================
+  // RESTAURANT — GRAB (ผังบัญชีร้านอาหาร)
+  // สูตรต่างจาก E-Commerce: ไม่มีค่าขนส่ง/ค่า infra
+  // แพลตฟอร์มหัก GP รวมเป็นก้อนเดียว (Service Fee)
+  // ============================================
+  {
+    documentType: "tax_invoice",
+    businessType: "restaurant_grab",
+    name: "Grab Food Tax Invoice (Restaurant)",
+    nameTh: "ใบกำกับภาษี ขายอาหารผ่าน Grab",
+    description: "ออกใบกำกับภาษีเมื่อส่งมอบอาหารให้ลูกค้าผ่าน Grab — ยังไม่รับเงิน",
+    lines: [
+      { accountCode: "1251000", accountName: "ลูกหนี้ Grab", direction: "debit", sortOrder: 1 },
+      { accountCode: "4051000", accountName: "รายได้จากการขาย Grab", direction: "credit", sortOrder: 2 },
+      { accountCode: "2341000", accountName: "ภาษีขาย", direction: "credit", sortOrder: 3 },
+    ],
+  },
+  {
+    documentType: "ecommerce_settlement",
+    businessType: "restaurant_grab",
+    name: "Grab Food Settlement (Restaurant)",
+    nameTh: "Settlement จาก Grab — ร้านอาหาร",
+    description: "Grab โอนเงินหลังหัก GP — บันทึกค่า GP รับรู้ล่วงหน้า (รอใบกำกับภาษีจาก Grab)",
+    lines: [
+      { accountCode: "1051000", accountName: "เงินฝาก Grab Wallet", direction: "debit", sortOrder: 1 },
+      { accountCode: "1451000", accountName: "ค่า GP Grab รับรู้ล่วงหน้า", direction: "debit", sortOrder: 2 },
+      { accountCode: "1251000", accountName: "ลูกหนี้ Grab", direction: "credit", sortOrder: 3 },
+    ],
+  },
+  {
+    documentType: "purchase",
+    businessType: "restaurant_grab_gp",
+    name: "Grab GP Reversal (Restaurant)",
+    nameTh: "ล้างค่า GP ล่วงหน้า — ได้รับใบกำกับภาษีจาก Grab",
+    description: "ได้รับเอกสาร Service Fee จาก Grab → ล้างค่า GP ล่วงหน้าเป็นค่าใช้จ่ายจริง",
+    lines: [
+      { accountCode: "5291000", accountName: "ค่า GP Grab (ค่าบริการรวม)", direction: "debit", sortOrder: 1 },
+      { accountCode: "1432000", accountName: "ภาษีซื้อ", direction: "debit", sortOrder: 2 },
+      { accountCode: "1451000", accountName: "ค่า GP Grab รับรู้ล่วงหน้า", direction: "credit", sortOrder: 3 },
+    ],
+  },
+  {
+    documentType: "credit_note",
+    businessType: "restaurant_grab",
+    name: "Grab Food Credit Note (Restaurant)",
+    nameTh: "ใบลดหนี้ขาย Grab — ร้านอาหาร",
+    description: "ลดหนี้ขาย — กลับรายการรายได้และภาษีขาย (ลูกค้ายกเลิก/คืนเงิน)",
+    lines: [
+      { accountCode: "4051000", accountName: "รายได้จากการขาย Grab", direction: "debit", sortOrder: 1 },
+      { accountCode: "2341000", accountName: "ภาษีขาย", direction: "debit", sortOrder: 2 },
+      { accountCode: "1251000", accountName: "ลูกหนี้ Grab", direction: "credit", sortOrder: 3 },
+    ],
+  },
+
+  // ============================================
+  // RESTAURANT — LINE MAN
+  // ============================================
+  {
+    documentType: "tax_invoice",
+    businessType: "restaurant_lineman",
+    name: "LINE MAN Tax Invoice (Restaurant)",
+    nameTh: "ใบกำกับภาษี ขายอาหารผ่าน LINE MAN",
+    description: "ออกใบกำกับภาษีเมื่อส่งมอบอาหารให้ลูกค้าผ่าน LINE MAN",
+    lines: [
+      { accountCode: "1252000", accountName: "ลูกหนี้ LINE MAN", direction: "debit", sortOrder: 1 },
+      { accountCode: "4052000", accountName: "รายได้จากการขาย LINE MAN", direction: "credit", sortOrder: 2 },
+      { accountCode: "2341000", accountName: "ภาษีขาย", direction: "credit", sortOrder: 3 },
+    ],
+  },
+  {
+    documentType: "ecommerce_settlement",
+    businessType: "restaurant_lineman",
+    name: "LINE MAN Settlement (Restaurant)",
+    nameTh: "Settlement จาก LINE MAN — ร้านอาหาร",
+    description: "LINE MAN โอนเงินหลังหัก GP — บันทึกค่า GP รับรู้ล่วงหน้า",
+    lines: [
+      { accountCode: "1052000", accountName: "เงินฝาก LINE MAN Wallet", direction: "debit", sortOrder: 1 },
+      { accountCode: "1452000", accountName: "ค่า GP LINE MAN รับรู้ล่วงหน้า", direction: "debit", sortOrder: 2 },
+      { accountCode: "1252000", accountName: "ลูกหนี้ LINE MAN", direction: "credit", sortOrder: 3 },
+    ],
+  },
+  {
+    documentType: "purchase",
+    businessType: "restaurant_lineman_gp",
+    name: "LINE MAN GP Reversal (Restaurant)",
+    nameTh: "ล้างค่า GP ล่วงหน้า — ได้รับใบกำกับภาษีจาก LINE MAN",
+    description: "ได้รับเอกสาร Service Fee จาก LINE MAN → ล้างค่า GP ล่วงหน้าเป็นค่าใช้จ่ายจริง",
+    lines: [
+      { accountCode: "5292000", accountName: "ค่า GP LINE MAN (ค่าบริการรวม)", direction: "debit", sortOrder: 1 },
+      { accountCode: "1432000", accountName: "ภาษีซื้อ", direction: "debit", sortOrder: 2 },
+      { accountCode: "1452000", accountName: "ค่า GP LINE MAN รับรู้ล่วงหน้า", direction: "credit", sortOrder: 3 },
+    ],
+  },
+  {
+    documentType: "credit_note",
+    businessType: "restaurant_lineman",
+    name: "LINE MAN Credit Note (Restaurant)",
+    nameTh: "ใบลดหนี้ขาย LINE MAN — ร้านอาหาร",
+    description: "ลดหนี้ขาย — กลับรายการรายได้และภาษีขาย",
+    lines: [
+      { accountCode: "4052000", accountName: "รายได้จากการขาย LINE MAN", direction: "debit", sortOrder: 1 },
+      { accountCode: "2341000", accountName: "ภาษีขาย", direction: "debit", sortOrder: 2 },
+      { accountCode: "1252000", accountName: "ลูกหนี้ LINE MAN", direction: "credit", sortOrder: 3 },
+    ],
+  },
+
+  // ============================================
+  // RESTAURANT — FOODPANDA
+  // ============================================
+  {
+    documentType: "tax_invoice",
+    businessType: "restaurant_foodpanda",
+    name: "foodpanda Tax Invoice (Restaurant)",
+    nameTh: "ใบกำกับภาษี ขายอาหารผ่าน foodpanda",
+    description: "ออกใบกำกับภาษีเมื่อส่งมอบอาหารให้ลูกค้าผ่าน foodpanda",
+    lines: [
+      { accountCode: "1253000", accountName: "ลูกหนี้ foodpanda", direction: "debit", sortOrder: 1 },
+      { accountCode: "4053000", accountName: "รายได้จากการขาย foodpanda", direction: "credit", sortOrder: 2 },
+      { accountCode: "2341000", accountName: "ภาษีขาย", direction: "credit", sortOrder: 3 },
+    ],
+  },
+  {
+    documentType: "ecommerce_settlement",
+    businessType: "restaurant_foodpanda",
+    name: "foodpanda Settlement (Restaurant)",
+    nameTh: "Settlement จาก foodpanda — ร้านอาหาร",
+    description: "foodpanda โอนเงินหลังหัก GP — บันทึกค่า GP รับรู้ล่วงหน้า",
+    lines: [
+      { accountCode: "1053000", accountName: "เงินฝาก foodpanda Wallet", direction: "debit", sortOrder: 1 },
+      { accountCode: "1453000", accountName: "ค่า GP foodpanda รับรู้ล่วงหน้า", direction: "debit", sortOrder: 2 },
+      { accountCode: "1253000", accountName: "ลูกหนี้ foodpanda", direction: "credit", sortOrder: 3 },
+    ],
+  },
+  {
+    documentType: "purchase",
+    businessType: "restaurant_foodpanda_gp",
+    name: "foodpanda GP Reversal (Restaurant)",
+    nameTh: "ล้างค่า GP ล่วงหน้า — ได้รับใบกำกับภาษีจาก foodpanda",
+    description: "ได้รับเอกสาร Service Fee จาก foodpanda → ล้างค่า GP ล่วงหน้าเป็นค่าใช้จ่ายจริง",
+    lines: [
+      { accountCode: "5293000", accountName: "ค่า GP foodpanda (ค่าบริการรวม)", direction: "debit", sortOrder: 1 },
+      { accountCode: "1432000", accountName: "ภาษีซื้อ", direction: "debit", sortOrder: 2 },
+      { accountCode: "1453000", accountName: "ค่า GP foodpanda รับรู้ล่วงหน้า", direction: "credit", sortOrder: 3 },
+    ],
+  },
+  {
+    documentType: "credit_note",
+    businessType: "restaurant_foodpanda",
+    name: "foodpanda Credit Note (Restaurant)",
+    nameTh: "ใบลดหนี้ขาย foodpanda — ร้านอาหาร",
+    description: "ลดหนี้ขาย — กลับรายการรายได้และภาษีขาย",
+    lines: [
+      { accountCode: "4053000", accountName: "รายได้จากการขาย foodpanda", direction: "debit", sortOrder: 1 },
+      { accountCode: "2341000", accountName: "ภาษีขาย", direction: "debit", sortOrder: 2 },
+      { accountCode: "1253000", accountName: "ลูกหนี้ foodpanda", direction: "credit", sortOrder: 3 },
+    ],
+  },
+
+  // ============================================
+  // RESTAURANT — ROBINHOOD
+  // ============================================
+  {
+    documentType: "tax_invoice",
+    businessType: "restaurant_robinhood",
+    name: "Robinhood Tax Invoice (Restaurant)",
+    nameTh: "ใบกำกับภาษี ขายอาหารผ่าน Robinhood",
+    description: "ออกใบกำกับภาษีเมื่อส่งมอบอาหารให้ลูกค้าผ่าน Robinhood",
+    lines: [
+      { accountCode: "1254000", accountName: "ลูกหนี้ Robinhood", direction: "debit", sortOrder: 1 },
+      { accountCode: "4054000", accountName: "รายได้จากการขาย Robinhood", direction: "credit", sortOrder: 2 },
+      { accountCode: "2341000", accountName: "ภาษีขาย", direction: "credit", sortOrder: 3 },
+    ],
+  },
+  {
+    documentType: "ecommerce_settlement",
+    businessType: "restaurant_robinhood",
+    name: "Robinhood Settlement (Restaurant)",
+    nameTh: "Settlement จาก Robinhood — ร้านอาหาร",
+    description: "Robinhood โอนเงินหลังหัก GP — บันทึกค่า GP รับรู้ล่วงหน้า",
+    lines: [
+      { accountCode: "1054000", accountName: "เงินฝาก Robinhood Wallet", direction: "debit", sortOrder: 1 },
+      { accountCode: "1454000", accountName: "ค่า GP Robinhood รับรู้ล่วงหน้า", direction: "debit", sortOrder: 2 },
+      { accountCode: "1254000", accountName: "ลูกหนี้ Robinhood", direction: "credit", sortOrder: 3 },
+    ],
+  },
+  {
+    documentType: "purchase",
+    businessType: "restaurant_robinhood_gp",
+    name: "Robinhood GP Reversal (Restaurant)",
+    nameTh: "ล้างค่า GP ล่วงหน้า — ได้รับใบกำกับภาษีจาก Robinhood",
+    description: "ได้รับเอกสาร Service Fee จาก Robinhood → ล้างค่า GP ล่วงหน้าเป็นค่าใช้จ่ายจริง",
+    lines: [
+      { accountCode: "5294000", accountName: "ค่า GP Robinhood (ค่าบริการรวม)", direction: "debit", sortOrder: 1 },
+      { accountCode: "1432000", accountName: "ภาษีซื้อ", direction: "debit", sortOrder: 2 },
+      { accountCode: "1454000", accountName: "ค่า GP Robinhood รับรู้ล่วงหน้า", direction: "credit", sortOrder: 3 },
+    ],
+  },
+  {
+    documentType: "credit_note",
+    businessType: "restaurant_robinhood",
+    name: "Robinhood Credit Note (Restaurant)",
+    nameTh: "ใบลดหนี้ขาย Robinhood — ร้านอาหาร",
+    description: "ลดหนี้ขาย — กลับรายการรายได้และภาษีขาย",
+    lines: [
+      { accountCode: "4054000", accountName: "รายได้จากการขาย Robinhood", direction: "debit", sortOrder: 1 },
+      { accountCode: "2341000", accountName: "ภาษีขาย", direction: "debit", sortOrder: 2 },
+      { accountCode: "1254000", accountName: "ลูกหนี้ Robinhood", direction: "credit", sortOrder: 3 },
+    ],
+  },
+
+  // ============================================
+  // RESTAURANT — SHOPEEFOOD
+  // ============================================
+  {
+    documentType: "tax_invoice",
+    businessType: "restaurant_shopeefood",
+    name: "ShopeeFood Tax Invoice (Restaurant)",
+    nameTh: "ใบกำกับภาษี ขายอาหารผ่าน ShopeeFood",
+    description: "ออกใบกำกับภาษีเมื่อส่งมอบอาหารให้ลูกค้าผ่าน ShopeeFood",
+    lines: [
+      { accountCode: "1255000", accountName: "ลูกหนี้ ShopeeFood", direction: "debit", sortOrder: 1 },
+      { accountCode: "4055000", accountName: "รายได้จากการขาย ShopeeFood", direction: "credit", sortOrder: 2 },
+      { accountCode: "2341000", accountName: "ภาษีขาย", direction: "credit", sortOrder: 3 },
+    ],
+  },
+  {
+    documentType: "ecommerce_settlement",
+    businessType: "restaurant_shopeefood",
+    name: "ShopeeFood Settlement (Restaurant)",
+    nameTh: "Settlement จาก ShopeeFood — ร้านอาหาร",
+    description: "ShopeeFood โอนเงินหลังหัก GP — บันทึกค่า GP รับรู้ล่วงหน้า",
+    lines: [
+      { accountCode: "1055000", accountName: "เงินฝาก ShopeeFood Wallet", direction: "debit", sortOrder: 1 },
+      { accountCode: "1455000", accountName: "ค่า GP ShopeeFood รับรู้ล่วงหน้า", direction: "debit", sortOrder: 2 },
+      { accountCode: "1255000", accountName: "ลูกหนี้ ShopeeFood", direction: "credit", sortOrder: 3 },
+    ],
+  },
+  {
+    documentType: "purchase",
+    businessType: "restaurant_shopeefood_gp",
+    name: "ShopeeFood GP Reversal (Restaurant)",
+    nameTh: "ล้างค่า GP ล่วงหน้า — ได้รับใบกำกับภาษีจาก ShopeeFood",
+    description: "ได้รับเอกสาร Service Fee จาก ShopeeFood → ล้างค่า GP ล่วงหน้าเป็นค่าใช้จ่ายจริง",
+    lines: [
+      { accountCode: "5295000", accountName: "ค่า GP ShopeeFood (ค่าบริการรวม)", direction: "debit", sortOrder: 1 },
+      { accountCode: "1432000", accountName: "ภาษีซื้อ", direction: "debit", sortOrder: 2 },
+      { accountCode: "1455000", accountName: "ค่า GP ShopeeFood รับรู้ล่วงหน้า", direction: "credit", sortOrder: 3 },
+    ],
+  },
+  {
+    documentType: "credit_note",
+    businessType: "restaurant_shopeefood",
+    name: "ShopeeFood Credit Note (Restaurant)",
+    nameTh: "ใบลดหนี้ขาย ShopeeFood — ร้านอาหาร",
+    description: "ลดหนี้ขาย — กลับรายการรายได้และภาษีขาย",
+    lines: [
+      { accountCode: "4055000", accountName: "รายได้จากการขาย ShopeeFood", direction: "debit", sortOrder: 1 },
+      { accountCode: "2341000", accountName: "ภาษีขาย", direction: "debit", sortOrder: 2 },
+      { accountCode: "1255000", accountName: "ลูกหนี้ ShopeeFood", direction: "credit", sortOrder: 3 },
+    ],
+  },
+
+  // ============================================
+  // RESTAURANT — DINE-IN / WALK-IN
+  // ============================================
+  {
+    documentType: "tax_invoice",
+    businessType: "restaurant_dinein",
+    name: "Dine-in Tax Invoice (Restaurant)",
+    nameTh: "ใบกำกับภาษี ขายอาหาร (ทานที่ร้าน)",
+    description: "ออกใบกำกับภาษีสำหรับลูกค้าทานที่ร้าน — รับเงินสดหรือโอน",
+    lines: [
+      { accountCode: "1001000", accountName: "เงินสด", direction: "debit", sortOrder: 1 },
+      { accountCode: "4021000", accountName: "รายได้ขายอาหาร (ทานที่ร้าน)", direction: "credit", sortOrder: 2 },
+      { accountCode: "4024000", accountName: "รายได้ค่าบริการ (Service Charge)", direction: "credit", sortOrder: 3 },
+      { accountCode: "2341000", accountName: "ภาษีขาย", direction: "credit", sortOrder: 4 },
+    ],
+  },
+  {
+    documentType: "tax_invoice",
+    businessType: "restaurant_takeaway",
+    name: "Takeaway Tax Invoice (Restaurant)",
+    nameTh: "ใบกำกับภาษี ขายอาหาร (ซื้อกลับบ้าน)",
+    description: "ออกใบกำกับภาษีสำหรับลูกค้าซื้อกลับบ้าน",
+    lines: [
+      { accountCode: "1001000", accountName: "เงินสด", direction: "debit", sortOrder: 1 },
+      { accountCode: "4023000", accountName: "รายได้ขายอาหาร (ซื้อกลับบ้าน)", direction: "credit", sortOrder: 2 },
+      { accountCode: "2341000", accountName: "ภาษีขาย", direction: "credit", sortOrder: 3 },
+    ],
+  },
 ];

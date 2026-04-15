@@ -794,6 +794,109 @@ export const GAS_STATION_EXTRA_ACCOUNTS: ChartAccountTemplate[] = [
   { code: "5407000", name: "Excise Tax (Fuel)", nameTh: "ภาษีสรรพสามิตน้ำมัน", nameZh: "燃油消费税", type: "expense", parentCode: "540" },
 ];
 
+export const RESTAURANT_EXTRA_ACCOUNTS: ChartAccountTemplate[] = [
+  // ═══════════════════════════════════════════════════════════
+  // ASSETS — Food Delivery Platform Wallets
+  // ═══════════════════════════════════════════════════════════
+  { code: "105", name: "Food Delivery Platform Wallet", nameTh: "เงินฝากแพลตฟอร์มส่งอาหาร", nameZh: "外卖平台钱包", type: "asset", parentCode: "100" },
+  { code: "1051000", name: "Grab Wallet", nameTh: "เงินฝาก Grab Wallet", nameZh: "Grab钱包", type: "asset", parentCode: "105" },
+  { code: "1052000", name: "LINE MAN Wallet", nameTh: "เงินฝาก LINE MAN Wallet", nameZh: "LINE MAN钱包", type: "asset", parentCode: "105" },
+  { code: "1053000", name: "foodpanda Wallet", nameTh: "เงินฝาก foodpanda Wallet", nameZh: "foodpanda钱包", type: "asset", parentCode: "105" },
+  { code: "1054000", name: "Robinhood Wallet", nameTh: "เงินฝาก Robinhood Wallet", nameZh: "Robinhood钱包", type: "asset", parentCode: "105" },
+  { code: "1055000", name: "ShopeeFood Wallet", nameTh: "เงินฝาก ShopeeFood Wallet", nameZh: "ShopeeFood钱包", type: "asset", parentCode: "105" },
+
+  // --- Food Delivery Platform Receivables ---
+  { code: "125", name: "Food Delivery Receivable", nameTh: "ลูกหนี้แพลตฟอร์มส่งอาหาร", nameZh: "外卖平台应收款", type: "asset", parentCode: null },
+  { code: "1251000", name: "Grab Receivable", nameTh: "ลูกหนี้ Grab", nameZh: "Grab应收款", type: "asset", parentCode: "125" },
+  { code: "1252000", name: "LINE MAN Receivable", nameTh: "ลูกหนี้ LINE MAN", nameZh: "LINE MAN应收款", type: "asset", parentCode: "125" },
+  { code: "1253000", name: "foodpanda Receivable", nameTh: "ลูกหนี้ foodpanda", nameZh: "foodpanda应收款", type: "asset", parentCode: "125" },
+  { code: "1254000", name: "Robinhood Receivable", nameTh: "ลูกหนี้ Robinhood", nameZh: "Robinhood应收款", type: "asset", parentCode: "125" },
+  { code: "1255000", name: "ShopeeFood Receivable", nameTh: "ลูกหนี้ ShopeeFood", nameZh: "ShopeeFood应收款", type: "asset", parentCode: "125" },
+
+  // --- Food Inventory (วัตถุดิบ) ---
+  { code: "132", name: "Food Inventory", nameTh: "สินค้าคงเหลือ-วัตถุดิบอาหาร", nameZh: "食材库存", type: "asset", parentCode: "130" },
+  { code: "1321000", name: "Meat & Seafood", nameTh: "เนื้อสัตว์และอาหารทะเล", nameZh: "肉类及海鲜", type: "asset", parentCode: "132" },
+  { code: "1322000", name: "Vegetables & Fruits", nameTh: "ผักและผลไม้", nameZh: "蔬菜水果", type: "asset", parentCode: "132" },
+  { code: "1323000", name: "Rice & Noodles", nameTh: "ข้าวและเส้น", nameZh: "米面", type: "asset", parentCode: "132" },
+  { code: "1324000", name: "Condiments & Sauces", nameTh: "เครื่องปรุงและซอส", nameZh: "调味料", type: "asset", parentCode: "132" },
+  { code: "1325000", name: "Beverage Materials", nameTh: "วัตถุดิบเครื่องดื่ม", nameZh: "饮品原料", type: "asset", parentCode: "132" },
+  { code: "1326000", name: "Bakery & Dessert Materials", nameTh: "วัตถุดิบเบเกอรี่และขนม", nameZh: "烘焙及甜品原料", type: "asset", parentCode: "132" },
+  { code: "1327000", name: "Packaging & Containers", nameTh: "บรรจุภัณฑ์และกล่องอาหาร", nameZh: "包装容器", type: "asset", parentCode: "132" },
+  { code: "1329000", name: "Other Food Materials", nameTh: "วัตถุดิบอื่น", nameZh: "其他食材", type: "asset", parentCode: "132" },
+
+  // --- Prepaid Food Delivery Platform Expenses ---
+  { code: "145", name: "Prepaid Food Delivery Fee", nameTh: "ค่าธรรมเนียมแพลตฟอร์มอาหารรับรู้ล่วงหน้า", nameZh: "预付外卖平台费", type: "asset", parentCode: "144" },
+  { code: "1451000", name: "Prepaid GP - Grab", nameTh: "ค่า GP Grab รับรู้ล่วงหน้า", nameZh: "预付Grab GP", type: "asset", parentCode: "145" },
+  { code: "1452000", name: "Prepaid GP - LINE MAN", nameTh: "ค่า GP LINE MAN รับรู้ล่วงหน้า", nameZh: "预付LINE MAN GP", type: "asset", parentCode: "145" },
+  { code: "1453000", name: "Prepaid GP - foodpanda", nameTh: "ค่า GP foodpanda รับรู้ล่วงหน้า", nameZh: "预付foodpanda GP", type: "asset", parentCode: "145" },
+  { code: "1454000", name: "Prepaid GP - Robinhood", nameTh: "ค่า GP Robinhood รับรู้ล่วงหน้า", nameZh: "预付Robinhood GP", type: "asset", parentCode: "145" },
+  { code: "1455000", name: "Prepaid GP - ShopeeFood", nameTh: "ค่า GP ShopeeFood รับรู้ล่วงหน้า", nameZh: "预付ShopeeFood GP", type: "asset", parentCode: "145" },
+
+  // ═══════════════════════════════════════════════════════════
+  // LIABILITIES — Accrued Food Delivery Fees
+  // ═══════════════════════════════════════════════════════════
+  { code: "237", name: "Accrued Food Delivery Fees", nameTh: "ค่าใช้จ่ายค้างจ่ายแพลตฟอร์มอาหาร", nameZh: "外卖平台应计费用", type: "liability", parentCode: null },
+  { code: "2371000", name: "Accrued Grab Fees", nameTh: "ค่าใช้จ่ายค้างจ่าย Grab", nameZh: "Grab应计费用", type: "liability", parentCode: "237" },
+  { code: "2372000", name: "Accrued LINE MAN Fees", nameTh: "ค่าใช้จ่ายค้างจ่าย LINE MAN", nameZh: "LINE MAN应计费用", type: "liability", parentCode: "237" },
+  { code: "2373000", name: "Accrued foodpanda Fees", nameTh: "ค่าใช้จ่ายค้างจ่าย foodpanda", nameZh: "foodpanda应计费用", type: "liability", parentCode: "237" },
+  { code: "2374000", name: "Accrued Robinhood Fees", nameTh: "ค่าใช้จ่ายค้างจ่าย Robinhood", nameZh: "Robinhood应计费用", type: "liability", parentCode: "237" },
+
+  // ═══════════════════════════════════════════════════════════
+  // REVENUE — Food & Beverage
+  // ═══════════════════════════════════════════════════════════
+  { code: "402", name: "Food & Beverage Revenue", nameTh: "รายได้จากการขายอาหารและเครื่องดื่ม", nameZh: "餐饮收入", type: "revenue", parentCode: "400" },
+  { code: "4021000", name: "Dine-in Food Sales", nameTh: "รายได้ขายอาหาร (ทานที่ร้าน)", nameZh: "堂食收入", type: "revenue", parentCode: "402" },
+  { code: "4022000", name: "Dine-in Beverage Sales", nameTh: "รายได้ขายเครื่องดื่ม (ทานที่ร้าน)", nameZh: "堂食饮品收入", type: "revenue", parentCode: "402" },
+  { code: "4023000", name: "Takeaway Sales", nameTh: "รายได้ขายอาหาร (ซื้อกลับบ้าน)", nameZh: "外带收入", type: "revenue", parentCode: "402" },
+  { code: "4024000", name: "Service Charge Revenue", nameTh: "รายได้ค่าบริการ (Service Charge)", nameZh: "服务费收入", type: "revenue", parentCode: "402" },
+  { code: "4025000", name: "Catering Revenue", nameTh: "รายได้จัดเลี้ยง/Catering", nameZh: "宴会餐饮收入", type: "revenue", parentCode: "402" },
+
+  // --- Food Delivery Platform Sales ---
+  { code: "405", name: "Food Delivery Sales", nameTh: "รายได้จากแพลตฟอร์มส่งอาหาร", nameZh: "外卖平台收入", type: "revenue", parentCode: "400" },
+  { code: "4051000", name: "Grab Food Sales", nameTh: "รายได้จากการขาย Grab", nameZh: "Grab销售收入", type: "revenue", parentCode: "405" },
+  { code: "4052000", name: "LINE MAN Sales", nameTh: "รายได้จากการขาย LINE MAN", nameZh: "LINE MAN销售收入", type: "revenue", parentCode: "405" },
+  { code: "4053000", name: "foodpanda Sales", nameTh: "รายได้จากการขาย foodpanda", nameZh: "foodpanda销售收入", type: "revenue", parentCode: "405" },
+  { code: "4054000", name: "Robinhood Sales", nameTh: "รายได้จากการขาย Robinhood", nameZh: "Robinhood销售收入", type: "revenue", parentCode: "405" },
+  { code: "4055000", name: "ShopeeFood Sales", nameTh: "รายได้จากการขาย ShopeeFood", nameZh: "ShopeeFood销售收入", type: "revenue", parentCode: "405" },
+
+  // ═══════════════════════════════════════════════════════════
+  // COST OF GOODS SOLD — Food
+  // ═══════════════════════════════════════════════════════════
+  { code: "514", name: "Cost of Food & Beverage", nameTh: "ต้นทุนอาหารและเครื่องดื่ม", nameZh: "餐饮成本", type: "expense", parentCode: "510" },
+  { code: "5141000", name: "Cost of Meat & Seafood", nameTh: "ต้นทุนเนื้อสัตว์และอาหารทะเล", nameZh: "肉类海鲜成本", type: "expense", parentCode: "514" },
+  { code: "5142000", name: "Cost of Vegetables & Fruits", nameTh: "ต้นทุนผักและผลไม้", nameZh: "蔬菜水果成本", type: "expense", parentCode: "514" },
+  { code: "5143000", name: "Cost of Rice & Noodles", nameTh: "ต้นทุนข้าวและเส้น", nameZh: "米面成本", type: "expense", parentCode: "514" },
+  { code: "5144000", name: "Cost of Condiments & Sauces", nameTh: "ต้นทุนเครื่องปรุงและซอส", nameZh: "调味料成本", type: "expense", parentCode: "514" },
+  { code: "5145000", name: "Cost of Beverages", nameTh: "ต้นทุนเครื่องดื่ม", nameZh: "饮品成本", type: "expense", parentCode: "514" },
+  { code: "5146000", name: "Cost of Bakery & Dessert", nameTh: "ต้นทุนเบเกอรี่และขนม", nameZh: "烘焙甜品成本", type: "expense", parentCode: "514" },
+  { code: "5147000", name: "Cost of Packaging", nameTh: "ต้นทุนบรรจุภัณฑ์/กล่องอาหาร", nameZh: "包装容器成本", type: "expense", parentCode: "514" },
+  { code: "5148000", name: "Food Waste & Spoilage", nameTh: "วัตถุดิบเสียหาย/หมดอายุ", nameZh: "食材损耗", type: "expense", parentCode: "514" },
+  { code: "5149000", name: "Other Food Cost", nameTh: "ต้นทุนอาหารอื่น", nameZh: "其他餐饮成本", type: "expense", parentCode: "514" },
+
+  // ═══════════════════════════════════════════════════════════
+  // EXPENSES — Food Delivery Platform GP (Commission)
+  // ═══════════════════════════════════════════════════════════
+  { code: "529", name: "Food Delivery GP/Commission", nameTh: "ค่า GP/คอมมิชชั่นแพลตฟอร์มอาหาร", nameZh: "外卖平台佣金", type: "expense", parentCode: null },
+  { code: "5291000", name: "Grab GP", nameTh: "ค่า GP Grab (ค่าบริการรวม)", nameZh: "Grab GP佣金", type: "expense", parentCode: "529" },
+  { code: "5292000", name: "LINE MAN GP", nameTh: "ค่า GP LINE MAN (ค่าบริการรวม)", nameZh: "LINE MAN GP佣金", type: "expense", parentCode: "529" },
+  { code: "5293000", name: "foodpanda GP", nameTh: "ค่า GP foodpanda (ค่าบริการรวม)", nameZh: "foodpanda GP佣金", type: "expense", parentCode: "529" },
+  { code: "5294000", name: "Robinhood GP", nameTh: "ค่า GP Robinhood (ค่าบริการรวม)", nameZh: "Robinhood GP佣金", type: "expense", parentCode: "529" },
+  { code: "5295000", name: "ShopeeFood GP", nameTh: "ค่า GP ShopeeFood (ค่าบริการรวม)", nameZh: "ShopeeFood GP佣金", type: "expense", parentCode: "529" },
+  { code: "5299000", name: "Other Food Platform GP", nameTh: "ค่า GP แพลตฟอร์มอาหารอื่น", nameZh: "其他外卖平台佣金", type: "expense", parentCode: "529" },
+
+  // --- Restaurant Operating Expenses ---
+  { code: "541", name: "Restaurant Operating Expenses", nameTh: "ค่าใช้จ่ายดำเนินงานร้านอาหาร", nameZh: "餐厅运营费用", type: "expense", parentCode: null },
+  { code: "5411000", name: "Gas/LPG Expense", nameTh: "ค่าแก๊ส/LPG", nameZh: "燃气费", type: "expense", parentCode: "541" },
+  { code: "5412000", name: "Kitchen Equipment Maintenance", nameTh: "ค่าบำรุงรักษาอุปกรณ์ครัว", nameZh: "厨房设备维修", type: "expense", parentCode: "541" },
+  { code: "5413000", name: "Kitchen Supplies", nameTh: "ค่าวัสดุสิ้นเปลืองครัว", nameZh: "厨房耗材", type: "expense", parentCode: "541" },
+  { code: "5414000", name: "Cleaning & Hygiene", nameTh: "ค่าทำความสะอาดและสุขอนามัย", nameZh: "清洁卫生费", type: "expense", parentCode: "541" },
+  { code: "5415000", name: "Uniform & Laundry", nameTh: "ค่าชุดพนักงานและซักรีด", nameZh: "工服及洗衣费", type: "expense", parentCode: "541" },
+  { code: "5416000", name: "Menu Design & Printing", nameTh: "ค่าออกแบบและพิมพ์เมนู", nameZh: "菜单设计印刷", type: "expense", parentCode: "541" },
+  { code: "5417000", name: "Food Photography", nameTh: "ค่าถ่ายภาพอาหาร", nameZh: "美食摄影费", type: "expense", parentCode: "541" },
+  { code: "5418000", name: "Health & Safety Compliance", nameTh: "ค่าตรวจสุขอนามัย/ใบอนุญาต", nameZh: "卫生安全合规费", type: "expense", parentCode: "541" },
+  { code: "5419000", name: "Delivery Supplies", nameTh: "ค่าอุปกรณ์จัดส่ง (ถุง/กล่อง)", nameZh: "配送用品费", type: "expense", parentCode: "541" },
+];
+
 export function getChartOfAccounts(template: string): (ChartAccountTemplate & { isHeader: boolean })[] {
   if (template === "none") return [];
   let list: ChartAccountTemplate[];
@@ -803,6 +906,8 @@ export function getChartOfAccounts(template: string): (ChartAccountTemplate & { 
     list = [...STANDARD_CHART_OF_ACCOUNTS, ...ACCOUNTING_FIRM_EXTRA_ACCOUNTS];
   } else if (template === "gas_station") {
     list = [...STANDARD_CHART_OF_ACCOUNTS, ...GAS_STATION_EXTRA_ACCOUNTS];
+  } else if (template === "restaurant") {
+    list = [...STANDARD_CHART_OF_ACCOUNTS, ...RESTAURANT_EXTRA_ACCOUNTS];
   } else {
     list = STANDARD_CHART_OF_ACCOUNTS;
   }
@@ -813,6 +918,7 @@ export const CHART_TEMPLATES = [
   { key: "standard", label: "บัญชีมาตรฐาน", description: "ผังบัญชีมาตรฐานสำหรับธุรกิจทั่วไป (7 หลัก)" },
   { key: "accounting_firm", label: "บัญชีสำนักงานบัญชี", description: "ผังบัญชีสำหรับสำนักงานบัญชี/สอบบัญชี มีรายได้ค่าบริการ ค่าทำบัญชี ค่ายื่นภาษี ค่าจดทะเบียน" },
   { key: "ecommerce", label: "บัญชี E-Commerce", description: "ผังบัญชีสำหรับธุรกิจขายออนไลน์ Shopee/Lazada/TikTok Shop" },
+  { key: "restaurant", label: "บัญชีร้านอาหาร", description: "ผังบัญชีสำหรับธุรกิจร้านอาหาร ต้นทุนวัตถุดิบ ค่า GP แพลตฟอร์ม Grab/LINE MAN/foodpanda/Robinhood" },
   { key: "service", label: "บัญชีธุรกิจบริการ", description: "ผังบัญชีสำหรับธุรกิจให้บริการ" },
   { key: "trading", label: "บัญชีธุรกิจซื้อมาขายไป", description: "ผังบัญชีสำหรับธุรกิจซื้อขายสินค้า" },
   { key: "gas_station", label: "บัญชีปั๊มน้ำมัน", description: "ผังบัญชีสำหรับธุรกิจปั๊มน้ำมัน สต็อกน้ำมัน ภาษีท้องถิ่น" },
