@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { PieChart, Printer, FileDown, Calendar as CalendarIcon, Loader2, Eye, X, Download, FileText } from "lucide-react";
+import { PieChart, Printer, FileDown, Calendar as CalendarIcon, Loader2, Eye, X } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useCompany } from "@/lib/company-context";
 import { useDocDropdowns } from "@/hooks/use-doc-dropdowns";
@@ -38,7 +38,6 @@ export default function SalesTaxReport() {
   const [sellerBranch, setSellerBranch] = useState("");
   const [filterPrefix, setFilterPrefix] = useState("");
   const [showPreview, setShowPreview] = useState(false);
-  const [generatingPdf, setGeneratingPdf] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [filterMode, setFilterMode] = useState<"month" | "range">("month");
   const [startDate, setStartDate] = useState(() => {
@@ -324,53 +323,15 @@ export default function SalesTaxReport() {
   }
 
   function handlePrintFromPreview() {
-    const html = buildReportHtml();
+    const pdfTitle = `รายงานภาษีขาย_${companyName}_${monthName}_${displayYear}`;
+    const html = buildReportHtml().replace(/<title>[^<]*<\/title>/, `<title>${pdfTitle}</title>`);
     const printWindow = window.open("", "_blank", "width=1100,height=700");
     if (!printWindow) return;
     printWindow.document.write(html);
     printWindow.document.close();
     printWindow.onload = () => {
-      setTimeout(() => { printWindow.print(); printWindow.close(); }, 400);
+      setTimeout(() => { printWindow.print(); }, 400);
     };
-  }
-
-  async function handleDownloadPdf() {
-    if (rows.length === 0) return;
-    if (rows.length > 500) {
-      alert(`ข้อมูล ${rows.length} รายการ มากเกินไปสำหรับ PDF\nแนะนำให้ส่งออกเป็น Excel แทน`);
-      return;
-    }
-    const confirmed = window.confirm(`ยืนยันสร้างไฟล์ PDF รายงานภาษีขาย?\n(${rows.length} รายการ)`);
-    if (!confirmed) return;
-    setGeneratingPdf(true);
-    try {
-      const html = buildReportHtml();
-      const pdfIframe = document.createElement("iframe");
-      pdfIframe.style.cssText = "position:fixed;top:0;left:0;width:1047px;height:800px;opacity:0;pointer-events:none;z-index:-1;";
-      document.body.appendChild(pdfIframe);
-      const iframeDoc = pdfIframe.contentDocument || pdfIframe.contentWindow?.document;
-      if (!iframeDoc) throw new Error("Cannot access iframe document");
-      iframeDoc.open();
-      iframeDoc.write(html);
-      iframeDoc.close();
-      await new Promise(r => setTimeout(r, 1000));
-      const html2pdf = (await import("html2pdf.js")).default;
-      const opt = {
-        margin: [5, 5, 5, 5],
-        filename: `รายงานภาษีขาย_${companyName}_${monthName}_${displayYear}.pdf`,
-        image: { type: "jpeg", quality: 0.95 },
-        html2canvas: { scale: 2, useCORS: true, letterRendering: true, windowWidth: 1047 },
-        jsPDF: { unit: "mm", format: "a4", orientation: "landscape" },
-        pagebreak: { mode: ["css", "legacy"], avoid: ["tr"] },
-      };
-      await html2pdf().set(opt).from(iframeDoc.body).save();
-      document.body.removeChild(pdfIframe);
-    } catch (err) {
-      console.error("PDF generation error:", err);
-      alert("เกิดข้อผิดพลาดในการสร้าง PDF");
-    } finally {
-      setGeneratingPdf(false);
-    }
   }
 
   return (
@@ -582,11 +543,8 @@ export default function SalesTaxReport() {
                 <span className="font-semibold text-sm">พรีวิวรายงานภาษีขาย — {monthName} {displayYear}</span>
               </div>
               <div className="flex items-center gap-2">
-                <Button size="sm" className="h-8 text-xs text-white hover:opacity-90" style={{ background: "#05b187" }} onClick={handleDownloadPdf} disabled={generatingPdf} data-testid="button-download-pdf">
-                  {generatingPdf ? <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> กำลังสร้าง PDF...</> : <><FileText className="h-3.5 w-3.5 mr-1.5" /> ดาวน์โหลด PDF</>}
-                </Button>
                 <Button size="sm" className="h-8 text-xs text-white hover:opacity-90" style={{ background: "var(--theme-primary)" }} onClick={handlePrintFromPreview} data-testid="button-print">
-                  <Printer className="h-3.5 w-3.5 mr-1.5" /> พิมพ์
+                  <Printer className="h-3.5 w-3.5 mr-1.5" /> พิมพ์ / บันทึก PDF
                 </Button>
                 <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={() => setShowPreview(false)} data-testid="button-close-preview">
                   <X className="h-4 w-4" />
