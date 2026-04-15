@@ -9,7 +9,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useCompany } from "@/lib/company-context";
 import { useDocDropdowns } from "@/hooks/use-doc-dropdowns";
 import { formatDate } from "@/lib/format";
-import * as XLSX from "xlsx";
+
 import { useDateSettings } from "@/hooks/use-date-settings";
 import ThaiDateInput from "@/components/thai-date-input";
 
@@ -144,33 +144,27 @@ export default function PurchaseTaxReport() {
 
   function handleExcel() {
     if (rows.length === 0) return;
-    const header = ["#", "วันเดือนปี", "เลขที่ใบกำกับภาษี", "เลขที่เอกสาร", "ชื่อผู้ขายสินค้า/ผู้ให้บริการ", "เลขประจำตัวผู้เสียภาษี", "สาขา", "ประเภท", "มูลค่าสินค้าหรือบริการ", "มูลค่าสินค้าที่เสียภาษี", "จำนวนเงินภาษี"];
-    const data = rows.map((r: any) => [
-      r.no,
-      formatDate(r.date, dateEra, dateFmt),
-      r.taxInvoiceRef,
-      r.docNo,
-      r.vendorName,
-      r.vendorTaxId,
-      r.branch,
-      docTypeLabel(r.docType),
-      r.subtotal,
-      r.subtotal,
-      r.vatAmount,
-    ]);
-    data.push(["", "", "", "", "", "", "", "รวมทั้งสิ้น", totalSubtotal, totalSubtotal, totalVat]);
-    const ws = XLSX.utils.aoa_to_sheet([
-      [`รายงานภาษีซื้อ — ${companyName}`],
-      [`ประจำเดือน ${monthName} ${displayYear}`],
-      [],
-      header,
-      ...data,
-    ]);
-    ws["!cols"] = [{ wch: 5 }, { wch: 14 }, { wch: 18 }, { wch: 18 }, { wch: 30 }, { wch: 18 }, { wch: 10 }, { wch: 14 }, { wch: 16 }, { wch: 16 }, { wch: 14 }];
-    ws["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 10 } }, { s: { r: 1, c: 0 }, e: { r: 1, c: 10 } }];
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "รายงานภาษีซื้อ");
-    XLSX.writeFile(wb, `รายงานภาษีซื้อ_${companyName}_${monthName}_${displayYear}.xlsx`);
+    const html = buildReportHtml()
+      .replace(/@media print[\s\S]*?\}/g, "")
+      .replace(/\.page-break\s*\{[^}]*\}/g, ".page-break { border-bottom:2px dashed #ccc; margin-bottom:12px; }");
+    const excelHtml = `
+      <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+      <head><meta charset="utf-8">
+      <!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet>
+      <x:Name>รายงานภาษีซื้อ</x:Name>
+      <x:WorksheetOptions><x:DisplayGridlines/><x:Panes></x:Panes></x:WorksheetOptions>
+      </x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]-->
+      ${html.match(/<style>[\s\S]*?<\/style>/)?.[0] || ""}
+      </head><body>${html.replace(/.*<body[^>]*>/s, "").replace(/<\/body>.*/s, "")}</body></html>`;
+    const blob = new Blob([excelHtml], { type: "application/vnd.ms-excel;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `รายงานภาษีซื้อ_${companyName}_${monthName}_${displayYear}.xls`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   }
 
   const buildReportHtml = useCallback(() => {
