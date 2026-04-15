@@ -154,7 +154,7 @@ export default function SalesTaxReport() {
     ws["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 9 } }, { s: { r: 1, c: 0 }, e: { r: 1, c: 9 } }];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "รายงานภาษีขาย");
-    XLSX.writeFile(wb, `รายงานภาษีขาย_${monthName}_${displayYear}.xlsx`);
+    XLSX.writeFile(wb, `รายงานภาษีขาย_${companyName}_${monthName}_${displayYear}.xlsx`);
   }
 
   const buildReportHtml = useCallback(() => {
@@ -369,7 +369,7 @@ export default function SalesTaxReport() {
       const html2pdf = (await import("html2pdf.js")).default;
       const opt = {
         margin: [5, 5, 5, 5],
-        filename: `รายงานภาษีขาย_${monthName}_${displayYear}.pdf`,
+        filename: `รายงานภาษีขาย_${companyName}_${monthName}_${displayYear}.pdf`,
         image: { type: "jpeg", quality: 0.95 },
         html2canvas: { scale: 2, useCORS: true, letterRendering: true, scrollX: 0, scrollY: 0, width: 1047 },
         jsPDF: { unit: "mm", format: "a4", orientation: "landscape" },
