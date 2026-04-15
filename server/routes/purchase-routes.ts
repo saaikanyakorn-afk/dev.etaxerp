@@ -2865,7 +2865,7 @@ export function registerPurchaseRoutes(app: Express) {
           const { result, doc, validItems } = pendingJournals[pji];
           if (pji > 0) await new Promise(r => setTimeout(r, 100));
           try {
-            const resolvedBt = doc.resolvedFormulaBt || (formulaBusinessType && formulaBusinessType !== "auto-detect" ? formulaBusinessType : null) || "platform_fee";
+            const resolvedBt = doc.resolvedFormulaBt || resolveFormulaForDoc(doc) || (formulaBusinessType && formulaBusinessType !== "auto-detect" ? formulaBusinessType : null) || "platform_fee";
 
             const sub = Math.round(parseFloat(String(result.subtotal || "0")) * 100) / 100;
             const vat = Math.round(parseFloat(String(result.vatAmount || "0")) * 100) / 100;
@@ -2962,7 +2962,7 @@ export function registerPurchaseRoutes(app: Express) {
 
         const formulaGroups = new Map<string, { date: string; formulaBt: string; subtotal: number; vat: number; total: number; wht: number; expIds: number[]; expNos: string[]; batchId: number | null; adCreditItems: { accountCode: string; accountName: string; amount: number; description: string }[]; feeBreakdown: Map<string, number>; batchSuffix: string }>();
         for (const { result, doc, validItems } of pendingJournals) {
-          const resolvedBt = doc.resolvedFormulaBt || (formulaBusinessType && formulaBusinessType !== "auto-detect" ? formulaBusinessType : null) || "platform_fee";
+          const resolvedBt = doc.resolvedFormulaBt || resolveFormulaForDoc(doc) || (formulaBusinessType && formulaBusinessType !== "auto-detect" ? formulaBusinessType : null) || "platform_fee";
           const docBatchSuffix = getBatchSuffix(doc);
           const groupKey = `${result.expDate}||${resolvedBt}||${docBatchSuffix}`;
           const group = formulaGroups.get(groupKey) || { date: result.expDate, formulaBt: resolvedBt, subtotal: 0, vat: 0, total: 0, wht: 0, expIds: [], expNos: [], batchId: result.batchId || null, adCreditItems: [], feeBreakdown: new Map<string, number>(), batchSuffix: docBatchSuffix };

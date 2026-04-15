@@ -1228,6 +1228,7 @@ export default function PdfBulkImport() {
                 {autoJournal && filteredExpFormulas.length > 0 && (() => {
                   const platformSet = new Set(selectedDocsList.map(d => `${d.platform || "other"}:${d.docSubType || "mixed"}`));
                   const hasPlatformDocs = selectedDocsList.some(d => d.platform && d.platform !== "other");
+                  const hasMultipleTypes = platformSet.size > 1;
 
                   return (
                     <div className="mt-3 flex flex-wrap items-start gap-3">
