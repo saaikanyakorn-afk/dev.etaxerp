@@ -2349,6 +2349,14 @@ export function registerPurchaseRoutes(app: Express) {
 
       const vendorCache = new Map<string, number>();
 
+      let firmClientId: number | null = null;
+      if (user.tenantId) {
+        const [fc] = await db.select({ id: firmClients.id }).from(firmClients)
+          .where(eq(firmClients.companyId, companyId)).limit(1);
+        firmClientId = fc?.id || null;
+      }
+      const archiveLinkCache = new Map<string, any>();
+
       const BATCH_SUFFIX_MAP: Record<string, string> = {
         "TRSPEMKP": "SH", "TRSPESPF": "SHF", "TRSPXADB": "SPXA",
         "RCSPXSPR": "SPX", "RCSPXSPB": "SPX",
