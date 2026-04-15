@@ -236,7 +236,7 @@ export const DEFAULT_FORMULAS: DefaultFormulaTemplate[] = [
     description: "รับชำระเงินจาก TikTok Shop — แพลตฟอร์มโอนเงินหลังหักค่าธรรมเนียม",
     lines: [
       { accountCode: "1001000", accountName: "เงินสด", direction: "debit", sortOrder: 1 },
-      { accountCode: "5243000", accountName: "ค่าคอมมิชชั่น TikTok Shop", direction: "debit", sortOrder: 2 },
+      { accountCode: "5243100", accountName: "ค่าคอมมิชชั่นแพลตฟอร์ม TikTok", direction: "debit", sortOrder: 2 },
       { accountCode: "1233000", accountName: "ลูกหนี้ TikTok Shop", direction: "credit", sortOrder: 3 },
     ],
   },
@@ -294,11 +294,23 @@ export const DEFAULT_FORMULAS: DefaultFormulaTemplate[] = [
   {
     documentType: "purchase",
     businessType: "ecommerce_commission",
-    name: "E-Commerce Commission Reversal (TikTok)",
-    nameTh: "ล้างค่าใช้จ่ายล่วงหน้า — ค่าคอมมิชชั่น TikTok",
-    description: "ได้รับเอกสารจริงจาก TikTok Shop → ล้างค่าใช้จ่ายล่วงหน้า (144) เป็นค่าใช้จ่ายจริง (524)",
+    name: "E-Commerce Commission Reversal (TikTok Platform)",
+    nameTh: "ล้างค่าใช้จ่ายล่วงหน้า — ค่าคอมมิชชั่นแพลตฟอร์ม TikTok",
+    description: "ได้รับเอกสารจริงจาก TikTok Shop → ล้าง prepaid (144) เป็นค่าคอมมิชชั่นแพลตฟอร์ม (5243100)",
     lines: [
-      { accountCode: "5243000", accountName: "ค่าคอมมิชชั่น TikTok Shop", direction: "debit", sortOrder: 1 },
+      { accountCode: "5243100", accountName: "ค่าคอมมิชชั่นแพลตฟอร์ม TikTok", direction: "debit", sortOrder: 1 },
+      { accountCode: "1432000", accountName: "ภาษีซื้อ", direction: "debit", sortOrder: 2 },
+      { accountCode: "1441300", accountName: "ค่าคอมมิชชั่น TikTok รับรู้ล่วงหน้า", direction: "credit", sortOrder: 3 },
+    ],
+  },
+  {
+    documentType: "purchase",
+    businessType: "tiktok_affiliate_commission",
+    name: "TikTok Affiliate Commission Reversal",
+    nameTh: "ล้างค่าใช้จ่ายล่วงหน้า — ค่าคอมมิชชั่น Affiliate TikTok",
+    description: "ได้รับเอกสารจริงจาก TikTok → ล้าง prepaid (144) เป็นค่าคอมมิชชั่น Affiliate (5243200)",
+    lines: [
+      { accountCode: "5243200", accountName: "ค่าคอมมิชชั่น Affiliate TikTok", direction: "debit", sortOrder: 1 },
       { accountCode: "1432000", accountName: "ภาษีซื้อ", direction: "debit", sortOrder: 2 },
       { accountCode: "1441300", accountName: "ค่าคอมมิชชั่น TikTok รับรู้ล่วงหน้า", direction: "credit", sortOrder: 3 },
     ],
@@ -384,7 +396,7 @@ export const DEFAULT_FORMULAS: DefaultFormulaTemplate[] = [
     nameTh: "ล้างค่าใช้จ่ายล่วงหน้า — ค่าบริการ TikTok",
     description: "ได้รับเอกสารจริงจาก TikTok (ใบ TTSTH) → ล้าง prepaid (144) เป็นค่าใช้จ่ายจริง (5xx)",
     lines: [
-      { accountCode: "5243000", accountName: "ค่าคอมมิชชั่น TikTok Shop", direction: "debit", sortOrder: 1 },
+      { accountCode: "5243100", accountName: "ค่าคอมมิชชั่นแพลตฟอร์ม TikTok", direction: "debit", sortOrder: 1 },
       { accountCode: "5253000", accountName: "ค่าบริการ TikTok Shop", direction: "debit", sortOrder: 2 },
       { accountCode: "5273000", accountName: "ค่าโฆษณา TikTok Ads", direction: "debit", sortOrder: 3 },
       { accountCode: "1432000", accountName: "ภาษีซื้อ", direction: "debit", sortOrder: 4 },

@@ -574,6 +574,8 @@ export const ECOMMERCE_EXTRA_ACCOUNTS: ChartAccountTemplate[] = [
   { code: "5241000", name: "Shopee Commission", nameTh: "ค่าคอมมิชชั่น Shopee", nameZh: "Shopee佣金", type: "expense", parentCode: "524" },
   { code: "5242000", name: "Lazada Commission", nameTh: "ค่าคอมมิชชั่น Lazada", nameZh: "Lazada佣金", type: "expense", parentCode: "524" },
   { code: "5243000", name: "TikTok Shop Commission", nameTh: "ค่าคอมมิชชั่น TikTok Shop", nameZh: "TikTok Shop佣金", type: "expense", parentCode: "524" },
+  { code: "5243100", name: "TikTok Platform Commission", nameTh: "ค่าคอมมิชชั่นแพลตฟอร์ม TikTok", nameZh: "TikTok平台佣金", type: "expense", parentCode: "524" },
+  { code: "5243200", name: "TikTok Affiliate Commission", nameTh: "ค่าคอมมิชชั่น Affiliate TikTok", nameZh: "TikTok联盟佣金", type: "expense", parentCode: "524" },
   { code: "5244000", name: "Grab Commission", nameTh: "ค่าคอมมิชชั่น Grab", nameZh: "Grab佣金", type: "expense", parentCode: "524" },
   { code: "5245000", name: "ShopeeFood Commission", nameTh: "ค่าคอมมิชชั่น ShopeeFood", nameZh: "ShopeeFood佣金", type: "expense", parentCode: "524" },
   { code: "5249000", name: "Other Marketplace Commission", nameTh: "ค่าคอมมิชชั่นแพลตฟอร์มอื่น", nameZh: "其他平台佣金", type: "expense", parentCode: "524" },
