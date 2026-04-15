@@ -15,16 +15,40 @@ import ReportLayout from "@/components/report-layout";
 
 import { useDateSettings } from "@/hooks/use-date-settings";
 function getDocLink(sourceDocType: string | null, sourceDocId: number | null, journalEntryId: number | null): string | null {
-  if (sourceDocType) {
+  if (sourceDocType && sourceDocId) {
     switch (sourceDocType) {
-      case "quotation": return `/sales/quote`;
-      case "sales_order": return `/sales/order`;
-      case "invoice": return `/sales/invoice`;
-      case "tax_invoice": return `/sales/tax-invoice`;
-      case "receipt": return `/sales/receipt`;
+      case "quotation": return `/sales/quote/edit/${sourceDocId}`;
+      case "sales_order": return `/sales/order/edit/${sourceDocId}`;
+      case "invoice": return `/sales/invoice/edit/${sourceDocId}`;
+      case "tax_invoice": return `/sales/tax-invoice/edit/${sourceDocId}`;
+      case "receipt": return `/sales/receipt/edit/${sourceDocId}`;
+      case "sales_credit_note": return `/sales/credit-note/edit/${sourceDocId}`;
+      case "billing_note": return `/sales/billing`;
+      case "expense": return `/purchases/exp/edit/${sourceDocId}`;
+      case "expense_daily_batch": return `/purchases/expense`;
+      case "purchase_invoice": return `/purchases/ap/edit/${sourceDocId}`;
+      case "purchase_debit_note": return `/purchases/debit-note/edit/${sourceDocId}`;
+      case "payment_voucher": return `/finance/payment-voucher`;
+      case "deposit_receipt": return `/sales/deposit/edit/${sourceDocId}`;
+      case "petty_cash_txn": return `/petty-cash`;
+      case "petty_cash_fund": return `/petty-cash`;
+      case "purchase_deposit": return `/purchases/purchase-deposit/edit/${sourceDocId}`;
+      case "payroll": return `/hr/payroll`;
+      case "depreciation": return `/accounting/fixed-assets`;
+      case "period_closing": return `/journal`;
+      case "pos_session": return `/pos/history`;
     }
   }
-  if (journalEntryId) return `/journal`;
+  if (sourceDocType && !sourceDocId) {
+    switch (sourceDocType) {
+      case "expense_daily_batch": return `/purchases/expense`;
+      case "payroll": return `/hr/payroll`;
+      case "depreciation": return `/accounting/fixed-assets`;
+      case "petty_cash_txn": return `/petty-cash`;
+      case "petty_cash_fund": return `/petty-cash`;
+    }
+  }
+  if (journalEntryId) return `/journal/edit/${journalEntryId}`;
   return null;
 }
 
