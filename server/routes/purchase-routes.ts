@@ -2481,16 +2481,16 @@ export function registerPurchaseRoutes(app: Express) {
       }
 
       const AD_CREDIT_ACCOUNT_MAP: Record<string, string> = {
-        "shopee": "1449100",
-        "lazada": "1449200",
-        "tiktok": "1449300",
-        "facebook": "1449400",
-        "google": "1449500",
+        "shopee": "5271000",
+        "lazada": "5272000",
+        "tiktok": "5273000",
+        "facebook": "5274000",
+        "google": "5275000",
       };
 
       function getAdCreditAccountCode(doc: any): string {
         const platform = (doc.platform || "").toLowerCase();
-        return AD_CREDIT_ACCOUNT_MAP[platform] || "1449900";
+        return AD_CREDIT_ACCOUNT_MAP[platform] || "5200500";
       }
 
       function isPaidAdsItem(desc: string): boolean {

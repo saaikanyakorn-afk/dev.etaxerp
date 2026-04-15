@@ -1312,8 +1312,8 @@ export default function PdfBulkImport() {
                                   }
                                   if (totalPaidAds > 0) {
                                     const platform = selectedDocsList[0]?.platform || "other";
-                                    const adCodeMap: Record<string, string> = { shopee: "1449100", lazada: "1449200", tiktok: "1449300", facebook: "1449400", google: "1449500" };
-                                    const adCode = adCodeMap[platform] || "1449900";
+                                    const adCodeMap: Record<string, string> = { shopee: "5271000", lazada: "5272000", tiktok: "5273000", facebook: "5274000", google: "5275000" };
+                                    const adCode = adCodeMap[platform] || "5200500";
                                     const adAcc = accountMap.get(adCode);
                                     autoLines.push({ accountCode: adCode, accountName: adAcc?.nameTh || "ค่าโฆษณา", debit: totalPaidAds.toFixed(2), credit: "0" });
                                   }
@@ -1514,7 +1514,7 @@ export default function PdfBulkImport() {
                                 rows.push({ code: debitMainLines.map(l => l.accountCode).join(", "), name: debitMainLines.map(l => l.accountName).join(" + "), debit: adSubtotal, credit: 0 });
                                 totalDebitAmt += adSubtotal;
                               }
-                              rows.push({ code: "1449x00", name: "ค่าโฆษณา (Paid Ads)", debit: totalPaidAds, credit: 0 });
+                              rows.push({ code: "527x000", name: "ค่าโฆษณา (Paid Ads)", debit: totalPaidAds, credit: 0 });
                               totalDebitAmt += totalPaidAds;
                             } else {
                               if (debitMainLines.length === 1) {
