@@ -2680,24 +2680,34 @@ export function registerPurchaseRoutes(app: Express) {
                   existingContact = contactByName.get(doc.vendorName.toLowerCase()) || null;
                 }
                 if (!existingContact) {
-                  const nextCode = await storage.getNextContactCode(companyId);
-                  const [newContact] = await db.insert(contacts).values({
-                    companyId,
-                    code: nextCode,
-                    name: (doc.vendorName || "").replace(/\x00/g, ""),
-                    type: "vendor",
-                    taxId: (doc.vendorTaxId || "").replace(/\x00/g, "") || null,
-                    address: (doc.vendorAddress || "").replace(/\x00/g, "") || null,
-                    branch: (doc.branch || "").replace(/\x00/g, "") || null,
-                    active: true,
-                  }).returning();
-                  resolvedVendorId = newContact.id;
-                  if (newContact.taxId) contactByTaxId.set(newContact.taxId, newContact);
-                  contactByName.set((newContact.name || "").toLowerCase(), newContact);
+                  try {
+                    const nextCode = await storage.getNextContactCode(companyId);
+                    const [newContact] = await db.insert(contacts).values({
+                      companyId,
+                      code: nextCode,
+                      name: (doc.vendorName || "").replace(/\x00/g, ""),
+                      type: "vendor",
+                      taxId: (doc.vendorTaxId || "").replace(/\x00/g, "") || null,
+                      address: (doc.vendorAddress || "").replace(/\x00/g, "") || null,
+                      branch: (doc.branch || "").replace(/\x00/g, "") || null,
+                      active: true,
+                    }).returning();
+                    resolvedVendorId = newContact.id;
+                    if (newContact.taxId) contactByTaxId.set(newContact.taxId, newContact);
+                    contactByName.set((newContact.name || "").toLowerCase(), newContact);
+                  } catch (insertErr: any) {
+                    const fallback = await db.select().from(contacts).where(
+                      and(eq(contacts.companyId, companyId), eq(contacts.name, (doc.vendorName || "").replace(/\x00/g, "")))
+                    ).limit(1);
+                    if (fallback.length > 0) {
+                      resolvedVendorId = fallback[0].id;
+                      contactByName.set((fallback[0].name || "").toLowerCase(), fallback[0]);
+                    }
+                  }
                 } else {
                   resolvedVendorId = existingContact.id;
                 }
-                vendorCache.set(cacheKey, resolvedVendorId!);
+                if (resolvedVendorId) vendorCache.set(cacheKey, resolvedVendorId);
               } catch (contactErr: any) {
                 console.log("Auto-create contact failed:", contactErr.message);
               }
