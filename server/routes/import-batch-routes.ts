@@ -123,12 +123,20 @@ export function registerImportBatchRoutes(app: Express) {
               if (jIds.length > 0) {
                 const pgJIds = sql.raw(`ARRAY[${jIds.join(',')}]::int[]`);
                 console.log(`[import-batch-delete] Clearing ${jIds.length} per-expense journal refs...`);
-                const clearRef = async (stmt: string) => { try { await tx.execute(sql.raw(stmt)); } catch {} };
+                const safeClearRef = async (stmt: string) => {
+                  try {
+                    await tx.execute(sql`SAVEPOINT clear_ref`);
+                    await tx.execute(sql.raw(stmt));
+                    await tx.execute(sql`RELEASE SAVEPOINT clear_ref`);
+                  } catch {
+                    try { await tx.execute(sql`ROLLBACK TO SAVEPOINT clear_ref`); } catch {}
+                  }
+                };
                 const jIdsList = jIds.join(",");
-                await clearRef(`UPDATE bank_statements SET matched_journal_id = NULL WHERE matched_journal_id IN (${jIdsList})`);
-                await clearRef(`UPDATE manufacturing_orders SET journal_entry_id = NULL WHERE journal_entry_id IN (${jIdsList})`);
-                await clearRef(`UPDATE payroll_records SET journal_entry_id = NULL WHERE journal_entry_id IN (${jIdsList})`);
-                await clearRef(`UPDATE fixed_assets SET journal_entry_id = NULL WHERE journal_entry_id IN (${jIdsList})`);
+                await safeClearRef(`UPDATE bank_statements SET matched_journal_id = NULL WHERE matched_journal_id IN (${jIdsList})`);
+                await safeClearRef(`UPDATE manufacturing_orders SET journal_entry_id = NULL WHERE journal_entry_id IN (${jIdsList})`);
+                await safeClearRef(`UPDATE payroll_records SET journal_entry_id = NULL WHERE journal_entry_id IN (${jIdsList})`);
+                await safeClearRef(`UPDATE fixed_assets SET journal_entry_id = NULL WHERE journal_entry_id IN (${jIdsList})`);
                 await tx.execute(sql`DELETE FROM journal_lines WHERE journal_entry_id = ANY(${pgJIds})`);
                 await tx.execute(sql`DELETE FROM journal_entries WHERE id = ANY(${pgJIds})`);
                 deletedJournals += jIds.length;
@@ -201,7 +209,13 @@ export function registerImportBatchRoutes(app: Express) {
               const djIds = (dxpJResult.rows as any[]).map((dj: any) => dj.id);
               if (djIds.length > 0) {
                 const djIdsList = djIds.join(",");
-                try { await tx.execute(sql.raw(`UPDATE bank_statements SET matched_journal_id = NULL WHERE matched_journal_id IN (${djIdsList})`)); } catch {}
+                try {
+                  await tx.execute(sql`SAVEPOINT dxp_clear`);
+                  await tx.execute(sql.raw(`UPDATE bank_statements SET matched_journal_id = NULL WHERE matched_journal_id IN (${djIdsList})`));
+                  await tx.execute(sql`RELEASE SAVEPOINT dxp_clear`);
+                } catch {
+                  try { await tx.execute(sql`ROLLBACK TO SAVEPOINT dxp_clear`); } catch {}
+                }
                 const pgDjIds = sql.raw(`ARRAY[${djIds.join(',')}]::int[]`);
                 await tx.execute(sql`DELETE FROM journal_lines WHERE journal_entry_id = ANY(${pgDjIds})`);
                 await tx.execute(sql`DELETE FROM journal_entries WHERE id = ANY(${pgDjIds})`);
