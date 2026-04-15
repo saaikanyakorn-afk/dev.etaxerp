@@ -714,6 +714,89 @@ app.get("/api/accounting-formulas/validate", requireAuth, requireModule("account
   }
 });
 
+app.post("/api/accounting-formulas/fix-names", requireAuth, requireRole("admin", "super_admin", "manager"), async (req, res) => {
+  try {
+    const companyId = Number(req.body.companyId);
+    if (!companyId) return res.status(400).json({ message: "กรุณาระบุ companyId" });
+    { const ac = await checkDocOwnership(companyId, req.user); if (!ac.allowed) return res.status(403).json({ message: ac.message }); }
+
+    const companyAccounts = await db.select({ code: accounts.code, nameTh: accounts.nameTh, name: accounts.name })
+      .from(accounts).where(eq(accounts.companyId, companyId));
+    const accountMap = new Map(companyAccounts.map(a => [a.code, a.nameTh || a.name || ""]));
+
+    let fixedSavedLines = 0;
+    let fixedDefaultFormulas = 0;
+
+    const savedFormulas = await db.select().from(accountingFormulas).where(eq(accountingFormulas.companyId, companyId));
+    if (savedFormulas.length > 0) {
+      const formulaIds = savedFormulas.map(f => f.id);
+      const allLines = await db.select().from(accountingFormulaLines)
+        .where(sql`${accountingFormulaLines.formulaId} IN (${sql.join(formulaIds.map(id => sql`${id}`), sql`, `)})`);
+      for (const line of allLines) {
+        const realName = accountMap.get(line.accountCode);
+        if (realName && line.accountName && realName !== line.accountName &&
+            !realName.includes(line.accountName) && !line.accountName.includes(realName)) {
+          await db.update(accountingFormulaLines)
+            .set({ accountName: realName })
+            .where(eq(accountingFormulaLines.id, line.id));
+          fixedSavedLines++;
+        }
+      }
+    }
+
+    const existingKeys = new Set(savedFormulas.map(f => `${f.documentType}|${f.businessType}`));
+    for (const def of DEFAULT_FORMULAS) {
+      if (def.noJournalEntry) continue;
+      const key = `${def.documentType}|${def.businessType}`;
+      if (existingKeys.has(key)) continue;
+
+      const lines = def.lines || [];
+      const hasMismatch = lines.some((line: any) => {
+        const realName = accountMap.get(line.accountCode);
+        return realName && line.accountName && realName !== line.accountName &&
+               !realName.includes(line.accountName) && !line.accountName.includes(realName);
+      });
+      if (!hasMismatch) continue;
+
+      const [newFormula] = await db.insert(accountingFormulas).values({
+        companyId,
+        documentType: def.documentType,
+        businessType: def.businessType,
+        name: def.name,
+        nameTh: def.nameTh,
+        nameZh: (def as any).nameZh || null,
+        description: (def as any).description || null,
+        noJournalEntry: def.noJournalEntry || false,
+        active: true,
+      }).returning();
+
+      for (const line of lines) {
+        const realName = accountMap.get(line.accountCode);
+        const correctedName = (realName && line.accountName &&
+          !realName.includes(line.accountName) && !line.accountName.includes(realName))
+          ? realName : line.accountName;
+        await db.insert(accountingFormulaLines).values({
+          formulaId: newFormula.id,
+          accountCode: line.accountCode,
+          accountName: correctedName,
+          direction: line.direction,
+          sortOrder: line.sortOrder,
+        });
+      }
+      fixedDefaultFormulas++;
+    }
+
+    res.json({
+      message: "แก้ไขชื่อบัญชีสำเร็จ",
+      fixedSavedLines,
+      fixedDefaultFormulas,
+    });
+  } catch (err: any) {
+    console.error("[formula-fix-names]", err);
+    res.status(500).json({ message: err.message });
+  }
+});
+
 app.get("/api/accounting-formulas/:id", requireAuth, requireModule("accounting"), async (req, res) => {
   const formula = await storage.getAccountingFormula(Number(req.params.id));
   if (!formula) return res.status(404).json({ message: "ไม่พบสูตรบัญชี" });

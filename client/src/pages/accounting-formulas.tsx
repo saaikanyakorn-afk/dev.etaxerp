@@ -2,7 +2,7 @@ import Layout from "@/components/layout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Calculator, Pencil, RotateCcw, Plus, Trash2, ArrowUpDown, ChevronRight, Search, BookOpen, ShieldCheck, AlertTriangle, CheckCircle2, XCircle } from "lucide-react";
+import { Calculator, Pencil, RotateCcw, Plus, Trash2, ArrowUpDown, ChevronRight, Search, BookOpen, ShieldCheck, AlertTriangle, CheckCircle2, XCircle, Wrench } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, useMemo } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -97,6 +97,34 @@ export default function AccountingFormulas() {
   const [validateOpen, setValidateOpen] = useState(false);
   const [validateResult, setValidateResult] = useState<any>(null);
   const [validating, setValidating] = useState(false);
+  const [fixing, setFixing] = useState(false);
+
+  const runFixNames = async () => {
+    if (!selectedCompanyId) return;
+    setFixing(true);
+    try {
+      const r = await fetch(`/api/accounting-formulas/fix-names`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ companyId: selectedCompanyId }),
+      });
+      if (!r.ok) throw new Error("ไม่สามารถแก้ไขได้");
+      const data = await r.json();
+      toast({
+        title: "แก้ไขชื่อบัญชีสำเร็จ",
+        description: `อัปเดตสูตรที่บันทึก ${data.fixedSavedLines} รายการ, สร้างสูตรใหม่จาก default ${data.fixedDefaultFormulas} สูตร`,
+        variant: "success" as any,
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/accounting-formulas"] });
+      setValidateOpen(false);
+      setValidateResult(null);
+    } catch (err: any) {
+      toast({ title: "เกิดข้อผิดพลาด", description: err.message, variant: "destructive" });
+    } finally {
+      setFixing(false);
+    }
+  };
 
   const runValidation = async () => {
     if (!selectedCompanyId) return;
@@ -879,6 +907,34 @@ export default function AccountingFormulas() {
                 </div>
               ) : (
                 <>
+                  {(() => {
+                    const allIssues = [
+                      ...validateResult.savedFormulas.details.flatMap((f: any) => f.issues),
+                      ...validateResult.defaultFormulas.details.flatMap((f: any) => f.issues),
+                    ];
+                    const missingCount = allIssues.filter((i: any) => i.issue === "missing").length;
+                    const mismatchCount = allIssues.filter((i: any) => i.issue === "name_mismatch").length;
+                    return (
+                      <div className="flex items-center justify-between bg-gray-50 border rounded-lg p-3">
+                        <div className="text-sm">
+                          {missingCount > 0 && <span className="text-red-600 font-medium mr-3">รหัสไม่พบ: {missingCount}</span>}
+                          {mismatchCount > 0 && <span className="text-amber-600 font-medium">ชื่อไม่ตรง: {mismatchCount}</span>}
+                        </div>
+                        {mismatchCount > 0 && (
+                          <Button
+                            size="sm"
+                            onClick={runFixNames}
+                            disabled={fixing}
+                            className="bg-[#05b187] hover:bg-[#05b187]/90 text-white"
+                            data-testid="button-fix-formula-names"
+                          >
+                            <Wrench className="h-4 w-4 mr-1" />
+                            {fixing ? "กำลังแก้ไข..." : `แก้ไขชื่อทั้งหมด (${mismatchCount})`}
+                          </Button>
+                        )}
+                      </div>
+                    );
+                  })()}
                   {validateResult.savedFormulas.details.length > 0 && (
                     <div>
                       <h3 className="font-bold text-sm mb-2 flex items-center gap-1.5">
