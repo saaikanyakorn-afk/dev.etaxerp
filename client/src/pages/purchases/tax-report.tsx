@@ -369,36 +369,25 @@ export default function PurchaseTaxReport() {
                   <option value="__hq__">สำนักงานใหญ่</option>
                   {branchList.map(b => <option key={b.id} value={b.code}>{b.code} - {b.name}</option>)}
                 </select>
-                <Select value={filterBranch || "__all__"} onValueChange={(v) => setFilterBranch(v === "__all__" ? "" : v)}>
-                  <SelectTrigger className="w-44 h-8 bg-white border rounded-lg" data-testid="select-filter-branch">
-                    <SelectValue>{filterBranch ? `สาขาผู้ขาย: ${filterBranch}` : "สาขาผู้ขาย: ทั้งหมด"}</SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__all__">สาขาผู้ขาย: ทั้งหมด</SelectItem>
-                    {[...new Set(rows.map((r: any) => r.branch).filter(Boolean))].sort().map((b: string) => (
-                      <SelectItem key={b} value={b}>{b}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
                 <Select value={filterDepartment || "__all__"} onValueChange={(v) => setFilterDepartment(v === "__all__" ? "" : v)}>
                   <SelectTrigger className="w-44 h-8 bg-white border rounded-lg" data-testid="select-filter-dept">
-                    <SelectValue>{filterDepartment ? `แผนก: ${filterDepartment}` : "แผนก: ทั้งหมด"}</SelectValue>
+                    <SelectValue placeholder="แผนก: ทั้งหมด" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="__all__">แผนก: ทั้งหมด</SelectItem>
                     {[...new Set(rows.map((r: any) => r.department).filter(Boolean))].sort().map((d: string) => (
-                      <SelectItem key={d} value={d}>{d}</SelectItem>
+                      <SelectItem key={d} value={d}>แผนก: {d}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
                 <Select value={filterSalesperson || "__all__"} onValueChange={(v) => setFilterSalesperson(v === "__all__" ? "" : v)}>
                   <SelectTrigger className="w-44 h-8 bg-white border rounded-lg" data-testid="select-filter-person">
-                    <SelectValue>{filterSalesperson ? `พนักงาน: ${filterSalesperson}` : "พนักงาน: ทั้งหมด"}</SelectValue>
+                    <SelectValue placeholder="พนักงาน: ทั้งหมด" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="__all__">พนักงาน: ทั้งหมด</SelectItem>
                     {[...new Set(rows.map((r: any) => r.salesperson).filter(Boolean))].sort().map((s: string) => (
-                      <SelectItem key={s} value={s}>{s}</SelectItem>
+                      <SelectItem key={s} value={s}>พนักงาน: {s}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
