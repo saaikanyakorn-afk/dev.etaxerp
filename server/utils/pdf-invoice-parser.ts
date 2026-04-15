@@ -910,9 +910,9 @@ function isGrabInvoice(fullText: string): boolean {
 function parseGrabInvoice(rows: TextItem[][], fullText: string): ParsedInvoice {
   let invoiceNo = "";
   let date = "";
-  let vendorName = "";
-  let vendorTaxId = "";
-  let vendorAddress = "";
+  let vendorName = "บริษัท แกร็บแท็กซี่ (ประเทศไทย) จำกัด";
+  let vendorTaxId = "0105556090377";
+  let vendorAddress = "252 SPE Tower ชั้น 10 ถนนพหลโยธิน แขวงสามเสนใน เขตพญาไท กรุงเทพมหานคร 10400";
   let vendorBranch = "สำนักงานใหญ่";
   let subtotal = 0;
   let vatAmount = 0;
@@ -940,23 +940,9 @@ function parseGrabInvoice(rows: TextItem[][], fullText: string): ParsedInvoice {
       if (dMatch) date = dMatch[1];
     }
 
-    const nameMatch = text.match(/(?:ชื่อ\s*\/?\s*Name\s*1)\s*(.*)/i);
-    if (nameMatch && nameMatch[1].trim()) {
-      vendorName = nameMatch[1].trim();
-    }
-    if (!vendorName && /ชื่อ/.test(text)) {
-      const n2 = text.match(/ชื่อ.*?(?:Name\s*\d?)\s*(.*)/i);
-      if (n2 && n2[1].trim().length > 5) vendorName = n2[1].trim();
-    }
-
-    const taxMatch = text.match(/(?:Tax\s*ID|เลขประจำตัวผู้เสียภาษี).*?(\d{13})/i);
-    if (taxMatch && !vendorTaxId) {
-      vendorTaxId = taxMatch[1];
-    }
-
-    const addrMatch = text.match(/(?:ที่อยู่\s*\/?\s*Address)\s*(.*)/i);
-    if (addrMatch && addrMatch[1].trim()) {
-      vendorAddress = addrMatch[1].trim();
+    const grabTaxMatch = text.match(/TAX\s*ID\s*(\d{13})/i);
+    if (grabTaxMatch) {
+      vendorTaxId = grabTaxMatch[1];
     }
 
     const feeMatch = text.match(/Service\s*Fee.*?(\d[\d,]*\.\d{2})\s+(\d[\d,]*\.\d{2})\s*$/i);
