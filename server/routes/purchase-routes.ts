@@ -2867,7 +2867,7 @@ export function registerPurchaseRoutes(app: Express) {
                 const adAcc = accountMap.get(adCode);
                 group.adCreditItems.push({
                   accountCode: adCode,
-                  accountName: adAcc ? (adAcc.nameTh || adAcc.name || "เงินเครดิตค่าโฆษณา") : "เงินเครดิตค่าโฆษณา",
+                  accountName: adAcc ? (adAcc.nameTh || adAcc.name || "ค่าโฆษณา") : "ค่าโฆษณา",
                   amount: amt,
                   description: `Paid ads (${result.expNo})`,
                 });
@@ -2965,7 +2965,7 @@ export function registerPurchaseRoutes(app: Express) {
                 }
               }
               for (const [, adg] of adGrouped) {
-                dxpLineItemAccounts.push({ accountCode: adg.accountCode, accountName: adg.accountName, amount: adg.amount, description: `เงินเครดิตค่าโฆษณา (${group.expNos.length} ใบ)` });
+                dxpLineItemAccounts.push({ accountCode: adg.accountCode, accountName: adg.accountName, amount: adg.amount, description: `ค่าโฆษณา (${group.expNos.length} ใบ)` });
               }
               console.log(`[PDF-Import] DXP ${dxpNo}: Paid ads separated: adCredit=${adCreditTotal.toFixed(2)}, expenseSub=${expenseSubtotal.toFixed(2)}`);
             }
