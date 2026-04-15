@@ -537,7 +537,7 @@ export default function ExpenseList() {
                               <TableCell>
                                 <span
                                   className="text-xs text-[#05b187] cursor-pointer hover:underline"
-                                  onClick={() => navigate(`/purchases/exp/${exp.id}`)}
+                                  onClick={() => navigate(`/purchases/exp/edit/${exp.id}`)}
                                 >
                                   {exp.expNo}
                                 </span>
@@ -575,7 +575,7 @@ export default function ExpenseList() {
                               <TableCell className="text-right text-xs text-gray-400">{fmt(exp.vatAmount)}</TableCell>
                               <TableCell className="text-right text-xs text-gray-400">{fmt(exp.withholdingTax)}</TableCell>
                               <TableCell>
-                                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => navigate(`/purchases/exp/${exp.id}`)}>
+                                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => navigate(`/purchases/exp/edit/${exp.id}`)}>
                                   <Eye className="h-3 w-3" />
                                 </Button>
                               </TableCell>
