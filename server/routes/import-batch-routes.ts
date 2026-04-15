@@ -42,6 +42,41 @@ export function registerImportBatchRoutes(app: Express) {
         }
       }
 
+      if (docType === "expense") {
+        const existingBatches = await db.select().from(documentImportBatches)
+          .where(and(eq(documentImportBatches.companyId, companyId), eq(documentImportBatches.docType, "expense")));
+        const trackedIds = new Set<number>();
+        for (const b of existingBatches) {
+          try {
+            const ids = b.createdDocIds ? JSON.parse(b.createdDocIds) : [];
+            ids.forEach((id: number) => trackedIds.add(id));
+          } catch {}
+        }
+
+        const allExpenses = await db.select({ id: expenses.id, createdAt: expenses.createdAt })
+          .from(expenses)
+          .where(eq(expenses.companyId, companyId));
+        const orphanIds = allExpenses.filter(e => !trackedIds.has(e.id)).map(e => e.id);
+
+        if (orphanIds.length > 0) {
+          const earliest = allExpenses
+            .filter(e => orphanIds.includes(e.id))
+            .sort((a, b) => new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime())[0];
+          await db.insert(documentImportBatches).values({
+            companyId,
+            docType: "expense",
+            fileName: "PDF Import",
+            totalCreated: orphanIds.length,
+            totalSkipped: 0,
+            totalErrors: 0,
+            createdDocIds: JSON.stringify(orphanIds),
+            createdBy: user.id,
+            createdAt: earliest?.createdAt || new Date(),
+          });
+          console.log(`[import-batch] Backfilled ${orphanIds.length} orphan expenses for company ${companyId}`);
+        }
+      }
+
       const conditions: any[] = [eq(documentImportBatches.companyId, companyId)];
       if (docType) conditions.push(eq(documentImportBatches.docType, docType));
 
