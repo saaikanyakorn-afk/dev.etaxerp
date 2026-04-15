@@ -25,6 +25,7 @@ import {
 } from "@shared/schema";
 import { requireAuth, requireModule, requireRole } from "../route-middleware";
 import { logActivity, deleteJournalEntriesForDoc, deleteStockMovementsForDoc } from "../route-helpers";
+import { deleteFromPath } from "../replit_integrations/object_storage/routes";
 
 export function registerImportBatchRoutes(app: Express) {
 
@@ -138,7 +139,7 @@ export function registerImportBatchRoutes(app: Express) {
             const pgDocIds = sql.raw(`ARRAY[${docIds.join(',')}]::int[]`);
             console.log(`[import-batch-delete] Step 1: querying expense rows...`);
             const expRowsResult = await tx.execute(sql`
-              SELECT id, exp_no, batch_id FROM expenses 
+              SELECT id, exp_no, batch_id, attached_url FROM expenses 
               WHERE company_id = ${batch.companyId} AND id = ANY(${pgDocIds})
             `);
             const expRows = (expRowsResult.rows as any[]);
@@ -202,6 +203,21 @@ export function registerImportBatchRoutes(app: Express) {
                 }
                 console.log(`[import-batch-delete] Deleted ${deletedClientFiles} client upload files`);
               }
+
+              console.log(`[import-batch-delete] Step 4c: deleting PDF files from storage...`);
+              let deletedStorageFiles = 0;
+              for (const exp of expRows) {
+                const url = exp.attached_url;
+                if (url && typeof url === "string") {
+                  for (const p of url.split(",")) {
+                    const trimmed = p.trim();
+                    if (trimmed && trimmed.startsWith("pdf-imports/")) {
+                      try { deleteFromPath(trimmed); deletedStorageFiles++; } catch {}
+                    }
+                  }
+                }
+              }
+              console.log(`[import-batch-delete] Deleted ${deletedStorageFiles} PDF files from storage`);
 
               console.log(`[import-batch-delete] Step 5: deleting ${expIds.length} expenses...`);
               const delResult = await tx.execute(sql`
