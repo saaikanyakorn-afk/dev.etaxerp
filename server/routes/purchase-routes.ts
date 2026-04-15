@@ -2841,8 +2841,9 @@ export function registerPurchaseRoutes(app: Express) {
         const classifyFeeItemPD = (desc: string): string => {
           const d = (desc || "").toLowerCase().trim();
           if (/^paid\s*ads$/i.test(d)) return "ads";
-          if (/commission|คอมมิชชั่น|commerce\s*growth|affiliate/i.test(d)) return "commission";
+          if (/affiliate\s*ads/i.test(d)) return "ads";
           if (/ads|โฆษณา|ams.*fee|sponsored|top\s*picks|search\s*ads/i.test(d)) return "ads";
+          if (/commission|คอมมิชชั่น|commerce\s*growth|affiliate/i.test(d)) return "commission";
           return "service";
         };
         const buildFormulaAcctMapPD = (bt: string): Record<string, { code: string; name: string }> | null => {
@@ -2941,8 +2942,9 @@ export function registerPurchaseRoutes(app: Express) {
         const classifyFeeItem = (desc: string): string => {
           const d = (desc || "").toLowerCase().trim();
           if (/^paid\s*ads$/i.test(d)) return "ads";
-          if (/commission|คอมมิชชั่น|commerce\s*growth|affiliate/i.test(d)) return "commission";
+          if (/affiliate\s*ads/i.test(d)) return "ads";
           if (/ads|โฆษณา|ams.*fee|sponsored|top\s*picks|search\s*ads/i.test(d)) return "ads";
+          if (/commission|คอมมิชชั่น|commerce\s*growth|affiliate/i.test(d)) return "commission";
           return "service";
         };
         const buildFormulaAcctMap = (bt: string): Record<string, { code: string; name: string }> | null => {
