@@ -512,10 +512,38 @@ async function _createAutoJournalEntryInner(params: AutoJournalParams): Promise<
         effectiveCode = paymentMethodAccountCode;
       }
 
-      const acc = accountMap.get(effectiveCode);
+      let acc = accountMap.get(effectiveCode);
       if (!acc) {
-        console.log(`[AutoJournal] Account ${effectiveCode} not found in company ${companyId} chart of accounts — skipping line`);
-        continue;
+        const { STANDARD_CHART_OF_ACCOUNTS, ECOMMERCE_EXTRA_ACCOUNTS, RESTAURANT_EXTRA_ACCOUNTS } = await import("@shared/chart-of-accounts");
+        const allTemplates = [...STANDARD_CHART_OF_ACCOUNTS, ...ECOMMERCE_EXTRA_ACCOUNTS, ...RESTAURANT_EXTRA_ACCOUNTS];
+        const tpl = allTemplates.find(t => t.code === effectiveCode);
+        if (tpl) {
+          try {
+            const parentTpl = tpl.parentCode ? allTemplates.find(p => p.code === tpl.parentCode) : null;
+            if (parentTpl && !accountMap.has(parentTpl.code)) {
+              const [hdr] = await db.insert(accounts).values({
+                companyId, code: parentTpl.code, name: parentTpl.name, nameTh: parentTpl.nameTh || parentTpl.name,
+                type: parentTpl.type || "asset", parentCode: parentTpl.parentCode || null, isHeader: true, active: true, level: 1,
+              }).onConflictDoNothing().returning();
+              if (hdr) accountMap.set(hdr.code, hdr);
+            }
+            const [newAcc] = await db.insert(accounts).values({
+              companyId, code: tpl.code, name: tpl.name, nameTh: tpl.nameTh || tpl.name,
+              type: tpl.type || "asset", parentCode: tpl.parentCode || null, isHeader: tpl.code.length <= 3, active: true, level: tpl.code.length <= 3 ? 1 : 2,
+            }).onConflictDoNothing().returning();
+            if (newAcc) {
+              accountMap.set(newAcc.code, newAcc);
+              acc = newAcc;
+              console.log(`[AutoJournal] Auto-provisioned account ${effectiveCode} (${tpl.nameTh}) for company ${companyId}`);
+            }
+          } catch (provErr: any) {
+            console.log(`[AutoJournal] Failed to provision ${effectiveCode}:`, provErr.message);
+          }
+        }
+        if (!acc) {
+          console.log(`[AutoJournal] Account ${effectiveCode} not found in company ${companyId} chart of accounts — skipping line`);
+          continue;
+        }
       }
 
       let amount = 0;
@@ -541,7 +569,7 @@ async function _createAutoJournalEntryInner(params: AutoJournalParams): Promise<
           continue;
         }
         amount = expenseDebitCount > 1 ? sub / expenseDebitCount : sub;
-      } else if (code.startsWith("144") && line.direction === "credit") {
+      } else if ((code.startsWith("144") || code.startsWith("145")) && line.direction === "credit") {
         amount = grossTotal;
       } else {
         amount = sub;
