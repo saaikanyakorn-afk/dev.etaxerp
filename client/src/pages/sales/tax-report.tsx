@@ -147,8 +147,8 @@ export default function SalesTaxReport() {
       <td style="border:1px solid #ccc;padding:3px 6px">${formatDate(r.date, dateEra, dateFmt)}</td>
       <td style="border:1px solid #ccc;padding:3px 6px">${r.taxInvoiceNo}${r.isCreditNote ? " (ลดหนี้)" : ""}${r.isDebitNote ? " (เพิ่มหนี้)" : ""}</td>
       <td style="border:1px solid #ccc;padding:3px 6px">${r.customerName}</td>
-      <td style="border:1px solid #ccc;padding:3px 6px">${r.customerTaxId || ""}</td>
-      <td style="border:1px solid #ccc;padding:3px 6px;text-align:center">${r.branch || ""}</td>
+      <td style="border:1px solid #ccc;padding:3px 6px">${r.customerTaxId ? "'" + r.customerTaxId : ""}</td>
+      <td style="border:1px solid #ccc;padding:3px 6px;text-align:center">${r.branch ? "'" + r.branch : ""}</td>
       <td style="border:1px solid #ccc;padding:3px 6px;text-align:right">${fmt(r.subtotal)}</td>
       <td style="border:1px solid #ccc;padding:3px 6px;text-align:right">${fmt(r.subtotal)}</td>
       <td style="border:1px solid #ccc;padding:3px 6px;text-align:right">${fmt(r.vatAmount)}</td>

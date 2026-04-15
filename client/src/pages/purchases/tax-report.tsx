@@ -164,8 +164,8 @@ export default function PurchaseTaxReport() {
       <td style="border:1px solid #ccc;padding:3px 6px">${r.taxInvoiceRef || ""}</td>
       <td style="border:1px solid #ccc;padding:3px 6px">${r.docNo}</td>
       <td style="border:1px solid #ccc;padding:3px 6px">${r.vendorName}</td>
-      <td style="border:1px solid #ccc;padding:3px 6px">${r.vendorTaxId || ""}</td>
-      <td style="border:1px solid #ccc;padding:3px 6px;text-align:center">${r.branch || ""}</td>
+      <td style="border:1px solid #ccc;padding:3px 6px">${r.vendorTaxId ? "'" + r.vendorTaxId : ""}</td>
+      <td style="border:1px solid #ccc;padding:3px 6px;text-align:center">${r.branch ? "'" + r.branch : ""}</td>
       <td style="border:1px solid #ccc;padding:3px 6px;text-align:center">${docTypeLabel(r.docType)}</td>
       <td style="border:1px solid #ccc;padding:3px 6px;text-align:right">${fmt(r.subtotal)}</td>
       <td style="border:1px solid #ccc;padding:3px 6px;text-align:right">${fmt(r.subtotal)}</td>
