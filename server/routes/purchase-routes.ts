@@ -2377,39 +2377,41 @@ export function registerPurchaseRoutes(app: Express) {
       }
 
       const batchMap = new Map<string, number>();
-      for (const [groupKey, dateDocs] of datePrefixGroups) {
-        const [dateStr, suffix] = groupKey.split("|");
-        const dateObj = new Date(dateStr + "T00:00:00");
-        const dd = String(dateObj.getDate()).padStart(2, "0");
-        const mm = String(dateObj.getMonth() + 1).padStart(2, "0");
-        const yyyy = String(dateObj.getFullYear());
-        const batchNo = `DXP-${yyyy}${mm}${dd}-${suffix}`;
+      if (!usePerDoc) {
+        for (const [groupKey, dateDocs] of datePrefixGroups) {
+          const [dateStr, suffix] = groupKey.split("|");
+          const dateObj = new Date(dateStr + "T00:00:00");
+          const dd = String(dateObj.getDate()).padStart(2, "0");
+          const mm = String(dateObj.getMonth() + 1).padStart(2, "0");
+          const yyyy = String(dateObj.getFullYear());
+          const batchNo = `DXP-${yyyy}${mm}${dd}-${suffix}`;
 
-        const existingBatches = await db.select({ id: expenseDailyBatches.id, batchNo: expenseDailyBatches.batchNo })
-          .from(expenseDailyBatches)
-          .where(and(eq(expenseDailyBatches.companyId, companyId), eq(expenseDailyBatches.batchNo, batchNo)));
+          const existingBatches = await db.select({ id: expenseDailyBatches.id, batchNo: expenseDailyBatches.batchNo })
+            .from(expenseDailyBatches)
+            .where(and(eq(expenseDailyBatches.companyId, companyId), eq(expenseDailyBatches.batchNo, batchNo)));
 
-        if (existingBatches.length > 0) {
-          batchMap.set(groupKey, existingBatches[0].id);
-        } else {
-          const totalSub = dateDocs.reduce((s: number, d: any) => s + (Number(d.subtotal) || 0), 0);
-          const totalV = dateDocs.reduce((s: number, d: any) => s + (Number(d.vatAmount) || 0), 0);
-          const totalW = dateDocs.reduce((s: number, d: any) => s + (Number(d.withholdingTax) || 0), 0);
-          const totalA = dateDocs.reduce((s: number, d: any) => s + (Number(d.totalAmount) || 0), 0);
+          if (existingBatches.length > 0) {
+            batchMap.set(groupKey, existingBatches[0].id);
+          } else {
+            const totalSub = dateDocs.reduce((s: number, d: any) => s + (Number(d.subtotal) || 0), 0);
+            const totalV = dateDocs.reduce((s: number, d: any) => s + (Number(d.vatAmount) || 0), 0);
+            const totalW = dateDocs.reduce((s: number, d: any) => s + (Number(d.withholdingTax) || 0), 0);
+            const totalA = dateDocs.reduce((s: number, d: any) => s + (Number(d.totalAmount) || 0), 0);
 
-          const [batch] = await db.insert(expenseDailyBatches).values({
-            companyId,
-            batchNo,
-            batchDate: dateStr,
-            totalExpenses: dateDocs.length,
-            totalSubtotal: String(totalSub),
-            totalVat: String(totalV),
-            totalAmount: String(totalA),
-            totalWht: String(totalW),
-            status: "active",
-            createdBy: user.id,
-          }).returning();
-          batchMap.set(groupKey, batch.id);
+            const [batch] = await db.insert(expenseDailyBatches).values({
+              companyId,
+              batchNo,
+              batchDate: dateStr,
+              totalExpenses: dateDocs.length,
+              totalSubtotal: String(totalSub),
+              totalVat: String(totalV),
+              totalAmount: String(totalA),
+              totalWht: String(totalW),
+              status: "active",
+              createdBy: user.id,
+            }).returning();
+            batchMap.set(groupKey, batch.id);
+          }
         }
       }
 
