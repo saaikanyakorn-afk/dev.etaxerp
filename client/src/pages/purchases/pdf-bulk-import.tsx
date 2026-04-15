@@ -1225,6 +1225,63 @@ export default function PdfBulkImport() {
                   </div>
                 </div>
 
+                {(() => {
+                  const PREFIX_TYPE_INFO: Record<string, { label: string; color: string; bgColor: string; borderColor: string }> = {
+                    "TRSPEMKP": { label: "Shopee ค่าบริการ", color: "text-orange-700", bgColor: "bg-orange-50", borderColor: "border-orange-200" },
+                    "TRSPESPF": { label: "ShopeeFood", color: "text-orange-700", bgColor: "bg-orange-50", borderColor: "border-orange-200" },
+                    "TRSPXADB": { label: "SPX Admin", color: "text-orange-700", bgColor: "bg-orange-50", borderColor: "border-orange-200" },
+                    "RCSPXSPR": { label: "SPX ค่าขนส่ง", color: "text-orange-600", bgColor: "bg-orange-50", borderColor: "border-orange-200" },
+                    "RCSPXSPB": { label: "SPX ค่าขนส่ง", color: "text-orange-600", bgColor: "bg-orange-50", borderColor: "border-orange-200" },
+                    "TTSTH": { label: "TikTok ค่าบริการ", color: "text-slate-700", bgColor: "bg-slate-50", borderColor: "border-slate-200" },
+                    "TTSTHAC": { label: "TikTok Affiliate", color: "text-purple-700", bgColor: "bg-purple-50", borderColor: "border-purple-200" },
+                    "TTSTHCN": { label: "TikTok ใบลดหนี้", color: "text-emerald-700", bgColor: "bg-emerald-50", borderColor: "border-emerald-200" },
+                    "THJV": { label: "TikTok ค่าขนส่ง", color: "text-slate-600", bgColor: "bg-slate-50", borderColor: "border-slate-200" },
+                    "THMPTI": { label: "Lazada ค่าบริการ", color: "text-blue-700", bgColor: "bg-blue-50", borderColor: "border-blue-200" },
+                    "THLPTI": { label: "Lazada ค่าขนส่ง", color: "text-blue-600", bgColor: "bg-blue-50", borderColor: "border-blue-200" },
+                    "TRSLZD": { label: "Lazada ค่าบริการ", color: "text-blue-700", bgColor: "bg-blue-50", borderColor: "border-blue-200" },
+                    "IM": { label: "Grab ค่าบริการ", color: "text-green-700", bgColor: "bg-green-50", borderColor: "border-green-200" },
+                  };
+                  const prefixGroups = new Map<string, { count: number; subtotal: number; vat: number; total: number }>();
+                  for (const d of selectedDocsList) {
+                    const prefix = d.invoicePrefix || "OTHER";
+                    const g = prefixGroups.get(prefix) || { count: 0, subtotal: 0, vat: 0, total: 0 };
+                    g.count++;
+                    g.subtotal += d.subtotal || 0;
+                    g.vat += d.vatAmount || 0;
+                    g.total += (d.subtotal || 0) + (d.vatAmount || 0);
+                    prefixGroups.set(prefix, g);
+                  }
+                  if (prefixGroups.size >= 2) {
+                    return (
+                      <div className="mt-3 border rounded-lg p-3 bg-blue-50/60" data-testid="multi-type-preview">
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="text-sm font-semibold text-gray-700">📋 สรุปแยกตามประเภทเอกสาร ({prefixGroups.size} ประเภท)</span>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                          {Array.from(prefixGroups.entries()).map(([prefix, g]) => {
+                            const info = PREFIX_TYPE_INFO[prefix] || { label: prefix, color: "text-gray-700", bgColor: "bg-gray-50", borderColor: "border-gray-200" };
+                            return (
+                              <div key={prefix} className={`rounded-lg border p-2.5 ${info.bgColor} ${info.borderColor}`} data-testid={`type-summary-${prefix}`}>
+                                <div className="flex items-center justify-between mb-1">
+                                  <span className={`text-sm font-semibold ${info.color}`}>{info.label}</span>
+                                  <span className="text-xs bg-white/80 rounded-full px-2 py-0.5 font-medium">{g.count} ใบ</span>
+                                </div>
+                                <div className="flex items-center gap-3 text-xs text-gray-600">
+                                  <span>ยอด: <span className="font-medium">{fmt(g.subtotal)}</span></span>
+                                  {g.vat > 0 && <span>VAT: <span className="font-medium">{fmt(g.vat)}</span></span>}
+                                  <span>รวม: <span className="font-bold">{fmt(g.total)}</span></span>
+                                </div>
+                                <div className="mt-1 text-[10px] text-gray-400 font-mono">prefix: {prefix}</div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
+
                 {autoJournal && filteredExpFormulas.length > 0 && (() => {
                   const platformSet = new Set(selectedDocsList.map(d => `${d.platform || "other"}:${d.docSubType || "mixed"}`));
                   const hasPlatformDocs = selectedDocsList.some(d => d.platform && d.platform !== "other");
