@@ -266,7 +266,7 @@ export async function createAutoJournalEntry(params: AutoJournalParams): Promise
       const isConnTimeout = err.message?.includes("timeout") && err.message?.includes("connect");
       if (isConnTimeout && attempt < 3) {
         console.warn(`[AutoJournal] Connection timeout, retry ${attempt}/3...`);
-        await new Promise(r => setTimeout(r, 500 * attempt));
+        await new Promise(r => setTimeout(r, 1000 * attempt));
         continue;
       }
       throw err;

@@ -2859,7 +2859,9 @@ export function registerPurchaseRoutes(app: Express) {
           return Object.keys(map).length >= 2 ? map : null;
         };
 
-        for (const { result, doc, validItems } of pendingJournals) {
+        for (let pji = 0; pji < pendingJournals.length; pji++) {
+          const { result, doc, validItems } = pendingJournals[pji];
+          if (pji > 0) await new Promise(r => setTimeout(r, 100));
           try {
             const resolvedBt = doc.resolvedFormulaBt || (formulaBusinessType && formulaBusinessType !== "auto-detect" ? formulaBusinessType : null) || "platform_fee";
 
