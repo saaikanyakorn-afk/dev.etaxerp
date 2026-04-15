@@ -24,8 +24,10 @@ import {
   purchaseDebitNotes, purchaseDebitNoteItems,
 } from "@shared/schema";
 import { requireAuth, requireModule, requireRole } from "../route-middleware";
-import { logActivity, deleteJournalEntriesForDoc, deleteStockMovementsForDoc } from "../route-helpers";
+import { logActivity, deleteJournalEntriesForDoc, deleteStockMovementsForDoc, createAutoJournalEntry, getNextJournalEntryNo } from "../route-helpers";
 import { deleteFromPath } from "../replit_integrations/object_storage/routes";
+import { accounts } from "@shared/schema";
+import { DEFAULT_FORMULAS } from "@shared/accounting-formulas";
 
 export function registerImportBatchRoutes(app: Express) {
 
@@ -378,6 +380,109 @@ export function registerImportBatchRoutes(app: Express) {
       res.json({ deletedDocs, deletedJournals, batchId, deactivated: skippedNames.length, deactivatedNames: skippedNames });
     } catch (err: any) {
       console.error("[import-batch-delete] Error:", err.message);
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/import-batches/:id/retry-journal", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const batchId = Number(req.params.id);
+      const [batch] = await db.select().from(documentImportBatches).where(eq(documentImportBatches.id, batchId));
+      if (!batch) return res.status(404).json({ message: "ไม่พบล็อตนำเข้า" });
+
+      const companyId = batch.companyId;
+      let docIds: number[] = [];
+      try { docIds = batch.createdDocIds ? JSON.parse(batch.createdDocIds) : []; } catch {}
+      if (docIds.length === 0) return res.json({ created: 0, skipped: 0 });
+
+      const expList = await db.select().from(expenses)
+        .where(and(eq(expenses.companyId, companyId), inArray(expenses.id, docIds)));
+
+      const existingJournals = await db.select({ sourceDocId: journalEntries.sourceDocId })
+        .from(journalEntries)
+        .where(and(
+          eq(journalEntries.companyId, companyId),
+          eq(journalEntries.sourceDocType, "expense"),
+          inArray(journalEntries.sourceDocId, docIds),
+        ));
+      const hasJournal = new Set(existingJournals.map(j => j.sourceDocId));
+
+      const needJournal = expList.filter(e => !hasJournal.has(e.id));
+      if (needJournal.length === 0) return res.json({ created: 0, skipped: expList.length, message: "ทุกเอกสารมี journal แล้ว" });
+
+      const PREFIX_FORMULA_MAP: Record<string, string> = {
+        "TRSPEMKP": "shopee_platform_fee",
+        "TRSPXADB": "spx_admin_fee",
+        "TTSTH": "tiktok_platform_fee",
+        "THMPTI": "lazada_platform_fee",
+        "THLPTI": "lazada_shipping",
+        "TRSPESPF": "shopeefood_service_fee",
+        "RCSPXSPR": "spx_shipping",
+        "RCSPXSPB": "spx_shipping",
+        "THJV": "tiktok_shipping",
+        "IM": "grab_service_fee",
+      };
+
+      let created = 0;
+      let skipped = 0;
+      for (let i = 0; i < needJournal.length; i++) {
+        const exp = needJournal[i];
+        if (i > 0) await new Promise(r => setTimeout(r, 100));
+        try {
+          const prefix = exp.docPrefix || "";
+          const bt = PREFIX_FORMULA_MAP[prefix] || "platform_fee";
+
+          const items = await db.select().from(expenseItems).where(eq(expenseItems.expenseId, exp.id));
+          const sub = parseFloat(String(exp.subtotal || "0"));
+          const vat = parseFloat(String(exp.vatAmount || "0"));
+          const total = parseFloat(String(exp.totalAmount || "0"));
+          const wht = parseFloat(String(exp.withholdingTax || "0"));
+
+          let lineItemAccounts: { accountCode: string; accountName: string; amount: number }[] | undefined;
+          if (items.length > 0) {
+            lineItemAccounts = items
+              .filter(it => parseFloat(String(it.amount || "0")) > 0)
+              .map(it => ({
+                accountCode: it.accountCode || "",
+                accountName: it.accountName || it.description || "",
+                amount: parseFloat(String(it.amount || "0")),
+              }));
+          }
+
+          const result = await createAutoJournalEntry({
+            companyId,
+            documentType: "expense",
+            sourceDocType: "expense",
+            sourceDocId: exp.id,
+            docDate: exp.expDate,
+            docNo: exp.expNo,
+            subtotal: sub.toFixed(2),
+            vatAmount: vat.toFixed(2),
+            totalAmount: total.toFixed(2),
+            withholdingTax: wht.toFixed(2),
+            userId: user.id,
+            customerName: exp.vendorName || "ค่าบริการ",
+            formulaBusinessType: bt,
+            lineItemAccounts,
+          });
+          if (result && !result.skipped) {
+            await db.update(expenses).set({ linkJournal: true }).where(eq(expenses.id, exp.id));
+            created++;
+            console.log(`[retry-journal] ${exp.expNo} → journal created (${bt})`);
+          } else {
+            skipped++;
+            console.log(`[retry-journal] ${exp.expNo} → skipped: ${result?.reason}`);
+          }
+        } catch (e: any) {
+          skipped++;
+          console.log(`[retry-journal] ${exp.expNo} → error: ${e.message}`);
+        }
+      }
+
+      res.json({ created, skipped, total: needJournal.length });
+    } catch (err: any) {
+      console.error("[retry-journal] Error:", err.message);
       res.status(500).json({ message: err.message });
     }
   });

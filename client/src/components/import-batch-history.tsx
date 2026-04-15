@@ -4,7 +4,7 @@ import { useCompany } from "@/lib/company-context";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { History, Trash2, Loader2, ChevronDown, ChevronUp, AlertTriangle } from "lucide-react";
+import { History, Trash2, Loader2, ChevronDown, ChevronUp, AlertTriangle, BookOpen } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -59,6 +59,40 @@ export default function ImportBatchHistory({ docType, invalidateKeys }: ImportBa
   });
 
   const activeBatches = batches.filter((b: any) => b.status === "active");
+
+  const [retryingId, setRetryingId] = useState<number | null>(null);
+
+  const retryJournalMutation = useMutation({
+    mutationFn: async (batchId: number) => {
+      setRetryingId(batchId);
+      const res = await fetch(`/api/import-batches/${batchId}/retry-journal`, {
+        method: "POST",
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message || "สร้างบัญชีล้มเหลว");
+      }
+      return res.json();
+    },
+    onSuccess: (data) => {
+      setRetryingId(null);
+      queryClient.invalidateQueries({ queryKey: ["import-batches"] });
+      if (invalidateKeys) {
+        for (const key of invalidateKeys) {
+          queryClient.invalidateQueries({ queryKey: key });
+        }
+      }
+      toast({
+        title: "สร้างบัญชีสำเร็จ",
+        description: `สร้าง ${data.created} รายการ${data.skipped > 0 ? ` (ข้าม ${data.skipped})` : ""}${data.message ? ` — ${data.message}` : ""}`,
+      });
+    },
+    onError: (err: any) => {
+      setRetryingId(null);
+      toast({ title: "เกิดข้อผิดพลาด", description: err.message, variant: "destructive" });
+    },
+  });
 
   const deleteMutation = useMutation({
     mutationFn: async (batchId: number) => {
@@ -139,15 +173,33 @@ export default function ImportBatchHistory({ docType, invalidateKeys }: ImportBa
                     </div>
                     <p className="text-xs text-muted-foreground">{formatDateTh(batch.createdAt)}</p>
                   </div>
-                  <Button
-                    data-testid={`btn-delete-batch-${batch.id}`}
-                    variant="outline"
-                    size="sm"
-                    className="text-red-600 border-red-200 hover:bg-red-50 h-8 text-xs shrink-0 ml-2"
-                    onClick={() => setDeleteId(batch.id)}
-                  >
-                    <Trash2 className="h-3.5 w-3.5 mr-1" /> ยกเลิกการนำเข้า
-                  </Button>
+                  <div className="flex gap-1 shrink-0 ml-2">
+                    {docType === "expense" && (
+                      <Button
+                        data-testid={`btn-retry-journal-${batch.id}`}
+                        variant="outline"
+                        size="sm"
+                        className="text-blue-600 border-blue-200 hover:bg-blue-50 h-8 text-xs"
+                        onClick={() => retryJournalMutation.mutate(batch.id)}
+                        disabled={retryingId === batch.id}
+                      >
+                        {retryingId === batch.id ? (
+                          <><Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> กำลังสร้าง...</>
+                        ) : (
+                          <><BookOpen className="h-3.5 w-3.5 mr-1" /> ลงบัญชีใหม่</>
+                        )}
+                      </Button>
+                    )}
+                    <Button
+                      data-testid={`btn-delete-batch-${batch.id}`}
+                      variant="outline"
+                      size="sm"
+                      className="text-red-600 border-red-200 hover:bg-red-50 h-8 text-xs"
+                      onClick={() => setDeleteId(batch.id)}
+                    >
+                      <Trash2 className="h-3.5 w-3.5 mr-1" /> ยกเลิก
+                    </Button>
+                  </div>
                 </div>
               ))}
             </div>
