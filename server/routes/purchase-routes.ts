@@ -2329,11 +2329,13 @@ export function registerPurchaseRoutes(app: Express) {
         return res.status(400).json({ message: "ข้อมูลไม่ถูกต้อง" });
       }
 
-      const [companyAccounts, existingContacts] = await Promise.all([
+      const [companyAccounts, existingContacts, companyInfo] = await Promise.all([
         db.select().from(accounts).where(eq(accounts.companyId, companyId)),
         db.select().from(contacts).where(and(eq(contacts.companyId, companyId), eq(contacts.active, true), or(eq(contacts.type, "vendor"), eq(contacts.type, "both")))),
+        db.select({ businessType: companies.businessType }).from(companies).where(eq(companies.id, companyId)).limit(1),
       ]);
       const accountMap = new Map(companyAccounts.map(a => [a.code, a]));
+      const isRestaurant = companyInfo[0]?.businessType === "restaurant";
 
       const contactByTaxId = new Map<string, any>();
       const contactByName = new Map<string, any>();
@@ -2423,6 +2425,31 @@ export function registerPurchaseRoutes(app: Express) {
         }
       }
 
+      const RESTAURANT_PLATFORM_FORMULA_MAP: Record<string, string> = {
+        "grab:service_fee": "restaurant_grab_gp",
+        "grab:platform_fee": "restaurant_grab_gp",
+        "grab:commission": "restaurant_grab_gp",
+        "grab:mixed": "restaurant_grab_gp",
+        "lineman:service_fee": "restaurant_lineman_gp",
+        "lineman:platform_fee": "restaurant_lineman_gp",
+        "lineman:commission": "restaurant_lineman_gp",
+        "lineman:mixed": "restaurant_lineman_gp",
+        "foodpanda:service_fee": "restaurant_foodpanda_gp",
+        "foodpanda:platform_fee": "restaurant_foodpanda_gp",
+        "foodpanda:commission": "restaurant_foodpanda_gp",
+        "foodpanda:mixed": "restaurant_foodpanda_gp",
+        "robinhood:service_fee": "restaurant_robinhood_gp",
+        "robinhood:platform_fee": "restaurant_robinhood_gp",
+        "robinhood:commission": "restaurant_robinhood_gp",
+        "robinhood:mixed": "restaurant_robinhood_gp",
+        "shopee:service_fee": "restaurant_shopeefood_gp",
+        "other:mixed": "platform_fee",
+      };
+
+      const RESTAURANT_PREFIX_FORMULA_MAP: Record<string, string> = {
+        "IM": "restaurant_grab_gp",
+      };
+
       const PLATFORM_FORMULA_MAP: Record<string, string> = {
         "shopee:platform_fee": "shopee_platform_fee",
         "shopee:shipping": "shopee_shipping",
@@ -2464,6 +2491,15 @@ export function registerPurchaseRoutes(app: Express) {
       };
 
       function resolveFormulaForDoc(doc: any): string | null {
+        if (isRestaurant) {
+          if (doc.invoicePrefix && RESTAURANT_PREFIX_FORMULA_MAP[doc.invoicePrefix]) {
+            return RESTAURANT_PREFIX_FORMULA_MAP[doc.invoicePrefix];
+          }
+          const rKey = `${doc.platform || "other"}:${doc.docSubType || "mixed"}`;
+          if (RESTAURANT_PLATFORM_FORMULA_MAP[rKey]) {
+            return RESTAURANT_PLATFORM_FORMULA_MAP[rKey];
+          }
+        }
         if (doc.invoicePrefix && PREFIX_FORMULA_MAP[doc.invoicePrefix]) {
           return PREFIX_FORMULA_MAP[doc.invoicePrefix];
         }

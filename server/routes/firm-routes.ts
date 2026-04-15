@@ -1118,7 +1118,7 @@ const FIRM_IMPORT_COL_MAP: Record<string, string> = {
 };
 
 async function createFirmClientFromRow(mapped: any, user: any, firmCompanyId: number) {
-  const template = ["standard", "ecommerce", "service", "trading", "none"].includes(mapped.chartTemplate)
+  const template = ["standard", "ecommerce", "service", "trading", "restaurant", "gas_station", "accounting_firm", "none"].includes(mapped.chartTemplate)
     ? mapped.chartTemplate : "none";
   const businessType = CHART_TO_BUSINESS_TYPE[template] || "mixed";
 
@@ -1297,14 +1297,14 @@ app.post("/api/firm-clients/import", requireAuth, requireModule("firm-mgmt"), up
               taxId: mapped.taxId || null, address: mapped.address || null, addressEn: mapped.addressEn || null,
               addressZh: mapped.addressZh || null, phone: mapped.phone || null, industry: null, active: true,
               businessType: CHART_TO_BUSINESS_TYPE[
-                ["standard", "ecommerce", "service", "trading", "none"].includes(mapped.chartTemplate) ? mapped.chartTemplate : "none"
+                ["standard", "ecommerce", "service", "trading", "restaurant", "gas_station", "accounting_firm", "none"].includes(mapped.chartTemplate) ? mapped.chartTemplate : "none"
               ] || "mixed",
               tenantId: user.tenantId || null,
             }))
           ).returning();
 
           const fcValues = batch.map(({ mapped }, idx) => {
-            const template = ["standard", "ecommerce", "service", "trading", "none"].includes(mapped.chartTemplate)
+            const template = ["standard", "ecommerce", "service", "trading", "restaurant", "gas_station", "accounting_firm", "none"].includes(mapped.chartTemplate)
               ? mapped.chartTemplate : "none";
             return {
               name: mapped.name, nameEn: mapped.nameEn || null, nameZh: mapped.nameZh || null,

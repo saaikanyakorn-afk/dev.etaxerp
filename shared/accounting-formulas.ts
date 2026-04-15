@@ -11,10 +11,11 @@ export const BUSINESS_TYPES = [
   { key: "service", label: "ธุรกิจบริการ", description: "ให้บริการ เช่น ที่ปรึกษา ซ่อมบำรุง โฆษณา" },
   { key: "trading", label: "ธุรกิจซื้อมาขายไป", description: "ซื้อสินค้ามาขาย ค้าปลีก ค้าส่ง" },
   { key: "ecommerce", label: "ธุรกิจ E-Commerce", description: "ขายออนไลน์ Shopee/Lazada/TikTok Shop" },
+  { key: "restaurant", label: "ธุรกิจร้านอาหาร", description: "ร้านอาหาร/เครื่องดื่ม ขายผ่าน Grab/LINE MAN/foodpanda/Robinhood" },
   { key: "mixed", label: "ธุรกิจผสม", description: "ทั้งบริการและขายสินค้า" },
 ] as const;
 
-export type BusinessType = "accounting" | "service" | "trading" | "ecommerce" | "mixed";
+export type BusinessType = "accounting" | "service" | "trading" | "ecommerce" | "restaurant" | "mixed";
 
 export const CHART_TO_BUSINESS_TYPE: Record<string, BusinessType> = {
   standard: "mixed",
@@ -22,6 +23,8 @@ export const CHART_TO_BUSINESS_TYPE: Record<string, BusinessType> = {
   service: "service",
   accounting: "accounting",
   trading: "trading",
+  restaurant: "restaurant",
+  gas_station: "mixed",
   none: "mixed",
 };
 
