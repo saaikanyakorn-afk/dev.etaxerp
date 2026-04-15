@@ -168,44 +168,59 @@ export function registerImportBatchRoutes(app: Express) {
             }
 
             console.log(`[import-batch-delete] Step 6: handling DXP batches...`);
-            const affectedBatchIds = [...new Set(expRows.map((e: any) => e.batch_id).filter(Boolean))] as number[];
+            const batchIdsFromExpenses = [...new Set(expRows.map((e: any) => e.batch_id).filter(Boolean))] as number[];
+            const allDxpResult = await tx.execute(sql`
+              SELECT DISTINCT edb.id FROM expense_daily_batches edb
+              WHERE edb.company_id = ${batch.companyId}
+                AND (
+                  edb.id = ANY(${sql.raw(`ARRAY[${batchIdsFromExpenses.length > 0 ? batchIdsFromExpenses.join(',') : '0'}]::int[]`)})
+                  OR edb.id IN (
+                    SELECT DISTINCT pdn.batch_id FROM purchase_debit_notes pdn 
+                    WHERE pdn.company_id = ${batch.companyId} 
+                      AND pdn.ref_expense_id = ANY(${pgDocIds})
+                  )
+                )
+            `);
+            const affectedBatchIds = (allDxpResult.rows as any[]).map((r: any) => r.id) as number[];
+            console.log(`[import-batch-delete] Found ${affectedBatchIds.length} DXP batches to process (from expenses: ${batchIdsFromExpenses.length})`);
+
             for (const dxpId of affectedBatchIds) {
-              const remResult = await tx.execute(sql`SELECT id FROM expenses WHERE batch_id = ${dxpId}`);
-              const remaining = remResult.rows as any[];
               const dxpBatchResult = await tx.execute(sql`SELECT * FROM expense_daily_batches WHERE id = ${dxpId}`);
               const dxpBatch = (dxpBatchResult.rows as any[])[0];
-              if (dxpBatch) {
-                const dxpNo = dxpBatch.batch_no;
-                const dxpJResult = await tx.execute(sql`
-                  SELECT id FROM journal_entries 
-                  WHERE company_id = ${batch.companyId} 
-                    AND (
-                      (source_doc_type = 'expense_daily_batch' AND (source_doc_id = ${dxpId} OR reference = ${dxpNo} OR reference LIKE ${dxpNo + '-%'}))
-                      OR (source_doc_type = 'purchase_debit_note' AND reference = ${dxpNo})
-                    )
-                `);
-                const djIds = (dxpJResult.rows as any[]).map((dj: any) => dj.id);
-                if (djIds.length > 0) {
-                  const djIdsList = djIds.join(",");
-                  try { await tx.execute(sql.raw(`UPDATE bank_statements SET matched_journal_id = NULL WHERE matched_journal_id IN (${djIdsList})`)); } catch {}
-                  const pgDjIds = sql.raw(`ARRAY[${djIds.join(',')}]::int[]`);
-                  await tx.execute(sql`DELETE FROM journal_lines WHERE journal_entry_id = ANY(${pgDjIds})`);
-                  await tx.execute(sql`DELETE FROM journal_entries WHERE id = ANY(${pgDjIds})`);
-                  deletedJournals += djIds.length;
-                  console.log(`[import-batch-delete] Deleted ${djIds.length} DXP+DN journals for batch ${dxpNo}`);
-                }
+              if (!dxpBatch) continue;
+              const dxpNo = dxpBatch.batch_no;
+
+              const dxpJResult = await tx.execute(sql`
+                SELECT id FROM journal_entries 
+                WHERE company_id = ${batch.companyId} 
+                  AND (
+                    (source_doc_type = 'expense_daily_batch' AND (source_doc_id = ${dxpId} OR reference = ${dxpNo} OR reference LIKE ${dxpNo + '-%'}))
+                    OR (source_doc_type = 'purchase_debit_note' AND reference = ${dxpNo})
+                  )
+              `);
+              const djIds = (dxpJResult.rows as any[]).map((dj: any) => dj.id);
+              if (djIds.length > 0) {
+                const djIdsList = djIds.join(",");
+                try { await tx.execute(sql.raw(`UPDATE bank_statements SET matched_journal_id = NULL WHERE matched_journal_id IN (${djIdsList})`)); } catch {}
+                const pgDjIds = sql.raw(`ARRAY[${djIds.join(',')}]::int[]`);
+                await tx.execute(sql`DELETE FROM journal_lines WHERE journal_entry_id = ANY(${pgDjIds})`);
+                await tx.execute(sql`DELETE FROM journal_entries WHERE id = ANY(${pgDjIds})`);
+                deletedJournals += djIds.length;
               }
+
               const dnResult = await tx.execute(sql`SELECT id FROM purchase_debit_notes WHERE batch_id = ${dxpId}`);
               const dnIds = (dnResult.rows as any[]).map((d: any) => d.id);
               if (dnIds.length > 0) {
                 const pgDnIds = sql.raw(`ARRAY[${dnIds.join(',')}]::int[]`);
                 await tx.execute(sql`DELETE FROM purchase_debit_note_items WHERE debit_note_id = ANY(${pgDnIds})`);
                 await tx.execute(sql`DELETE FROM purchase_debit_notes WHERE id = ANY(${pgDnIds})`);
-                console.log(`[import-batch-delete] Deleted ${dnIds.length} purchase_debit_notes for DXP batch ${dxpId}`);
               }
+
+              const remResult = await tx.execute(sql`SELECT id FROM expenses WHERE batch_id = ${dxpId}`);
+              const remaining = remResult.rows as any[];
               if (remaining.length === 0) {
                 await tx.execute(sql`DELETE FROM expense_daily_batches WHERE id = ${dxpId}`);
-                console.log(`[import-batch-delete] DXP batch ${dxpId} fully removed`);
+                console.log(`[import-batch-delete] DXP batch ${dxpId} (${dxpNo}) fully removed with ${dnIds.length} DNs, ${djIds.length} journals`);
               } else {
                 const sums = await tx.execute(sql`
                   SELECT COALESCE(SUM(total_amount::numeric),0) as total,
@@ -221,7 +236,7 @@ export function registerImportBatchRoutes(app: Express) {
                   totalWht: String(row.wht),
                   totalExpenses: Number(row.cnt),
                 }).where(eq(expenseDailyBatches.id, dxpId));
-                console.log(`[import-batch-delete] DXP batch ${dxpId} updated: ${row.cnt} left. Journal deleted.`);
+                console.log(`[import-batch-delete] DXP batch ${dxpId} (${dxpNo}) updated: ${row.cnt} expenses left, ${dnIds.length} DNs + ${djIds.length} journals deleted`);
               }
             }
             console.log(`[import-batch-delete] Done: deleted=${deletedDocs}, journals=${deletedJournals}`);

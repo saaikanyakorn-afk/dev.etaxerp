@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { db } from "../db";
 import { storage } from "../storage";
 import { eq, and, desc, or, sql, count, not } from "drizzle-orm";
-import { expenses, expenseItems, withholdingTaxCerts, whtCertItems, companies, accounts, contacts, journalEntries, journalLines, purchaseInvoices, ftpArchiveItems, documentImportBatches } from "@shared/schema";
+import { expenses, expenseItems, withholdingTaxCerts, whtCertItems, companies, accounts, contacts, journalEntries, journalLines, purchaseInvoices, ftpArchiveItems, documentImportBatches, purchaseDebitNotes, purchaseDebitNoteItems, expenseDailyBatches } from "@shared/schema";
 import { requireAuth, requireModule, checkDocOwnership } from "../route-middleware";
 import { getNextDocNo, validateDocNo, getNextJournalEntryNo, resolvePaymentMethodAccountCode, checkDocumentLimit, deleteJournalEntriesForDoc, logActivity } from "../route-helpers";
 import { parsePagination, paginatedResponse } from "./pagination";
@@ -28,6 +28,46 @@ function isAllowedRedirectUrl(url: string): boolean {
     return allowedOrigins.includes(parsed.origin);
   } catch {
     return false;
+  }
+}
+
+async function cleanupDxpBatchAfterExpenseDelete(tx: any, expenseId: number, batchId: number | null, companyId: number) {
+  if (!batchId) return;
+  const linkedDns = await tx.execute(sql`SELECT id FROM purchase_debit_notes WHERE ref_expense_id = ${expenseId}`);
+  const dnIds = (linkedDns.rows as any[]).map((d: any) => d.id);
+  if (dnIds.length > 0) {
+    const pgDnIds = sql.raw(`ARRAY[${dnIds.join(',')}]::int[]`);
+    await tx.execute(sql`DELETE FROM purchase_debit_note_items WHERE debit_note_id = ANY(${pgDnIds})`);
+    await deleteJournalEntriesForDoc(tx, "purchase_debit_note", dnIds[0]);
+    for (const dnId of dnIds.slice(1)) { await deleteJournalEntriesForDoc(tx, "purchase_debit_note", dnId); }
+    await tx.execute(sql`DELETE FROM purchase_debit_notes WHERE id = ANY(${pgDnIds})`);
+  }
+  const remaining = await tx.execute(sql`SELECT id FROM expenses WHERE batch_id = ${batchId} LIMIT 1`);
+  const remainingDns = await tx.execute(sql`SELECT id FROM purchase_debit_notes WHERE batch_id = ${batchId} LIMIT 1`);
+  if ((remaining.rows as any[]).length === 0 && (remainingDns.rows as any[]).length === 0) {
+    await deleteJournalEntriesForDoc(tx, "expense_daily_batch", batchId);
+    const dxpBatchResult = await tx.execute(sql`SELECT batch_no FROM expense_daily_batches WHERE id = ${batchId}`);
+    const dxpBatch = (dxpBatchResult.rows as any[])[0];
+    if (dxpBatch) {
+      const dxpNo = dxpBatch.batch_no;
+      const dnJournals = await tx.execute(sql`SELECT id FROM journal_entries WHERE company_id = ${companyId} AND source_doc_type = 'purchase_debit_note' AND reference = ${dxpNo}`);
+      const dnJIds = (dnJournals.rows as any[]).map((j: any) => j.id);
+      if (dnJIds.length > 0) {
+        const pgDnJIds = sql.raw(`ARRAY[${dnJIds.join(',')}]::int[]`);
+        try { await tx.execute(sql.raw(`UPDATE bank_statements SET matched_journal_id = NULL WHERE matched_journal_id IN (${dnJIds.join(',')})`)); } catch {}
+        await tx.execute(sql`DELETE FROM journal_lines WHERE journal_entry_id = ANY(${pgDnJIds})`);
+        await tx.execute(sql`DELETE FROM journal_entries WHERE id = ANY(${pgDnJIds})`);
+      }
+    }
+    await tx.execute(sql`DELETE FROM expense_daily_batches WHERE id = ${batchId}`);
+  } else if ((remaining.rows as any[]).length > 0) {
+    const sums = await tx.execute(sql`
+      SELECT COALESCE(SUM(total_amount::numeric),0) as total, COALESCE(SUM(vat_amount::numeric),0) as vat,
+             COALESCE(SUM(withholding_tax::numeric),0) as wht, COUNT(*) as cnt
+      FROM expenses WHERE batch_id = ${batchId}
+    `);
+    const row = (sums.rows as any[])[0];
+    await tx.execute(sql`UPDATE expense_daily_batches SET total_amount = ${String(row.total)}, total_vat = ${String(row.vat)}, total_wht = ${String(row.wht)}, total_expenses = ${Number(row.cnt)} WHERE id = ${batchId}`);
   }
 }
 
@@ -641,6 +681,7 @@ export function registerExpenseRoutes(app: Express) {
       const [existing] = await db.select().from(expenses).where(eq(expenses.id, Number(req.params.id)));
       if (!existing) return res.status(404).json({ message: "ไม่พบใบค่าใช้จ่าย" });
       { const ac = await checkDocOwnership(existing.companyId, req.user); if (!ac.allowed) return res.status(403).json({ message: ac.message }); }
+      const savedBatchId = existing.batchId;
       await db.transaction(async (tx) => {
         await deleteJournalEntriesForDoc(tx, "expense", existing.id);
         const linkedWhts = await tx.select({ id: withholdingTaxCerts.id }).from(withholdingTaxCerts).where(and(eq(withholdingTaxCerts.sourceDocType, "expense"), eq(withholdingTaxCerts.sourceDocId, existing.id)));
@@ -653,6 +694,7 @@ export function registerExpenseRoutes(app: Express) {
         }
         await tx.delete(expenseItems).where(eq(expenseItems.expenseId, existing.id));
         await tx.delete(expenses).where(eq(expenses.id, existing.id));
+        await cleanupDxpBatchAfterExpenseDelete(tx, existing.id, savedBatchId, existing.companyId);
       });
       const user = req.user as any;
       logActivity({ companyId: existing.companyId, userId: user.id, userName: user.username, action: "delete", entityType: "expense", entityId: String(existing.id), entityName: existing.expNo }).catch(() => {});
@@ -675,10 +717,20 @@ export function registerExpenseRoutes(app: Express) {
         try {
           const [existing] = await db.select().from(expenses).where(eq(expenses.id, Number(id)));
           if (!existing) { errors.push({ id, error: "ไม่พบเอกสาร" }); continue; }
+          const savedBatchId = existing.batchId;
           await db.transaction(async (tx) => {
             await deleteJournalEntriesForDoc(tx, "expense", existing.id);
+            const linkedWhts = await tx.select({ id: withholdingTaxCerts.id }).from(withholdingTaxCerts).where(and(eq(withholdingTaxCerts.sourceDocType, "expense"), eq(withholdingTaxCerts.sourceDocId, existing.id)));
+            for (const w of linkedWhts) {
+              await deleteJournalEntriesForDoc(tx, "wht_cert", w.id);
+              await tx.delete(whtCertItems).where(eq(whtCertItems.whtCertId, w.id));
+            }
+            if (linkedWhts.length > 0) {
+              await tx.delete(withholdingTaxCerts).where(and(eq(withholdingTaxCerts.sourceDocType, "expense"), eq(withholdingTaxCerts.sourceDocId, existing.id)));
+            }
             await tx.delete(expenseItems).where(eq(expenseItems.expenseId, existing.id));
             await tx.delete(expenses).where(eq(expenses.id, existing.id));
+            await cleanupDxpBatchAfterExpenseDelete(tx, existing.id, savedBatchId, existing.companyId);
           });
           deleted++;
         } catch (err: any) {
