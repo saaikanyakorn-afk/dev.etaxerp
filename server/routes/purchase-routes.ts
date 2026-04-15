@@ -2320,8 +2320,9 @@ export function registerPurchaseRoutes(app: Express) {
   app.post("/api/pdf-import/create-expense", requireAuth, requireModule("purchases"), async (req, res) => {
     try {
       const user = req.user as any;
-      const { companyId, documents, autoJournal, autoWht, paymentMethod: reqPaymentMethod, formulaId, formulaBusinessType, archiveToDocs } = req.body;
-      console.log(`[PDF-Import] create-expense: companyId=${companyId}, autoJournal=${autoJournal}, formulaId=${formulaId}, formulaBusinessType=${formulaBusinessType}, docs=${documents?.length}`);
+      const { companyId, documents, autoJournal, autoWht, autoCreateContact, paymentMethod: reqPaymentMethod, formulaId, formulaBusinessType, archiveToDocs } = req.body;
+      const shouldCreateContact = autoCreateContact !== false;
+      console.log(`[PDF-Import] create-expense: companyId=${companyId}, autoJournal=${autoJournal}, autoCreateContact=${shouldCreateContact}, formulaId=${formulaId}, formulaBusinessType=${formulaBusinessType}, docs=${documents?.length}`);
       if (!companyId || !documents || !Array.isArray(documents)) {
         return res.status(400).json({ message: "ข้อมูลไม่ถูกต้อง" });
       }
@@ -2693,7 +2694,7 @@ export function registerPurchaseRoutes(app: Express) {
                 if (!existingContact && doc.vendorName) {
                   existingContact = contactByName.get(doc.vendorName.toLowerCase()) || null;
                 }
-                if (!existingContact) {
+                if (!existingContact && shouldCreateContact) {
                   try {
                     const nextCode = await storage.getNextContactCode(companyId);
                     const [newContact] = await db.insert(contacts).values({
@@ -2718,7 +2719,7 @@ export function registerPurchaseRoutes(app: Express) {
                       contactByName.set((fallback[0].name || "").toLowerCase(), fallback[0]);
                     }
                   }
-                } else {
+                } else if (existingContact) {
                   resolvedVendorId = existingContact.id;
                 }
                 if (resolvedVendorId) vendorCache.set(cacheKey, resolvedVendorId);

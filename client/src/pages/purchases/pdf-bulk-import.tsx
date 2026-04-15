@@ -168,6 +168,7 @@ export default function PdfBulkImport() {
   const [expandedDocs, setExpandedDocs] = useState<Set<string>>(new Set());
   const [docType, setDocType] = useState<"purchase" | "expense">("expense");
   const [autoJournal, setAutoJournal] = useState(true);
+  const [autoCreateContact, setAutoCreateContact] = useState(true);
   const [paymentMethod, setPaymentMethod] = useState("transfer");
   const [globalWhtRate, setGlobalWhtRate] = useState("0");
   const [showJournalPreview, setShowJournalPreview] = useState(false);
@@ -411,6 +412,7 @@ export default function PdfBulkImport() {
           companyId,
           documents: mappedDocs,
           autoJournal,
+          autoCreateContact,
           autoWht: docType === "expense" && whtRate > 0,
           paymentMethod,
           formulaId: autoJournal && selectedFormulaIdx !== "auto-detect" && selectedFormula?.id ? selectedFormula.id : undefined,
@@ -1151,6 +1153,16 @@ export default function PdfBulkImport() {
                     />
                     <label htmlFor="autoJournal" className="text-sm font-medium cursor-pointer">
                       บันทึกบัญชีอัตโนมัติ (สร้าง Journal Entry พร้อมกัน)
+                    </label>
+                    <span className="text-slate-300">|</span>
+                    <Checkbox
+                      id="autoCreateContact"
+                      checked={autoCreateContact}
+                      onCheckedChange={(v) => setAutoCreateContact(!!v)}
+                      data-testid="check-auto-create-contact"
+                    />
+                    <label htmlFor="autoCreateContact" className="text-sm font-medium cursor-pointer">
+                      สร้างประวัติคู่ค้าอัตโนมัติ
                     </label>
                     {autoJournal && (
                       <Button variant="outline" size="sm" onClick={() => setShowJournalPreview(!showJournalPreview)} data-testid="button-journal-preview" className="text-xs">
