@@ -717,11 +717,12 @@ export const DEFAULT_FORMULAS: DefaultFormulaTemplate[] = [
     businessType: "ecommerce",
     name: "Shopee Settlement",
     nameTh: "Settlement จาก Shopee",
-    description: "บันทึกการรับเงินจาก Shopee พร้อมหักค่าธรรมเนียม",
+    description: "บันทึกการรับเงินจาก Shopee — ค่าธรรมเนียมลงรับรู้ล่วงหน้า (รอเอกสารจริง)",
     lines: [
       { accountCode: "1041000", accountName: "เงินฝาก Shopee Wallet", direction: "debit", sortOrder: 1 },
-      { accountCode: "5241000", accountName: "ค่าคอมมิชชั่น Shopee", direction: "debit", sortOrder: 2 },
-      { accountCode: "1231000", accountName: "ลูกหนี้ Shopee", direction: "credit", sortOrder: 3 },
+      { accountCode: "1441100", accountName: "ค่าคอมมิชชั่น Shopee รับรู้ล่วงหน้า", direction: "debit", sortOrder: 2 },
+      { accountCode: "1442100", accountName: "ค่าบริการ Shopee รับรู้ล่วงหน้า", direction: "debit", sortOrder: 3 },
+      { accountCode: "1231000", accountName: "ลูกหนี้ Shopee", direction: "credit", sortOrder: 4 },
     ],
   },
   {
@@ -729,11 +730,12 @@ export const DEFAULT_FORMULAS: DefaultFormulaTemplate[] = [
     businessType: "lazada",
     name: "Lazada Settlement",
     nameTh: "Settlement จาก Lazada",
-    description: "บันทึกการรับเงินจาก Lazada พร้อมหักค่าธรรมเนียม",
+    description: "บันทึกการรับเงินจาก Lazada — ค่าธรรมเนียมลงรับรู้ล่วงหน้า (รอเอกสารจริง)",
     lines: [
       { accountCode: "1042000", accountName: "เงินฝาก Lazada Wallet", direction: "debit", sortOrder: 1 },
-      { accountCode: "5242000", accountName: "ค่าคอมมิชชั่น Lazada", direction: "debit", sortOrder: 2 },
-      { accountCode: "1232000", accountName: "ลูกหนี้ Lazada", direction: "credit", sortOrder: 3 },
+      { accountCode: "1441200", accountName: "ค่าคอมมิชชั่น Lazada รับรู้ล่วงหน้า", direction: "debit", sortOrder: 2 },
+      { accountCode: "1442200", accountName: "ค่าบริการ Lazada รับรู้ล่วงหน้า", direction: "debit", sortOrder: 3 },
+      { accountCode: "1232000", accountName: "ลูกหนี้ Lazada", direction: "credit", sortOrder: 4 },
     ],
   },
   {
@@ -741,11 +743,12 @@ export const DEFAULT_FORMULAS: DefaultFormulaTemplate[] = [
     businessType: "tiktok",
     name: "TikTok Settlement",
     nameTh: "Settlement จาก TikTok Shop",
-    description: "บันทึกการรับเงินจาก TikTok Shop พร้อมหักค่าธรรมเนียม",
+    description: "บันทึกการรับเงินจาก TikTok Shop — ค่าธรรมเนียมลงรับรู้ล่วงหน้า (รอเอกสารจริง)",
     lines: [
       { accountCode: "1043000", accountName: "เงินฝาก TikTok Shop Wallet", direction: "debit", sortOrder: 1 },
-      { accountCode: "5243000", accountName: "ค่าคอมมิชชั่น TikTok Shop", direction: "debit", sortOrder: 2 },
-      { accountCode: "1233000", accountName: "ลูกหนี้ TikTok Shop", direction: "credit", sortOrder: 3 },
+      { accountCode: "1441300", accountName: "ค่าคอมมิชชั่น TikTok รับรู้ล่วงหน้า", direction: "debit", sortOrder: 2 },
+      { accountCode: "1442300", accountName: "ค่าบริการ TikTok รับรู้ล่วงหน้า", direction: "debit", sortOrder: 3 },
+      { accountCode: "1233000", accountName: "ลูกหนี้ TikTok Shop", direction: "credit", sortOrder: 4 },
     ],
   },
 
