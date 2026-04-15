@@ -2662,6 +2662,7 @@ export function registerPurchaseRoutes(app: Express) {
               ))
               .limit(1);
             if (dupByRef.length > 0) {
+              console.log(`[PDF-Import] SKIP dup taxRef: ${doc.taxInvoiceRef} → existing ${dupByRef[0].expNo}`);
               skipped.push({ expNo: expNo || doc.taxInvoiceRef, reason: `ใบกำกับภาษีซ้ำ (${dupByRef[0].expNo})` });
               continue;
             }
@@ -2674,6 +2675,7 @@ export function registerPurchaseRoutes(app: Express) {
             const existing = await db.select({ expNo: expenses.expNo })
               .from(expenses).where(and(eq(expenses.companyId, companyId), eq(expenses.expNo, expNo)));
             if (existing.length > 0) {
+              console.log(`[PDF-Import] SKIP dup expNo: ${expNo}`);
               skipped.push({ expNo, reason: "เลขที่เอกสารซ้ำ" });
               continue;
             }
