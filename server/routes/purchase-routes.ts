@@ -10,6 +10,7 @@ import { parsePagination, paginatedResponse } from "./pagination";
 import { invalidateCompanyReports } from "./report-cache";
 import { recalcBundleStock, recalcBomStock } from "../inventory-recalc";
 import { decodeMulterFilename } from "../utils/safe-filename";
+import { INVOICE_PREFIX_MAP } from "../utils/pdf-invoice-parser";
 import { DEFAULT_FORMULAS } from "@shared/accounting-formulas";
 import multer from "multer";
 import crypto from "crypto";
@@ -2115,7 +2116,6 @@ export function registerPurchaseRoutes(app: Express) {
               const docNoVal = parsed.docNo || "";
               if (!docNoVal) return "";
               const upper = docNoVal.toUpperCase();
-              const { INVOICE_PREFIX_MAP } = require("../utils/pdf-invoice-parser");
               const sorted = Object.keys(INVOICE_PREFIX_MAP).sort((a: string, b: string) => b.length - a.length);
               for (const p of sorted) { if (upper.startsWith(p)) return p; }
               return "";

@@ -1076,7 +1076,7 @@ export default function PdfBulkImport() {
                               {doc.isDuplicate ? (
                                 <Badge variant="outline" className="text-yellow-600 border-yellow-400 text-xs">ซ้ำ</Badge>
                               ) : doc.hasErrors ? (
-                                <Badge variant="destructive" className="text-xs">ผิดพลาด</Badge>
+                                <Badge variant="destructive" className="text-xs cursor-help" title={doc.errors?.join(", ") || "ข้อมูลไม่สมบูรณ์"}>ผิดพลาด</Badge>
                               ) : doc.vendorId ? (
                                 <Badge variant="outline" className="text-emerald-600 border-emerald-400 text-xs">
                                   <CheckCircle2 className="h-3 w-3 mr-1" /> จับคู่แล้ว
@@ -1126,6 +1126,22 @@ export default function PdfBulkImport() {
                                     ))}
                                   </TableBody>
                                 </Table>
+                                {doc.errors && doc.errors.length > 0 && (
+                                  <div className="mt-2 bg-red-50 border border-red-200 rounded p-2">
+                                    <div className="text-xs font-medium text-red-700 mb-1">ข้อผิดพลาด:</div>
+                                    {doc.errors.map((err: string, eIdx: number) => (
+                                      <div key={eIdx} className="text-xs text-red-600">• {err}</div>
+                                    ))}
+                                  </div>
+                                )}
+                                {doc.warnings && doc.warnings.length > 0 && (
+                                  <div className="mt-2 bg-amber-50 border border-amber-200 rounded p-2">
+                                    <div className="text-xs font-medium text-amber-700 mb-1">คำเตือน:</div>
+                                    {doc.warnings.map((w: string, wIdx: number) => (
+                                      <div key={wIdx} className="text-xs text-amber-600">• {w}</div>
+                                    ))}
+                                  </div>
+                                )}
                                 {doc.vendorAddress && (
                                   <div className="text-xs text-gray-500 mt-1">ที่อยู่: {doc.vendorAddress}</div>
                                 )}
