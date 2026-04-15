@@ -598,6 +598,18 @@ export default function PdfBulkImport() {
   const totalPaidAds = selectedDocsList.reduce((s, d) => s + (d.items || []).filter((it: any) => isPaidAdsItem(it.description)).reduce((is: number, it: any) => is + (parseFloat(it.amount) || 0), 0), 0);
   const expenseSubtotal = totalSubtotal - totalPaidAds;
 
+  const vatBreakdown = (() => {
+    let vat7 = 0, nonVat = 0;
+    for (const d of normalDocsList) {
+      for (const item of (d.items || [])) {
+        const amt = parseFloat(item.amount || item.total) || 0;
+        if (item.vatType === "non_vat") nonVat += amt;
+        else vat7 += amt;
+      }
+    }
+    return { vat7: Math.round(vat7 * 100) / 100, nonVat: Math.round(nonVat * 100) / 100 };
+  })();
+
   const classifyItem = (desc: string): string => {
     const d = (desc || "").toLowerCase().trim();
     if (/^paid\s*ads$/i.test(d)) return "ads";
@@ -1175,8 +1187,8 @@ export default function PdfBulkImport() {
                     {normalDocsList.length > 0 && (
                       <>
                         <div>ยอดรวม: <span className="font-bold">{fmt(totalSubtotal)}</span></div>
-                        {totalPaidAds > 0 && <div className="text-xs">├ มี VAT 7%: <span className="font-medium">{fmt(expenseSubtotal)}</span> <span className="text-gray-400">(×7% = {fmt(Math.round(expenseSubtotal * 0.07 * 100) / 100)})</span></div>}
-                        {totalPaidAds > 0 && <div className="text-xs">└ ไม่มี VAT: <span className="font-medium text-amber-600">{fmt(totalPaidAds)}</span></div>}
+                        {vatBreakdown.nonVat > 0 && <div className="text-xs">├ มี VAT 7%: <span className="font-medium">{fmt(vatBreakdown.vat7)}</span></div>}
+                        {vatBreakdown.nonVat > 0 && <div className="text-xs">└ ไม่มี VAT: <span className="font-medium text-amber-600">{fmt(vatBreakdown.nonVat)}</span></div>}
                         {totalVat > 0 && <div>VAT: <span className="font-medium text-blue-600">{fmt(totalVat)}</span></div>}
                         {totalWht > 0 && <div>WHT: <span className="font-medium text-red-600">-{fmt(totalWht)}</span></div>}
                         <div>สุทธิ: <span className="font-bold text-[#fb9678]">{fmt(grandTotal)}</span></div>
