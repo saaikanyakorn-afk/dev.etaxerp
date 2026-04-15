@@ -14,41 +14,42 @@ import { useLanguage } from "@/hooks/use-language";
 import ReportLayout from "@/components/report-layout";
 
 import { useDateSettings } from "@/hooks/use-date-settings";
-function getDocLink(sourceDocType: string | null, sourceDocId: number | null, journalEntryId: number | null): string | null {
-  if (sourceDocType && sourceDocId) {
-    switch (sourceDocType) {
-      case "quotation": return `/sales/quote/edit/${sourceDocId}`;
-      case "sales_order": return `/sales/order/edit/${sourceDocId}`;
-      case "invoice": return `/sales/invoice/edit/${sourceDocId}`;
-      case "tax_invoice": return `/sales/tax-invoice/edit/${sourceDocId}`;
-      case "receipt": return `/sales/receipt/edit/${sourceDocId}`;
-      case "sales_credit_note": return `/sales/credit-note/edit/${sourceDocId}`;
-      case "billing_note": return `/sales/billing`;
-      case "expense": return `/purchases/exp/edit/${sourceDocId}`;
-      case "expense_daily_batch": return `/purchases/expense`;
-      case "purchase_invoice": return `/purchases/ap/edit/${sourceDocId}`;
-      case "purchase_debit_note": return `/purchases/debit-note/edit/${sourceDocId}`;
-      case "payment_voucher": return `/finance/payment-voucher`;
-      case "deposit_receipt": return `/sales/deposit/edit/${sourceDocId}`;
-      case "petty_cash_txn": return `/petty-cash`;
-      case "petty_cash_fund": return `/petty-cash`;
-      case "purchase_deposit": return `/purchases/purchase-deposit/edit/${sourceDocId}`;
-      case "payroll": return `/hr/payroll`;
-      case "depreciation": return `/accounting/fixed-assets`;
-      case "period_closing": return `/journal`;
-      case "pos_session": return `/pos/history`;
-    }
+function getDocListPath(sourceDocType: string | null): string | null {
+  if (!sourceDocType) return null;
+  switch (sourceDocType) {
+    case "quotation": return `/sales/quote`;
+    case "sales_order": return `/sales/order`;
+    case "invoice": return `/sales/invoice`;
+    case "tax_invoice": return `/sales/tax-invoice`;
+    case "receipt": return `/sales/receipt`;
+    case "sales_credit_note": return `/sales/credit-note`;
+    case "billing_note": return `/sales/billing`;
+    case "deposit_receipt": return `/sales/deposit`;
+    case "expense":
+    case "expense_daily_batch": return `/purchases/expense`;
+    case "purchase_invoice": return `/purchases/ap`;
+    case "purchase_debit_note": return `/purchases/debit-note`;
+    case "purchase_deposit": return `/purchases/purchase-deposit`;
+    case "payment_voucher": return `/finance/payment-voucher`;
+    case "petty_cash_txn":
+    case "petty_cash_fund": return `/petty-cash`;
+    case "payroll": return `/hr/payroll`;
+    case "depreciation": return `/accounting/fixed-assets`;
+    case "period_closing": return `/journal`;
+    case "pos_session": return `/pos/history`;
+    default: return null;
   }
-  if (sourceDocType && !sourceDocId) {
-    switch (sourceDocType) {
-      case "expense_daily_batch": return `/purchases/expense`;
-      case "payroll": return `/hr/payroll`;
-      case "depreciation": return `/accounting/fixed-assets`;
-      case "petty_cash_txn": return `/petty-cash`;
-      case "petty_cash_fund": return `/petty-cash`;
-    }
+}
+
+function getDocLink(sourceDocType: string | null, sourceDocId: number | null, journalEntryId: number | null, reference?: string | null): string | null {
+  const listPath = getDocListPath(sourceDocType);
+  if (listPath) {
+    const params = new URLSearchParams();
+    if (reference) params.set("search", reference);
+    const qs = params.toString();
+    return qs ? `${listPath}?${qs}` : listPath;
   }
-  if (journalEntryId) return `/journal/edit/${journalEntryId}`;
+  if (journalEntryId) return `/journal?search=JV-${journalEntryId}`;
   return null;
 }
 
@@ -449,7 +450,7 @@ export default function GeneralLedger() {
                                   <TableCell className="text-sm py-2 text-center tabular-nums">{bookNo(line.journalBook)}</TableCell>
                                   <TableCell className="text-sm py-2 font-medium">
                                     {(() => {
-                                      const link = getDocLink(line.sourceDocType, line.sourceDocId, line.journalEntryId);
+                                      const link = getDocLink(line.sourceDocType, line.sourceDocId, line.journalEntryId, line.reference);
                                       if (link) {
                                         return (
                                           <button
