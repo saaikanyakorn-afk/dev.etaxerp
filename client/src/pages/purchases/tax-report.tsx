@@ -144,38 +144,61 @@ export default function PurchaseTaxReport() {
 
   function handleExcel() {
     if (rows.length === 0) return;
-    const html = buildReportHtml()
-      .replace(/@media print[\s\S]*?\}/g, "")
-      .replace(/\.page-break\s*\{[^}]*\}/g, ".page-break { margin-bottom:8px; }");
-    const bodyContent = html.replace(/.*<body[^>]*>/s, "").replace(/<\/body>.*/s, "")
-      .replace(/font-size:\s*\d+px/g, "font-size:14pt");
+    const colCount = 11;
+    const theadHtml = `<tr style="background:#5B9BD5;color:white;font-weight:bold;font-size:12pt;text-align:center">
+      <td style="border:1px solid #4a8bc4;padding:4px 6px">#</td>
+      <td style="border:1px solid #4a8bc4;padding:4px 6px">วัน เดือน ปี</td>
+      <td style="border:1px solid #4a8bc4;padding:4px 6px">เลขที่ใบกำกับภาษี</td>
+      <td style="border:1px solid #4a8bc4;padding:4px 6px">เลขที่เอกสาร</td>
+      <td style="border:1px solid #4a8bc4;padding:4px 6px">ชื่อผู้ขายสินค้า/ผู้ให้บริการ</td>
+      <td style="border:1px solid #4a8bc4;padding:4px 6px">เลขประจำตัวผู้เสียภาษีอากร</td>
+      <td style="border:1px solid #4a8bc4;padding:4px 6px">สาขา</td>
+      <td style="border:1px solid #4a8bc4;padding:4px 6px">ประเภท</td>
+      <td style="border:1px solid #4a8bc4;padding:4px 6px">มูลค่าสินค้าหรือบริการ</td>
+      <td style="border:1px solid #4a8bc4;padding:4px 6px">มูลค่าสินค้าที่เสียภาษี</td>
+      <td style="border:1px solid #4a8bc4;padding:4px 6px">จำนวนเงินภาษีมูลค่าเพิ่ม</td>
+    </tr>`;
+    const dataRows = rows.map((r: any) => `<tr>
+      <td style="border:1px solid #ccc;padding:3px 6px;text-align:center">${r.no}</td>
+      <td style="border:1px solid #ccc;padding:3px 6px">${formatDate(r.date, dateEra, dateFmt)}</td>
+      <td style="border:1px solid #ccc;padding:3px 6px">${r.taxInvoiceRef || ""}</td>
+      <td style="border:1px solid #ccc;padding:3px 6px">${r.docNo}</td>
+      <td style="border:1px solid #ccc;padding:3px 6px">${r.vendorName}</td>
+      <td style="border:1px solid #ccc;padding:3px 6px">${r.vendorTaxId || ""}</td>
+      <td style="border:1px solid #ccc;padding:3px 6px;text-align:center">${r.branch || ""}</td>
+      <td style="border:1px solid #ccc;padding:3px 6px;text-align:center">${docTypeLabel(r.docType)}</td>
+      <td style="border:1px solid #ccc;padding:3px 6px;text-align:right">${fmt(r.subtotal)}</td>
+      <td style="border:1px solid #ccc;padding:3px 6px;text-align:right">${fmt(r.subtotal)}</td>
+      <td style="border:1px solid #ccc;padding:3px 6px;text-align:right">${fmt(r.vatAmount)}</td>
+    </tr>`).join("");
+    const totalRow = `<tr style="font-weight:bold;background:#f1f5f9">
+      <td colspan="8" style="border:1px solid #ccc;padding:4px 8px;text-align:right;border-top:2px solid #333">รวมทั้งสิ้น</td>
+      <td style="border:1px solid #ccc;padding:4px 8px;text-align:right;border-top:2px solid #333">${fmt(totalSubtotal)}</td>
+      <td style="border:1px solid #ccc;padding:4px 8px;text-align:right;border-top:2px solid #333">${fmt(totalSubtotal)}</td>
+      <td style="border:1px solid #ccc;padding:4px 8px;text-align:right;border-top:2px solid #333">${fmt(totalVat)}</td>
+    </tr>`;
     const excelHtml = `
       <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
       <head><meta charset="utf-8">
       <!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet>
       <x:Name>รายงานภาษีซื้อ</x:Name>
-      <x:WorksheetOptions><x:DisplayGridlines/><x:Panes></x:Panes></x:WorksheetOptions>
+      <x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions>
       </x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]-->
-      <style>
-        body { font-family: 'TH SarabunPSK', 'Sarabun', sans-serif; font-size: 14pt; }
-        .page { width: auto; padding: 4px; }
-        .report-header { margin-bottom: 6px; }
-        .header-left { font-size: 14pt; line-height: 1.6; }
-        .header-left .label { min-width: 160px; }
-        .header-left .value { font-weight: bold; }
-        .header-right .title { font-size: 18pt; font-weight: bold; }
-        .header-right .info { font-size: 12pt; }
-        .page-number { font-size: 11pt; }
-        table { border-collapse: collapse; width: 100%; }
-        th { background: #5B9BD5; color: white; font-weight: bold; padding: 4px 6px; font-size: 12pt; border: 1px solid #4a8bc4; text-align: center; }
-        td { padding: 3px 6px; font-size: 12pt; border: 1px solid #ccc; }
-        .page-total-row td { font-weight: bold; background: #eef3f8; font-size: 12pt; }
-        .carry-row td { font-weight: bold; background: #e8f0fe; font-style: italic; font-size: 12pt; }
-        .total-row td { font-weight: bold; background: #f1f5f9; border-top: 2px solid #333; font-size: 13pt; }
-        .branch-check .box { border: 1px solid #333; width: 14px; height: 14px; display: inline-block; text-align: center; font-size: 11pt; }
-        .branch-check .box.checked { background: #333; color: white; }
-      </style>
-      </head><body>${bodyContent}</body></html>`;
+      </head><body>
+      <table style="font-family:'TH SarabunPSK','Sarabun',sans-serif;font-size:14pt;border-collapse:collapse">
+        <tr><td colspan="${colCount}" style="font-size:20pt;font-weight:bold;padding:4px">รายงานภาษีซื้อ</td></tr>
+        <tr><td colspan="${colCount}" style="padding:2px"></td></tr>
+        <tr><td colspan="${colCount}" style="padding:2px 4px">องค์กร: ${companyName}</td></tr>
+        <tr><td colspan="${colCount}" style="padding:2px 4px">สาขาประกอบการ: ${branchDisplay}</td></tr>
+        <tr><td colspan="${colCount}" style="padding:2px 4px">ที่อยู่: ${effectiveAddress}</td></tr>
+        <tr><td colspan="${colCount}" style="padding:2px 4px">เลขตัวผู้เสียภาษี: ${companyTaxId || "-"}</td></tr>
+        <tr><td colspan="${colCount}" style="padding:2px 4px;font-weight:bold">ช่วงเวลา: ${dateRangeStr}</td></tr>
+        <tr><td colspan="${colCount}" style="padding:2px"></td></tr>
+        ${theadHtml}
+        ${dataRows}
+        ${totalRow}
+      </table>
+      </body></html>`;
     const blob = new Blob([excelHtml], { type: "application/vnd.ms-excel;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
