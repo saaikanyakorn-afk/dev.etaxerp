@@ -177,8 +177,11 @@ export function registerImportBatchRoutes(app: Express) {
                 const dxpNo = dxpBatch.batch_no;
                 const dxpJResult = await tx.execute(sql`
                   SELECT id FROM journal_entries 
-                  WHERE company_id = ${batch.companyId} AND source_doc_type = 'expense_daily_batch'
-                    AND (source_doc_id = ${dxpId} OR reference = ${dxpNo} OR reference LIKE ${dxpNo + '-%'})
+                  WHERE company_id = ${batch.companyId} 
+                    AND (
+                      (source_doc_type = 'expense_daily_batch' AND (source_doc_id = ${dxpId} OR reference = ${dxpNo} OR reference LIKE ${dxpNo + '-%'}))
+                      OR (source_doc_type = 'purchase_debit_note' AND reference = ${dxpNo})
+                    )
                 `);
                 const djIds = (dxpJResult.rows as any[]).map((dj: any) => dj.id);
                 if (djIds.length > 0) {
@@ -188,6 +191,7 @@ export function registerImportBatchRoutes(app: Express) {
                   await tx.execute(sql`DELETE FROM journal_lines WHERE journal_entry_id = ANY(${pgDjIds})`);
                   await tx.execute(sql`DELETE FROM journal_entries WHERE id = ANY(${pgDjIds})`);
                   deletedJournals += djIds.length;
+                  console.log(`[import-batch-delete] Deleted ${djIds.length} DXP+DN journals for batch ${dxpNo}`);
                 }
               }
               if (remaining.length === 0) {
