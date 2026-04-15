@@ -66,7 +66,7 @@ export const DEFAULT_FORMULAS: DefaultFormulaTemplate[] = [
     nameTh: "ใบแจ้งหนี้ (บริการ)",
     description: "Tax Point ยังไม่เกิด — ภาษีขายยังไม่ถึงกำหนด",
     lines: [
-      { accountCode: "1201000", accountName: "ลูกหนี้การค้า", direction: "debit", sortOrder: 1 },
+      { accountCode: "1201000", accountName: "ลูกหนี้การค้า - ในประเทศ", direction: "debit", sortOrder: 1 },
       { accountCode: "4100100", accountName: "รายได้จากการให้บริการ", direction: "credit", sortOrder: 2 },
       { accountCode: "2342000", accountName: "ภาษีขายยังไม่ถึงกำหนด", direction: "credit", sortOrder: 3 },
     ],
@@ -96,7 +96,7 @@ export const DEFAULT_FORMULAS: DefaultFormulaTemplate[] = [
     nameTh: "ใบแจ้งหนี้ (ผสม)",
     description: "ใช้สำหรับส่วนบริการในธุรกิจผสม — ภาษีขายยังไม่ถึงกำหนด",
     lines: [
-      { accountCode: "1201000", accountName: "ลูกหนี้การค้า", direction: "debit", sortOrder: 1 },
+      { accountCode: "1201000", accountName: "ลูกหนี้การค้า - ในประเทศ", direction: "debit", sortOrder: 1 },
       { accountCode: "4100100", accountName: "รายได้จากการให้บริการ", direction: "credit", sortOrder: 2 },
       { accountCode: "2342000", accountName: "ภาษีขายยังไม่ถึงกำหนด", direction: "credit", sortOrder: 3 },
     ],
@@ -112,8 +112,8 @@ export const DEFAULT_FORMULAS: DefaultFormulaTemplate[] = [
     nameTh: "ใบกำกับภาษี (บริการ — รับชำระแล้ว)",
     description: "เมื่อได้รับชำระเงิน กลับภาษีขายยังไม่ถึงกำหนดเป็นภาษีขาย",
     lines: [
-      { accountCode: "1001000", accountName: "เงินสด/เงินฝากธนาคาร", direction: "debit", sortOrder: 1 },
-      { accountCode: "1201000", accountName: "ลูกหนี้การค้า", direction: "credit", sortOrder: 2 },
+      { accountCode: "1001000", accountName: "เงินสด", direction: "debit", sortOrder: 1 },
+      { accountCode: "1201000", accountName: "ลูกหนี้การค้า - ในประเทศ", direction: "credit", sortOrder: 2 },
       { accountCode: "2342000", accountName: "ภาษีขายยังไม่ถึงกำหนด", direction: "debit", sortOrder: 3 },
       { accountCode: "2341000", accountName: "ภาษีขาย", direction: "credit", sortOrder: 4 },
     ],
@@ -125,8 +125,8 @@ export const DEFAULT_FORMULAS: DefaultFormulaTemplate[] = [
     nameTh: "ใบกำกับภาษี (ขายสินค้า)",
     description: "Tax Point เกิดเมื่อส่งมอบสินค้า — ภาษีขายทันที",
     lines: [
-      { accountCode: "1201000", accountName: "ลูกหนี้การค้า", direction: "debit", sortOrder: 1 },
-      { accountCode: "4001000", accountName: "รายได้จากการขายสินค้า", direction: "credit", sortOrder: 2 },
+      { accountCode: "1201000", accountName: "ลูกหนี้การค้า - ในประเทศ", direction: "debit", sortOrder: 1 },
+      { accountCode: "4001000", accountName: "รายได้จากการขาย", direction: "credit", sortOrder: 2 },
       { accountCode: "2341000", accountName: "ภาษีขาย", direction: "credit", sortOrder: 3 },
     ],
   },
@@ -173,8 +173,8 @@ export const DEFAULT_FORMULAS: DefaultFormulaTemplate[] = [
     nameTh: "ใบกำกับภาษี (ผสม)",
     description: "ใช้ได้ทั้งขายสินค้าและบริการ — ภาษีขายทันที",
     lines: [
-      { accountCode: "1201000", accountName: "ลูกหนี้การค้า", direction: "debit", sortOrder: 1 },
-      { accountCode: "4001000", accountName: "รายได้", direction: "credit", sortOrder: 2 },
+      { accountCode: "1201000", accountName: "ลูกหนี้การค้า - ในประเทศ", direction: "debit", sortOrder: 1 },
+      { accountCode: "4001000", accountName: "รายได้จากการขาย", direction: "credit", sortOrder: 2 },
       { accountCode: "2341000", accountName: "ภาษีขาย", direction: "credit", sortOrder: 3 },
     ],
   },
@@ -189,8 +189,8 @@ export const DEFAULT_FORMULAS: DefaultFormulaTemplate[] = [
     nameTh: "ใบเสร็จรับเงิน (บริการ)",
     description: "รับชำระเงินค่าบริการ",
     lines: [
-      { accountCode: "1001000", accountName: "เงินสด/เงินฝากธนาคาร", direction: "debit", sortOrder: 1 },
-      { accountCode: "1201000", accountName: "ลูกหนี้การค้า", direction: "credit", sortOrder: 2 },
+      { accountCode: "1001000", accountName: "เงินสด", direction: "debit", sortOrder: 1 },
+      { accountCode: "1201000", accountName: "ลูกหนี้การค้า - ในประเทศ", direction: "credit", sortOrder: 2 },
     ],
   },
   {
@@ -200,8 +200,8 @@ export const DEFAULT_FORMULAS: DefaultFormulaTemplate[] = [
     nameTh: "ใบเสร็จรับเงิน (ขายสินค้า)",
     description: "รับชำระเงินค่าสินค้า",
     lines: [
-      { accountCode: "1001000", accountName: "เงินสด/เงินฝากธนาคาร", direction: "debit", sortOrder: 1 },
-      { accountCode: "1201000", accountName: "ลูกหนี้การค้า", direction: "credit", sortOrder: 2 },
+      { accountCode: "1001000", accountName: "เงินสด", direction: "debit", sortOrder: 1 },
+      { accountCode: "1201000", accountName: "ลูกหนี้การค้า - ในประเทศ", direction: "credit", sortOrder: 2 },
     ],
   },
   {
@@ -211,7 +211,7 @@ export const DEFAULT_FORMULAS: DefaultFormulaTemplate[] = [
     nameTh: "ใบเสร็จรับเงิน (Shopee)",
     description: "รับชำระเงินจาก Shopee — แพลตฟอร์มโอนเงินหลังหักค่าธรรมเนียม",
     lines: [
-      { accountCode: "1001000", accountName: "เงินสด/เงินฝากธนาคาร", direction: "debit", sortOrder: 1 },
+      { accountCode: "1001000", accountName: "เงินสด", direction: "debit", sortOrder: 1 },
       { accountCode: "5241000", accountName: "ค่าคอมมิชชั่น Shopee", direction: "debit", sortOrder: 2 },
       { accountCode: "1231000", accountName: "ลูกหนี้ Shopee", direction: "credit", sortOrder: 3 },
     ],
@@ -223,7 +223,7 @@ export const DEFAULT_FORMULAS: DefaultFormulaTemplate[] = [
     nameTh: "ใบเสร็จรับเงิน (Lazada)",
     description: "รับชำระเงินจาก Lazada — แพลตฟอร์มโอนเงินหลังหักค่าธรรมเนียม",
     lines: [
-      { accountCode: "1001000", accountName: "เงินสด/เงินฝากธนาคาร", direction: "debit", sortOrder: 1 },
+      { accountCode: "1001000", accountName: "เงินสด", direction: "debit", sortOrder: 1 },
       { accountCode: "5242000", accountName: "ค่าคอมมิชชั่น Lazada", direction: "debit", sortOrder: 2 },
       { accountCode: "1232000", accountName: "ลูกหนี้ Lazada", direction: "credit", sortOrder: 3 },
     ],
@@ -235,7 +235,7 @@ export const DEFAULT_FORMULAS: DefaultFormulaTemplate[] = [
     nameTh: "ใบเสร็จรับเงิน (TikTok Shop)",
     description: "รับชำระเงินจาก TikTok Shop — แพลตฟอร์มโอนเงินหลังหักค่าธรรมเนียม",
     lines: [
-      { accountCode: "1001000", accountName: "เงินสด/เงินฝากธนาคาร", direction: "debit", sortOrder: 1 },
+      { accountCode: "1001000", accountName: "เงินสด", direction: "debit", sortOrder: 1 },
       { accountCode: "5243000", accountName: "ค่าคอมมิชชั่น TikTok Shop", direction: "debit", sortOrder: 2 },
       { accountCode: "1233000", accountName: "ลูกหนี้ TikTok Shop", direction: "credit", sortOrder: 3 },
     ],
@@ -247,8 +247,8 @@ export const DEFAULT_FORMULAS: DefaultFormulaTemplate[] = [
     nameTh: "ใบเสร็จรับเงิน (ผสม)",
     description: "รับชำระเงิน",
     lines: [
-      { accountCode: "1001000", accountName: "เงินสด/เงินฝากธนาคาร", direction: "debit", sortOrder: 1 },
-      { accountCode: "1201000", accountName: "ลูกหนี้การค้า", direction: "credit", sortOrder: 2 },
+      { accountCode: "1001000", accountName: "เงินสด", direction: "debit", sortOrder: 1 },
+      { accountCode: "1201000", accountName: "ลูกหนี้การค้า - ในประเทศ", direction: "credit", sortOrder: 2 },
     ],
   },
 
@@ -262,9 +262,9 @@ export const DEFAULT_FORMULAS: DefaultFormulaTemplate[] = [
     nameTh: "บันทึกซื้อสินค้า",
     description: "ซื้อสินค้าเข้าสต็อก",
     lines: [
-      { accountCode: "1301000", accountName: "สินค้าคงเหลือ", direction: "debit", sortOrder: 1 },
+      { accountCode: "1301000", accountName: "สินค้าสำเร็จรูป", direction: "debit", sortOrder: 1 },
       { accountCode: "1432000", accountName: "ภาษีซื้อ", direction: "debit", sortOrder: 2 },
-      { accountCode: "2101000", accountName: "เจ้าหนี้การค้า", direction: "credit", sortOrder: 3 },
+      { accountCode: "2101000", accountName: "เจ้าหนี้การค้า - ในประเทศ", direction: "credit", sortOrder: 3 },
     ],
   },
   {
@@ -276,7 +276,7 @@ export const DEFAULT_FORMULAS: DefaultFormulaTemplate[] = [
     lines: [
       { accountCode: "5102000", accountName: "ต้นทุนบริการ", direction: "debit", sortOrder: 1 },
       { accountCode: "1432000", accountName: "ภาษีซื้อ", direction: "debit", sortOrder: 2 },
-      { accountCode: "2101000", accountName: "เจ้าหนี้การค้า", direction: "credit", sortOrder: 3 },
+      { accountCode: "2101000", accountName: "เจ้าหนี้การค้า - ในประเทศ", direction: "credit", sortOrder: 3 },
     ],
   },
   {
@@ -286,9 +286,9 @@ export const DEFAULT_FORMULAS: DefaultFormulaTemplate[] = [
     nameTh: "บันทึกซื้อสินค้า (E-Commerce)",
     description: "ซื้อสินค้าเข้าสต็อกสำหรับขายออนไลน์",
     lines: [
-      { accountCode: "1301000", accountName: "สินค้าคงเหลือ", direction: "debit", sortOrder: 1 },
+      { accountCode: "1301000", accountName: "สินค้าสำเร็จรูป", direction: "debit", sortOrder: 1 },
       { accountCode: "1432000", accountName: "ภาษีซื้อ", direction: "debit", sortOrder: 2 },
-      { accountCode: "2101000", accountName: "เจ้าหนี้การค้า", direction: "credit", sortOrder: 3 },
+      { accountCode: "2101000", accountName: "เจ้าหนี้การค้า - ในประเทศ", direction: "credit", sortOrder: 3 },
     ],
   },
   {
@@ -447,9 +447,9 @@ export const DEFAULT_FORMULAS: DefaultFormulaTemplate[] = [
     nameTh: "บันทึกซื้อ (ผสม)",
     description: "บันทึกการซื้อสินค้า/บริการ",
     lines: [
-      { accountCode: "1301000", accountName: "สินค้าคงเหลือ / ค่าใช้จ่าย", direction: "debit", sortOrder: 1 },
+      { accountCode: "1301000", accountName: "สินค้าสำเร็จรูป", direction: "debit", sortOrder: 1 },
       { accountCode: "1432000", accountName: "ภาษีซื้อ", direction: "debit", sortOrder: 2 },
-      { accountCode: "2101000", accountName: "เจ้าหนี้การค้า", direction: "credit", sortOrder: 3 },
+      { accountCode: "2101000", accountName: "เจ้าหนี้การค้า - ในประเทศ", direction: "credit", sortOrder: 3 },
     ],
   },
   {
@@ -461,7 +461,7 @@ export const DEFAULT_FORMULAS: DefaultFormulaTemplate[] = [
     lines: [
       { accountCode: "5249000", accountName: "ค่าคอมมิชชั่นแพลตฟอร์มอื่น", direction: "debit", sortOrder: 1 },
       { accountCode: "1432000", accountName: "ภาษีซื้อ", direction: "debit", sortOrder: 2 },
-      { accountCode: "2101000", accountName: "เจ้าหนี้การค้า", direction: "credit", sortOrder: 3 },
+      { accountCode: "2101000", accountName: "เจ้าหนี้การค้า - ในประเทศ", direction: "credit", sortOrder: 3 },
     ],
   },
 
@@ -475,8 +475,8 @@ export const DEFAULT_FORMULAS: DefaultFormulaTemplate[] = [
     nameTh: "รับเงินมัดจำ (บริการ)",
     description: "รับเงินมัดจำค่าบริการ — Tax Point เกิดทันที",
     lines: [
-      { accountCode: "1001000", accountName: "เงินสด/เงินฝากธนาคาร", direction: "debit", sortOrder: 1 },
-      { accountCode: "2331000", accountName: "รายได้รับล่วงหน้า", direction: "credit", sortOrder: 2 },
+      { accountCode: "1001000", accountName: "เงินสด", direction: "debit", sortOrder: 1 },
+      { accountCode: "2331000", accountName: "รายได้รับล่วงหน้า - สินค้า", direction: "credit", sortOrder: 2 },
       { accountCode: "2341000", accountName: "ภาษีขาย", direction: "credit", sortOrder: 3 },
     ],
   },
@@ -487,8 +487,8 @@ export const DEFAULT_FORMULAS: DefaultFormulaTemplate[] = [
     nameTh: "รับเงินมัดจำ (ขายสินค้า)",
     description: "รับเงินมัดจำก่อนส่งสินค้า — Tax Point เกิดทันที",
     lines: [
-      { accountCode: "1001000", accountName: "เงินสด/เงินฝากธนาคาร", direction: "debit", sortOrder: 1 },
-      { accountCode: "2331000", accountName: "รายได้รับล่วงหน้า", direction: "credit", sortOrder: 2 },
+      { accountCode: "1001000", accountName: "เงินสด", direction: "debit", sortOrder: 1 },
+      { accountCode: "2331000", accountName: "รายได้รับล่วงหน้า - สินค้า", direction: "credit", sortOrder: 2 },
       { accountCode: "2341000", accountName: "ภาษีขาย", direction: "credit", sortOrder: 3 },
     ],
   },
@@ -499,8 +499,8 @@ export const DEFAULT_FORMULAS: DefaultFormulaTemplate[] = [
     nameTh: "รับเงินมัดจำ (E-Commerce)",
     description: "รับเงินมัดจำจากลูกค้าออนไลน์ — Tax Point เกิดทันที",
     lines: [
-      { accountCode: "1001000", accountName: "เงินสด/เงินฝากธนาคาร", direction: "debit", sortOrder: 1 },
-      { accountCode: "2331000", accountName: "รายได้รับล่วงหน้า", direction: "credit", sortOrder: 2 },
+      { accountCode: "1001000", accountName: "เงินสด", direction: "debit", sortOrder: 1 },
+      { accountCode: "2331000", accountName: "รายได้รับล่วงหน้า - สินค้า", direction: "credit", sortOrder: 2 },
       { accountCode: "2341000", accountName: "ภาษีขาย", direction: "credit", sortOrder: 3 },
     ],
   },
@@ -511,8 +511,8 @@ export const DEFAULT_FORMULAS: DefaultFormulaTemplate[] = [
     nameTh: "รับเงินมัดจำ (ผสม)",
     description: "รับเงินมัดจำ — Tax Point เกิดทันที",
     lines: [
-      { accountCode: "1001000", accountName: "เงินสด/เงินฝากธนาคาร", direction: "debit", sortOrder: 1 },
-      { accountCode: "2331000", accountName: "รายได้รับล่วงหน้า", direction: "credit", sortOrder: 2 },
+      { accountCode: "1001000", accountName: "เงินสด", direction: "debit", sortOrder: 1 },
+      { accountCode: "2331000", accountName: "รายได้รับล่วงหน้า - สินค้า", direction: "credit", sortOrder: 2 },
       { accountCode: "2341000", accountName: "ภาษีขาย", direction: "credit", sortOrder: 3 },
     ],
   },
@@ -527,9 +527,9 @@ export const DEFAULT_FORMULAS: DefaultFormulaTemplate[] = [
     nameTh: "จ่ายเงินมัดจำ (บริการ)",
     description: "จ่ายเงินมัดจำให้ผู้ขาย — บันทึกสินทรัพย์เงินจ่ายล่วงหน้า",
     lines: [
-      { accountCode: "1403000", accountName: "เงินจ่ายล่วงหน้า", direction: "debit", sortOrder: 1 },
+      { accountCode: "1403000", accountName: "เงินมัดจำจ่ายล่วงหน้า", direction: "debit", sortOrder: 1 },
       { accountCode: "1432000", accountName: "ภาษีซื้อ", direction: "debit", sortOrder: 2 },
-      { accountCode: "1001000", accountName: "เงินสด/เงินฝากธนาคาร", direction: "credit", sortOrder: 3 },
+      { accountCode: "1001000", accountName: "เงินสด", direction: "credit", sortOrder: 3 },
     ],
   },
   {
@@ -539,9 +539,9 @@ export const DEFAULT_FORMULAS: DefaultFormulaTemplate[] = [
     nameTh: "จ่ายเงินมัดจำ (ขายสินค้า)",
     description: "จ่ายเงินมัดจำให้ผู้ขาย — บันทึกสินทรัพย์เงินจ่ายล่วงหน้า",
     lines: [
-      { accountCode: "1403000", accountName: "เงินจ่ายล่วงหน้า", direction: "debit", sortOrder: 1 },
+      { accountCode: "1403000", accountName: "เงินมัดจำจ่ายล่วงหน้า", direction: "debit", sortOrder: 1 },
       { accountCode: "1432000", accountName: "ภาษีซื้อ", direction: "debit", sortOrder: 2 },
-      { accountCode: "1001000", accountName: "เงินสด/เงินฝากธนาคาร", direction: "credit", sortOrder: 3 },
+      { accountCode: "1001000", accountName: "เงินสด", direction: "credit", sortOrder: 3 },
     ],
   },
   {
@@ -551,9 +551,9 @@ export const DEFAULT_FORMULAS: DefaultFormulaTemplate[] = [
     nameTh: "จ่ายเงินมัดจำ (E-Commerce)",
     description: "จ่ายเงินมัดจำให้ผู้ขาย — บันทึกสินทรัพย์เงินจ่ายล่วงหน้า",
     lines: [
-      { accountCode: "1403000", accountName: "เงินจ่ายล่วงหน้า", direction: "debit", sortOrder: 1 },
+      { accountCode: "1403000", accountName: "เงินมัดจำจ่ายล่วงหน้า", direction: "debit", sortOrder: 1 },
       { accountCode: "1432000", accountName: "ภาษีซื้อ", direction: "debit", sortOrder: 2 },
-      { accountCode: "1001000", accountName: "เงินสด/เงินฝากธนาคาร", direction: "credit", sortOrder: 3 },
+      { accountCode: "1001000", accountName: "เงินสด", direction: "credit", sortOrder: 3 },
     ],
   },
   {
@@ -563,9 +563,9 @@ export const DEFAULT_FORMULAS: DefaultFormulaTemplate[] = [
     nameTh: "จ่ายเงินมัดจำ (ผสม)",
     description: "จ่ายเงินมัดจำให้ผู้ขาย — บันทึกสินทรัพย์เงินจ่ายล่วงหน้า",
     lines: [
-      { accountCode: "1403000", accountName: "เงินจ่ายล่วงหน้า", direction: "debit", sortOrder: 1 },
+      { accountCode: "1403000", accountName: "เงินมัดจำจ่ายล่วงหน้า", direction: "debit", sortOrder: 1 },
       { accountCode: "1432000", accountName: "ภาษีซื้อ", direction: "debit", sortOrder: 2 },
-      { accountCode: "1001000", accountName: "เงินสด/เงินฝากธนาคาร", direction: "credit", sortOrder: 3 },
+      { accountCode: "1001000", accountName: "เงินสด", direction: "credit", sortOrder: 3 },
     ],
   },
 
@@ -579,8 +579,8 @@ export const DEFAULT_FORMULAS: DefaultFormulaTemplate[] = [
     nameTh: "ใบสำคัญจ่าย (บริการ)",
     description: "จ่ายชำระเงินให้ผู้ขาย — ล้างเจ้าหนี้การค้า",
     lines: [
-      { accountCode: "2101000", accountName: "เจ้าหนี้การค้า", direction: "debit", sortOrder: 1 },
-      { accountCode: "1001000", accountName: "เงินสด/เงินฝากธนาคาร", direction: "credit", sortOrder: 2 },
+      { accountCode: "2101000", accountName: "เจ้าหนี้การค้า - ในประเทศ", direction: "debit", sortOrder: 1 },
+      { accountCode: "1001000", accountName: "เงินสด", direction: "credit", sortOrder: 2 },
     ],
   },
   {
@@ -590,8 +590,8 @@ export const DEFAULT_FORMULAS: DefaultFormulaTemplate[] = [
     nameTh: "ใบสำคัญจ่าย (ขายสินค้า)",
     description: "จ่ายชำระเงินให้ผู้ขาย — ล้างเจ้าหนี้การค้า",
     lines: [
-      { accountCode: "2101000", accountName: "เจ้าหนี้การค้า", direction: "debit", sortOrder: 1 },
-      { accountCode: "1001000", accountName: "เงินสด/เงินฝากธนาคาร", direction: "credit", sortOrder: 2 },
+      { accountCode: "2101000", accountName: "เจ้าหนี้การค้า - ในประเทศ", direction: "debit", sortOrder: 1 },
+      { accountCode: "1001000", accountName: "เงินสด", direction: "credit", sortOrder: 2 },
     ],
   },
   {
@@ -601,8 +601,8 @@ export const DEFAULT_FORMULAS: DefaultFormulaTemplate[] = [
     nameTh: "ใบสำคัญจ่าย (E-Commerce)",
     description: "จ่ายชำระเงินให้ผู้ขาย — ล้างเจ้าหนี้การค้า",
     lines: [
-      { accountCode: "2101000", accountName: "เจ้าหนี้การค้า", direction: "debit", sortOrder: 1 },
-      { accountCode: "1001000", accountName: "เงินสด/เงินฝากธนาคาร", direction: "credit", sortOrder: 2 },
+      { accountCode: "2101000", accountName: "เจ้าหนี้การค้า - ในประเทศ", direction: "debit", sortOrder: 1 },
+      { accountCode: "1001000", accountName: "เงินสด", direction: "credit", sortOrder: 2 },
     ],
   },
   {
@@ -612,8 +612,8 @@ export const DEFAULT_FORMULAS: DefaultFormulaTemplate[] = [
     nameTh: "ใบสำคัญจ่าย (ผสม)",
     description: "จ่ายชำระเงินให้ผู้ขาย — ล้างเจ้าหนี้การค้า",
     lines: [
-      { accountCode: "2101000", accountName: "เจ้าหนี้การค้า", direction: "debit", sortOrder: 1 },
-      { accountCode: "1001000", accountName: "เงินสด/เงินฝากธนาคาร", direction: "credit", sortOrder: 2 },
+      { accountCode: "2101000", accountName: "เจ้าหนี้การค้า - ในประเทศ", direction: "debit", sortOrder: 1 },
+      { accountCode: "1001000", accountName: "เงินสด", direction: "credit", sortOrder: 2 },
     ],
   },
 
@@ -629,7 +629,7 @@ export const DEFAULT_FORMULAS: DefaultFormulaTemplate[] = [
     lines: [
       { accountCode: "4100100", accountName: "รายได้จากการให้บริการ", direction: "debit", sortOrder: 1 },
       { accountCode: "2341000", accountName: "ภาษีขาย", direction: "debit", sortOrder: 2 },
-      { accountCode: "1201000", accountName: "ลูกหนี้การค้า", direction: "credit", sortOrder: 3 },
+      { accountCode: "1201000", accountName: "ลูกหนี้การค้า - ในประเทศ", direction: "credit", sortOrder: 3 },
     ],
   },
   {
@@ -639,9 +639,9 @@ export const DEFAULT_FORMULAS: DefaultFormulaTemplate[] = [
     nameTh: "ใบลดหนี้ขาย (ขายสินค้า)",
     description: "ลดหนี้ขาย — กลับรายการรายได้และภาษีขาย",
     lines: [
-      { accountCode: "4001000", accountName: "รายได้จากการขายสินค้า", direction: "debit", sortOrder: 1 },
+      { accountCode: "4001000", accountName: "รายได้จากการขาย", direction: "debit", sortOrder: 1 },
       { accountCode: "2341000", accountName: "ภาษีขาย", direction: "debit", sortOrder: 2 },
-      { accountCode: "1201000", accountName: "ลูกหนี้การค้า", direction: "credit", sortOrder: 3 },
+      { accountCode: "1201000", accountName: "ลูกหนี้การค้า - ในประเทศ", direction: "credit", sortOrder: 3 },
     ],
   },
   {
@@ -651,9 +651,9 @@ export const DEFAULT_FORMULAS: DefaultFormulaTemplate[] = [
     nameTh: "ใบลดหนี้ขาย (E-Commerce)",
     description: "ลดหนี้ขาย — กลับรายการรายได้และภาษีขาย",
     lines: [
-      { accountCode: "4011000", accountName: "รายได้จากการขายออนไลน์", direction: "debit", sortOrder: 1 },
+      { accountCode: "4011000", accountName: "รายได้จากการขาย Shopee", direction: "debit", sortOrder: 1 },
       { accountCode: "2341000", accountName: "ภาษีขาย", direction: "debit", sortOrder: 2 },
-      { accountCode: "1231000", accountName: "ลูกหนี้แพลตฟอร์ม", direction: "credit", sortOrder: 3 },
+      { accountCode: "1231000", accountName: "ลูกหนี้ Shopee", direction: "credit", sortOrder: 3 },
     ],
   },
   {
@@ -663,9 +663,9 @@ export const DEFAULT_FORMULAS: DefaultFormulaTemplate[] = [
     nameTh: "ใบลดหนี้ขาย (ผสม)",
     description: "ลดหนี้ขาย — กลับรายการรายได้และภาษีขาย",
     lines: [
-      { accountCode: "4001000", accountName: "รายได้", direction: "debit", sortOrder: 1 },
+      { accountCode: "4001000", accountName: "รายได้จากการขาย", direction: "debit", sortOrder: 1 },
       { accountCode: "2341000", accountName: "ภาษีขาย", direction: "debit", sortOrder: 2 },
-      { accountCode: "1201000", accountName: "ลูกหนี้การค้า", direction: "credit", sortOrder: 3 },
+      { accountCode: "1201000", accountName: "ลูกหนี้การค้า - ในประเทศ", direction: "credit", sortOrder: 3 },
     ],
   },
 
@@ -679,8 +679,8 @@ export const DEFAULT_FORMULAS: DefaultFormulaTemplate[] = [
     nameTh: "ใบลดหนี้ซื้อ (ขายสินค้า)",
     description: "ลดหนี้ซื้อ — กลับรายการต้นทุนและภาษีซื้อ",
     lines: [
-      { accountCode: "2101000", accountName: "เจ้าหนี้การค้า", direction: "debit", sortOrder: 1 },
-      { accountCode: "1301000", accountName: "สินค้าคงเหลือ", direction: "credit", sortOrder: 2 },
+      { accountCode: "2101000", accountName: "เจ้าหนี้การค้า - ในประเทศ", direction: "debit", sortOrder: 1 },
+      { accountCode: "1301000", accountName: "สินค้าสำเร็จรูป", direction: "credit", sortOrder: 2 },
       { accountCode: "1432000", accountName: "ภาษีซื้อ", direction: "credit", sortOrder: 3 },
     ],
   },
@@ -691,8 +691,8 @@ export const DEFAULT_FORMULAS: DefaultFormulaTemplate[] = [
     nameTh: "ใบลดหนี้ซื้อ (E-Commerce)",
     description: "ลดหนี้ซื้อ — กลับรายการต้นทุนและภาษีซื้อ",
     lines: [
-      { accountCode: "2101000", accountName: "เจ้าหนี้การค้า", direction: "debit", sortOrder: 1 },
-      { accountCode: "1301000", accountName: "สินค้าคงเหลือ", direction: "credit", sortOrder: 2 },
+      { accountCode: "2101000", accountName: "เจ้าหนี้การค้า - ในประเทศ", direction: "debit", sortOrder: 1 },
+      { accountCode: "1301000", accountName: "สินค้าสำเร็จรูป", direction: "credit", sortOrder: 2 },
       { accountCode: "1432000", accountName: "ภาษีซื้อ", direction: "credit", sortOrder: 3 },
     ],
   },
@@ -703,8 +703,8 @@ export const DEFAULT_FORMULAS: DefaultFormulaTemplate[] = [
     nameTh: "ใบลดหนี้ซื้อ (ผสม)",
     description: "ลดหนี้ซื้อ — กลับรายการต้นทุนและภาษีซื้อ",
     lines: [
-      { accountCode: "2101000", accountName: "เจ้าหนี้การค้า", direction: "debit", sortOrder: 1 },
-      { accountCode: "1301000", accountName: "สินค้าคงเหลือ / ค่าใช้จ่าย", direction: "credit", sortOrder: 2 },
+      { accountCode: "2101000", accountName: "เจ้าหนี้การค้า - ในประเทศ", direction: "debit", sortOrder: 1 },
+      { accountCode: "1301000", accountName: "สินค้าสำเร็จรูป", direction: "credit", sortOrder: 2 },
       { accountCode: "1432000", accountName: "ภาษีซื้อ", direction: "credit", sortOrder: 3 },
     ],
   },
@@ -759,7 +759,7 @@ export const DEFAULT_FORMULAS: DefaultFormulaTemplate[] = [
     nameTh: "ใบแจ้งหนี้ (สำนักงานบัญชี)",
     description: "ใบแจ้งหนี้ค่าบริการทำบัญชี — ภาษีขายยังไม่ถึงกำหนด",
     lines: [
-      { accountCode: "1201000", accountName: "ลูกหนี้การค้า", direction: "debit", sortOrder: 1 },
+      { accountCode: "1201000", accountName: "ลูกหนี้การค้า - ในประเทศ", direction: "debit", sortOrder: 1 },
       { accountCode: "4100100", accountName: "รายได้จากการให้บริการ", direction: "credit", sortOrder: 2 },
       { accountCode: "2342000", accountName: "ภาษีขายยังไม่ถึงกำหนด", direction: "credit", sortOrder: 3 },
     ],
@@ -771,8 +771,8 @@ export const DEFAULT_FORMULAS: DefaultFormulaTemplate[] = [
     nameTh: "ใบกำกับภาษี (สำนักงานบัญชี)",
     description: "รับชำระเงิน กลับภาษีขายยังไม่ถึงกำหนดเป็นภาษีขาย",
     lines: [
-      { accountCode: "1001000", accountName: "เงินสด/เงินฝากธนาคาร", direction: "debit", sortOrder: 1 },
-      { accountCode: "1201000", accountName: "ลูกหนี้การค้า", direction: "credit", sortOrder: 2 },
+      { accountCode: "1001000", accountName: "เงินสด", direction: "debit", sortOrder: 1 },
+      { accountCode: "1201000", accountName: "ลูกหนี้การค้า - ในประเทศ", direction: "credit", sortOrder: 2 },
       { accountCode: "2342000", accountName: "ภาษีขายยังไม่ถึงกำหนด", direction: "debit", sortOrder: 3 },
       { accountCode: "2341000", accountName: "ภาษีขาย", direction: "credit", sortOrder: 4 },
     ],
@@ -784,8 +784,8 @@ export const DEFAULT_FORMULAS: DefaultFormulaTemplate[] = [
     nameTh: "ใบเสร็จรับเงิน (สำนักงานบัญชี)",
     description: "รับชำระเงินค่าบริการ",
     lines: [
-      { accountCode: "1001000", accountName: "เงินสด/เงินฝากธนาคาร", direction: "debit", sortOrder: 1 },
-      { accountCode: "1201000", accountName: "ลูกหนี้การค้า", direction: "credit", sortOrder: 2 },
+      { accountCode: "1001000", accountName: "เงินสด", direction: "debit", sortOrder: 1 },
+      { accountCode: "1201000", accountName: "ลูกหนี้การค้า - ในประเทศ", direction: "credit", sortOrder: 2 },
     ],
   },
   {
@@ -797,7 +797,7 @@ export const DEFAULT_FORMULAS: DefaultFormulaTemplate[] = [
     lines: [
       { accountCode: "5102000", accountName: "ต้นทุนบริการ", direction: "debit", sortOrder: 1 },
       { accountCode: "1432000", accountName: "ภาษีซื้อ", direction: "debit", sortOrder: 2 },
-      { accountCode: "2101000", accountName: "เจ้าหนี้การค้า", direction: "credit", sortOrder: 3 },
+      { accountCode: "2101000", accountName: "เจ้าหนี้การค้า - ในประเทศ", direction: "credit", sortOrder: 3 },
     ],
   },
   {
@@ -807,8 +807,8 @@ export const DEFAULT_FORMULAS: DefaultFormulaTemplate[] = [
     nameTh: "ใบสำคัญจ่าย (สำนักงานบัญชี)",
     description: "จ่ายชำระเงินให้ผู้ขาย",
     lines: [
-      { accountCode: "2101000", accountName: "เจ้าหนี้การค้า", direction: "debit", sortOrder: 1 },
-      { accountCode: "1001000", accountName: "เงินสด/เงินฝากธนาคาร", direction: "credit", sortOrder: 2 },
+      { accountCode: "2101000", accountName: "เจ้าหนี้การค้า - ในประเทศ", direction: "debit", sortOrder: 1 },
+      { accountCode: "1001000", accountName: "เงินสด", direction: "credit", sortOrder: 2 },
     ],
   },
   {
@@ -818,8 +818,8 @@ export const DEFAULT_FORMULAS: DefaultFormulaTemplate[] = [
     nameTh: "รับเงินมัดจำ (สำนักงานบัญชี)",
     description: "รับเงินมัดจำค่าบริการ",
     lines: [
-      { accountCode: "1001000", accountName: "เงินสด/เงินฝากธนาคาร", direction: "debit", sortOrder: 1 },
-      { accountCode: "2331000", accountName: "รายได้รับล่วงหน้า", direction: "credit", sortOrder: 2 },
+      { accountCode: "1001000", accountName: "เงินสด", direction: "debit", sortOrder: 1 },
+      { accountCode: "2331000", accountName: "รายได้รับล่วงหน้า - สินค้า", direction: "credit", sortOrder: 2 },
       { accountCode: "2341000", accountName: "ภาษีขาย", direction: "credit", sortOrder: 3 },
     ],
   },
@@ -830,9 +830,9 @@ export const DEFAULT_FORMULAS: DefaultFormulaTemplate[] = [
     nameTh: "จ่ายเงินมัดจำ (สำนักงานบัญชี)",
     description: "จ่ายเงินมัดจำให้ผู้ขาย",
     lines: [
-      { accountCode: "1403000", accountName: "เงินจ่ายล่วงหน้า", direction: "debit", sortOrder: 1 },
+      { accountCode: "1403000", accountName: "เงินมัดจำจ่ายล่วงหน้า", direction: "debit", sortOrder: 1 },
       { accountCode: "1432000", accountName: "ภาษีซื้อ", direction: "debit", sortOrder: 2 },
-      { accountCode: "1001000", accountName: "เงินสด/เงินฝากธนาคาร", direction: "credit", sortOrder: 3 },
+      { accountCode: "1001000", accountName: "เงินสด", direction: "credit", sortOrder: 3 },
     ],
   },
   {
@@ -844,7 +844,7 @@ export const DEFAULT_FORMULAS: DefaultFormulaTemplate[] = [
     lines: [
       { accountCode: "4100100", accountName: "รายได้จากการให้บริการ", direction: "debit", sortOrder: 1 },
       { accountCode: "2341000", accountName: "ภาษีขาย", direction: "debit", sortOrder: 2 },
-      { accountCode: "1201000", accountName: "ลูกหนี้การค้า", direction: "credit", sortOrder: 3 },
+      { accountCode: "1201000", accountName: "ลูกหนี้การค้า - ในประเทศ", direction: "credit", sortOrder: 3 },
     ],
   },
 
@@ -867,8 +867,8 @@ export const DEFAULT_FORMULAS: DefaultFormulaTemplate[] = [
     nameTh: "ใบกำกับภาษี (ร้านออนไลน์)",
     description: "Tax Point เกิดเมื่อส่งมอบสินค้า — แยกรายได้ตามแพลตฟอร์ม",
     lines: [
-      { accountCode: "1231000", accountName: "ลูกหนี้แพลตฟอร์ม", direction: "debit", sortOrder: 1 },
-      { accountCode: "4011000", accountName: "รายได้จากการขายออนไลน์", direction: "credit", sortOrder: 2 },
+      { accountCode: "1231000", accountName: "ลูกหนี้ Shopee", direction: "debit", sortOrder: 1 },
+      { accountCode: "4011000", accountName: "รายได้จากการขาย Shopee", direction: "credit", sortOrder: 2 },
       { accountCode: "2341000", accountName: "ภาษีขาย", direction: "credit", sortOrder: 3 },
     ],
   },
@@ -879,9 +879,9 @@ export const DEFAULT_FORMULAS: DefaultFormulaTemplate[] = [
     nameTh: "ใบเสร็จรับเงิน (ร้านออนไลน์)",
     description: "รับชำระเงินจาก Marketplace — แพลตฟอร์มโอนเงินหลังหักค่าธรรมเนียม",
     lines: [
-      { accountCode: "1001000", accountName: "เงินสด/เงินฝากธนาคาร", direction: "debit", sortOrder: 1 },
-      { accountCode: "5241000", accountName: "ค่าคอมมิชชั่น Marketplace", direction: "debit", sortOrder: 2 },
-      { accountCode: "1231000", accountName: "ลูกหนี้แพลตฟอร์ม", direction: "credit", sortOrder: 3 },
+      { accountCode: "1001000", accountName: "เงินสด", direction: "debit", sortOrder: 1 },
+      { accountCode: "5241000", accountName: "ค่าคอมมิชชั่น Shopee", direction: "debit", sortOrder: 2 },
+      { accountCode: "1231000", accountName: "ลูกหนี้ Shopee", direction: "credit", sortOrder: 3 },
     ],
   },
   {
@@ -891,9 +891,9 @@ export const DEFAULT_FORMULAS: DefaultFormulaTemplate[] = [
     nameTh: "บันทึกซื้อสินค้า (ร้านออนไลน์)",
     description: "ซื้อสินค้า/วัตถุดิบเข้าสต็อกสำหรับขายออนไลน์",
     lines: [
-      { accountCode: "1301000", accountName: "สินค้าคงเหลือ", direction: "debit", sortOrder: 1 },
+      { accountCode: "1301000", accountName: "สินค้าสำเร็จรูป", direction: "debit", sortOrder: 1 },
       { accountCode: "1432000", accountName: "ภาษีซื้อ", direction: "debit", sortOrder: 2 },
-      { accountCode: "2101000", accountName: "เจ้าหนี้การค้า", direction: "credit", sortOrder: 3 },
+      { accountCode: "2101000", accountName: "เจ้าหนี้การค้า - ในประเทศ", direction: "credit", sortOrder: 3 },
     ],
   },
   {
@@ -903,8 +903,8 @@ export const DEFAULT_FORMULAS: DefaultFormulaTemplate[] = [
     nameTh: "รับเงินมัดจำ (ร้านออนไลน์)",
     description: "รับเงินมัดจำจากลูกค้าออนไลน์ — Tax Point เกิดทันที",
     lines: [
-      { accountCode: "1001000", accountName: "เงินสด/เงินฝากธนาคาร", direction: "debit", sortOrder: 1 },
-      { accountCode: "2331000", accountName: "รายได้รับล่วงหน้า", direction: "credit", sortOrder: 2 },
+      { accountCode: "1001000", accountName: "เงินสด", direction: "debit", sortOrder: 1 },
+      { accountCode: "2331000", accountName: "รายได้รับล่วงหน้า - สินค้า", direction: "credit", sortOrder: 2 },
       { accountCode: "2341000", accountName: "ภาษีขาย", direction: "credit", sortOrder: 3 },
     ],
   },
@@ -915,9 +915,9 @@ export const DEFAULT_FORMULAS: DefaultFormulaTemplate[] = [
     nameTh: "จ่ายเงินมัดจำ (ร้านออนไลน์)",
     description: "จ่ายเงินมัดจำให้ผู้ขาย — บันทึกสินทรัพย์เงินจ่ายล่วงหน้า",
     lines: [
-      { accountCode: "1403000", accountName: "เงินจ่ายล่วงหน้า", direction: "debit", sortOrder: 1 },
+      { accountCode: "1403000", accountName: "เงินมัดจำจ่ายล่วงหน้า", direction: "debit", sortOrder: 1 },
       { accountCode: "1432000", accountName: "ภาษีซื้อ", direction: "debit", sortOrder: 2 },
-      { accountCode: "1001000", accountName: "เงินสด/เงินฝากธนาคาร", direction: "credit", sortOrder: 3 },
+      { accountCode: "1001000", accountName: "เงินสด", direction: "credit", sortOrder: 3 },
     ],
   },
   {
@@ -927,8 +927,8 @@ export const DEFAULT_FORMULAS: DefaultFormulaTemplate[] = [
     nameTh: "ใบสำคัญจ่าย (ร้านออนไลน์)",
     description: "จ่ายชำระเงินให้ผู้ขาย — ล้างเจ้าหนี้การค้า",
     lines: [
-      { accountCode: "2101000", accountName: "เจ้าหนี้การค้า", direction: "debit", sortOrder: 1 },
-      { accountCode: "1001000", accountName: "เงินสด/เงินฝากธนาคาร", direction: "credit", sortOrder: 2 },
+      { accountCode: "2101000", accountName: "เจ้าหนี้การค้า - ในประเทศ", direction: "debit", sortOrder: 1 },
+      { accountCode: "1001000", accountName: "เงินสด", direction: "credit", sortOrder: 2 },
     ],
   },
   {
@@ -938,9 +938,9 @@ export const DEFAULT_FORMULAS: DefaultFormulaTemplate[] = [
     nameTh: "ใบลดหนี้ขาย (ร้านออนไลน์)",
     description: "ลดหนี้ขาย — กลับรายการรายได้และภาษีขาย",
     lines: [
-      { accountCode: "4011000", accountName: "รายได้จากการขายออนไลน์", direction: "debit", sortOrder: 1 },
+      { accountCode: "4011000", accountName: "รายได้จากการขาย Shopee", direction: "debit", sortOrder: 1 },
       { accountCode: "2341000", accountName: "ภาษีขาย", direction: "debit", sortOrder: 2 },
-      { accountCode: "1231000", accountName: "ลูกหนี้แพลตฟอร์ม", direction: "credit", sortOrder: 3 },
+      { accountCode: "1231000", accountName: "ลูกหนี้ Shopee", direction: "credit", sortOrder: 3 },
     ],
   },
   {
@@ -950,8 +950,8 @@ export const DEFAULT_FORMULAS: DefaultFormulaTemplate[] = [
     nameTh: "ใบลดหนี้ซื้อ (ร้านออนไลน์)",
     description: "ลดหนี้ซื้อ — กลับรายการต้นทุนและภาษีซื้อ",
     lines: [
-      { accountCode: "2101000", accountName: "เจ้าหนี้การค้า", direction: "debit", sortOrder: 1 },
-      { accountCode: "1301000", accountName: "สินค้าคงเหลือ", direction: "credit", sortOrder: 2 },
+      { accountCode: "2101000", accountName: "เจ้าหนี้การค้า - ในประเทศ", direction: "debit", sortOrder: 1 },
+      { accountCode: "1301000", accountName: "สินค้าสำเร็จรูป", direction: "credit", sortOrder: 2 },
       { accountCode: "1432000", accountName: "ภาษีซื้อ", direction: "credit", sortOrder: 3 },
     ],
   },
@@ -974,9 +974,9 @@ export const DEFAULT_FORMULAS: DefaultFormulaTemplate[] = [
     nameTh: "ล้างค่าใช้จ่ายล่วงหน้า — ค่าคอมมิชชั่น (ร้านออนไลน์ — ได้เอกสารจริง)",
     description: "ได้รับเอกสารจริงจากแพลตฟอร์ม → ล้างค่าใช้จ่ายล่วงหน้า (144) เป็นค่าใช้จ่ายจริง (524)",
     lines: [
-      { accountCode: "5243000", accountName: "ค่าคอมมิชชั่น (เอกสารจริง)", direction: "debit", sortOrder: 1 },
+      { accountCode: "5243000", accountName: "ค่าคอมมิชชั่น TikTok Shop", direction: "debit", sortOrder: 1 },
       { accountCode: "1432000", accountName: "ภาษีซื้อ", direction: "debit", sortOrder: 2 },
-      { accountCode: "1441300", accountName: "ค่าคอมมิชชั่นรับรู้ล่วงหน้า", direction: "credit", sortOrder: 3 },
+      { accountCode: "1441300", accountName: "ค่าคอมมิชชั่น TikTok รับรู้ล่วงหน้า", direction: "credit", sortOrder: 3 },
     ],
   },
 
@@ -1026,8 +1026,8 @@ export const DEFAULT_FORMULAS: DefaultFormulaTemplate[] = [
     nameTh: "ใบลดหนี้ — ค่าบริการแพลตฟอร์ม (รวม)",
     description: "กลับรายการค่าบริการแพลตฟอร์ม — Dr. Wallet / Cr. ค่าใช้จ่าย + ภาษีซื้อ",
     lines: [
-      { accountCode: "1001000", accountName: "เงินสด/ธนาคาร", direction: "debit", sortOrder: 1 },
-      { accountCode: "5253000", accountName: "ค่าบริการแพลตฟอร์ม", direction: "credit", sortOrder: 2 },
+      { accountCode: "1001000", accountName: "เงินสด", direction: "debit", sortOrder: 1 },
+      { accountCode: "5253000", accountName: "ค่าบริการ TikTok Shop", direction: "credit", sortOrder: 2 },
       { accountCode: "1432000", accountName: "ภาษีซื้อ", direction: "credit", sortOrder: 3 },
     ],
   },
