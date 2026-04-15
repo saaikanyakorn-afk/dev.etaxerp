@@ -18,18 +18,37 @@ function isReplit(): boolean {
   return !!(process.env.REPL_ID || process.env.REPL_SLUG || process.env.REPLIT_DOMAINS);
 }
 
+let _unauthorized = false;
+let _unauthorizedReason = "";
+
+export function isUnauthorizedMachine(): boolean {
+  return _unauthorized;
+}
+export function getUnauthorizedReason(): string {
+  return _unauthorizedReason;
+}
+
 function resolveConfigDbUrl(): string | null {
   const machineName = process.env.MACHINE_NAME;
   const machineDbPort = process.env.MACHINE_DB_PORT;
   if (!machineName || !machineDbPort) {
-    if (machineName && !machineDbPort) console.warn("[Config] MACHINE_NAME set but MACHINE_DB_PORT missing");
-    if (process.env.DATABASE_URL) return process.env.DATABASE_URL;
+    if (machineName && !machineDbPort) {
+      _unauthorized = true;
+      _unauthorizedReason = "MACHINE_NAME is set but MACHINE_DB_PORT is missing";
+      console.error("[Config] UNAUTHORIZED: MACHINE_NAME set but MACHINE_DB_PORT missing");
+      return null;
+    }
+    _unauthorized = true;
+    _unauthorizedReason = "No MACHINE_NAME configured — encryption key required";
+    console.error("[Config] UNAUTHORIZED: No MACHINE_NAME — this machine has no encryption identity");
     return null;
   }
 
   const encFile = path.join(process.cwd(), "config", "etax-config.enc");
   if (!fs.existsSync(encFile)) {
-    console.warn(`[Config] Encrypted config not found at ${encFile}`);
+    _unauthorized = true;
+    _unauthorizedReason = `Encrypted config file not found at ${encFile}`;
+    console.error(`[Config] UNAUTHORIZED: Encrypted config not found at ${encFile}`);
     return null;
   }
 
@@ -50,7 +69,9 @@ function resolveConfigDbUrl(): string | null {
     }
 
     if (!mac) {
-      console.error("[Config] Could not determine MAC address");
+      _unauthorized = true;
+      _unauthorizedReason = "Could not determine MAC address for decryption";
+      console.error("[Config] UNAUTHORIZED: Could not determine MAC address");
       return null;
     }
 
@@ -63,8 +84,9 @@ function resolveConfigDbUrl(): string | null {
     console.log(`[Config] Decrypted config OK → ${cfg.host}:${cfg.port}/${cfg.database}`);
     return url;
   } catch (err: any) {
-    console.error(`[Config] Failed to decrypt config: ${err.message}`);
-    if (process.env.DATABASE_URL) return process.env.DATABASE_URL;
+    _unauthorized = true;
+    _unauthorizedReason = `Decryption failed: ${err.message}`;
+    console.error(`[Config] UNAUTHORIZED: Failed to decrypt config — ${err.message}`);
     return null;
   }
 }
@@ -74,7 +96,19 @@ export function getConfigDbUrl(): string {
 }
 
 export async function bootstrapConfig(): Promise<Map<string, string>> {
-  const configDbUrl = isReplit() ? process.env.DATABASE_URL : resolveConfigDbUrl();
+  let configDbUrl: string | null = null;
+  if (isReplit()) {
+    configDbUrl = process.env.DATABASE_URL || null;
+  } else {
+    configDbUrl = resolveConfigDbUrl();
+    if (!configDbUrl && _unauthorized) {
+      console.error("╔══════════════════════════════════════════════════════════╗");
+      console.error("║  This is not an Authorized machine to run this Application  ║");
+      console.error("║  Reason: " + _unauthorizedReason.padEnd(48) + "║");
+      console.error("╚══════════════════════════════════════════════════════════╝");
+      return _configCache;
+    }
+  }
   if (!configDbUrl) {
     console.warn("[Config] No config DB URL resolved, skipping config bootstrap");
     return _configCache;

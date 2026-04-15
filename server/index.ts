@@ -3,7 +3,7 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
-import { bootstrapConfig } from "./config-bootstrap";
+import { bootstrapConfig, isUnauthorizedMachine, getUnauthorizedReason } from "./config-bootstrap";
 import { db, reinitializeFromConfig } from "./db";
 import { companies, accounts, journalLines, journalEntries, accountingFormulaLines, firmClients, contacts } from "@shared/schema";
 import { eq, and, sql, inArray, ilike } from "drizzle-orm";
@@ -1059,6 +1059,34 @@ async function runMigrationsInBackground() {
 
   log("Bootstrapping config from config DB...");
   await bootstrapConfig();
+
+  if (isUnauthorizedMachine()) {
+    log("UNAUTHORIZED MACHINE — serving dead page only");
+    app.use((_req: Request, res: Response) => {
+      if (_req.path.startsWith("/api/")) {
+        return res.status(403).json({ unauthorized: true, message: "This is not an Authorized machine to run this Application" });
+      }
+      res.status(403).send(`<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Unauthorized</title></head>
+<body style="margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#111;font-family:system-ui,sans-serif;">
+<div style="text-align:center;color:#fff;max-width:500px;padding:40px;">
+<div style="font-size:64px;margin-bottom:24px;">&#128274;</div>
+<h1 style="font-size:24px;margin:0 0 16px;color:#f94d4d;">Unauthorized Machine</h1>
+<p style="font-size:16px;color:#999;line-height:1.6;">This is not an Authorized machine to run this Application.</p>
+<p style="font-size:12px;color:#555;margin-top:24px;">Contact your system administrator to generate an encryption key for this machine.</p>
+</div>
+</body>
+</html>`);
+    });
+    const deadPort = parseInt(process.env.PORT || "5000", 10);
+    const deadHost = process.env.REPL_ID ? "0.0.0.0" : "localhost";
+    httpServer.listen({ port: deadPort, host: deadHost }, () => {
+      log(`Dead server on port ${deadPort} — unauthorized machine, no DB access`);
+    });
+    return;
+  }
+
   await reinitializeFromConfig();
 
   const { resolveDbFromMachineRegistry } = await import("./machine-db-resolver");
