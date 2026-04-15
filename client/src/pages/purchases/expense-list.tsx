@@ -175,6 +175,8 @@ export default function ExpenseList() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/expenses"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/expense-daily-batches"] });
+      setBatchExpenses({});
       toast({ title: "ลบรายจ่ายสำเร็จ", variant: "success" as any });
     },
     onError: (err: any) => toast({ title: "เกิดข้อผิดพลาด", description: err.message, variant: "destructive" }),
@@ -187,6 +189,8 @@ export default function ExpenseList() {
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/expenses"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/expense-daily-batches"] });
+      setBatchExpenses({});
       setSelectedIds(new Set());
       toast({ title: `ลบสำเร็จ ${data.deleted} รายการ${data.errors?.length > 0 ? ` (ผิดพลาด ${data.errors.length})` : ""}`, variant: "success" as any });
     },
