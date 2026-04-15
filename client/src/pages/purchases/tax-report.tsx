@@ -175,7 +175,7 @@ export default function PurchaseTaxReport() {
   }
 
   const buildReportHtml = useCallback(() => {
-    const ROWS_PER_PAGE = 18;
+    const ROWS_PER_PAGE = 15;
     const totalPages = Math.max(1, Math.ceil(rows.length / ROWS_PER_PAGE));
 
     const headerHtml = `
