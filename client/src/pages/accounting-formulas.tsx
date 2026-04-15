@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Calculator, Pencil, RotateCcw, Plus, Trash2, ArrowUpDown, ChevronRight, Search, BookOpen, ShieldCheck, AlertTriangle, CheckCircle2, XCircle, Wrench } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -62,6 +62,104 @@ const DOC_TYPE_COLORS: Record<string, string> = {
   ecommerce_settlement: "bg-lime-100 text-lime-700",
   expense: "bg-red-100 text-red-700",
 };
+
+function AccountSearchCombobox({ accounts, value, onChange, testId }: {
+  accounts: any[];
+  value: string;
+  onChange: (code: string, name: string) => void;
+  testId?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const detailAccounts = useMemo(() =>
+    accounts.filter((a: any) => a.code && a.code.length >= 7 && !a.isHeader),
+    [accounts]
+  );
+
+  const filtered = useMemo(() => {
+    if (!search.trim()) return detailAccounts;
+    const q = search.toLowerCase();
+    return detailAccounts.filter((a: any) =>
+      a.code.includes(q) || (a.nameTh || a.name || "").toLowerCase().includes(q)
+    );
+  }, [detailAccounts, search]);
+
+  const selectedAcct = detailAccounts.find((a: any) => a.code === value);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node) &&
+          inputRef.current && !inputRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  return (
+    <div className="relative">
+      <div
+        className="flex items-center border rounded-md h-8 px-2 cursor-pointer text-xs bg-background hover:bg-accent/50"
+        onClick={() => { setOpen(true); setTimeout(() => inputRef.current?.focus(), 50); }}
+        data-testid={testId}
+      >
+        {value ? (
+          <span className="truncate">
+            <span className="font-mono">{value}</span>
+            <span className="ml-1 text-muted-foreground">{selectedAcct?.nameTh || selectedAcct?.name || ""}</span>
+          </span>
+        ) : (
+          <span className="text-muted-foreground">ค้นหาบัญชี...</span>
+        )}
+        <Search className="h-3 w-3 ml-auto shrink-0 text-muted-foreground" />
+      </div>
+      {open && (
+        <div ref={dropdownRef} className="absolute z-50 top-9 left-0 w-80 bg-popover border rounded-md shadow-lg">
+          <div className="p-2 border-b">
+            <Input
+              ref={inputRef}
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="พิมพ์รหัสหรือชื่อบัญชี..."
+              className="h-8 text-sm"
+              data-testid={testId ? `${testId}-search` : undefined}
+            />
+          </div>
+          <div className="max-h-52 overflow-y-auto">
+            {filtered.length === 0 ? (
+              <div className="p-3 text-center text-sm text-muted-foreground">ไม่พบบัญชี</div>
+            ) : (
+              filtered.slice(0, 50).map((a: any) => (
+                <div
+                  key={a.code}
+                  className={`flex items-center gap-2 px-3 py-1.5 cursor-pointer hover:bg-accent text-xs ${a.code === value ? "bg-accent font-semibold" : ""}`}
+                  onClick={() => {
+                    onChange(a.code, a.nameTh || a.name || "");
+                    setSearch("");
+                    setOpen(false);
+                  }}
+                >
+                  <span className="font-mono w-20 shrink-0">{a.code}</span>
+                  <span className="truncate">{a.nameTh || a.name}</span>
+                </div>
+              ))
+            )}
+            {filtered.length > 50 && (
+              <div className="p-2 text-center text-xs text-muted-foreground border-t">
+                แสดง 50 จาก {filtered.length} รายการ — พิมพ์เพิ่มเพื่อกรอง
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 interface FormulaLine {
   accountCode: string;
@@ -759,33 +857,16 @@ export default function AccountingFormulas() {
                         {editingFormula.lines.map((line, i) => (
                           <TableRow key={i}>
                             <TableCell className="py-1.5">
-                              <Select
+                              <AccountSearchCombobox
+                                accounts={companyAccounts}
                                 value={line.accountCode}
-                                onValueChange={v => {
-                                  const acct = companyAccounts.find((a: any) => a.code === v);
+                                onChange={(code, name) => {
                                   const lines = [...editingFormula.lines];
-                                  lines[i] = {
-                                    ...lines[i],
-                                    accountCode: v,
-                                    accountName: acct?.nameTh || acct?.name || lines[i].accountName,
-                                  };
+                                  lines[i] = { ...lines[i], accountCode: code, accountName: name };
                                   setEditingFormula({ ...editingFormula, lines });
                                 }}
-                              >
-                                <SelectTrigger className="h-8 text-xs font-mono" data-testid={`select-line-code-${i}`}>
-                                  <SelectValue placeholder="เลือกบัญชี" />
-                                </SelectTrigger>
-                                <SelectContent className="max-h-60">
-                                  {companyAccounts
-                                    .filter((a: any) => a.code && a.code.length >= 7)
-                                    .map((a: any) => (
-                                      <SelectItem key={a.code} value={a.code}>
-                                        <span className="font-mono text-xs">{a.code}</span>
-                                        <span className="ml-1.5 text-xs">{a.nameTh || a.name}</span>
-                                      </SelectItem>
-                                    ))}
-                                </SelectContent>
-                              </Select>
+                                testId={`select-line-code-${i}`}
+                              />
                             </TableCell>
                             <TableCell className="py-1.5">
                               <Input
