@@ -356,40 +356,26 @@ export default function PurchaseTaxReport() {
     setGeneratingPdf(true);
     try {
       const html = buildReportHtml();
-      const container = document.createElement("div");
-      container.innerHTML = html.replace(/.*<body[^>]*>/s, "").replace(/<\/body>.*/s, "");
-      container.style.position = "absolute";
-      container.style.left = "-9999px";
-      container.style.top = "0";
-      container.style.width = "277mm";
-      container.style.fontFamily = "'Sarabun', 'TH SarabunPSK', sans-serif";
-      container.style.fontSize = "11px";
-      container.style.color = "#333";
-      document.body.appendChild(container);
-      const styleEl = document.createElement("style");
-      const styleMatch = html.match(/<style>([\s\S]*?)<\/style>/);
-      if (styleMatch) {
-        styleEl.textContent = styleMatch[1].replace(/@import[^;]+;/g, "").replace(/@media print[\s\S]*?\}/g, "");
-      }
-      container.prepend(styleEl);
-      const linkEl = document.createElement("link");
-      linkEl.rel = "stylesheet";
-      linkEl.href = "https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;700&display=swap";
-      container.prepend(linkEl);
-      await new Promise(r => setTimeout(r, 500));
+      const pdfIframe = document.createElement("iframe");
+      pdfIframe.style.cssText = "position:fixed;top:0;left:0;width:1047px;height:800px;opacity:0;pointer-events:none;z-index:-1;";
+      document.body.appendChild(pdfIframe);
+      const iframeDoc = pdfIframe.contentDocument || pdfIframe.contentWindow?.document;
+      if (!iframeDoc) throw new Error("Cannot access iframe document");
+      iframeDoc.open();
+      iframeDoc.write(html);
+      iframeDoc.close();
+      await new Promise(r => setTimeout(r, 1000));
       const html2pdf = (await import("html2pdf.js")).default;
-      const pages = container.querySelectorAll(".page");
       const opt = {
         margin: [5, 5, 5, 5],
         filename: `รายงานภาษีซื้อ_${companyName}_${monthName}_${displayYear}.pdf`,
         image: { type: "jpeg", quality: 0.95 },
-        html2canvas: { scale: 2, useCORS: true, letterRendering: true, scrollX: 0, scrollY: 0, width: 1047 },
+        html2canvas: { scale: 2, useCORS: true, letterRendering: true, windowWidth: 1047 },
         jsPDF: { unit: "mm", format: "a4", orientation: "landscape" },
         pagebreak: { mode: ["css", "legacy"], avoid: ["tr"] },
       };
-      const worker = html2pdf().set(opt).from(container);
-      await worker.save();
-      document.body.removeChild(container);
+      await html2pdf().set(opt).from(iframeDoc.body).save();
+      document.body.removeChild(pdfIframe);
     } catch (err) {
       console.error("PDF generation error:", err);
       alert("เกิดข้อผิดพลาดในการสร้าง PDF");
