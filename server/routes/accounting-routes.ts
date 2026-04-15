@@ -616,7 +616,7 @@ app.get("/api/accounting-formulas/available", requireAuth, async (req, res) => {
 
     if (documentType) {
       const existingBizTypes = new Set(companyFormulas.map((f: any) => f.businessType));
-      const allBizTypes = [formulaBusinessType, ...["trading", "service", "ecommerce", "lazada", "tiktok", "ecommerce_commission", "shopee_commission", "lazada_commission", "platform_fee", "shopee_platform_fee", "shopee_shipping", "lazada_platform_fee", "lazada_shipping", "tiktok_platform_fee", "tiktok_shipping", "online_shop", "online_shop_commission", "mixed"].filter(bt => bt !== formulaBusinessType)];
+      const allBizTypes = [formulaBusinessType, ...["trading", "service", "ecommerce", "lazada", "tiktok", "ecommerce_commission", "shopee_commission", "lazada_commission", "platform_fee", "shopee_platform_fee", "shopee_shipping", "lazada_platform_fee", "lazada_shipping", "tiktok_platform_fee", "tiktok_shipping", "mixed"].filter(bt => bt !== formulaBusinessType)];
       for (const bt of allBizTypes) {
         if (existingBizTypes.has(bt)) continue;
         const defaults = DEFAULT_FORMULAS.filter(f => f.documentType === documentType && f.businessType === bt);
@@ -1283,7 +1283,7 @@ app.post("/api/journal-preview", requireAuth, async (req, res) => {
         { accountCode: rf("1001000"), accountName: "เงินสด/เงินฝากธนาคาร", direction: "credit", sortOrder: 3 },
       ];
     } else if (isStandaloneTaxInvoice) {
-      const revCode = isServiceType ? rf("4100100") : (businessType === "ecommerce" || businessType === "online_shop") ? rf("4011000") : rf("4001000");
+      const revCode = isServiceType ? rf("4100100") : (businessType === "ecommerce") ? rf("4011000") : rf("4001000");
       const revName = isServiceType ? "รายได้จากการให้บริการ" : "รายได้จากการขายสินค้า";
       formulaName = isCreditPayment ? "ใบกำกับภาษี (ขายเชื่อ)" : "ใบกำกับภาษี (รับชำระทันที)";
       if (isCreditPayment) {
