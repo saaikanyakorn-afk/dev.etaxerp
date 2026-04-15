@@ -158,7 +158,7 @@ export default function SalesTaxReport() {
 
   const buildReportHtml = useCallback(() => {
     const themeColor = getComputedStyle(document.documentElement).getPropertyValue('--theme-table-header').trim() || '#fb9678';
-    const ROWS_PER_PAGE = 15;
+    const ROWS_PER_PAGE = 20;
     const totalPages = Math.max(1, Math.ceil(rows.length / ROWS_PER_PAGE));
 
     const headerHtml = `
