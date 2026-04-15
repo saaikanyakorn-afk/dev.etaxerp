@@ -694,6 +694,83 @@ app.post("/api/accounting-formulas/seed", requireAuth, requireRole("admin", "sup
   }
 });
 
+app.get("/api/accounting-formulas/validate", requireAuth, requireModule("accounting"), async (req, res) => {
+  try {
+    const companyId = Number(req.query.companyId);
+    if (!companyId) return res.status(400).json({ message: "กรุณาระบุ companyId" });
+    const { checkDocOwnership } = require("../route-middleware");
+    { const ac = await checkDocOwnership(companyId, req.user); if (!ac.allowed) return res.status(403).json({ message: ac.message }); }
+
+    const companyAccounts = await db.select({ code: accounts.code, nameTh: accounts.nameTh, name: accounts.name })
+      .from(accounts).where(eq(accounts.companyId, companyId));
+    const accountSet = new Map(companyAccounts.map(a => [a.code, a.nameTh || a.name || ""]));
+
+    const savedFormulas = await db.select().from(accountingFormulas).where(eq(accountingFormulas.companyId, companyId));
+
+    const results: any[] = [];
+
+    for (const formula of savedFormulas) {
+      const lines = (formula.lines as any[]) || [];
+      const issues: any[] = [];
+      for (const line of lines) {
+        const code = line.accountCode;
+        if (!code) continue;
+        const realName = accountSet.get(code);
+        if (realName === undefined) {
+          issues.push({ accountCode: code, formulaName: line.accountName || "", issue: "missing", realName: null });
+        } else if (line.accountName && realName && !realName.includes(line.accountName) && !line.accountName.includes(realName)) {
+          issues.push({ accountCode: code, formulaName: line.accountName, issue: "name_mismatch", realName });
+        }
+      }
+      if (issues.length > 0) {
+        results.push({
+          id: formula.id,
+          name: formula.nameTh || formula.name,
+          documentType: formula.documentType,
+          businessType: formula.businessType,
+          issues,
+        });
+      }
+    }
+
+    const defaultResults: any[] = [];
+    const { DEFAULT_FORMULAS } = require("@shared/accounting-formulas");
+    for (const def of DEFAULT_FORMULAS) {
+      const lines = def.lines || [];
+      if (def.noJournalEntry) continue;
+      const issues: any[] = [];
+      for (const line of lines) {
+        const code = line.accountCode;
+        if (!code) continue;
+        const realName = accountSet.get(code);
+        if (realName === undefined) {
+          issues.push({ accountCode: code, formulaName: line.accountName || "", issue: "missing", realName: null });
+        } else if (line.accountName && realName && !realName.includes(line.accountName) && !line.accountName.includes(realName)) {
+          issues.push({ accountCode: code, formulaName: line.accountName, issue: "name_mismatch", realName });
+        }
+      }
+      if (issues.length > 0) {
+        defaultResults.push({
+          name: def.nameTh || def.name,
+          documentType: def.documentType,
+          businessType: def.businessType,
+          issues,
+        });
+      }
+    }
+
+    const totalSaved = savedFormulas.length;
+    const totalDefault = (DEFAULT_FORMULAS as any[]).filter((f: any) => !f.noJournalEntry).length;
+    res.json({
+      savedFormulas: { total: totalSaved, withIssues: results.length, details: results },
+      defaultFormulas: { total: totalDefault, withIssues: defaultResults.length, details: defaultResults },
+      totalAccounts: companyAccounts.length,
+    });
+  } catch (err: any) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 // ========== Auto Journal from Sales Document ==========
 
 app.post("/api/journal-entries/from-document", requireAuth, requireModule("accounting"), async (req, res) => {

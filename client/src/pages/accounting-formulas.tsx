@@ -2,7 +2,7 @@ import Layout from "@/components/layout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Calculator, Pencil, RotateCcw, Plus, Trash2, ArrowUpDown, ChevronRight, Search, BookOpen } from "lucide-react";
+import { Calculator, Pencil, RotateCcw, Plus, Trash2, ArrowUpDown, ChevronRight, Search, BookOpen, ShieldCheck, AlertTriangle, CheckCircle2, XCircle } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, useMemo } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -94,6 +94,25 @@ export default function AccountingFormulas() {
   const [selectedDocType, setSelectedDocType] = useState<string | null>(null);
   const [searchText, setSearchText] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
+  const [validateOpen, setValidateOpen] = useState(false);
+  const [validateResult, setValidateResult] = useState<any>(null);
+  const [validating, setValidating] = useState(false);
+
+  const runValidation = async () => {
+    if (!selectedCompanyId) return;
+    setValidating(true);
+    try {
+      const r = await fetch(`/api/accounting-formulas/validate?companyId=${selectedCompanyId}`, { credentials: "include" });
+      if (!r.ok) throw new Error("ไม่สามารถตรวจสอบได้");
+      const data = await r.json();
+      setValidateResult(data);
+      setValidateOpen(true);
+    } catch (err: any) {
+      toast({ title: "เกิดข้อผิดพลาด", description: err.message, variant: "destructive" });
+    } finally {
+      setValidating(false);
+    }
+  };
 
   const rawBusinessType = selectedCompany?.businessType || "mixed";
   const mappedBusinessType = BIZ_TYPE_MAP[rawBusinessType] || "mixed";
@@ -441,7 +460,16 @@ export default function AccountingFormulas() {
           </div>
 
           <Button
-            className="mt-3 w-full bg-[#fb9678] hover:bg-[#e8856a] text-white"
+            variant="outline"
+            className="mt-3 w-full border-[#03c9d7] text-[#03c9d7] hover:bg-[#03c9d7]/10"
+            onClick={runValidation}
+            disabled={validating}
+            data-testid="button-validate-formulas"
+          >
+            <ShieldCheck className="h-4 w-4 mr-1" /> {validating ? "กำลังตรวจสอบ..." : "ตรวจสอบสูตรบัญชี"}
+          </Button>
+          <Button
+            className="mt-1.5 w-full bg-[#fb9678] hover:bg-[#e8856a] text-white"
             onClick={openCreate}
             data-testid="button-create-formula"
           >
@@ -808,6 +836,126 @@ export default function AccountingFormulas() {
               ลบสูตร
             </Button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={validateOpen} onOpenChange={setValidateOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ShieldCheck className="h-5 w-5 text-[#03c9d7]" />
+              ผลตรวจสอบสูตรบัญชี
+            </DialogTitle>
+            <DialogDescription>เทียบรหัสบัญชีในสูตรกับผังบัญชีจริงของบริษัท</DialogDescription>
+          </DialogHeader>
+          {validateResult && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-3 gap-3">
+                <div className="bg-blue-50 rounded-lg p-3 text-center">
+                  <div className="text-2xl font-bold text-blue-600">{validateResult.totalAccounts}</div>
+                  <div className="text-xs text-gray-500">รหัสบัญชีในผัง</div>
+                </div>
+                <div className={`rounded-lg p-3 text-center ${validateResult.savedFormulas.withIssues === 0 && validateResult.defaultFormulas.withIssues === 0 ? "bg-green-50" : "bg-red-50"}`}>
+                  <div className={`text-2xl font-bold ${validateResult.savedFormulas.withIssues === 0 && validateResult.defaultFormulas.withIssues === 0 ? "text-green-600" : "text-red-600"}`}>
+                    {validateResult.savedFormulas.withIssues + validateResult.defaultFormulas.withIssues}
+                  </div>
+                  <div className="text-xs text-gray-500">สูตรที่มีปัญหา</div>
+                </div>
+                <div className="bg-green-50 rounded-lg p-3 text-center">
+                  <div className="text-2xl font-bold text-green-600">
+                    {(validateResult.savedFormulas.total - validateResult.savedFormulas.withIssues) + (validateResult.defaultFormulas.total - validateResult.defaultFormulas.withIssues)}
+                  </div>
+                  <div className="text-xs text-gray-500">สูตรที่ถูกต้อง</div>
+                </div>
+              </div>
+
+              {validateResult.savedFormulas.withIssues === 0 && validateResult.defaultFormulas.withIssues === 0 ? (
+                <div className="bg-green-50 border border-green-200 rounded-lg p-4 flex items-center gap-3">
+                  <CheckCircle2 className="h-8 w-8 text-green-600 flex-shrink-0" />
+                  <div>
+                    <div className="font-bold text-green-800">ผ่านทุกรายการ!</div>
+                    <div className="text-sm text-green-700">รหัสบัญชีในสูตรทั้งหมดตรงกับผังบัญชีของบริษัท</div>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {validateResult.savedFormulas.details.length > 0 && (
+                    <div>
+                      <h3 className="font-bold text-sm mb-2 flex items-center gap-1.5">
+                        <AlertTriangle className="h-4 w-4 text-amber-500" />
+                        สูตรที่บันทึกไว้ ({validateResult.savedFormulas.withIssues} รายการมีปัญหา)
+                      </h3>
+                      {validateResult.savedFormulas.details.map((f: any, i: number) => (
+                        <div key={i} className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-2">
+                          <div className="font-medium text-sm">{f.name}</div>
+                          <div className="text-xs text-gray-500 mb-2">
+                            {docTypeLabel(f.documentType)} / {BIZ_TYPE_LABELS[f.businessType] || f.businessType}
+                          </div>
+                          {f.issues.map((iss: any, j: number) => (
+                            <div key={j} className="flex items-start gap-2 text-sm py-1 border-t border-amber-100">
+                              {iss.issue === "missing" ? (
+                                <XCircle className="h-4 w-4 text-red-500 mt-0.5 flex-shrink-0" />
+                              ) : (
+                                <AlertTriangle className="h-4 w-4 text-amber-500 mt-0.5 flex-shrink-0" />
+                              )}
+                              <div>
+                                <span className="font-mono text-xs bg-gray-100 px-1 rounded">{iss.accountCode}</span>
+                                {iss.issue === "missing" ? (
+                                  <span className="text-red-600 ml-1.5">ไม่พบในผังบัญชี</span>
+                                ) : (
+                                  <div className="text-xs mt-0.5">
+                                    <div>สูตร: <span className="text-amber-700">{iss.formulaName}</span></div>
+                                    <div>ผังบัญชี: <span className="text-blue-700">{iss.realName}</span></div>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {validateResult.defaultFormulas.details.length > 0 && (
+                    <div>
+                      <h3 className="font-bold text-sm mb-2 flex items-center gap-1.5">
+                        <AlertTriangle className="h-4 w-4 text-amber-500" />
+                        สูตรเริ่มต้นของระบบ ({validateResult.defaultFormulas.withIssues} รายการมีปัญหา)
+                      </h3>
+                      {validateResult.defaultFormulas.details.map((f: any, i: number) => (
+                        <div key={i} className="bg-orange-50 border border-orange-200 rounded-lg p-3 mb-2">
+                          <div className="font-medium text-sm">{f.name}</div>
+                          <div className="text-xs text-gray-500 mb-2">
+                            {docTypeLabel(f.documentType)} / {BIZ_TYPE_LABELS[f.businessType] || f.businessType}
+                          </div>
+                          {f.issues.map((iss: any, j: number) => (
+                            <div key={j} className="flex items-start gap-2 text-sm py-1 border-t border-orange-100">
+                              {iss.issue === "missing" ? (
+                                <XCircle className="h-4 w-4 text-red-500 mt-0.5 flex-shrink-0" />
+                              ) : (
+                                <AlertTriangle className="h-4 w-4 text-amber-500 mt-0.5 flex-shrink-0" />
+                              )}
+                              <div>
+                                <span className="font-mono text-xs bg-gray-100 px-1 rounded">{iss.accountCode}</span>
+                                {iss.issue === "missing" ? (
+                                  <span className="text-red-600 ml-1.5">ไม่พบในผังบัญชี (ปกติ — ถ้าสูตรนี้ไม่ได้ใช้กับบริษัทนี้)</span>
+                                ) : (
+                                  <div className="text-xs mt-0.5">
+                                    <div>สูตร: <span className="text-amber-700">{iss.formulaName}</span></div>
+                                    <div>ผังบัญชี: <span className="text-blue-700">{iss.realName}</span></div>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </Layout>
