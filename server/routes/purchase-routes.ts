@@ -2640,6 +2640,20 @@ export function registerPurchaseRoutes(app: Express) {
 
           let expNo = doc.expNo;
 
+          if (doc.taxInvoiceRef && doc.taxInvoiceRef.trim()) {
+            const dupByRef = await db.select({ id: expenses.id, expNo: expenses.expNo })
+              .from(expenses)
+              .where(and(
+                eq(expenses.companyId, companyId),
+                eq(expenses.taxInvoiceRef, doc.taxInvoiceRef.trim()),
+              ))
+              .limit(1);
+            if (dupByRef.length > 0) {
+              skipped.push({ expNo: expNo || doc.taxInvoiceRef, reason: `ใบกำกับภาษีซ้ำ (${dupByRef[0].expNo})` });
+              continue;
+            }
+          }
+
           if (!expNo || expNo === "(สร้างอัตโนมัติ)") {
             const useInvoicePrefix = !!doc.invoicePrefix;
             expNo = await getNextDocNo(companyId, docPrefix, expenses, expenses.expNo, expenses.companyId, docDateStr, "expense", undefined, useInvoicePrefix);
