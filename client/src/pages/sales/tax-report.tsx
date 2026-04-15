@@ -132,7 +132,8 @@ export default function SalesTaxReport() {
     const html = buildReportHtml()
       .replace(/@media print[\s\S]*?\}/g, "")
       .replace(/\.page-break\s*\{[^}]*\}/g, ".page-break { margin-bottom:8px; }");
-    const bodyContent = html.replace(/.*<body[^>]*>/s, "").replace(/<\/body>.*/s, "");
+    const bodyContent = html.replace(/.*<body[^>]*>/s, "").replace(/<\/body>.*/s, "")
+      .replace(/font-size:\s*\d+px/g, "font-size:14pt");
     const excelHtml = `
       <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
       <head><meta charset="utf-8">
