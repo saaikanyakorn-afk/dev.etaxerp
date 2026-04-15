@@ -21,6 +21,7 @@ import {
   withholdingTaxCerts, whtCertItems,
   expenseDailyBatches,
   clientUploadFiles,
+  purchaseDebitNotes, purchaseDebitNoteItems,
 } from "@shared/schema";
 import { requireAuth, requireModule, requireRole } from "../route-middleware";
 import { logActivity, deleteJournalEntriesForDoc, deleteStockMovementsForDoc } from "../route-helpers";
@@ -193,6 +194,14 @@ export function registerImportBatchRoutes(app: Express) {
                   deletedJournals += djIds.length;
                   console.log(`[import-batch-delete] Deleted ${djIds.length} DXP+DN journals for batch ${dxpNo}`);
                 }
+              }
+              const dnResult = await tx.execute(sql`SELECT id FROM purchase_debit_notes WHERE batch_id = ${dxpId}`);
+              const dnIds = (dnResult.rows as any[]).map((d: any) => d.id);
+              if (dnIds.length > 0) {
+                const pgDnIds = sql.raw(`ARRAY[${dnIds.join(',')}]::int[]`);
+                await tx.execute(sql`DELETE FROM purchase_debit_note_items WHERE debit_note_id = ANY(${pgDnIds})`);
+                await tx.execute(sql`DELETE FROM purchase_debit_notes WHERE id = ANY(${pgDnIds})`);
+                console.log(`[import-batch-delete] Deleted ${dnIds.length} purchase_debit_notes for DXP batch ${dxpId}`);
               }
               if (remaining.length === 0) {
                 await tx.execute(sql`DELETE FROM expense_daily_batches WHERE id = ${dxpId}`);
