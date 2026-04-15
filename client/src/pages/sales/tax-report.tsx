@@ -343,43 +343,34 @@ export default function SalesTaxReport() {
               </div>
             </div>
 
-            <div className="flex items-center justify-between flex-wrap gap-2">
-              <div className="flex items-center gap-2 text-xs">
-                <span>สาขาผู้ออก:</span>
-                <select data-testid="select-seller-branch-filter" value={sellerBranch} onChange={e => setSellerBranch(e.target.value)} className="h-8 px-2 border rounded-lg text-xs bg-white min-w-[160px]">
-                  <option value="">ทุกสาขา (รวม)</option>
-                  <option value="__hq__">สำนักงานใหญ่</option>
-                  {branchList.map(b => <option key={b.id} value={b.code}>{b.code} - {b.name}</option>)}
-                </select>
-              </div>
-              <div className="flex items-center gap-4 text-xs">
-                <div className="flex items-center gap-2">
-                  <span>Prefix:</span>
-                  <Select value={filterPrefix || "__all__"} onValueChange={(v) => setFilterPrefix(v === "__all__" ? "" : v)}>
-                    <SelectTrigger className="w-40 h-8 bg-white border rounded-lg" data-testid="select-filter-prefix">
-                      <SelectValue placeholder="ทั้งหมด" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__all__">ทั้งหมด</SelectItem>
-                      {prefixList.map(p => (
-                        <SelectItem key={p} value={p}>{p}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span>การจัดเรียง:</span>
-                  <Select value={sortBy} onValueChange={setSortBy}>
-                    <SelectTrigger className="w-44 h-8 bg-white border rounded-lg" data-testid="select-sort">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="date">เรียงตามวันที่</SelectItem>
-                      <SelectItem value="number">เรียงตามเลขที่เอกสาร</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
+            <div className="flex items-center flex-wrap gap-2 text-xs">
+              <span className="text-muted-foreground">กรอง:</span>
+              <select data-testid="select-seller-branch-filter" value={sellerBranch} onChange={e => setSellerBranch(e.target.value)} className="h-8 px-2 border rounded-lg text-xs bg-white min-w-[160px]">
+                <option value="">สาขาผู้ออก: ทุกสาขา (รวม)</option>
+                <option value="__hq__">สำนักงานใหญ่</option>
+                {branchList.map(b => <option key={b.id} value={b.code}>{b.code} - {b.name}</option>)}
+              </select>
+              <Select value={filterPrefix || "__all__"} onValueChange={(v) => setFilterPrefix(v === "__all__" ? "" : v)}>
+                <SelectTrigger className="w-44 h-8 bg-white border rounded-lg" data-testid="select-filter-prefix">
+                  <SelectValue placeholder="Prefix: ทั้งหมด" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all__">Prefix: ทั้งหมด</SelectItem>
+                  {prefixList.map(p => (
+                    <SelectItem key={p} value={p}>Prefix: {p}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <span className="text-muted-foreground ml-2">การจัดเรียง:</span>
+              <Select value={sortBy} onValueChange={setSortBy}>
+                <SelectTrigger className="w-44 h-8 bg-white border rounded-lg" data-testid="select-sort">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="date">เรียงตามวันที่</SelectItem>
+                  <SelectItem value="number">เรียงตามเลขที่เอกสาร</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
