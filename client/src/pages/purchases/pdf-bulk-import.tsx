@@ -1746,7 +1746,12 @@ export default function PdfBulkImport() {
                   <Upload className="h-4 w-4 mr-1" /> นำเข้าเพิ่ม
                 </Button>
                 <Button
-                  onClick={() => navigate(docType === "expense" ? "/purchases/expenses" : "/purchases/ap")}
+                  onClick={() => {
+                    queryClient.invalidateQueries({ queryKey: ["/api/expenses"] });
+                    queryClient.invalidateQueries({ queryKey: ["/api/purchases"] });
+                    queryClient.invalidateQueries({ queryKey: ["/api/expense-daily-batches"] });
+                    navigate(docType === "expense" ? "/purchases/expenses" : "/purchases/ap");
+                  }}
                   className="bg-[#fb9678] hover:bg-[#e8856a] text-white"
                   data-testid="button-go-list"
                 >
