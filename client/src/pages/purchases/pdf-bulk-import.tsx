@@ -1031,12 +1031,22 @@ export default function PdfBulkImport() {
                                   "shopee:platform_fee": { label: "Shopee ค่าบริการ", color: "bg-orange-100 text-orange-700" },
                                   "shopee:shipping": { label: "SPX ค่าขนส่ง", color: "bg-orange-50 text-orange-600" },
                                   "shopee:commission": { label: "Shopee คอมมิชชั่น", color: "bg-orange-100 text-orange-700" },
+                                  "shopee:service_fee": { label: "ShopeeFood/SPX Admin", color: "bg-orange-100 text-orange-600" },
                                   "tiktok:platform_fee": { label: "TikTok ค่าบริการ", color: "bg-slate-100 text-slate-700" },
                                   "tiktok:shipping": { label: "TikTok ค่าขนส่ง", color: "bg-slate-50 text-slate-600" },
                                   "tiktok:commission": { label: "TikTok Affiliate", color: "bg-purple-100 text-purple-700" },
                                   "lazada:platform_fee": { label: "Lazada ค่าบริการ", color: "bg-blue-100 text-blue-700" },
                                   "lazada:shipping": { label: "Lazada ค่าขนส่ง", color: "bg-blue-50 text-blue-600" },
                                   "lazada:commission": { label: "Lazada คอมมิชชั่น", color: "bg-blue-100 text-blue-700" },
+                                  "grab:service_fee": { label: "Grab ค่า GP", color: "bg-green-100 text-green-700" },
+                                  "grab:platform_fee": { label: "Grab ค่าบริการ", color: "bg-green-100 text-green-700" },
+                                  "grab:mixed": { label: "Grab", color: "bg-green-100 text-green-700" },
+                                  "lineman:service_fee": { label: "LINE MAN ค่า GP", color: "bg-emerald-100 text-emerald-700" },
+                                  "lineman:mixed": { label: "LINE MAN", color: "bg-emerald-100 text-emerald-700" },
+                                  "foodpanda:service_fee": { label: "foodpanda ค่า GP", color: "bg-pink-100 text-pink-700" },
+                                  "foodpanda:mixed": { label: "foodpanda", color: "bg-pink-100 text-pink-700" },
+                                  "robinhood:service_fee": { label: "Robinhood ค่า GP", color: "bg-violet-100 text-violet-700" },
+                                  "robinhood:mixed": { label: "Robinhood", color: "bg-violet-100 text-violet-700" },
                                 };
                                 const key = `${pf}:${st}`;
                                 const info = PLATFORM_LABELS[key];
