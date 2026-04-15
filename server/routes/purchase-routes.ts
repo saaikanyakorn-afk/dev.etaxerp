@@ -7,6 +7,7 @@ import { purchaseRequests, purchaseRequestItems, bidComparisons, bidComparisonIt
 import { requireAuth, requireModule, requireRole, checkDocOwnership } from "../route-middleware";
 import { getNextDocNo, validateDocNo, createAutoJournalEntry, resolvePaymentMethodAccountCode, getNextJournalEntryNo, checkDocumentLimit, deleteStockMovementsForDoc, deleteJournalEntriesForDoc, logActivity } from "../route-helpers";
 import { parsePagination, paginatedResponse } from "./pagination";
+import { invalidateCompanyReports } from "./report-cache";
 import { recalcBundleStock, recalcBomStock } from "../inventory-recalc";
 import { decodeMulterFilename } from "../utils/safe-filename";
 import { DEFAULT_FORMULAS } from "@shared/accounting-formulas";
@@ -3905,6 +3906,8 @@ export function registerPurchaseRoutes(app: Express) {
       await db.delete(expenses).where(eq(expenses.batchId, batchId));
 
       await db.delete(expenseDailyBatches).where(eq(expenseDailyBatches.id, batchId));
+
+      invalidateCompanyReports(batch.companyId);
 
       console.log(`[DXP] Deleted batch ${batch.batchNo}: ${batchExpenses.length} expenses, ${deletedJournals} journals, ${deletedClientFiles} client files`);
 
