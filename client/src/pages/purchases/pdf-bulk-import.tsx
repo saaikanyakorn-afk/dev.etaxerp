@@ -639,15 +639,22 @@ export default function PdfBulkImport() {
   if (itemAcctMap) {
     for (const doc of selectedDocsList) {
       for (const item of (doc.items || [])) {
-        if (isPaidAdsItem(item.description)) continue;
+        const amt = parseFloat(item.amount) || 0;
+        if (amt <= 0) continue;
+        if (isPaidAdsItem(item.description)) {
+          const platform = doc.platform || "other";
+          const adCodeMap: Record<string, string> = { shopee: "5271000", lazada: "5272000", tiktok: "5273000", facebook: "5274000", google: "5275000" };
+          const adCode = adCodeMap[platform] || "5200500";
+          const adAcc = accountMap.get(adCode);
+          const existing = feeBreakdownMap.get(adCode);
+          if (existing) { existing.total += amt; } else { feeBreakdownMap.set(adCode, { code: adCode, name: adAcc?.nameTh || "ค่าโฆษณา", total: amt }); }
+          continue;
+        }
         const cat = classifyItem(item.description);
         const mapping = itemAcctMap[cat];
         if (mapping) {
-          const amt = parseFloat(item.amount) || 0;
-          if (amt > 0) {
-            const existing = feeBreakdownMap.get(mapping.code);
-            if (existing) { existing.total += amt; } else { feeBreakdownMap.set(mapping.code, { ...mapping, total: amt }); }
-          }
+          const existing = feeBreakdownMap.get(mapping.code);
+          if (existing) { existing.total += amt; } else { feeBreakdownMap.set(mapping.code, { ...mapping, total: amt }); }
         }
       }
     }
