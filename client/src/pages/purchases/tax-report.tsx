@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useMemo } from "react";
 import Layout from "@/components/layout";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -57,6 +57,7 @@ export default function PurchaseTaxReport() {
   const [sellerBranch, setSellerBranch] = useState("");
   const [filterDepartment, setFilterDepartment] = useState("");
   const [filterSalesperson, setFilterSalesperson] = useState("");
+  const [filterPrefix, setFilterPrefix] = useState("");
 
   const { dateEra, dateFmt } = useDateSettings();
   const { data: docSettings } = useQuery<any>({
@@ -96,10 +97,29 @@ export default function PurchaseTaxReport() {
     enabled: !!companyId,
   });
 
-  const rows: any[] = reportData?.rows || [];
-  const totalSubtotal = reportData?.totalSubtotal || 0;
-  const totalVat = reportData?.totalVat || 0;
-  const totalAmount = reportData?.totalAmount || 0;
+  const rawRows: any[] = reportData?.rows || [];
+
+  const prefixList = useMemo(() => {
+    const set = new Set<string>();
+    rawRows.forEach((r: any) => {
+      const ref = r.taxInvoiceRef || r.docNo || "";
+      const m = ref.match(/^([A-Za-z]+)/);
+      if (m) set.add(m[1]);
+    });
+    return [...set].sort();
+  }, [rawRows]);
+
+  const rows = useMemo(() => {
+    if (!filterPrefix) return rawRows;
+    return rawRows.filter((r: any) => {
+      const ref = r.taxInvoiceRef || r.docNo || "";
+      return ref.startsWith(filterPrefix);
+    });
+  }, [rawRows, filterPrefix]);
+
+  const totalSubtotal = useMemo(() => rows.reduce((s: number, r: any) => s + (r.subtotal || 0), 0), [rows]);
+  const totalVat = useMemo(() => rows.reduce((s: number, r: any) => s + (r.vatAmount || 0), 0), [rows]);
+  const totalAmount = useMemo(() => totalSubtotal + totalVat, [totalSubtotal, totalVat]);
 
   const currentYear = today.getFullYear();
   const yearOptions = Array.from({ length: 5 }, (_, i) => String(currentYear - 2 + i));
@@ -383,17 +403,33 @@ export default function PurchaseTaxReport() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="flex items-center gap-2 text-xs">
-                <span>การจัดเรียง:</span>
-                <Select value={sortBy} onValueChange={setSortBy}>
-                  <SelectTrigger className="w-44 h-8 bg-white border rounded-lg" data-testid="select-sort">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="date">เรียงตามวันที่</SelectItem>
-                    <SelectItem value="number">เรียงตามเลขที่เอกสาร</SelectItem>
-                  </SelectContent>
-                </Select>
+              <div className="flex items-center gap-4 text-xs">
+                <div className="flex items-center gap-2">
+                  <span>Prefix:</span>
+                  <Select value={filterPrefix || "__all__"} onValueChange={(v) => setFilterPrefix(v === "__all__" ? "" : v)}>
+                    <SelectTrigger className="w-40 h-8 bg-white border rounded-lg" data-testid="select-filter-prefix">
+                      <SelectValue placeholder="ทั้งหมด" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__all__">ทั้งหมด</SelectItem>
+                      {prefixList.map(p => (
+                        <SelectItem key={p} value={p}>{p}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span>การจัดเรียง:</span>
+                  <Select value={sortBy} onValueChange={setSortBy}>
+                    <SelectTrigger className="w-44 h-8 bg-white border rounded-lg" data-testid="select-sort">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="date">เรียงตามวันที่</SelectItem>
+                      <SelectItem value="number">เรียงตามเลขที่เอกสาร</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             </div>
 
