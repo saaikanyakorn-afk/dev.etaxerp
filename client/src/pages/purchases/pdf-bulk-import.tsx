@@ -168,6 +168,7 @@ export default function PdfBulkImport() {
   const [expandedDocs, setExpandedDocs] = useState<Set<string>>(new Set());
   const [docType, setDocType] = useState<"purchase" | "expense">("expense");
   const [autoJournal, setAutoJournal] = useState(true);
+  const [journalMode, setJournalMode] = useState<"daily" | "per_doc">("daily");
   const [autoCreateContact, setAutoCreateContact] = useState(true);
   const [paymentMethod, setPaymentMethod] = useState("transfer");
   const [globalWhtRate, setGlobalWhtRate] = useState("0");
@@ -412,6 +413,7 @@ export default function PdfBulkImport() {
           companyId,
           documents: mappedDocs,
           autoJournal,
+          journalMode: autoJournal ? journalMode : undefined,
           autoCreateContact,
           autoWht: docType === "expense" && whtRate > 0,
           paymentMethod,
@@ -1164,8 +1166,21 @@ export default function PdfBulkImport() {
                       data-testid="check-auto-journal"
                     />
                     <label htmlFor="autoJournal" className="text-sm font-medium cursor-pointer">
-                      บันทึกบัญชีอัตโนมัติ (สร้าง Journal Entry พร้อมกัน)
+                      บันทึกบัญชีอัตโนมัติ
                     </label>
+                    {autoJournal && (
+                      <>
+                        <select
+                          value={journalMode}
+                          onChange={(e) => setJournalMode(e.target.value as "daily" | "per_doc")}
+                          className="border rounded px-2 py-1 text-sm"
+                          data-testid="select-journal-mode"
+                        >
+                          <option value="daily">สรุปรายวัน (DXP)</option>
+                          <option value="per_doc">รายใบ</option>
+                        </select>
+                      </>
+                    )}
                     <span className="text-slate-300">|</span>
                     <Checkbox
                       id="autoCreateContact"

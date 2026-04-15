@@ -2321,9 +2321,10 @@ export function registerPurchaseRoutes(app: Express) {
   app.post("/api/pdf-import/create-expense", requireAuth, requireModule("purchases"), async (req, res) => {
     try {
       const user = req.user as any;
-      const { companyId, documents, autoJournal, autoWht, autoCreateContact, paymentMethod: reqPaymentMethod, formulaId, formulaBusinessType, archiveToDocs } = req.body;
+      const { companyId, documents, autoJournal, journalMode, autoWht, autoCreateContact, paymentMethod: reqPaymentMethod, formulaId, formulaBusinessType, archiveToDocs } = req.body;
       const shouldCreateContact = autoCreateContact !== false;
-      console.log(`[PDF-Import] create-expense: companyId=${companyId}, autoJournal=${autoJournal}, autoCreateContact=${shouldCreateContact}, formulaId=${formulaId}, formulaBusinessType=${formulaBusinessType}, docs=${documents?.length}`);
+      const usePerDoc = journalMode === "per_doc";
+      console.log(`[PDF-Import] create-expense: companyId=${companyId}, autoJournal=${autoJournal}, journalMode=${journalMode || "daily"}, autoCreateContact=${shouldCreateContact}, formulaId=${formulaId}, formulaBusinessType=${formulaBusinessType}, docs=${documents?.length}`);
       if (!companyId || !documents || !Array.isArray(documents)) {
         return res.status(400).json({ message: "ข้อมูลไม่ถูกต้อง" });
       }
@@ -2824,7 +2825,45 @@ export function registerPurchaseRoutes(app: Express) {
       }
 
       const hasAutoJournal = autoJournal && pendingJournals.length > 0;
-      if (hasAutoJournal) {
+      if (hasAutoJournal && usePerDoc) {
+        for (const { result, doc, validItems } of pendingJournals) {
+          try {
+            const resolvedBt = doc.resolvedFormulaBt || (formulaBusinessType && formulaBusinessType !== "auto-detect" ? formulaBusinessType : null) || "platform_fee";
+
+            const sub = String(Math.round(parseFloat(String(result.subtotal || "0")) * 100) / 100);
+            const vat = String(Math.round(parseFloat(String(result.vatAmount || "0")) * 100) / 100);
+            const total = String(Math.round(parseFloat(String(result.totalAmount || "0")) * 100) / 100);
+            const wht = String(Math.round(parseFloat(String(result.withholdingTax || "0")) * 100) / 100);
+
+            const journalResult = await createAutoJournalEntry({
+              companyId,
+              documentType: "purchase",
+              sourceDocType: "expense",
+              sourceDocId: result.id,
+              docDate: result.expDate,
+              docNo: result.expNo,
+              subtotal: sub,
+              vatAmount: vat,
+              totalAmount: total,
+              withholdingTax: wht,
+              userId: user.id,
+              customerName: result.vendorName || "ค่าบริการ",
+              formulaBusinessType: resolvedBt,
+              paymentMethodAccountCode: pmAccCode || undefined,
+              paymentMethod: globalPayMethod,
+            });
+            console.log(`[PDF-Import] per_doc journal for ${result.expNo}:`, JSON.stringify(journalResult));
+            if (journalResult && !journalResult.skipped) {
+              await db.update(expenses)
+                .set({ linkJournal: true })
+                .where(eq(expenses.id, result.id));
+            }
+          } catch (e) {
+            console.log(`[PDF-Import] per_doc journal for ${result.expNo} skipped:`, (e as any).message);
+          }
+        }
+      }
+      if (hasAutoJournal && !usePerDoc) {
         const classifyFeeItem = (desc: string): string => {
           const d = (desc || "").toLowerCase().trim();
           if (/^paid\s*ads$/i.test(d)) return "ads";
