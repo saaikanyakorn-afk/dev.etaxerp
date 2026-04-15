@@ -603,7 +603,7 @@ app.get("/api/accounting-formulas/available", requireAuth, async (req, res) => {
 
     const [company] = await db.select().from(companies).where(eq(companies.id, companyId));
     const rawBizType = company?.businessType || "mixed";
-    const businessType = ["trading", "service", "ecommerce", "mixed", "accounting", "accounting_firm"].includes(rawBizType) ? rawBizType : "mixed";
+    const businessType = ["trading", "service", "ecommerce", "restaurant", "mixed", "accounting", "accounting_firm"].includes(rawBizType) ? rawBizType : "mixed";
     const formulaBusinessType = (businessType === "accounting" || businessType === "accounting_firm") ? "service" : businessType;
 
     let companyFormulas = await storage.getAccountingFormulas(companyId, undefined, documentType);
@@ -616,7 +616,7 @@ app.get("/api/accounting-formulas/available", requireAuth, async (req, res) => {
 
     if (documentType) {
       const existingBizTypes = new Set(companyFormulas.map((f: any) => f.businessType));
-      const allBizTypes = [formulaBusinessType, ...["trading", "service", "ecommerce", "lazada", "tiktok", "grab", "lineman", "foodpanda", "line_shopping", "ecommerce_commission", "shopee_commission", "lazada_commission", "grab_commission", "lineman_commission", "foodpanda_commission", "line_shopping_commission", "platform_fee", "shopee_platform_fee", "shopee_shipping", "lazada_platform_fee", "lazada_shipping", "tiktok_platform_fee", "tiktok_shipping", "grab_platform_fee", "lineman_platform_fee", "foodpanda_platform_fee", "line_shopping_platform_fee", "mixed"].filter(bt => bt !== formulaBusinessType)];
+      const allBizTypes = [formulaBusinessType, ...["trading", "service", "ecommerce", "restaurant", "lazada", "tiktok", "grab", "lineman", "foodpanda", "line_shopping", "ecommerce_commission", "shopee_commission", "lazada_commission", "grab_commission", "lineman_commission", "foodpanda_commission", "line_shopping_commission", "platform_fee", "shopee_platform_fee", "shopee_shipping", "lazada_platform_fee", "lazada_shipping", "tiktok_platform_fee", "tiktok_shipping", "grab_platform_fee", "lineman_platform_fee", "foodpanda_platform_fee", "line_shopping_platform_fee", "restaurant_grab", "restaurant_grab_gp", "restaurant_lineman", "restaurant_lineman_gp", "restaurant_foodpanda", "restaurant_foodpanda_gp", "restaurant_robinhood", "restaurant_robinhood_gp", "restaurant_shopeefood", "restaurant_shopeefood_gp", "restaurant_dinein", "restaurant_takeaway", "mixed"].filter(bt => bt !== formulaBusinessType)];
       for (const bt of allBizTypes) {
         if (existingBizTypes.has(bt)) continue;
         const defaults = DEFAULT_FORMULAS.filter(f => f.documentType === documentType && f.businessType === bt);

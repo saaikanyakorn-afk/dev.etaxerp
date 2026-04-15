@@ -562,7 +562,10 @@ export default function PdfBulkImport() {
       shipping: ["lazada_shipping", "ecommerce"],
       mixed: ["lazada_platform_fee", "ecommerce", "ecommerce_commission"],
     },
-    grab: { service_fee: ["ecommerce", "mixed"], mixed: ["ecommerce", "mixed"] },
+    grab: { service_fee: ["grab_service_fee", "restaurant_grab_gp", "ecommerce", "mixed"], mixed: ["grab_service_fee", "restaurant_grab_gp", "ecommerce", "mixed"] },
+    lineman: { service_fee: ["restaurant_lineman_gp", "mixed"], mixed: ["restaurant_lineman_gp", "mixed"] },
+    foodpanda: { service_fee: ["restaurant_foodpanda_gp", "mixed"], mixed: ["restaurant_foodpanda_gp", "mixed"] },
+    robinhood: { service_fee: ["restaurant_robinhood_gp", "mixed"], mixed: ["restaurant_robinhood_gp", "mixed"] },
     other: { mixed: [] },
   };
 
