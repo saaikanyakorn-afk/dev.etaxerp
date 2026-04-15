@@ -124,8 +124,8 @@ export default function JournalBookReport() {
           <td>${l.accountCode || "-"}</td>
           <td>${l.accountName || "-"}</td>
           <td>${l.lineDescription || "-"}</td>
-          <td style="text-align:right;font-family:monospace">${fmt(l.debit)}</td>
-          <td style="text-align:right;font-family:monospace">${fmt(l.credit)}</td>
+          <td style="text-align:right;font-family:'Sarabun',sans-serif;font-variant-numeric:tabular-nums">${fmt(l.debit)}</td>
+          <td style="text-align:right;font-family:'Sarabun',sans-serif;font-variant-numeric:tabular-nums">${fmt(l.credit)}</td>
         </tr>`
       ).join("");
       const totalDebit = g.lines.reduce((s, l) => s + (parseFloat(l.debit) || 0), 0);
@@ -147,8 +147,8 @@ export default function JournalBookReport() {
           ${lineRows}
           <tr class="total-row">
             <td colspan="3" style="text-align:right;font-weight:700">รวม</td>
-            <td style="text-align:right;font-family:monospace;font-weight:700">${fmt(totalDebit)}</td>
-            <td style="text-align:right;font-family:monospace;font-weight:700">${fmt(totalCredit)}</td>
+            <td style="text-align:right;font-family:'Sarabun',sans-serif;font-variant-numeric:tabular-nums;font-weight:700">${fmt(totalDebit)}</td>
+            <td style="text-align:right;font-family:'Sarabun',sans-serif;font-variant-numeric:tabular-nums;font-weight:700">${fmt(totalCredit)}</td>
           </tr>
         </tbody></table>
       </div>`;

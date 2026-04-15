@@ -171,7 +171,7 @@ export default function EcommerceShippingLabels() {
         .section-title { font-size: 11px; font-weight: bold; color: #666; text-transform: uppercase; margin-bottom: 4px; }
         .recipient { font-size: 14px; font-weight: bold; }
         .address { font-size: 12px; line-height: 1.4; }
-        .barcode { text-align: center; font-family: monospace; font-size: 28px; letter-spacing: 4px; padding: 12px 0; }
+        .barcode { text-align: center; font-family: 'Sarabun', sans-serif; font-variant-numeric: tabular-nums; font-size: 28px; letter-spacing: 4px; padding: 12px 0; }
         .tracking { text-align: center; font-size: 13px; font-weight: bold; margin-top: 4px; }
         .order-info { display: flex; justify-content: space-between; font-size: 11px; border-top: 1px dashed #999; padding-top: 8px; }
         .platform-badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: bold; color: white; }

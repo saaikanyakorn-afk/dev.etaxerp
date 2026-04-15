@@ -84,7 +84,7 @@ export default function VatPP30Report() {
         table { width:100%; border-collapse:collapse; }
         th, td { border:1px solid #ccc; padding:8px 12px; font-size:13px; }
         th { background:#5B9BD5; color:white; text-align:center; font-weight:600; }
-        td.num { text-align:right; font-family:monospace; font-size:14px; }
+        td.num { text-align:right; font-family:'Sarabun',sans-serif; font-variant-numeric:tabular-nums; font-size:14px; }
         td.label-col { }
         td.line-no { text-align:center; width:40px; background:#f5f5f5; font-weight:600; }
         tr.highlight { background:#fffde7; }
@@ -96,7 +96,7 @@ export default function VatPP30Report() {
       <div class="form-subtitle">แบบแสดงรายการภาษีมูลค่าเพิ่ม — ประจำเดือน ${monthName} ${displayYear}</div>
       <div class="company-info">
         <div class="row"><span class="label">ชื่อผู้ประกอบการ:</span> <span>${companyName}</span></div>
-        <div class="row"><span class="label">เลขประจำตัวผู้เสียภาษี:</span> <span style="font-family:monospace">${companyTaxId || "-"}</span></div>
+        <div class="row"><span class="label">เลขประจำตัวผู้เสียภาษี:</span> <span style="letter-spacing:0.05em">${companyTaxId || "-"}</span></div>
         <div class="row"><span class="label">สาขา:</span> <span>${branchDisplay}</span></div>
       </div>
       <table>

@@ -151,9 +151,9 @@ export default function GeneralLedger() {
           <td style="color:#3b82f6;font-weight:500">${l.reference || "-"}</td>
           <td>${l.entryDescription || "-"}</td>
           <td style="font-size:10px;color:#666">${l.description || "-"}</td>
-          <td style="text-align:right;font-family:monospace">${fmt(l.debit)}</td>
-          <td style="text-align:right;font-family:monospace">${fmt(l.credit)}</td>
-          <td style="text-align:right;font-family:monospace">${fmt(l.balance)}</td>
+          <td style="text-align:right;font-family:'Sarabun',sans-serif;font-variant-numeric:tabular-nums">${fmt(l.debit)}</td>
+          <td style="text-align:right;font-family:'Sarabun',sans-serif;font-variant-numeric:tabular-nums">${fmt(l.credit)}</td>
+          <td style="text-align:right;font-family:'Sarabun',sans-serif;font-variant-numeric:tabular-nums">${fmt(l.balance)}</td>
         </tr>`
       ).join("");
       const totalDebit = lines.reduce((s: number, l: any) => s + (parseFloat(l.debit) || 0), 0);
@@ -165,13 +165,13 @@ export default function GeneralLedger() {
           <th style="width:95px;text-align:right">เดบิต</th><th style="width:95px;text-align:right">เครดิต</th>
           <th style="width:100px;text-align:right">ยอดคงเหลือ</th>
         </tr></thead><tbody>
-          ${acct.beginBalance ? `<tr style="background:#eef6ff"><td colspan="5" style="text-align:right;font-weight:500;color:#1d4ed8">ยอดยกมา</td><td style="text-align:right">-</td><td style="text-align:right">-</td><td style="text-align:right;font-weight:700;color:#1d4ed8;font-family:monospace">${fmt(acct.beginBalance)}</td></tr>` : ""}
+          ${acct.beginBalance ? `<tr style="background:#eef6ff"><td colspan="5" style="text-align:right;font-weight:500;color:#1d4ed8">ยอดยกมา</td><td style="text-align:right">-</td><td style="text-align:right">-</td><td style="text-align:right;font-weight:700;color:#1d4ed8;font-family:'Sarabun',sans-serif;font-variant-numeric:tabular-nums">${fmt(acct.beginBalance)}</td></tr>` : ""}
           ${lineRows}
           <tr class="total-row">
             <td colspan="5" style="text-align:right;font-weight:700">[${acct.accountCode}] รวม</td>
-            <td style="text-align:right;font-family:monospace;font-weight:700">${fmt(totalDebit)}</td>
-            <td style="text-align:right;font-family:monospace;font-weight:700">${fmt(totalCredit)}</td>
-            <td style="text-align:right;font-family:monospace;font-weight:700">${fmt(acct.endBalance)}</td>
+            <td style="text-align:right;font-family:'Sarabun',sans-serif;font-variant-numeric:tabular-nums;font-weight:700">${fmt(totalDebit)}</td>
+            <td style="text-align:right;font-family:'Sarabun',sans-serif;font-variant-numeric:tabular-nums;font-weight:700">${fmt(totalCredit)}</td>
+            <td style="text-align:right;font-family:'Sarabun',sans-serif;font-variant-numeric:tabular-nums;font-weight:700">${fmt(acct.endBalance)}</td>
           </tr>
         </tbody></table>
       </div>`;

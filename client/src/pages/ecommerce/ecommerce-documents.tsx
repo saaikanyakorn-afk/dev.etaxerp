@@ -524,13 +524,13 @@ export default function EcommerceDocuments() {
         <td style="border:1px solid #ccc;padding:3px 6px;font-size:11px;white-space:nowrap">${formatDate(inv.taxInvoiceDate, dateEra, dateFmt)}</td>
         <td style="border:1px solid #ccc;padding:3px 6px;font-size:11px">${inv.taxInvoiceNo || ""}</td>
         <td style="border:1px solid #ccc;padding:3px 6px;font-size:11px">${inv.customerName || ""}</td>
-        <td style="font-family:monospace;border:1px solid #ccc;padding:3px 6px;font-size:11px">${inv.customerTaxId || "-"}</td>
+        <td style="font-family:'Sarabun',sans-serif;font-variant-numeric:tabular-nums;border:1px solid #ccc;padding:3px 6px;font-size:11px">${inv.customerTaxId || "-"}</td>
         <td style="border:1px solid #ccc;padding:3px 6px;font-size:11px;text-align:center">${inv.branch || "00000"}</td>
         <td style="border:1px solid #ccc;padding:3px 6px;font-size:11px;text-align:center">${platform?.name || "-"}</td>
-        <td style="text-align:right;font-family:monospace;border:1px solid #ccc;padding:3px 6px;font-size:11px">${fmt(baseAmount)}</td>
-        <td style="text-align:right;font-family:monospace;border:1px solid #ccc;padding:3px 6px;font-size:11px">${fmt(baseAmount)}</td>
-        <td style="text-align:right;font-family:monospace;border:1px solid #ccc;padding:3px 6px;font-size:11px">${fmt(vatAmt)}</td>
-        <td style="text-align:right;font-family:monospace;border:1px solid #ccc;padding:3px 6px;font-size:11px">${fmt(baseAmount + vatAmt)}</td>
+        <td style="text-align:right;font-family:'Sarabun',sans-serif;font-variant-numeric:tabular-nums;border:1px solid #ccc;padding:3px 6px;font-size:11px">${fmt(baseAmount)}</td>
+        <td style="text-align:right;font-family:'Sarabun',sans-serif;font-variant-numeric:tabular-nums;border:1px solid #ccc;padding:3px 6px;font-size:11px">${fmt(baseAmount)}</td>
+        <td style="text-align:right;font-family:'Sarabun',sans-serif;font-variant-numeric:tabular-nums;border:1px solid #ccc;padding:3px 6px;font-size:11px">${fmt(vatAmt)}</td>
+        <td style="text-align:right;font-family:'Sarabun',sans-serif;font-variant-numeric:tabular-nums;border:1px solid #ccc;padding:3px 6px;font-size:11px">${fmt(baseAmount + vatAmt)}</td>
       </tr>`;
     }).join("");
 
@@ -595,10 +595,10 @@ export default function EcommerceDocuments() {
         <tfoot>
           <tr class="total-row">
             <td colspan="7" style="text-align:right;border:1px solid #ccc;padding:4px 8px;font-size:12px">รวมทั้งสิ้น</td>
-            <td style="text-align:right;font-family:monospace;border:1px solid #ccc;padding:4px 8px;font-size:12px">${fmt(taxReportData.totalBase)}</td>
-            <td style="text-align:right;font-family:monospace;border:1px solid #ccc;padding:4px 8px;font-size:12px">${fmt(taxReportData.totalBase)}</td>
-            <td style="text-align:right;font-family:monospace;border:1px solid #ccc;padding:4px 8px;font-size:12px">${fmt(taxReportData.totalVat)}</td>
-            <td style="text-align:right;font-family:monospace;border:1px solid #ccc;padding:4px 8px;font-size:12px">${fmt(taxReportData.totalAmount)}</td>
+            <td style="text-align:right;font-family:'Sarabun',sans-serif;font-variant-numeric:tabular-nums;border:1px solid #ccc;padding:4px 8px;font-size:12px">${fmt(taxReportData.totalBase)}</td>
+            <td style="text-align:right;font-family:'Sarabun',sans-serif;font-variant-numeric:tabular-nums;border:1px solid #ccc;padding:4px 8px;font-size:12px">${fmt(taxReportData.totalBase)}</td>
+            <td style="text-align:right;font-family:'Sarabun',sans-serif;font-variant-numeric:tabular-nums;border:1px solid #ccc;padding:4px 8px;font-size:12px">${fmt(taxReportData.totalVat)}</td>
+            <td style="text-align:right;font-family:'Sarabun',sans-serif;font-variant-numeric:tabular-nums;border:1px solid #ccc;padding:4px 8px;font-size:12px">${fmt(taxReportData.totalAmount)}</td>
           </tr>
         </tfoot>
       </table>
