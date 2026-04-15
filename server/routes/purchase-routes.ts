@@ -2828,31 +2828,91 @@ export function registerPurchaseRoutes(app: Express) {
 
       const hasAutoJournal = autoJournal && pendingJournals.length > 0;
       if (hasAutoJournal && usePerDoc) {
+        const classifyFeeItemPD = (desc: string): string => {
+          const d = (desc || "").toLowerCase().trim();
+          if (/^paid\s*ads$/i.test(d)) return "ads";
+          if (/commission|คอมมิชชั่น|commerce\s*growth|affiliate/i.test(d)) return "commission";
+          if (/ads|โฆษณา|ams.*fee|sponsored|top\s*picks|search\s*ads/i.test(d)) return "ads";
+          return "service";
+        };
+        const buildFormulaAcctMapPD = (bt: string): Record<string, { code: string; name: string }> | null => {
+          const formula = DEFAULT_FORMULAS.find((f: any) => f.businessType === bt && f.documentType === "purchase")
+            || DEFAULT_FORMULAS.find((f: any) => f.businessType === bt && f.documentType === "expense");
+          if (!formula) return null;
+          const expLines = formula.lines.filter((l: any) => l.direction === "debit" && l.accountCode?.startsWith("5"));
+          if (expLines.length < 2) return null;
+          const map: Record<string, { code: string; name: string }> = {};
+          for (const el of expLines) {
+            const n = (el.accountName || "").toLowerCase();
+            if (/commission|คอมมิชชั่น/.test(n)) map["commission"] = { code: el.accountCode, name: el.accountName };
+            else if (/โฆษณา|ads/.test(n)) map["ads"] = { code: el.accountCode, name: el.accountName };
+            else map["service"] = { code: el.accountCode, name: el.accountName };
+          }
+          return Object.keys(map).length >= 2 ? map : null;
+        };
+
         for (const { result, doc, validItems } of pendingJournals) {
           try {
             const resolvedBt = doc.resolvedFormulaBt || (formulaBusinessType && formulaBusinessType !== "auto-detect" ? formulaBusinessType : null) || "platform_fee";
 
-            const sub = String(Math.round(parseFloat(String(result.subtotal || "0")) * 100) / 100);
-            const vat = String(Math.round(parseFloat(String(result.vatAmount || "0")) * 100) / 100);
-            const total = String(Math.round(parseFloat(String(result.totalAmount || "0")) * 100) / 100);
-            const wht = String(Math.round(parseFloat(String(result.withholdingTax || "0")) * 100) / 100);
+            const sub = Math.round(parseFloat(String(result.subtotal || "0")) * 100) / 100;
+            const vat = Math.round(parseFloat(String(result.vatAmount || "0")) * 100) / 100;
+            const total = Math.round(parseFloat(String(result.totalAmount || "0")) * 100) / 100;
+            const wht = Math.round(parseFloat(String(result.withholdingTax || "0")) * 100) / 100;
+
+            let perDocLineItems: { accountCode: string; accountName: string; amount: number; description?: string }[] | undefined;
+            const formulaItemMapPD = buildFormulaAcctMapPD(resolvedBt);
+            if (formulaItemMapPD && validItems) {
+              perDocLineItems = [];
+              const feeMap = new Map<string, number>();
+              for (const item of validItems) {
+                const amt = parseFloat(String(item.amount || item.total || "0"));
+                if (amt <= 0) continue;
+                if (isPaidAdsItem(item.description)) {
+                  const adCode = getAdCreditAccountCode(doc);
+                  const adAcc = accountMap.get(adCode);
+                  perDocLineItems.push({
+                    accountCode: adCode,
+                    accountName: adAcc ? (adAcc.nameTh || adAcc.name || "ค่าโฆษณา") : "ค่าโฆษณา",
+                    amount: amt,
+                    description: `Paid ads (${result.expNo})`,
+                  });
+                  continue;
+                }
+                const feeType = classifyFeeItemPD(item.description);
+                feeMap.set(feeType, (feeMap.get(feeType) || 0) + amt);
+              }
+              for (const [feeType, feeAmt] of feeMap) {
+                const mapping = formulaItemMapPD[feeType];
+                if (mapping && feeAmt > 0) {
+                  const acc = accountMap.get(mapping.code);
+                  perDocLineItems.push({
+                    accountCode: mapping.code,
+                    accountName: acc ? (acc.nameTh || acc.name || mapping.name) : mapping.name,
+                    amount: Math.round(feeAmt * 100) / 100,
+                  });
+                }
+              }
+            }
 
             const journalResult = await createAutoJournalEntry({
               companyId,
-              documentType: "purchase",
+              documentType: "expense",
               sourceDocType: "expense",
               sourceDocId: result.id,
               docDate: result.expDate,
               docNo: result.expNo,
-              subtotal: sub,
-              vatAmount: vat,
-              totalAmount: total,
-              withholdingTax: wht,
+              subtotal: sub.toFixed(2),
+              vatAmount: vat.toFixed(2),
+              totalAmount: total.toFixed(2),
+              withholdingTax: wht.toFixed(2),
               userId: user.id,
               customerName: result.vendorName || "ค่าบริการ",
               formulaBusinessType: resolvedBt,
               paymentMethodAccountCode: pmAccCode || undefined,
               paymentMethod: globalPayMethod,
+              overrideLines: req?.body?.journalOverrideLines || undefined,
+              lineItemAccounts: perDocLineItems,
             });
             console.log(`[PDF-Import] per_doc journal for ${result.expNo}:`, JSON.stringify(journalResult));
             if (journalResult && !journalResult.skipped) {
