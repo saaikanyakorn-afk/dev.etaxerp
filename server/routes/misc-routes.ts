@@ -48,16 +48,27 @@ export async function archiveOrphanedContacts(companyId?: number): Promise<{ arc
         address, address_en, address_zh, phone, email, contact_person,
         credit_days, notes, active, created_at, postcode, building_number,
         district_code, subdistrict_code, province_code, rd_code, dbd_code,
-        sso_code, portal_password, service_fee, archived_at, archive_reason
+        sso_code, portal_password, service_fee, archived_at, archive_reason,
+        origin_company_name, reference_snapshot
       )
       SELECT
-        id, company_id, code, name, name_en, name_zh, type, tax_id, branch,
-        address, address_en, address_zh, phone, email, contact_person,
-        credit_days, notes, active, created_at, postcode, building_number,
-        district_code, subdistrict_code, province_code, rd_code, dbd_code,
-        sso_code, portal_password, service_fee, NOW(), 'orphaned_auto_archive'
-      FROM new_orphaned
-      RETURNING id
+        n.id, n.company_id, n.code, n.name, n.name_en, n.name_zh, n.type, n.tax_id, n.branch,
+        n.address, n.address_en, n.address_zh, n.phone, n.email, n.contact_person,
+        n.credit_days, n.notes, n.active, n.created_at, n.postcode, n.building_number,
+        n.district_code, n.subdistrict_code, n.province_code, n.rd_code, n.dbd_code,
+        n.sso_code, n.portal_password, n.service_fee, NOW(), 'orphaned_auto_archive',
+        co.name,
+        jsonb_build_object(
+          'contactType', n.type,
+          'hadDocuments', false,
+          'archivedFrom', 'contacts table (id=' || n.id || ')',
+          'originalCode', n.code,
+          'taxId', COALESCE(n.tax_id, ''),
+          'note', 'ไม่มีเอกสารอ้างอิง (orphaned) — ย้ายเข้าคลังจัดเก็บอัตโนมัติ'
+        )
+      FROM new_orphaned n
+      LEFT JOIN companies co ON co.id = n.company_id
+      RETURNING contacts_archive.id
     )
     SELECT
       (SELECT COUNT(*)::int FROM inserted) as archived,

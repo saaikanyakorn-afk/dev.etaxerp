@@ -892,6 +892,9 @@ export const contactsArchive = pgTable("contacts_archive", {
   serviceFee: decimal("service_fee", { precision: 12, scale: 2 }),
   archivedAt: timestamp("archived_at").defaultNow(),
   archiveReason: text("archive_reason"),
+  originCompanyName: text("origin_company_name"),
+  originImportBatchId: integer("origin_import_batch_id"),
+  referenceSnapshot: jsonb("reference_snapshot").default({}),
 });
 
 export const products = pgTable("products", {
