@@ -919,7 +919,7 @@ export const DEFAULT_FORMULAS: DefaultFormulaTemplate[] = [
     description: "กลับรายการค่าบริการ TikTok — Dr. Wallet / Cr. ค่าใช้จ่าย + ภาษีซื้อ",
     lines: [
       { accountCode: "1043000", accountName: "เงินฝาก TikTok Shop Wallet", direction: "debit", sortOrder: 1 },
-      { accountCode: "5301100", accountName: "ค่าบริการแพลตฟอร์ม TikTok", direction: "credit", sortOrder: 2 },
+      { accountCode: "5253000", accountName: "ค่าบริการ TikTok Shop", direction: "credit", sortOrder: 2 },
       { accountCode: "1432000", accountName: "ภาษีซื้อ", direction: "credit", sortOrder: 3 },
     ],
   },
@@ -931,7 +931,7 @@ export const DEFAULT_FORMULAS: DefaultFormulaTemplate[] = [
     description: "กลับรายการค่าบริการ Shopee — Dr. Wallet / Cr. ค่าใช้จ่าย + ภาษีซื้อ",
     lines: [
       { accountCode: "1041000", accountName: "เงินฝาก Shopee Wallet", direction: "debit", sortOrder: 1 },
-      { accountCode: "5301100", accountName: "ค่าบริการแพลตฟอร์ม Shopee", direction: "credit", sortOrder: 2 },
+      { accountCode: "5251000", accountName: "ค่าบริการ Shopee", direction: "credit", sortOrder: 2 },
       { accountCode: "1432000", accountName: "ภาษีซื้อ", direction: "credit", sortOrder: 3 },
     ],
   },
@@ -943,7 +943,7 @@ export const DEFAULT_FORMULAS: DefaultFormulaTemplate[] = [
     description: "กลับรายการค่าบริการ Lazada — Dr. Wallet / Cr. ค่าใช้จ่าย + ภาษีซื้อ",
     lines: [
       { accountCode: "1042000", accountName: "เงินฝาก Lazada Wallet", direction: "debit", sortOrder: 1 },
-      { accountCode: "5301100", accountName: "ค่าบริการแพลตฟอร์ม Lazada", direction: "credit", sortOrder: 2 },
+      { accountCode: "5252000", accountName: "ค่าบริการ Lazada", direction: "credit", sortOrder: 2 },
       { accountCode: "1432000", accountName: "ภาษีซื้อ", direction: "credit", sortOrder: 3 },
     ],
   },
@@ -955,7 +955,7 @@ export const DEFAULT_FORMULAS: DefaultFormulaTemplate[] = [
     description: "กลับรายการค่าบริการแพลตฟอร์ม — Dr. Wallet / Cr. ค่าใช้จ่าย + ภาษีซื้อ",
     lines: [
       { accountCode: "1001000", accountName: "เงินสด/ธนาคาร", direction: "debit", sortOrder: 1 },
-      { accountCode: "5301100", accountName: "ค่าบริการแพลตฟอร์ม", direction: "credit", sortOrder: 2 },
+      { accountCode: "5253000", accountName: "ค่าบริการแพลตฟอร์ม", direction: "credit", sortOrder: 2 },
       { accountCode: "1432000", accountName: "ภาษีซื้อ", direction: "credit", sortOrder: 3 },
     ],
   },
