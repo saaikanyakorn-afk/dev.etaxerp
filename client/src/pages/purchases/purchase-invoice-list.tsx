@@ -213,11 +213,6 @@ export default function PurchaseInvoiceList() {
               </div>
               <div className="flex items-center gap-2">
                 <BulkDeleteButton count={bulk.selectedIds.size} isPending={bulk.isPending} onClick={() => bulk.setShowConfirm(true)} />
-                {/* ⚠️ AI FEATURE LINK — navigates to PDF import page (AI reads PDF via OpenAI).
-                    Remove this button to hide AI PDF import from the UI. */}
-                <Button variant="outline" data-testid="button-pdf-import" onClick={() => navigate("/purchases/ap/pdf-import")} className="h-9 text-sm px-4 rounded-full border-purple-400 text-purple-600">
-                  <Sparkles className="h-3.5 w-3.5 mr-1" /> สร้างจาก PDF
-                </Button>
                 <Button variant="outline" data-testid="button-pdf-bulk-import" onClick={() => navigate("/purchases/pdf-bulk-import")} className="h-9 text-sm px-4 rounded-full border-[#fb9678] text-[#fb9678]">
                   <FileText className="h-3.5 w-3.5 mr-1" /> นำเข้า PDF กลุ่ม
                 </Button>

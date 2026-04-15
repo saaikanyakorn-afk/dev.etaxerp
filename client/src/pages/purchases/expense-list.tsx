@@ -340,9 +340,6 @@ export default function ExpenseList() {
                 {filteredBatches.length > 0 && <span className="text-xs text-[#fb9678]">· DXP {filteredBatches.length}</span>}
               </div>
               <div className="flex items-center gap-1.5 flex-wrap justify-end">
-                <Button variant="outline" data-testid="button-pdf-import" onClick={() => navigate("/purchases/exp/pdf-import")} className="h-7 text-xs px-2.5 rounded-full border-purple-400 text-purple-600">
-                  <Sparkles className="h-3 w-3 mr-1" /> สร้างจาก PDF
-                </Button>
                 <Button variant="outline" data-testid="button-pdf-bulk-import" onClick={() => navigate("/purchases/pdf-bulk-import")} className="h-7 text-xs px-2.5 rounded-full border-[#fb9678] text-[#fb9678]">
                   <FileText className="h-3 w-3 mr-1" /> นำเข้า PDF กลุ่ม
                 </Button>
