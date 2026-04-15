@@ -146,7 +146,8 @@ export default function PurchaseTaxReport() {
     if (rows.length === 0) return;
     const html = buildReportHtml()
       .replace(/@media print[\s\S]*?\}/g, "")
-      .replace(/\.page-break\s*\{[^}]*\}/g, ".page-break { border-bottom:2px dashed #ccc; margin-bottom:12px; }");
+      .replace(/\.page-break\s*\{[^}]*\}/g, ".page-break { margin-bottom:8px; }");
+    const bodyContent = html.replace(/.*<body[^>]*>/s, "").replace(/<\/body>.*/s, "");
     const excelHtml = `
       <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
       <head><meta charset="utf-8">
@@ -154,8 +155,26 @@ export default function PurchaseTaxReport() {
       <x:Name>รายงานภาษีซื้อ</x:Name>
       <x:WorksheetOptions><x:DisplayGridlines/><x:Panes></x:Panes></x:WorksheetOptions>
       </x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]-->
-      ${html.match(/<style>[\s\S]*?<\/style>/)?.[0] || ""}
-      </head><body>${html.replace(/.*<body[^>]*>/s, "").replace(/<\/body>.*/s, "")}</body></html>`;
+      <style>
+        body { font-family: 'TH SarabunPSK', 'Sarabun', sans-serif; font-size: 14pt; }
+        .page { width: auto; padding: 4px; }
+        .report-header { margin-bottom: 6px; }
+        .header-left { font-size: 14pt; line-height: 1.6; }
+        .header-left .label { min-width: 160px; }
+        .header-left .value { font-weight: bold; }
+        .header-right .title { font-size: 18pt; font-weight: bold; }
+        .header-right .info { font-size: 12pt; }
+        .page-number { font-size: 11pt; }
+        table { border-collapse: collapse; width: 100%; }
+        th { background: #5B9BD5; color: white; font-weight: bold; padding: 4px 6px; font-size: 12pt; border: 1px solid #4a8bc4; text-align: center; }
+        td { padding: 3px 6px; font-size: 12pt; border: 1px solid #ccc; }
+        .page-total-row td { font-weight: bold; background: #eef3f8; font-size: 12pt; }
+        .carry-row td { font-weight: bold; background: #e8f0fe; font-style: italic; font-size: 12pt; }
+        .total-row td { font-weight: bold; background: #f1f5f9; border-top: 2px solid #333; font-size: 13pt; }
+        .branch-check .box { border: 1px solid #333; width: 14px; height: 14px; display: inline-block; text-align: center; font-size: 11pt; }
+        .branch-check .box.checked { background: #333; color: white; }
+      </style>
+      </head><body>${bodyContent}</body></html>`;
     const blob = new Blob([excelHtml], { type: "application/vnd.ms-excel;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
