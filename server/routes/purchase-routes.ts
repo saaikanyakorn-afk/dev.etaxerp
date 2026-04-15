@@ -2451,6 +2451,7 @@ export function registerPurchaseRoutes(app: Express) {
 
       const RESTAURANT_PREFIX_FORMULA_MAP: Record<string, string> = {
         "IM": "restaurant_grab_gp",
+        "TRSPESPF": "restaurant_shopeefood_gp",
       };
 
       const PLATFORM_FORMULA_MAP: Record<string, string> = {

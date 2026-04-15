@@ -548,6 +548,7 @@ export default function PdfBulkImport() {
     shopee: {
       platform_fee: ["shopee_platform_fee", "shopee_commission", "platform_fee", "ecommerce_commission", "ecommerce"],
       commission: ["shopee_commission", "ecommerce_commission", "shopee_platform_fee", "ecommerce"],
+      service_fee: ["restaurant_shopeefood_gp", "shopeefood_fee", "shopee_platform_fee", "ecommerce"],
       shipping: ["shopee_shipping", "ecommerce"],
       mixed: ["shopee_platform_fee", "ecommerce", "ecommerce_commission"],
     },
