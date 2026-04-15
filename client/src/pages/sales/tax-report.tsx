@@ -158,7 +158,7 @@ export default function SalesTaxReport() {
 
   const buildReportHtml = useCallback(() => {
     const themeColor = getComputedStyle(document.documentElement).getPropertyValue('--theme-table-header').trim() || '#fb9678';
-    const ROWS_PER_PAGE = 25;
+    const ROWS_PER_PAGE = 18;
     const totalPages = Math.max(1, Math.ceil(rows.length / ROWS_PER_PAGE));
 
     const headerHtml = `
@@ -213,16 +213,16 @@ export default function SalesTaxReport() {
         pageVat += r.vatAmount || 0;
         pageTotal += (r.subtotal || 0) + (r.vatAmount || 0);
         return `<tr>
-          <td style="text-align:center;border:1px solid #ccc;padding:3px 6px;font-size:11px">${r.no}</td>
-          <td style="border:1px solid #ccc;padding:3px 6px;font-size:11px;white-space:nowrap">${formatDate(r.date, dateEra, dateFmt)}</td>
-          <td style="border:1px solid #ccc;padding:3px 6px;font-size:11px">${r.taxInvoiceNo}${r.isCreditNote ? ' <span style="color:#e11d48;font-size:9px">(ลดหนี้)</span>' : ""}${r.isDebitNote ? ' <span style="color:#d97706;font-size:9px">(เพิ่มหนี้)</span>' : ""}</td>
-          <td style="border:1px solid #ccc;padding:3px 6px;font-size:11px">${r.customerName}</td>
-          <td style="border:1px solid #ccc;padding:3px 6px;font-size:11px">${r.customerTaxId || ""}</td>
-          <td style="border:1px solid #ccc;padding:3px 6px;font-size:11px;text-align:center">${r.branch || ""}</td>
-          <td style="text-align:right;border:1px solid #ccc;padding:3px 6px;font-size:11px">${fmt(r.subtotal)}</td>
-          <td style="text-align:right;border:1px solid #ccc;padding:3px 6px;font-size:11px">${fmt(r.subtotal)}</td>
-          <td style="text-align:right;border:1px solid #ccc;padding:3px 6px;font-size:11px">${fmt(r.vatAmount)}</td>
-          <td style="text-align:right;border:1px solid #ccc;padding:3px 6px;font-size:11px">${fmt(r.subtotal + r.vatAmount)}</td>
+          <td style="text-align:center;border:1px solid #ccc;padding:2px 4px;font-size:11px">${r.no}</td>
+          <td style="border:1px solid #ccc;padding:2px 4px;font-size:11px;white-space:nowrap">${formatDate(r.date, dateEra, dateFmt)}</td>
+          <td style="border:1px solid #ccc;padding:2px 4px;font-size:11px">${r.taxInvoiceNo}${r.isCreditNote ? ' <span style="color:#e11d48;font-size:9px">(ลดหนี้)</span>' : ""}${r.isDebitNote ? ' <span style="color:#d97706;font-size:9px">(เพิ่มหนี้)</span>' : ""}</td>
+          <td style="border:1px solid #ccc;padding:2px 4px;font-size:11px">${r.customerName}</td>
+          <td style="border:1px solid #ccc;padding:2px 4px;font-size:11px">${r.customerTaxId || ""}</td>
+          <td style="border:1px solid #ccc;padding:2px 4px;font-size:11px;text-align:center">${r.branch || ""}</td>
+          <td style="text-align:right;border:1px solid #ccc;padding:2px 4px;font-size:11px">${fmt(r.subtotal)}</td>
+          <td style="text-align:right;border:1px solid #ccc;padding:2px 4px;font-size:11px">${fmt(r.subtotal)}</td>
+          <td style="text-align:right;border:1px solid #ccc;padding:2px 4px;font-size:11px">${fmt(r.vatAmount)}</td>
+          <td style="text-align:right;border:1px solid #ccc;padding:2px 4px;font-size:11px">${fmt(r.subtotal + r.vatAmount)}</td>
         </tr>`;
       }).join("");
 
@@ -233,20 +233,20 @@ export default function SalesTaxReport() {
       let summaryRows = "";
       if (totalPages > 1) {
         summaryRows += `<tr class="page-total-row">
-          <td colspan="6" style="text-align:right;border:1px solid #ccc;padding:3px 8px;font-size:11px;font-weight:600">รวมหน้านี้</td>
-          <td style="text-align:right;border:1px solid #ccc;padding:3px 8px;font-size:11px;font-weight:600">${fmt(pageSubtotal)}</td>
-          <td style="text-align:right;border:1px solid #ccc;padding:3px 8px;font-size:11px;font-weight:600">${fmt(pageSubtotal)}</td>
-          <td style="text-align:right;border:1px solid #ccc;padding:3px 8px;font-size:11px;font-weight:600">${fmt(pageVat)}</td>
-          <td style="text-align:right;border:1px solid #ccc;padding:3px 8px;font-size:11px;font-weight:600">${fmt(pageTotal)}</td>
+          <td colspan="6" style="text-align:right;border:1px solid #ccc;padding:2px 6px;font-size:11px;font-weight:600">รวมหน้านี้</td>
+          <td style="text-align:right;border:1px solid #ccc;padding:2px 6px;font-size:11px;font-weight:600">${fmt(pageSubtotal)}</td>
+          <td style="text-align:right;border:1px solid #ccc;padding:2px 6px;font-size:11px;font-weight:600">${fmt(pageSubtotal)}</td>
+          <td style="text-align:right;border:1px solid #ccc;padding:2px 6px;font-size:11px;font-weight:600">${fmt(pageVat)}</td>
+          <td style="text-align:right;border:1px solid #ccc;padding:2px 6px;font-size:11px;font-weight:600">${fmt(pageTotal)}</td>
         </tr>`;
 
         if (!isLastPage) {
           summaryRows += `<tr class="carry-row">
-            <td colspan="6" style="text-align:right;border:1px solid #ccc;padding:3px 8px;font-size:11px;font-weight:600">ยอดยกไป</td>
-            <td style="text-align:right;border:1px solid #ccc;padding:3px 8px;font-size:11px;font-weight:600">${fmt(runningSubtotal)}</td>
-            <td style="text-align:right;border:1px solid #ccc;padding:3px 8px;font-size:11px;font-weight:600">${fmt(runningSubtotal)}</td>
-            <td style="text-align:right;border:1px solid #ccc;padding:3px 8px;font-size:11px;font-weight:600">${fmt(runningVat)}</td>
-            <td style="text-align:right;border:1px solid #ccc;padding:3px 8px;font-size:11px;font-weight:600">${fmt(runningTotal)}</td>
+            <td colspan="6" style="text-align:right;border:1px solid #ccc;padding:2px 6px;font-size:11px;font-weight:600">ยอดยกไป</td>
+            <td style="text-align:right;border:1px solid #ccc;padding:2px 6px;font-size:11px;font-weight:600">${fmt(runningSubtotal)}</td>
+            <td style="text-align:right;border:1px solid #ccc;padding:2px 6px;font-size:11px;font-weight:600">${fmt(runningSubtotal)}</td>
+            <td style="text-align:right;border:1px solid #ccc;padding:2px 6px;font-size:11px;font-weight:600">${fmt(runningVat)}</td>
+            <td style="text-align:right;border:1px solid #ccc;padding:2px 6px;font-size:11px;font-weight:600">${fmt(runningTotal)}</td>
           </tr>`;
         }
       }
@@ -281,29 +281,32 @@ export default function SalesTaxReport() {
       <style>
         @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;700&display=swap');
         * { margin:0; padding:0; box-sizing:border-box; }
-        body { font-family: 'Sarabun', 'TH SarabunPSK', sans-serif; font-size:12px; padding:15px 20px; color:#333; }
-        .report-header { display:flex; justify-content:space-between; margin-bottom:4px; }
-        .header-left { font-size:12px; line-height:1.7; }
-        .header-left .label { display:inline-block; min-width:140px; font-weight:400; }
+        body { font-family: 'Sarabun', 'TH SarabunPSK', sans-serif; font-size:11px; padding:0; color:#333; }
+        .page { width:277mm; min-height:190mm; padding:6mm 8mm; position:relative; }
+        .report-header { display:flex; justify-content:space-between; margin-bottom:2px; }
+        .header-left { font-size:11px; line-height:1.5; }
+        .header-left .label { display:inline-block; min-width:130px; font-weight:400; }
         .header-left .value { font-weight:600; }
         .header-right { text-align:right; }
-        .header-right .title { font-size:18px; font-weight:700; margin-bottom:4px; }
-        .header-right .info { font-size:11px; line-height:1.6; }
-        .branch-check { display:inline-flex; align-items:center; gap:4px; margin-right:12px; }
-        .branch-check .box { display:inline-block; width:14px; height:14px; border:1.5px solid #333; text-align:center; line-height:14px; font-size:11px; font-weight:700; }
+        .header-right .title { font-size:16px; font-weight:700; margin-bottom:2px; }
+        .header-right .info { font-size:10px; line-height:1.5; }
+        .branch-check { display:inline-flex; align-items:center; gap:3px; margin-right:10px; }
+        .branch-check .box { display:inline-block; width:12px; height:12px; border:1.5px solid #333; text-align:center; line-height:12px; font-size:10px; font-weight:700; }
         .branch-check .box.checked { background:#333; color:white; }
-        .page-number { text-align:right; font-size:10px; color:#666; margin-bottom:2px; }
-        table { width:100%; border-collapse:collapse; margin-top:2px; }
-        th { background:${themeColor}; color:white; font-weight:600; padding:5px 6px; font-size:10px; border:1px solid ${themeColor}; text-align:center; white-space:nowrap; }
+        .page-number { text-align:right; font-size:9px; color:#666; margin-bottom:1px; }
+        table { width:100%; border-collapse:collapse; margin-top:1px; }
+        th { background:${themeColor}; color:white; font-weight:600; padding:3px 4px; font-size:9px; border:1px solid ${themeColor}; text-align:center; white-space:nowrap; }
+        td { font-size:10px; }
         .page-total-row td { font-weight:600; background:#eef3f8; }
         .carry-row td { font-weight:600; background:#e8f0fe; font-style:italic; }
         .total-row td { font-weight:700; background:#f1f5f9; border-top:2px solid #333; }
-        .page-break { page-break-after:always; margin-bottom:20px; }
+        .page-break { border-bottom:2px dashed #ccc; margin-bottom:12px; }
         @media print {
-          body { padding:0; }
-          @page { size:landscape; margin:8mm; }
-          .page-break { page-break-after:always; margin-bottom:0; }
-          .page { page-break-inside:avoid; }
+          body { padding:0; margin:0; }
+          @page { size:landscape; margin:5mm; }
+          .page { width:auto; min-height:auto; padding:0; page-break-after:always; page-break-inside:avoid; }
+          .page:last-child { page-break-after:auto; }
+          .page-break { border-bottom:none; margin-bottom:0; }
         }
       </style>
     </head><body>
