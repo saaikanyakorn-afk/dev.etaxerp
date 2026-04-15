@@ -210,8 +210,6 @@ export default function PdfBulkImport() {
     },
     enabled: !!companyId,
   });
-  const selectedFormula = selectedFormulaIdx === "auto-detect" ? null : (filteredExpFormulas[Number(selectedFormulaIdx)] || filteredExpFormulas[0] || null);
-
   const { data: dnFormulas = [] } = useQuery<any[]>({
     queryKey: ["/api/accounting-formulas/available", companyId, "debit_note"],
     queryFn: async () => {
@@ -221,7 +219,6 @@ export default function PdfBulkImport() {
     },
     enabled: !!companyId,
   });
-  const selectedDnFormula = filteredDnFormulas[Number(selectedDnFormulaIdx)] || filteredDnFormulas[0] || null;
   const PAYMENT_METHODS = companyPaymentMethods.length > 0
     ? companyPaymentMethods.map((m: any) => ({ value: m.code || m.name, label: m.name }))
     : FALLBACK_PAYMENT_METHODS;
@@ -581,10 +578,12 @@ export default function PdfBulkImport() {
   const filteredExpFormulas = availableFormulas.filter((f: any) =>
     f.source === "company" || expRelevantBizTypes.has(f.businessType)
   );
+  const selectedFormula = selectedFormulaIdx === "auto-detect" ? null : (filteredExpFormulas[Number(selectedFormulaIdx)] || filteredExpFormulas[0] || null);
   const dnRelevantBizTypes = detectRelevantBizTypes(creditNoteDocsList);
   const filteredDnFormulas = dnFormulas.filter((f: any) =>
     f.source === "company" || dnRelevantBizTypes.has(f.businessType)
   );
+  const selectedDnFormula = filteredDnFormulas[Number(selectedDnFormulaIdx)] || filteredDnFormulas[0] || null;
   const whtRate = parseFloat(globalWhtRate) / 100;
   const totalSubtotal = normalDocsList.reduce((s, d) => s + d.subtotal, 0);
   const totalVat = normalDocsList.reduce((s, d) => s + d.vatAmount, 0);
