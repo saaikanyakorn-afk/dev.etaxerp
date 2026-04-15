@@ -1,11 +1,27 @@
 import type { Express } from "express";
 import { db } from "../db";
-import { eq, and, isNotNull } from "drizzle-orm";
+import { eq, and, isNotNull, sql } from "drizzle-orm";
 import { requireAuth, requireAdmin, requireSuperAdmin } from "../route-middleware";
 import { getTimingLog, getTimingSummary, clearTimingLog } from "./report-cache";
 import { getMaintenanceStatus, activateNow, liftMaintenance, isMaintenanceMode, createSchedule, rescheduleSchedule, cancelSchedule, hasCompletedMaintenanceToday, getScheduleHistory } from "../maintenance";
 import { execSync } from "child_process";
 import { getConfig } from "../config-bootstrap";
+
+const ARCHIVE_SIZE_WARN_MB = 200;
+let archiveSizeWarned = false;
+
+async function checkContactsArchiveSize(): Promise<{ sizeBytes: number; sizeMb: number; sizePretty: string; records: number; warning: boolean }> {
+  const [sizeRow] = await db.execute(sql`SELECT pg_total_relation_size('contacts_archive') as size_bytes, pg_size_pretty(pg_total_relation_size('contacts_archive')) as size_pretty`);
+  const [countRow] = await db.execute(sql`SELECT COUNT(*)::int as cnt FROM contacts_archive`);
+  const sizeBytes = Number((sizeRow as any).size_bytes || 0);
+  const sizeMb = Math.round(sizeBytes / 1024 / 1024 * 100) / 100;
+  const warning = sizeMb >= ARCHIVE_SIZE_WARN_MB;
+  if (warning && !archiveSizeWarned) {
+    console.warn(`[SYSADMIN WARNING] contacts_archive table size ${(sizeRow as any).size_pretty} exceeds ${ARCHIVE_SIZE_WARN_MB}MB threshold! (${(countRow as any).cnt} records)`);
+    archiveSizeWarned = true;
+  }
+  return { sizeBytes, sizeMb, sizePretty: (sizeRow as any).size_pretty, records: Number((countRow as any).cnt || 0), warning };
+}
 
 function getGitVersion(): { hash: string; shortHash: string; date: string; message: string; version: string } {
   let version = "1.0.0";
@@ -226,4 +242,22 @@ app.post("/api/report-timing/clear", requireAuth, requireAdmin, (_req, res) => {
   clearTimingLog();
   res.json({ success: true, message: "Timing log cleared" });
 });
+
+app.get("/api/sysadmin/contacts-archive-status", requireAuth, requireSuperAdmin, async (_req, res) => {
+  try {
+    const archiveStatus = await checkContactsArchiveSize();
+    const [mainRow] = await db.execute(sql`SELECT COUNT(*)::int as cnt, pg_size_pretty(pg_total_relation_size('contacts')) as size FROM contacts`);
+    res.json({
+      archive: archiveStatus,
+      main: { records: Number((mainRow as any).cnt || 0), sizePretty: (mainRow as any).size },
+      thresholdMb: ARCHIVE_SIZE_WARN_MB,
+    });
+  } catch (e: any) { res.status(500).json({ message: e.message }); }
+});
+
+setTimeout(async () => {
+  try {
+    await checkContactsArchiveSize();
+  } catch (e) {}
+}, 10000);
 }
