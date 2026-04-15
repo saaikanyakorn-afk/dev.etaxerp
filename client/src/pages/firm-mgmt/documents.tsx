@@ -1376,6 +1376,12 @@ function AccountingAttachmentsTab({ companyId }: { companyId: number | null }) {
     enabled: !!companyId,
   });
 
+  const [collapsedMonths, setCollapsedMonths] = useState<Set<string>>(new Set());
+  const toggleMonth = (key: string) => setCollapsedMonths(prev => {
+    const next = new Set(prev);
+    next.has(key) ? next.delete(key) : next.add(key);
+    return next;
+  });
   const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(new Set());
   const toggleFolder = (key: string) => setCollapsedFolders(prev => {
     const next = new Set(prev);
@@ -1523,8 +1529,9 @@ function AccountingAttachmentsTab({ companyId }: { companyId: number | null }) {
         <div className="space-y-4">
           {grouped.map(g => (
             <Card key={g.key}>
-              <CardHeader className="py-3 px-4">
+              <CardHeader className="py-3 px-4 cursor-pointer select-none hover:bg-gray-50 transition-colors" onClick={() => toggleMonth(g.key)} data-testid={`month-toggle-${g.key}`}>
                 <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                  {collapsedMonths.has(g.key) ? <ChevronRight className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
                   <Calendar className="w-4 h-4 text-[#fb9678]" />
                   {g.label}
                   <Badge variant="secondary" className="text-[10px] ml-1">{g.docs.length}</Badge>
@@ -1535,7 +1542,7 @@ function AccountingAttachmentsTab({ companyId }: { companyId: number | null }) {
                   )}
                 </CardTitle>
               </CardHeader>
-              <CardContent className="px-4 pb-3">
+              {!collapsedMonths.has(g.key) && <CardContent className="px-4 pb-3">
                 {g.folders.map((fg, fIdx) => {
                   const hasFolderName = !!fg.folder;
                   const folderKey = `${g.key}::${fg.folder}`;
@@ -1615,7 +1622,7 @@ function AccountingAttachmentsTab({ companyId }: { companyId: number | null }) {
                     </div>
                   );
                 })}
-              </CardContent>
+              </CardContent>}
             </Card>
           ))}
         </div>
