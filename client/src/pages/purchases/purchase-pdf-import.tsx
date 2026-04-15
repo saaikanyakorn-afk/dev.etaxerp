@@ -403,7 +403,7 @@ export default function PurchasePdfImport() {
         )}
 
         {viewingFileUrl && (
-          <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={closeViewer}>
+          <div className="fixed inset-0 z-[70] bg-black/60 flex items-center justify-center p-4" onClick={closeViewer}>
             <div className="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
               <div className="flex items-center justify-between p-4 border-b">
                 <div className="flex items-center gap-2">

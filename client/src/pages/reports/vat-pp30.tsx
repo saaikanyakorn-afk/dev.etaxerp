@@ -409,7 +409,7 @@ export default function VatPP30Report() {
         </Card>
 
       {showPreview && (
-        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[70] bg-black/60 flex items-center justify-center p-4">
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col">
             <div className="flex items-center justify-between p-4 border-b">
               <h3 className="font-semibold text-sm">ตัวอย่าง ภ.พ.30</h3>

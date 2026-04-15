@@ -3302,7 +3302,7 @@ export default function EtaxHubClientBoard({ defaultTab }: { defaultTab?: string
         const roleColors: Record<string, string> = { owner: "#fb9678", editor: "#05b187", viewer: "#539BFF" };
 
         return (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowMembersDialog(false)}>
+          <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40" onClick={() => setShowMembersDialog(false)}>
             <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg" onClick={e => e.stopPropagation()} data-testid="dialog-members">
               <div className="px-6 pt-5 pb-4 border-b flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -3664,7 +3664,7 @@ function UploadLinksPanel({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end" onClick={onClose}>
+    <div className="fixed inset-0 z-[70] flex justify-end" onClick={onClose}>
       <div className="absolute inset-0 bg-black/30" />
       <div className="relative w-full max-w-lg bg-white shadow-2xl flex flex-col animate-in slide-in-from-right" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-5 py-4 border-b bg-white">

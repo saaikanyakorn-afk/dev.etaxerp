@@ -729,7 +729,7 @@ function ClientDocumentsTab({ companyId }: { companyId: number | null }) {
         const canPreview = file.mimeType?.includes("pdf") || file.mimeType?.includes("image");
         const total = monthFiles.length;
         return (
-          <div className="fixed inset-0 z-50 bg-black/60 flex flex-col" data-testid="document-viewer">
+          <div className="fixed inset-0 z-[70] bg-black/60 flex flex-col" data-testid="document-viewer">
             <div className="flex items-center justify-between px-4 py-2 bg-gray-900 text-white">
               <div className="flex items-center gap-3 min-w-0 flex-1">
                 <span className="text-sm font-medium truncate">{file.fileName}</span>
@@ -1110,7 +1110,7 @@ function OfficeDocumentsTab({ companyId }: { companyId: number | null }) {
         const isPdf = fileName.toLowerCase().endsWith(".pdf") || (viewerDoc.mimeType || "").includes("pdf");
         const isImage = /\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i.test(fileName) || (viewerDoc.mimeType || "").startsWith("image/");
         return (
-          <div className="fixed inset-0 z-50 bg-black/80 flex flex-col" onClick={() => setViewerDoc(null)}>
+          <div className="fixed inset-0 z-[70] bg-black/80 flex flex-col" onClick={() => setViewerDoc(null)}>
             <div className="flex items-center gap-3 px-4 py-3 bg-black/60 text-white" onClick={e => e.stopPropagation()}>
               <FileText className="w-5 h-5 text-[#fb9678] flex-shrink-0" />
               <span className="text-sm font-medium truncate flex-1">{fileName}</span>
@@ -1211,7 +1211,7 @@ function BoardDocumentsTab() {
     const isPdf = viewerFile.name?.toLowerCase().endsWith(".pdf");
     const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(viewerFile.name || "");
     return (
-      <div className="fixed inset-0 z-50 bg-black/60 flex flex-col" data-testid="board-document-viewer">
+      <div className="fixed inset-0 z-[70] bg-black/60 flex flex-col" data-testid="board-document-viewer">
         <div className="flex items-center justify-between px-4 py-2 bg-gray-900 text-white">
           <span className="text-sm font-medium truncate flex-1">{viewerFile.name}</span>
           <div className="flex items-center gap-1">
@@ -1447,7 +1447,7 @@ function AccountingAttachmentsTab({ companyId }: { companyId: number | null }) {
     const mime = getMimeGuess(viewerUrl);
     const canPreview = mime === "pdf" || mime === "image";
     return (
-      <div className="fixed inset-0 z-50 bg-gray-900 flex flex-col">
+      <div className="fixed inset-0 z-[70] bg-gray-900 flex flex-col">
         <div className="flex items-center justify-between px-4 py-2 bg-gray-800 text-white">
           <span className="text-sm truncate max-w-[60%]">{viewerName}</span>
           <div className="flex items-center gap-1">
