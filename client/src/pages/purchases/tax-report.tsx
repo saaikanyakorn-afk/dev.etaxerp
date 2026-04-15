@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { PieChart, Printer, FileDown, Calendar as CalendarIcon, Loader2, Eye, X, Download } from "lucide-react";
+import { PieChart, Printer, FileDown, Calendar as CalendarIcon, Loader2, Eye, X, Download, FileText } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useCompany } from "@/lib/company-context";
 import { useDocDropdowns } from "@/hooks/use-doc-dropdowns";
@@ -46,6 +46,7 @@ export default function PurchaseTaxReport() {
   const [year, setYear] = useState(String(today.getFullYear()));
   const [sortBy, setSortBy] = useState("date");
   const [showPreview, setShowPreview] = useState(false);
+  const [generatingPdf, setGeneratingPdf] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [filterMode, setFilterMode] = useState<"month" | "range">("month");
   const [startDate, setStartDate] = useState(() => {
@@ -337,17 +338,57 @@ export default function PurchaseTaxReport() {
     }
   }
 
-  function handleDownloadPdf() {
-    const html = buildReportHtml();
-    const blob = new Blob([html], { type: "text/html;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `รายงานภาษีซื้อ_${monthName}_${displayYear}.html`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+  async function handleDownloadPdf() {
+    if (rows.length === 0) return;
+    if (rows.length > 500) {
+      alert(`ข้อมูล ${rows.length} รายการ มากเกินไปสำหรับ PDF\nแนะนำให้ส่งออกเป็น Excel แทน`);
+      return;
+    }
+    const confirmed = window.confirm(`ยืนยันสร้างไฟล์ PDF รายงานภาษีซื้อ?\n(${rows.length} รายการ)`);
+    if (!confirmed) return;
+    setGeneratingPdf(true);
+    try {
+      const html = buildReportHtml();
+      const container = document.createElement("div");
+      container.innerHTML = html.replace(/.*<body[^>]*>/s, "").replace(/<\/body>.*/s, "");
+      container.style.position = "absolute";
+      container.style.left = "-9999px";
+      container.style.top = "0";
+      container.style.width = "277mm";
+      container.style.fontFamily = "'Sarabun', 'TH SarabunPSK', sans-serif";
+      container.style.fontSize = "11px";
+      container.style.color = "#333";
+      document.body.appendChild(container);
+      const styleEl = document.createElement("style");
+      const styleMatch = html.match(/<style>([\s\S]*?)<\/style>/);
+      if (styleMatch) {
+        styleEl.textContent = styleMatch[1].replace(/@import[^;]+;/g, "").replace(/@media print[\s\S]*?\}/g, "");
+      }
+      container.prepend(styleEl);
+      const linkEl = document.createElement("link");
+      linkEl.rel = "stylesheet";
+      linkEl.href = "https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;700&display=swap";
+      container.prepend(linkEl);
+      await new Promise(r => setTimeout(r, 500));
+      const html2pdf = (await import("html2pdf.js")).default;
+      const pages = container.querySelectorAll(".page");
+      const opt = {
+        margin: [5, 5, 5, 5],
+        filename: `รายงานภาษีซื้อ_${monthName}_${displayYear}.pdf`,
+        image: { type: "jpeg", quality: 0.95 },
+        html2canvas: { scale: 2, useCORS: true, letterRendering: true, scrollX: 0, scrollY: 0, width: 1047 },
+        jsPDF: { unit: "mm", format: "a4", orientation: "landscape" },
+        pagebreak: { mode: ["css", "legacy"], avoid: ["tr"] },
+      };
+      const worker = html2pdf().set(opt).from(container);
+      await worker.save();
+      document.body.removeChild(container);
+    } catch (err) {
+      console.error("PDF generation error:", err);
+      alert("เกิดข้อผิดพลาดในการสร้าง PDF");
+    } finally {
+      setGeneratingPdf(false);
+    }
   }
 
   return (
@@ -578,8 +619,8 @@ export default function PurchaseTaxReport() {
                 <span className="font-semibold text-sm">พรีวิวรายงานภาษีซื้อ — {monthName} {displayYear}</span>
               </div>
               <div className="flex items-center gap-2">
-                <Button size="sm" className="h-8 text-xs text-white hover:opacity-90" style={{ background: "#05b187" }} onClick={handleDownloadPdf} data-testid="button-download-pdf">
-                  <Download className="h-3.5 w-3.5 mr-1.5" /> ดาวน์โหลด
+                <Button size="sm" className="h-8 text-xs text-white hover:opacity-90" style={{ background: "#05b187" }} onClick={handleDownloadPdf} disabled={generatingPdf} data-testid="button-download-pdf">
+                  {generatingPdf ? <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> กำลังสร้าง PDF...</> : <><FileText className="h-3.5 w-3.5 mr-1.5" /> ดาวน์โหลด PDF</>}
                 </Button>
                 <Button size="sm" className="h-8 text-xs text-white hover:opacity-90" style={{ background: "var(--theme-primary)" }} onClick={handlePrintFromPreview} data-testid="button-print">
                   <Printer className="h-3.5 w-3.5 mr-1.5" /> พิมพ์
