@@ -753,6 +753,314 @@ export const DEFAULT_FORMULAS: DefaultFormulaTemplate[] = [
   },
 
   // ============================================
+  // GRAB (Food Delivery)
+  // ============================================
+  {
+    documentType: "tax_invoice",
+    businessType: "grab",
+    name: "Grab Tax Invoice",
+    nameTh: "ใบกำกับภาษี (Grab)",
+    description: "Tax Point เกิดเมื่อส่งมอบอาหาร/สินค้า",
+    lines: [
+      { accountCode: "1235000", accountName: "ลูกหนี้ Grab", direction: "debit", sortOrder: 1 },
+      { accountCode: "4017000", accountName: "รายได้จากการขาย Grab", direction: "credit", sortOrder: 2 },
+      { accountCode: "2341000", accountName: "ภาษีขาย", direction: "credit", sortOrder: 3 },
+    ],
+  },
+  {
+    documentType: "receipt",
+    businessType: "grab",
+    name: "Grab Receipt",
+    nameTh: "ใบเสร็จรับเงิน (Grab)",
+    description: "รับชำระเงินจาก Grab — แพลตฟอร์มโอนเงินหลังหักค่าธรรมเนียม",
+    lines: [
+      { accountCode: "1001000", accountName: "เงินสด", direction: "debit", sortOrder: 1 },
+      { accountCode: "5244000", accountName: "ค่าคอมมิชชั่น Grab", direction: "debit", sortOrder: 2 },
+      { accountCode: "1235000", accountName: "ลูกหนี้ Grab", direction: "credit", sortOrder: 3 },
+    ],
+  },
+  {
+    documentType: "ecommerce_settlement",
+    businessType: "grab",
+    name: "Grab Settlement",
+    nameTh: "Settlement จาก Grab",
+    description: "บันทึกการรับเงินจาก Grab — ค่าธรรมเนียมลงรับรู้ล่วงหน้า (รอเอกสารจริง)",
+    lines: [
+      { accountCode: "1045000", accountName: "เงินฝาก Grab Wallet", direction: "debit", sortOrder: 1 },
+      { accountCode: "1441400", accountName: "ค่าคอมมิชชั่น Grab รับรู้ล่วงหน้า", direction: "debit", sortOrder: 2 },
+      { accountCode: "1442400", accountName: "ค่าบริการ Grab รับรู้ล่วงหน้า", direction: "debit", sortOrder: 3 },
+      { accountCode: "1235000", accountName: "ลูกหนี้ Grab", direction: "credit", sortOrder: 4 },
+    ],
+  },
+  {
+    documentType: "credit_note",
+    businessType: "grab",
+    name: "Grab Credit Note",
+    nameTh: "ใบลดหนี้ขาย (Grab)",
+    description: "ลดหนี้ขาย — กลับรายการรายได้และภาษีขาย",
+    lines: [
+      { accountCode: "4017000", accountName: "รายได้จากการขาย Grab", direction: "debit", sortOrder: 1 },
+      { accountCode: "2341000", accountName: "ภาษีขาย", direction: "debit", sortOrder: 2 },
+      { accountCode: "1235000", accountName: "ลูกหนี้ Grab", direction: "credit", sortOrder: 3 },
+    ],
+  },
+  {
+    documentType: "purchase",
+    businessType: "grab_commission",
+    name: "Grab Commission Reversal",
+    nameTh: "ล้างค่าใช้จ่ายล่วงหน้า — ค่าคอมมิชชั่น Grab",
+    description: "ได้รับเอกสารจริงจาก Grab → ล้างค่าใช้จ่ายล่วงหน้า (1441) เป็นค่าใช้จ่ายจริง (524)",
+    lines: [
+      { accountCode: "5244000", accountName: "ค่าคอมมิชชั่น Grab", direction: "debit", sortOrder: 1 },
+      { accountCode: "1432000", accountName: "ภาษีซื้อ", direction: "debit", sortOrder: 2 },
+      { accountCode: "1441400", accountName: "ค่าคอมมิชชั่น Grab รับรู้ล่วงหน้า", direction: "credit", sortOrder: 3 },
+    ],
+  },
+  {
+    documentType: "purchase",
+    businessType: "grab_platform_fee",
+    name: "Grab Platform Fee Reversal",
+    nameTh: "ล้างค่าใช้จ่ายล่วงหน้า — ค่าบริการ Grab",
+    description: "ได้รับเอกสารจริงจาก Grab → ล้างค่าบริการล่วงหน้า (1442) เป็นค่าใช้จ่ายจริง (525)",
+    lines: [
+      { accountCode: "5254000", accountName: "ค่าบริการ Grab", direction: "debit", sortOrder: 1 },
+      { accountCode: "1432000", accountName: "ภาษีซื้อ", direction: "debit", sortOrder: 2 },
+      { accountCode: "1442400", accountName: "ค่าบริการ Grab รับรู้ล่วงหน้า", direction: "credit", sortOrder: 3 },
+    ],
+  },
+
+  // ============================================
+  // LINE MAN (Food Delivery)
+  // ============================================
+  {
+    documentType: "tax_invoice",
+    businessType: "lineman",
+    name: "LINE MAN Tax Invoice",
+    nameTh: "ใบกำกับภาษี (LINE MAN)",
+    description: "Tax Point เกิดเมื่อส่งมอบอาหาร/สินค้า",
+    lines: [
+      { accountCode: "1236000", accountName: "ลูกหนี้ LINE MAN", direction: "debit", sortOrder: 1 },
+      { accountCode: "4018000", accountName: "รายได้จากการขาย LINE MAN", direction: "credit", sortOrder: 2 },
+      { accountCode: "2341000", accountName: "ภาษีขาย", direction: "credit", sortOrder: 3 },
+    ],
+  },
+  {
+    documentType: "receipt",
+    businessType: "lineman",
+    name: "LINE MAN Receipt",
+    nameTh: "ใบเสร็จรับเงิน (LINE MAN)",
+    description: "รับชำระเงินจาก LINE MAN — แพลตฟอร์มโอนเงินหลังหักค่าธรรมเนียม",
+    lines: [
+      { accountCode: "1001000", accountName: "เงินสด", direction: "debit", sortOrder: 1 },
+      { accountCode: "5246000", accountName: "ค่าคอมมิชชั่น LINE MAN", direction: "debit", sortOrder: 2 },
+      { accountCode: "1236000", accountName: "ลูกหนี้ LINE MAN", direction: "credit", sortOrder: 3 },
+    ],
+  },
+  {
+    documentType: "ecommerce_settlement",
+    businessType: "lineman",
+    name: "LINE MAN Settlement",
+    nameTh: "Settlement จาก LINE MAN",
+    description: "บันทึกการรับเงินจาก LINE MAN — ค่าธรรมเนียมลงรับรู้ล่วงหน้า (รอเอกสารจริง)",
+    lines: [
+      { accountCode: "1046000", accountName: "เงินฝาก LINE MAN Wallet", direction: "debit", sortOrder: 1 },
+      { accountCode: "1441500", accountName: "ค่าคอมมิชชั่น LINE MAN รับรู้ล่วงหน้า", direction: "debit", sortOrder: 2 },
+      { accountCode: "1442500", accountName: "ค่าบริการ LINE MAN รับรู้ล่วงหน้า", direction: "debit", sortOrder: 3 },
+      { accountCode: "1236000", accountName: "ลูกหนี้ LINE MAN", direction: "credit", sortOrder: 4 },
+    ],
+  },
+  {
+    documentType: "credit_note",
+    businessType: "lineman",
+    name: "LINE MAN Credit Note",
+    nameTh: "ใบลดหนี้ขาย (LINE MAN)",
+    description: "ลดหนี้ขาย — กลับรายการรายได้และภาษีขาย",
+    lines: [
+      { accountCode: "4018000", accountName: "รายได้จากการขาย LINE MAN", direction: "debit", sortOrder: 1 },
+      { accountCode: "2341000", accountName: "ภาษีขาย", direction: "debit", sortOrder: 2 },
+      { accountCode: "1236000", accountName: "ลูกหนี้ LINE MAN", direction: "credit", sortOrder: 3 },
+    ],
+  },
+  {
+    documentType: "purchase",
+    businessType: "lineman_commission",
+    name: "LINE MAN Commission Reversal",
+    nameTh: "ล้างค่าใช้จ่ายล่วงหน้า — ค่าคอมมิชชั่น LINE MAN",
+    description: "ได้รับเอกสารจริงจาก LINE MAN → ล้างค่าใช้จ่ายล่วงหน้า (1441) เป็นค่าใช้จ่ายจริง (524)",
+    lines: [
+      { accountCode: "5246000", accountName: "ค่าคอมมิชชั่น LINE MAN", direction: "debit", sortOrder: 1 },
+      { accountCode: "1432000", accountName: "ภาษีซื้อ", direction: "debit", sortOrder: 2 },
+      { accountCode: "1441500", accountName: "ค่าคอมมิชชั่น LINE MAN รับรู้ล่วงหน้า", direction: "credit", sortOrder: 3 },
+    ],
+  },
+  {
+    documentType: "purchase",
+    businessType: "lineman_platform_fee",
+    name: "LINE MAN Platform Fee Reversal",
+    nameTh: "ล้างค่าใช้จ่ายล่วงหน้า — ค่าบริการ LINE MAN",
+    description: "ได้รับเอกสารจริงจาก LINE MAN → ล้างค่าบริการล่วงหน้า (1442) เป็นค่าใช้จ่ายจริง (525)",
+    lines: [
+      { accountCode: "5257000", accountName: "ค่าบริการ LINE MAN", direction: "debit", sortOrder: 1 },
+      { accountCode: "1432000", accountName: "ภาษีซื้อ", direction: "debit", sortOrder: 2 },
+      { accountCode: "1442500", accountName: "ค่าบริการ LINE MAN รับรู้ล่วงหน้า", direction: "credit", sortOrder: 3 },
+    ],
+  },
+
+  // ============================================
+  // FOODPANDA (Food Delivery)
+  // ============================================
+  {
+    documentType: "tax_invoice",
+    businessType: "foodpanda",
+    name: "foodpanda Tax Invoice",
+    nameTh: "ใบกำกับภาษี (foodpanda)",
+    description: "Tax Point เกิดเมื่อส่งมอบอาหาร/สินค้า",
+    lines: [
+      { accountCode: "1237000", accountName: "ลูกหนี้ foodpanda", direction: "debit", sortOrder: 1 },
+      { accountCode: "4019000", accountName: "รายได้จากการขาย foodpanda", direction: "credit", sortOrder: 2 },
+      { accountCode: "2341000", accountName: "ภาษีขาย", direction: "credit", sortOrder: 3 },
+    ],
+  },
+  {
+    documentType: "receipt",
+    businessType: "foodpanda",
+    name: "foodpanda Receipt",
+    nameTh: "ใบเสร็จรับเงิน (foodpanda)",
+    description: "รับชำระเงินจาก foodpanda — แพลตฟอร์มโอนเงินหลังหักค่าธรรมเนียม",
+    lines: [
+      { accountCode: "1001000", accountName: "เงินสด", direction: "debit", sortOrder: 1 },
+      { accountCode: "5247000", accountName: "ค่าคอมมิชชั่น foodpanda", direction: "debit", sortOrder: 2 },
+      { accountCode: "1237000", accountName: "ลูกหนี้ foodpanda", direction: "credit", sortOrder: 3 },
+    ],
+  },
+  {
+    documentType: "ecommerce_settlement",
+    businessType: "foodpanda",
+    name: "foodpanda Settlement",
+    nameTh: "Settlement จาก foodpanda",
+    description: "บันทึกการรับเงินจาก foodpanda — ค่าธรรมเนียมลงรับรู้ล่วงหน้า (รอเอกสารจริง)",
+    lines: [
+      { accountCode: "1047000", accountName: "เงินฝาก foodpanda Wallet", direction: "debit", sortOrder: 1 },
+      { accountCode: "1441600", accountName: "ค่าคอมมิชชั่น foodpanda รับรู้ล่วงหน้า", direction: "debit", sortOrder: 2 },
+      { accountCode: "1442600", accountName: "ค่าบริการ foodpanda รับรู้ล่วงหน้า", direction: "debit", sortOrder: 3 },
+      { accountCode: "1237000", accountName: "ลูกหนี้ foodpanda", direction: "credit", sortOrder: 4 },
+    ],
+  },
+  {
+    documentType: "credit_note",
+    businessType: "foodpanda",
+    name: "foodpanda Credit Note",
+    nameTh: "ใบลดหนี้ขาย (foodpanda)",
+    description: "ลดหนี้ขาย — กลับรายการรายได้และภาษีขาย",
+    lines: [
+      { accountCode: "4019000", accountName: "รายได้จากการขาย foodpanda", direction: "debit", sortOrder: 1 },
+      { accountCode: "2341000", accountName: "ภาษีขาย", direction: "debit", sortOrder: 2 },
+      { accountCode: "1237000", accountName: "ลูกหนี้ foodpanda", direction: "credit", sortOrder: 3 },
+    ],
+  },
+  {
+    documentType: "purchase",
+    businessType: "foodpanda_commission",
+    name: "foodpanda Commission Reversal",
+    nameTh: "ล้างค่าใช้จ่ายล่วงหน้า — ค่าคอมมิชชั่น foodpanda",
+    description: "ได้รับเอกสารจริงจาก foodpanda → ล้างค่าใช้จ่ายล่วงหน้า (1441) เป็นค่าใช้จ่ายจริง (524)",
+    lines: [
+      { accountCode: "5247000", accountName: "ค่าคอมมิชชั่น foodpanda", direction: "debit", sortOrder: 1 },
+      { accountCode: "1432000", accountName: "ภาษีซื้อ", direction: "debit", sortOrder: 2 },
+      { accountCode: "1441600", accountName: "ค่าคอมมิชชั่น foodpanda รับรู้ล่วงหน้า", direction: "credit", sortOrder: 3 },
+    ],
+  },
+  {
+    documentType: "purchase",
+    businessType: "foodpanda_platform_fee",
+    name: "foodpanda Platform Fee Reversal",
+    nameTh: "ล้างค่าใช้จ่ายล่วงหน้า — ค่าบริการ foodpanda",
+    description: "ได้รับเอกสารจริงจาก foodpanda → ล้างค่าบริการล่วงหน้า (1442) เป็นค่าใช้จ่ายจริง (525)",
+    lines: [
+      { accountCode: "5258000", accountName: "ค่าบริการ foodpanda", direction: "debit", sortOrder: 1 },
+      { accountCode: "1432000", accountName: "ภาษีซื้อ", direction: "debit", sortOrder: 2 },
+      { accountCode: "1442600", accountName: "ค่าบริการ foodpanda รับรู้ล่วงหน้า", direction: "credit", sortOrder: 3 },
+    ],
+  },
+
+  // ============================================
+  // LINE SHOPPING
+  // ============================================
+  {
+    documentType: "tax_invoice",
+    businessType: "line_shopping",
+    name: "LINE Shopping Tax Invoice",
+    nameTh: "ใบกำกับภาษี (LINE Shopping)",
+    description: "Tax Point เกิดเมื่อส่งมอบสินค้า",
+    lines: [
+      { accountCode: "1238000", accountName: "ลูกหนี้ LINE Shopping", direction: "debit", sortOrder: 1 },
+      { accountCode: "4015000", accountName: "รายได้จากการขาย LINE Shopping", direction: "credit", sortOrder: 2 },
+      { accountCode: "2341000", accountName: "ภาษีขาย", direction: "credit", sortOrder: 3 },
+    ],
+  },
+  {
+    documentType: "receipt",
+    businessType: "line_shopping",
+    name: "LINE Shopping Receipt",
+    nameTh: "ใบเสร็จรับเงิน (LINE Shopping)",
+    description: "รับชำระเงินจาก LINE Shopping — แพลตฟอร์มโอนเงินหลังหักค่าธรรมเนียม",
+    lines: [
+      { accountCode: "1001000", accountName: "เงินสด", direction: "debit", sortOrder: 1 },
+      { accountCode: "5248000", accountName: "ค่าคอมมิชชั่น LINE Shopping", direction: "debit", sortOrder: 2 },
+      { accountCode: "1238000", accountName: "ลูกหนี้ LINE Shopping", direction: "credit", sortOrder: 3 },
+    ],
+  },
+  {
+    documentType: "ecommerce_settlement",
+    businessType: "line_shopping",
+    name: "LINE Shopping Settlement",
+    nameTh: "Settlement จาก LINE Shopping",
+    description: "บันทึกการรับเงินจาก LINE Shopping — ค่าธรรมเนียมลงรับรู้ล่วงหน้า (รอเอกสารจริง)",
+    lines: [
+      { accountCode: "1048000", accountName: "เงินฝาก LINE Shopping Wallet", direction: "debit", sortOrder: 1 },
+      { accountCode: "1441700", accountName: "ค่าคอมมิชชั่น LINE Shopping รับรู้ล่วงหน้า", direction: "debit", sortOrder: 2 },
+      { accountCode: "1442700", accountName: "ค่าบริการ LINE Shopping รับรู้ล่วงหน้า", direction: "debit", sortOrder: 3 },
+      { accountCode: "1238000", accountName: "ลูกหนี้ LINE Shopping", direction: "credit", sortOrder: 4 },
+    ],
+  },
+  {
+    documentType: "credit_note",
+    businessType: "line_shopping",
+    name: "LINE Shopping Credit Note",
+    nameTh: "ใบลดหนี้ขาย (LINE Shopping)",
+    description: "ลดหนี้ขาย — กลับรายการรายได้และภาษีขาย",
+    lines: [
+      { accountCode: "4015000", accountName: "รายได้จากการขาย LINE Shopping", direction: "debit", sortOrder: 1 },
+      { accountCode: "2341000", accountName: "ภาษีขาย", direction: "debit", sortOrder: 2 },
+      { accountCode: "1238000", accountName: "ลูกหนี้ LINE Shopping", direction: "credit", sortOrder: 3 },
+    ],
+  },
+  {
+    documentType: "purchase",
+    businessType: "line_shopping_commission",
+    name: "LINE Shopping Commission Reversal",
+    nameTh: "ล้างค่าใช้จ่ายล่วงหน้า — ค่าคอมมิชชั่น LINE Shopping",
+    description: "ได้รับเอกสารจริงจาก LINE Shopping → ล้างค่าใช้จ่ายล่วงหน้า (1441) เป็นค่าใช้จ่ายจริง (524)",
+    lines: [
+      { accountCode: "5248000", accountName: "ค่าคอมมิชชั่น LINE Shopping", direction: "debit", sortOrder: 1 },
+      { accountCode: "1432000", accountName: "ภาษีซื้อ", direction: "debit", sortOrder: 2 },
+      { accountCode: "1441700", accountName: "ค่าคอมมิชชั่น LINE Shopping รับรู้ล่วงหน้า", direction: "credit", sortOrder: 3 },
+    ],
+  },
+  {
+    documentType: "purchase",
+    businessType: "line_shopping_platform_fee",
+    name: "LINE Shopping Platform Fee Reversal",
+    nameTh: "ล้างค่าใช้จ่ายล่วงหน้า — ค่าบริการ LINE Shopping",
+    description: "ได้รับเอกสารจริงจาก LINE Shopping → ล้างค่าบริการล่วงหน้า (1442) เป็นค่าใช้จ่ายจริง (525)",
+    lines: [
+      { accountCode: "5259000", accountName: "ค่าบริการ LINE Shopping", direction: "debit", sortOrder: 1 },
+      { accountCode: "1432000", accountName: "ภาษีซื้อ", direction: "debit", sortOrder: 2 },
+      { accountCode: "1442700", accountName: "ค่าบริการ LINE Shopping รับรู้ล่วงหน้า", direction: "credit", sortOrder: 3 },
+    ],
+  },
+
+  // ============================================
   // ACCOUNTING FIRM FORMULAS
   // ============================================
   {
