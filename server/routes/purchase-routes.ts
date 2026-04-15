@@ -2522,6 +2522,8 @@ export function registerPurchaseRoutes(app: Express) {
       const pendingJournals: { result: any; doc: any; validItems: any[] }[] = [];
       const pendingDnJournals: { dnId: number; dnNo: string; date: string; subtotal: string; vatAmount: string; totalAmount: string; vendorName: string; batchSuffix: string; batchId: number | null }[] = [];
 
+      const usedExpNos = new Set<string>();
+
       for (const doc of documents) {
         try {
           const docPrefix = doc.invoicePrefix || "EXP";
@@ -2670,6 +2672,19 @@ export function registerPurchaseRoutes(app: Express) {
           if (!expNo || expNo === "(สร้างอัตโนมัติ)") {
             const useInvoicePrefix = !!doc.invoicePrefix;
             expNo = await getNextDocNo(companyId, docPrefix, expenses, expenses.expNo, expenses.companyId, docDateStr, "expense", undefined, useInvoicePrefix);
+            let retries = 0;
+            while (usedExpNos.has(expNo) && retries < 100) {
+              const seqStr = expNo.slice(-5);
+              const seq = parseInt(seqStr, 10);
+              if (!isNaN(seq)) {
+                const nextSeq = String(seq + 1).padStart(5, "0");
+                expNo = expNo.slice(0, -5) + nextSeq;
+              } else {
+                break;
+              }
+              retries++;
+            }
+            usedExpNos.add(expNo);
           } else {
             const existing = await db.select({ expNo: expenses.expNo })
               .from(expenses).where(and(eq(expenses.companyId, companyId), eq(expenses.expNo, expNo)));
