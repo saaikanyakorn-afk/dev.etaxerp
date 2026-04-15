@@ -2075,6 +2075,9 @@ export function registerPurchaseRoutes(app: Express) {
 
           const itemErrors = items.flatMap((i: any) => i.errors);
           const hasErrors = errors.length > 0 || itemErrors.length > 0;
+          if (hasErrors) {
+            console.log(`[pdf-import] ${file.originalname} ERRORS: doc=[${errors.join("; ")}] items=[${itemErrors.join("; ")}]`);
+          }
 
           fileResult.timing.totalMs = Math.round(performance.now() - t0);
           console.log(`[pdf-import] ${file.originalname} (${(file.size/1024).toFixed(0)}KB) — prep ${fileResult.timing.prepareMs}ms, upload ${fileResult.timing.uploadMs}ms, AI ${fileResult.timing.aiMs}ms (chosen: ${fileResult.timing.chosenAi}), DBD ${fileResult.timing.dbdMs}ms, total ${fileResult.timing.totalMs}ms`);
@@ -3840,7 +3843,17 @@ export function registerPurchaseRoutes(app: Express) {
           const subtotal = parsed.subtotal || (parsed.totalAmount ? parsed.totalAmount - vatAmount : itemsTotal);
           const wht = parsed.withholdingTax || 0;
 
-          const docDate = parsed.date || "";
+          let docDate = parsed.date || "";
+          if (docDate) {
+            const parts = docDate.split("/");
+            if (parts.length === 3) {
+              const dd = parts[0].padStart(2, "0");
+              const mm = parts[1].padStart(2, "0");
+              let yyyy = Number(parts[2]);
+              if (yyyy > 2400) yyyy -= 543;
+              docDate = `${yyyy}-${mm}-${dd}`;
+            }
+          }
           const docErrors: string[] = [];
           if (!docDate) docErrors.push("ไม่พบวันที่เอกสาร");
           else {
