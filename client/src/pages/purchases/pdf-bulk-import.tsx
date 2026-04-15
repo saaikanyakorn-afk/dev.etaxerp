@@ -168,7 +168,7 @@ export default function PdfBulkImport() {
   const [expandedDocs, setExpandedDocs] = useState<Set<string>>(new Set());
   const [docType, setDocType] = useState<"purchase" | "expense">("expense");
   const [autoJournal, setAutoJournal] = useState(true);
-  const [journalMode, setJournalMode] = useState<"daily" | "per_doc">("daily");
+  const [journalMode, setJournalMode] = useState<"daily" | "per_doc">("per_doc");
   const [autoCreateContact, setAutoCreateContact] = useState(true);
   const [paymentMethod, setPaymentMethod] = useState("transfer");
   const [globalWhtRate, setGlobalWhtRate] = useState("0");
@@ -1183,8 +1183,8 @@ export default function PdfBulkImport() {
                           className="border rounded px-2 py-1 text-sm"
                           data-testid="select-journal-mode"
                         >
-                          <option value="daily">สรุปรายวัน (DXP)</option>
                           <option value="per_doc">รายใบ</option>
+                          <option value="daily">สรุปรายวัน (DXP)</option>
                         </select>
                       </>
                     )}
