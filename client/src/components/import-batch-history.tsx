@@ -56,6 +56,7 @@ export default function ImportBatchHistory({ docType, invalidateKeys }: ImportBa
       return res.json();
     },
     enabled: !!companyId && expanded,
+    staleTime: 0,
   });
 
   const activeBatches = batches.filter((b: any) => b.status === "active");

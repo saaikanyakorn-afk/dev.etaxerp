@@ -438,6 +438,7 @@ export default function PdfBulkImport() {
       setStep("result");
       queryClient.invalidateQueries({ queryKey: ["/api/expenses"] });
       queryClient.invalidateQueries({ queryKey: ["/api/purchases"] });
+      queryClient.invalidateQueries({ queryKey: ["import-batches"] });
     },
     onError: (err: any) => {
       toast({ title: "เกิดข้อผิดพลาด", description: err.message, variant: "destructive" });
@@ -1884,6 +1885,7 @@ export default function PdfBulkImport() {
                     queryClient.invalidateQueries({ queryKey: ["/api/expenses"] });
                     queryClient.invalidateQueries({ queryKey: ["/api/purchases"] });
                     queryClient.invalidateQueries({ queryKey: ["/api/expense-daily-batches"] });
+                    queryClient.invalidateQueries({ queryKey: ["import-batches"] });
                     navigate(docType === "expense" ? "/purchases/expenses" : "/purchases/ap");
                   }}
                   className="bg-[#fb9678] hover:bg-[#e8856a] text-white"
