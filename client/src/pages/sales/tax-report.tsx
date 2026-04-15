@@ -158,45 +158,10 @@ export default function SalesTaxReport() {
 
   const buildReportHtml = useCallback(() => {
     const themeColor = getComputedStyle(document.documentElement).getPropertyValue('--theme-table-header').trim() || '#fb9678';
-    const tableRows = rows.map((r: any) =>
-      `<tr>
-        <td style="text-align:center;border:1px solid #ccc;padding:3px 6px;font-size:11px">${r.no}</td>
-        <td style="border:1px solid #ccc;padding:3px 6px;font-size:11px;white-space:nowrap">${formatDate(r.date, dateEra, dateFmt)}</td>
-        <td style="border:1px solid #ccc;padding:3px 6px;font-size:11px">${r.taxInvoiceNo}${r.isCreditNote ? ' <span style="color:#e11d48;font-size:9px">(ลดหนี้)</span>' : ""}${r.isDebitNote ? ' <span style="color:#d97706;font-size:9px">(เพิ่มหนี้)</span>' : ""}</td>
-        <td style="border:1px solid #ccc;padding:3px 6px;font-size:11px">${r.customerName}</td>
-        <td style="border:1px solid #ccc;padding:3px 6px;font-size:11px">${r.customerTaxId || ""}</td>
-        <td style="border:1px solid #ccc;padding:3px 6px;font-size:11px;text-align:center">${r.branch || ""}</td>
-        <td style="text-align:right;border:1px solid #ccc;padding:3px 6px;font-size:11px">${fmt(r.subtotal)}</td>
-        <td style="text-align:right;border:1px solid #ccc;padding:3px 6px;font-size:11px">${fmt(r.subtotal)}</td>
-        <td style="text-align:right;border:1px solid #ccc;padding:3px 6px;font-size:11px">${fmt(r.vatAmount)}</td>
-        <td style="text-align:right;border:1px solid #ccc;padding:3px 6px;font-size:11px">${fmt(r.subtotal + r.vatAmount)}</td>
-      </tr>`
-    ).join("");
+    const ROWS_PER_PAGE = 25;
+    const totalPages = Math.max(1, Math.ceil(rows.length / ROWS_PER_PAGE));
 
-    return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>รายงานภาษีขาย</title>
-      <style>
-        @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;700&display=swap');
-        * { margin:0; padding:0; box-sizing:border-box; }
-        body { font-family: 'Sarabun', 'TH SarabunPSK', sans-serif; font-size:12px; padding:15px 20px; color:#333; }
-        .report-header { display:flex; justify-content:space-between; margin-bottom:10px; }
-        .header-left { font-size:12px; line-height:1.7; }
-        .header-left .label { display:inline-block; min-width:140px; font-weight:400; }
-        .header-left .value { font-weight:600; }
-        .header-right { text-align:right; }
-        .header-right .title { font-size:18px; font-weight:700; margin-bottom:4px; }
-        .header-right .info { font-size:11px; line-height:1.6; }
-        .branch-check { display:inline-flex; align-items:center; gap:4px; margin-right:12px; }
-        .branch-check .box { display:inline-block; width:14px; height:14px; border:1.5px solid #333; text-align:center; line-height:14px; font-size:11px; font-weight:700; }
-        .branch-check .box.checked { background:#333; color:white; }
-        table { width:100%; border-collapse:collapse; margin-top:6px; }
-        th { background:${themeColor}; color:white; font-weight:600; padding:5px 6px; font-size:10px; border:1px solid ${themeColor}; text-align:center; white-space:nowrap; }
-        .total-row td { font-weight:700; background:#f1f5f9; border-top:2px solid #333; }
-        @media print { 
-          body { padding:8px 12px; } 
-          @page { size:landscape; margin:8mm; }
-        }
-      </style>
-    </head><body>
+    const headerHtml = `
       <div class="report-header">
         <div class="header-left">
           <div><span class="label">ชื่อผู้ประกอบการ:</span> <span class="value">${companyName}</span></div>
@@ -216,32 +181,133 @@ export default function SalesTaxReport() {
             <div>เลขประจำตัวผู้เสียภาษี: ${companyTaxId || "-"}</div>
           </div>
         </div>
-      </div>
-      <table>
-        <thead><tr>
-          <th style="width:28px">#</th>
-          <th style="width:90px;white-space:nowrap">ใบกำกับภาษี<br/>วัน เดือน ปี</th>
-          <th style="width:110px">ใบกำกับภาษี<br/>เลขที่</th>
-          <th>ชื่อผู้ซื้อสินค้า/ผู้รับบริการ</th>
-          <th style="width:100px">เลขประจำตัว<br/>ผู้เสียภาษีอากร</th>
-          <th style="width:70px">สาขา</th>
-          <th style="width:85px;text-align:right">มูลค่าสินค้า<br/>หรือบริการ</th>
-          <th style="width:85px;text-align:right">มูลค่าสินค้า<br/>ที่เสียภาษี</th>
-          <th style="width:80px;text-align:right">จำนวนเงิน<br/>ภาษีมูลค่าเพิ่ม</th>
-          <th style="width:80px;text-align:right">จำนวนเงิน<br/>รวมทั้งสิ้น</th>
-        </tr>
-        </thead>
-        <tbody>
-          ${tableRows}
-          <tr class="total-row">
-            <td colspan="6" style="text-align:right;border:1px solid #ccc;padding:4px 8px;font-size:12px">รวมทั้งสิ้น</td>
-            <td style="text-align:right;border:1px solid #ccc;padding:4px 8px;font-size:12px">${fmt(totalSubtotal)}</td>
-            <td style="text-align:right;border:1px solid #ccc;padding:4px 8px;font-size:12px">${fmt(totalSubtotal)}</td>
-            <td style="text-align:right;border:1px solid #ccc;padding:4px 8px;font-size:12px">${fmt(totalVat)}</td>
-            <td style="text-align:right;border:1px solid #ccc;padding:4px 8px;font-size:12px">${fmt(totalAmount)}</td>
-          </tr>
-        </tbody>
-      </table>
+      </div>`;
+
+    const theadHtml = `<thead><tr>
+      <th style="width:28px">#</th>
+      <th style="width:90px;white-space:nowrap">ใบกำกับภาษี<br/>วัน เดือน ปี</th>
+      <th style="width:110px">ใบกำกับภาษี<br/>เลขที่</th>
+      <th>ชื่อผู้ซื้อสินค้า/ผู้รับบริการ</th>
+      <th style="width:100px">เลขประจำตัว<br/>ผู้เสียภาษีอากร</th>
+      <th style="width:70px">สาขา</th>
+      <th style="width:85px;text-align:right">มูลค่าสินค้า<br/>หรือบริการ</th>
+      <th style="width:85px;text-align:right">มูลค่าสินค้า<br/>ที่เสียภาษี</th>
+      <th style="width:80px;text-align:right">จำนวนเงิน<br/>ภาษีมูลค่าเพิ่ม</th>
+      <th style="width:80px;text-align:right">จำนวนเงิน<br/>รวมทั้งสิ้น</th>
+    </tr></thead>`;
+
+    let pagesHtml = "";
+    let runningSubtotal = 0;
+    let runningVat = 0;
+    let runningTotal = 0;
+
+    for (let page = 0; page < totalPages; page++) {
+      const pageRows = rows.slice(page * ROWS_PER_PAGE, (page + 1) * ROWS_PER_PAGE);
+      const isLastPage = page === totalPages - 1;
+
+      let pageSubtotal = 0;
+      let pageVat = 0;
+      let pageTotal = 0;
+      const dataRows = pageRows.map((r: any) => {
+        pageSubtotal += r.subtotal || 0;
+        pageVat += r.vatAmount || 0;
+        pageTotal += (r.subtotal || 0) + (r.vatAmount || 0);
+        return `<tr>
+          <td style="text-align:center;border:1px solid #ccc;padding:3px 6px;font-size:11px">${r.no}</td>
+          <td style="border:1px solid #ccc;padding:3px 6px;font-size:11px;white-space:nowrap">${formatDate(r.date, dateEra, dateFmt)}</td>
+          <td style="border:1px solid #ccc;padding:3px 6px;font-size:11px">${r.taxInvoiceNo}${r.isCreditNote ? ' <span style="color:#e11d48;font-size:9px">(ลดหนี้)</span>' : ""}${r.isDebitNote ? ' <span style="color:#d97706;font-size:9px">(เพิ่มหนี้)</span>' : ""}</td>
+          <td style="border:1px solid #ccc;padding:3px 6px;font-size:11px">${r.customerName}</td>
+          <td style="border:1px solid #ccc;padding:3px 6px;font-size:11px">${r.customerTaxId || ""}</td>
+          <td style="border:1px solid #ccc;padding:3px 6px;font-size:11px;text-align:center">${r.branch || ""}</td>
+          <td style="text-align:right;border:1px solid #ccc;padding:3px 6px;font-size:11px">${fmt(r.subtotal)}</td>
+          <td style="text-align:right;border:1px solid #ccc;padding:3px 6px;font-size:11px">${fmt(r.subtotal)}</td>
+          <td style="text-align:right;border:1px solid #ccc;padding:3px 6px;font-size:11px">${fmt(r.vatAmount)}</td>
+          <td style="text-align:right;border:1px solid #ccc;padding:3px 6px;font-size:11px">${fmt(r.subtotal + r.vatAmount)}</td>
+        </tr>`;
+      }).join("");
+
+      runningSubtotal += pageSubtotal;
+      runningVat += pageVat;
+      runningTotal += pageTotal;
+
+      let summaryRows = "";
+      if (totalPages > 1) {
+        summaryRows += `<tr class="page-total-row">
+          <td colspan="6" style="text-align:right;border:1px solid #ccc;padding:3px 8px;font-size:11px;font-weight:600">รวมหน้านี้</td>
+          <td style="text-align:right;border:1px solid #ccc;padding:3px 8px;font-size:11px;font-weight:600">${fmt(pageSubtotal)}</td>
+          <td style="text-align:right;border:1px solid #ccc;padding:3px 8px;font-size:11px;font-weight:600">${fmt(pageSubtotal)}</td>
+          <td style="text-align:right;border:1px solid #ccc;padding:3px 8px;font-size:11px;font-weight:600">${fmt(pageVat)}</td>
+          <td style="text-align:right;border:1px solid #ccc;padding:3px 8px;font-size:11px;font-weight:600">${fmt(pageTotal)}</td>
+        </tr>`;
+
+        if (!isLastPage) {
+          summaryRows += `<tr class="carry-row">
+            <td colspan="6" style="text-align:right;border:1px solid #ccc;padding:3px 8px;font-size:11px;font-weight:600">ยอดยกไป</td>
+            <td style="text-align:right;border:1px solid #ccc;padding:3px 8px;font-size:11px;font-weight:600">${fmt(runningSubtotal)}</td>
+            <td style="text-align:right;border:1px solid #ccc;padding:3px 8px;font-size:11px;font-weight:600">${fmt(runningSubtotal)}</td>
+            <td style="text-align:right;border:1px solid #ccc;padding:3px 8px;font-size:11px;font-weight:600">${fmt(runningVat)}</td>
+            <td style="text-align:right;border:1px solid #ccc;padding:3px 8px;font-size:11px;font-weight:600">${fmt(runningTotal)}</td>
+          </tr>`;
+        }
+      }
+
+      if (isLastPage) {
+        summaryRows += `<tr class="total-row">
+          <td colspan="6" style="text-align:right;border:1px solid #ccc;padding:4px 8px;font-size:12px;font-weight:700">รวมทั้งสิ้น</td>
+          <td style="text-align:right;border:1px solid #ccc;padding:4px 8px;font-size:12px;font-weight:700">${fmt(totalSubtotal)}</td>
+          <td style="text-align:right;border:1px solid #ccc;padding:4px 8px;font-size:12px;font-weight:700">${fmt(totalSubtotal)}</td>
+          <td style="text-align:right;border:1px solid #ccc;padding:4px 8px;font-size:12px;font-weight:700">${fmt(totalVat)}</td>
+          <td style="text-align:right;border:1px solid #ccc;padding:4px 8px;font-size:12px;font-weight:700">${fmt(totalAmount)}</td>
+        </tr>`;
+      }
+
+      const pageNumHtml = totalPages > 1 ? `<div class="page-number">หน้า ${page + 1} / ${totalPages}</div>` : "";
+
+      pagesHtml += `
+        <div class="page${!isLastPage ? " page-break" : ""}">
+          ${headerHtml}
+          ${pageNumHtml}
+          <table>
+            ${theadHtml}
+            <tbody>
+              ${dataRows}
+              ${summaryRows}
+            </tbody>
+          </table>
+        </div>`;
+    }
+
+    return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>รายงานภาษีขาย</title>
+      <style>
+        @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;700&display=swap');
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body { font-family: 'Sarabun', 'TH SarabunPSK', sans-serif; font-size:12px; padding:15px 20px; color:#333; }
+        .report-header { display:flex; justify-content:space-between; margin-bottom:4px; }
+        .header-left { font-size:12px; line-height:1.7; }
+        .header-left .label { display:inline-block; min-width:140px; font-weight:400; }
+        .header-left .value { font-weight:600; }
+        .header-right { text-align:right; }
+        .header-right .title { font-size:18px; font-weight:700; margin-bottom:4px; }
+        .header-right .info { font-size:11px; line-height:1.6; }
+        .branch-check { display:inline-flex; align-items:center; gap:4px; margin-right:12px; }
+        .branch-check .box { display:inline-block; width:14px; height:14px; border:1.5px solid #333; text-align:center; line-height:14px; font-size:11px; font-weight:700; }
+        .branch-check .box.checked { background:#333; color:white; }
+        .page-number { text-align:right; font-size:10px; color:#666; margin-bottom:2px; }
+        table { width:100%; border-collapse:collapse; margin-top:2px; }
+        th { background:${themeColor}; color:white; font-weight:600; padding:5px 6px; font-size:10px; border:1px solid ${themeColor}; text-align:center; white-space:nowrap; }
+        .page-total-row td { font-weight:600; background:#eef3f8; }
+        .carry-row td { font-weight:600; background:#e8f0fe; font-style:italic; }
+        .total-row td { font-weight:700; background:#f1f5f9; border-top:2px solid #333; }
+        .page-break { page-break-after:always; margin-bottom:20px; }
+        @media print {
+          body { padding:0; }
+          @page { size:landscape; margin:8mm; }
+          .page-break { page-break-after:always; margin-bottom:0; }
+          .page { page-break-inside:avoid; }
+        }
+      </style>
+    </head><body>
+      ${pagesHtml}
     </body></html>`;
   }, [rows, dateEra, dateFmt, companyName, companyTaxId, effectiveAddress, effectiveBranchName, isHeadOffice, branchDisplay, monthYearStr, dateRangeStr, totalSubtotal, totalVat, totalAmount]);
 
