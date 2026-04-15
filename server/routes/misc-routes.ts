@@ -10,6 +10,69 @@ import { getConfig } from "../config-bootstrap";
 const ARCHIVE_SIZE_WARN_MB = 200;
 let archiveSizeWarned = false;
 
+export async function archiveOrphanedContacts(companyId?: number): Promise<{ archived: number; skippedDuplicates: number }> {
+  const companyFilter = companyId ? sql`AND c.company_id = ${companyId}` : sql``;
+  const result = await db.execute(sql`
+    WITH orphaned AS (
+      SELECT c.* FROM contacts c
+      WHERE NOT EXISTS (SELECT 1 FROM expenses WHERE vendor_id = c.id)
+        AND NOT EXISTS (SELECT 1 FROM quotations WHERE customer_id = c.id)
+        AND NOT EXISTS (SELECT 1 FROM receipts WHERE customer_id = c.id)
+        AND NOT EXISTS (SELECT 1 FROM invoices WHERE customer_id = c.id)
+        AND NOT EXISTS (SELECT 1 FROM tax_invoices WHERE customer_id = c.id)
+        AND NOT EXISTS (SELECT 1 FROM sales_orders WHERE customer_id = c.id)
+        AND NOT EXISTS (SELECT 1 FROM sales_credit_notes WHERE customer_id = c.id)
+        AND NOT EXISTS (SELECT 1 FROM billing_notes WHERE customer_id = c.id)
+        AND NOT EXISTS (SELECT 1 FROM deposit_receipts WHERE customer_id = c.id)
+        AND NOT EXISTS (SELECT 1 FROM pos_transactions WHERE customer_id = c.id)
+        AND NOT EXISTS (SELECT 1 FROM purchase_orders WHERE vendor_id = c.id)
+        AND NOT EXISTS (SELECT 1 FROM purchase_invoices WHERE vendor_id = c.id)
+        AND NOT EXISTS (SELECT 1 FROM purchase_requests WHERE vendor_id = c.id)
+        AND NOT EXISTS (SELECT 1 FROM purchase_deposits WHERE vendor_id = c.id)
+        AND NOT EXISTS (SELECT 1 FROM purchase_debit_notes WHERE vendor_id = c.id)
+        AND NOT EXISTS (SELECT 1 FROM payment_vouchers WHERE vendor_id = c.id)
+        AND NOT EXISTS (SELECT 1 FROM withholding_tax_certs WHERE payee_vendor_id = c.id)
+        AND NOT EXISTS (SELECT 1 FROM firm_clients WHERE contact_id = c.id)
+        AND NOT EXISTS (SELECT 1 FROM pipeline_deals WHERE contact_id = c.id)
+        AND NOT EXISTS (SELECT 1 FROM supplier_portal_tokens WHERE contact_id = c.id)
+        AND NOT EXISTS (SELECT 1 FROM supplier_quotes WHERE contact_id = c.id)
+        ${companyFilter}
+    ),
+    new_orphaned AS (
+      SELECT o.* FROM orphaned o
+      WHERE NOT EXISTS (SELECT 1 FROM contacts_archive ca WHERE ca.id = o.id)
+    ),
+    inserted AS (
+      INSERT INTO contacts_archive (
+        id, company_id, code, name, name_en, name_zh, type, tax_id, branch,
+        address, address_en, address_zh, phone, email, contact_person,
+        credit_days, notes, active, created_at, postcode, building_number,
+        district_code, subdistrict_code, province_code, rd_code, dbd_code,
+        sso_code, portal_password, service_fee, archived_at, archive_reason
+      )
+      SELECT
+        id, company_id, code, name, name_en, name_zh, type, tax_id, branch,
+        address, address_en, address_zh, phone, email, contact_person,
+        credit_days, notes, active, created_at, postcode, building_number,
+        district_code, subdistrict_code, province_code, rd_code, dbd_code,
+        sso_code, portal_password, service_fee, NOW(), 'orphaned_auto_archive'
+      FROM new_orphaned
+      RETURNING id
+    )
+    SELECT
+      (SELECT COUNT(*)::int FROM inserted) as archived,
+      (SELECT COUNT(*)::int FROM orphaned) - (SELECT COUNT(*)::int FROM new_orphaned) as skipped_duplicates
+  `);
+  const row = result[0] as any;
+  const archived = Number(row?.archived || 0);
+  const skippedDuplicates = Number(row?.skipped_duplicates || 0);
+  if (archived > 0) {
+    await db.execute(sql`DELETE FROM contacts WHERE id IN (SELECT id FROM contacts_archive WHERE archive_reason = 'orphaned_auto_archive' AND archived_at >= NOW() - INTERVAL '1 minute')`);
+    console.log(`[Archive] Archived ${archived} orphaned contacts${companyId ? ` (company ${companyId})` : ''}, skipped ${skippedDuplicates} already-in-archive`);
+  }
+  return { archived, skippedDuplicates };
+}
+
 async function checkContactsArchiveSize(): Promise<{ sizeBytes: number; sizeMb: number; sizePretty: string; records: number; warning: boolean }> {
   const [sizeRow] = await db.execute(sql`SELECT pg_total_relation_size('contacts_archive') as size_bytes, pg_size_pretty(pg_total_relation_size('contacts_archive')) as size_pretty`);
   const [countRow] = await db.execute(sql`SELECT COUNT(*)::int as cnt FROM contacts_archive`);
@@ -252,6 +315,15 @@ app.get("/api/sysadmin/contacts-archive-status", requireAuth, requireSuperAdmin,
       main: { records: Number((mainRow as any).cnt || 0), sizePretty: (mainRow as any).size },
       thresholdMb: ARCHIVE_SIZE_WARN_MB,
     });
+  } catch (e: any) { res.status(500).json({ message: e.message }); }
+});
+
+app.post("/api/sysadmin/contacts-archive-run", requireAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const companyId = req.body.companyId ? Number(req.body.companyId) : undefined;
+    const result = await archiveOrphanedContacts(companyId);
+    const archiveStatus = await checkContactsArchiveSize();
+    res.json({ ...result, archive: archiveStatus });
   } catch (e: any) { res.status(500).json({ message: e.message }); }
 });
 
