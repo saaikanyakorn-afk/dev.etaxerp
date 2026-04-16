@@ -222,19 +222,31 @@ export async function migrateChartOfAccountCodes() {
   }
 }
 
-const SCHEMA_VERSION = "85";
+const SCHEMA_VERSION = "96";
 
 async function autoSyncSchema() {
   try {
     await db.execute(sql.raw(`
       CREATE TABLE IF NOT EXISTS schema_version (
-        id INTEGER PRIMARY KEY DEFAULT 1 CHECK (id = 1),
+        id SERIAL PRIMARY KEY,
         version TEXT NOT NULL,
-        updated_at TIMESTAMP DEFAULT NOW()
+        description TEXT NOT NULL DEFAULT '',
+        up_sql TEXT NOT NULL DEFAULT '',
+        down_sql TEXT NOT NULL DEFAULT '',
+        applied_at TIMESTAMP DEFAULT NOW(),
+        change_type TEXT DEFAULT 'schema',
+        files_changed TEXT,
+        reverted_at TIMESTAMP,
+        push_ref TEXT,
+        reason TEXT,
+        db_targets TEXT[] DEFAULT '{}',
+        applied_targets TEXT[] DEFAULT '{}',
+        repo_targets TEXT[] DEFAULT '{}',
+        pushed_repos TEXT[] DEFAULT '{}'
       )
     `));
 
-    const result = await db.execute(sql.raw(`SELECT version FROM schema_version WHERE id = 1`));
+    const result = await db.execute(sql.raw(`SELECT version FROM schema_version ORDER BY id DESC LIMIT 1`));
     const currentVersion = (result.rows as any[])[0]?.version || null;
 
     const { fullSchemaSync } = await import("./db-schema-sync");
@@ -249,12 +261,7 @@ async function autoSyncSchema() {
     await fullSchemaSync();
     log("Schema sync via db-schema-sync only (drizzle-kit push disabled to prevent data loss)");
 
-    await db.execute(sql.raw(`
-      INSERT INTO schema_version (id, version, updated_at) VALUES (1, '${SCHEMA_VERSION}', NOW())
-      ON CONFLICT (id) DO UPDATE SET version = '${SCHEMA_VERSION}', updated_at = NOW()
-    `));
-
-    log(`Database schema sync complete (${elapsed}s) → version ${SCHEMA_VERSION}`);
+    log(`Database schema sync complete — version ${SCHEMA_VERSION}`);
   } catch (err: any) {
     const output = err.stdout?.toString() || err.stderr?.toString() || err.message;
     console.error("Schema sync error:", typeof output === "string" ? output.slice(0, 500) : err.message);
