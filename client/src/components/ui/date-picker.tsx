@@ -2,7 +2,7 @@ import * as React from "react";
 import { CalendarIcon, ChevronLeft, ChevronRight } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
 type DateFormat = "DD/MM/YYYY" | "MM/DD/YYYY" | "YYYY-MM-DD" | "DD-MM-YYYY" | "DD.MM.YYYY" | "YY-MM-DD";
@@ -33,6 +33,37 @@ function toDisplayDate(isoDate: string, dateFormat: DateFormat = "DD/MM/YYYY", d
   }
 }
 
+function parseDisplayDate(text: string, dateFormat: DateFormat, dateEra: DateEra): string | null {
+  const trimmed = text.trim();
+  if (!trimmed) return "";
+  const parts = trimmed.split(/[\/\-.\s]+/).filter(Boolean);
+  if (parts.length !== 3) return null;
+  const nums = parts.map(p => parseInt(p, 10));
+  if (nums.some(n => isNaN(n))) return null;
+  let dd: number, mm: number, yyyy: number;
+  switch (dateFormat) {
+    case "MM/DD/YYYY":
+      mm = nums[0]; dd = nums[1]; yyyy = nums[2]; break;
+    case "YYYY-MM-DD":
+      yyyy = nums[0]; mm = nums[1]; dd = nums[2]; break;
+    case "YY-MM-DD": {
+      const yy = nums[0];
+      yyyy = yy < 50 ? 2000 + yy : (yy < 100 ? 1900 + yy : yy);
+      mm = nums[1]; dd = nums[2]; break;
+    }
+    default:
+      dd = nums[0]; mm = nums[1]; yyyy = nums[2]; break;
+  }
+  if (yyyy < 100) {
+    yyyy = yyyy < 50 ? 2000 + yyyy : 1900 + yyyy;
+  }
+  if (dateEra === "BE" && yyyy > 2400) yyyy -= 543;
+  if (mm < 1 || mm > 12 || dd < 1 || dd > 31) return null;
+  const d = new Date(yyyy, mm - 1, dd);
+  if (isNaN(d.getTime()) || d.getFullYear() !== yyyy || d.getMonth() !== mm - 1 || d.getDate() !== dd) return null;
+  return `${yyyy}-${String(mm).padStart(2, "0")}-${String(dd).padStart(2, "0")}`;
+}
+
 const MONTH_NAMES_SHORT = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
 const MONTH_NAMES_FULL = ["มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"];
 
@@ -52,7 +83,7 @@ export function DatePicker({
   dateFormat = "DD/MM/YYYY",
   dateEra = "CE",
   className,
-  placeholder = "เลือกวันที่...",
+  placeholder = "วว/ดด/ปปปป",
   ...props
 }: DatePickerProps) {
   const [open, setOpen] = React.useState(false);
@@ -65,6 +96,13 @@ export function DatePicker({
     return new Date();
   });
   const [pickingYear, setPickingYear] = React.useState(() => navMonth.getFullYear());
+
+  const displayValue = value ? toDisplayDate(value, dateFormat, dateEra) : "";
+  const [inputValue, setInputValue] = React.useState(displayValue);
+
+  React.useEffect(() => {
+    setInputValue(displayValue);
+  }, [displayValue]);
 
   React.useEffect(() => {
     if (open) {
@@ -85,8 +123,6 @@ export function DatePicker({
     return isNaN(d.getTime()) ? undefined : d;
   }, [value]);
 
-  const displayValue = value ? toDisplayDate(value, dateFormat, dateEra) : "";
-
   const goPrevMonth = () => {
     setNavMonth(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
   };
@@ -94,9 +130,9 @@ export function DatePicker({
     setNavMonth(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
   };
 
-  const handleYearClick = () => {
+  const handleHeaderClick = () => {
     setPickingYear(navMonth.getFullYear());
-    setViewMode("year");
+    setViewMode("month");
   };
 
   const handleYearSelect = (year: number) => {
@@ -109,26 +145,49 @@ export function DatePicker({
     setViewMode("calendar");
   };
 
+  const commitInput = () => {
+    const iso = parseDisplayDate(inputValue, dateFormat, dateEra);
+    if (iso === null) {
+      setInputValue(displayValue);
+    } else if (iso !== value) {
+      onChange(iso);
+    }
+  };
+
   const currentYear = new Date().getFullYear();
   const yearStart = Math.floor(pickingYear / 12) * 12;
   const yearRange = Array.from({ length: 12 }, (_, i) => yearStart + i);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          variant="outline"
+      <div className={cn("relative", className)}>
+        <Input
+          type="text"
+          value={inputValue}
+          onChange={e => setInputValue(e.target.value)}
+          onBlur={commitInput}
+          onKeyDown={e => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              commitInput();
+              (e.target as HTMLInputElement).blur();
+            }
+          }}
+          placeholder={placeholder}
+          className="h-7 text-xs border-dashed pr-7"
           data-testid={props["data-testid"]}
-          className={cn(
-            "justify-start text-left font-normal h-7 text-xs border-dashed",
-            !value && "text-muted-foreground",
-            className
-          )}
-        >
-          <CalendarIcon className="mr-1.5 h-3 w-3 text-muted-foreground" />
-          {displayValue || <span>{placeholder}</span>}
-        </Button>
-      </PopoverTrigger>
+        />
+        <PopoverTrigger asChild>
+          <button
+            type="button"
+            tabIndex={-1}
+            className="absolute right-1 top-1/2 -translate-y-1/2 h-5 w-5 flex items-center justify-center rounded text-muted-foreground hover:text-slate-700 hover:bg-slate-100"
+            aria-label="เปิดปฏิทิน"
+          >
+            <CalendarIcon className="h-3 w-3" />
+          </button>
+        </PopoverTrigger>
+      </div>
       <PopoverContent className="w-auto p-0" align="start">
         {viewMode === "year" && (
           <div className="p-3 w-[270px]">
@@ -240,7 +299,7 @@ export function DatePicker({
               </button>
               <button
                 type="button"
-                onClick={handleYearClick}
+                onClick={handleHeaderClick}
                 className="text-sm font-bold text-slate-700 hover:[color:var(--theme-primary)] hover:underline transition-colors"
               >
                 {MONTH_NAMES_FULL[navMonth.getMonth()]} {dateEra === "BE" ? navMonth.getFullYear() + 543 : navMonth.getFullYear()}
