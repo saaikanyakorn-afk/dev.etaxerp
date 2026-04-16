@@ -4,7 +4,6 @@ import { storage } from "./storage";
 import { eq, desc, and, sql, inArray } from "drizzle-orm";
 import { documentSettings, companies, accounts, accountingFormulas, accountingFormulaLines, journalEntries, journalLines, taxInvoices, taxInvoiceItems, ecommerceOrders, paymentMethods, activityLogs, vatProductDictionary, stockMovements, productStock, closedPeriods, employees, invoices, receipts, receiptLinkedDocs, purchaseInvoices, expenses, paymentVoucherLinkedDocs, products, productBundles } from "@shared/schema";
 import { formatDocNumber, validateDocNumberFormat, type DocNumberFormat, type DateEra } from "@shared/document-types";
-import { DEFAULT_FORMULAS } from "@shared/accounting-formulas";
 
 export async function checkClosedPeriod(companyId: number, entryDate: string): Promise<{ blocked: boolean; message: string }> {
   const d = new Date(entryDate);
@@ -370,26 +369,8 @@ async function _createAutoJournalEntryInner(params: AutoJournalParams): Promise<
       formulaLines = lines;
     }
   } else {
-    let defaultFormula = DEFAULT_FORMULAS.find(
-      f => f.documentType === documentType && f.businessType === formulaBusinessType
-    );
-    if (!defaultFormula && documentType === "expense") {
-      defaultFormula = DEFAULT_FORMULAS.find(
-        f => f.documentType === "purchase" && f.businessType === formulaBusinessType
-      );
-    }
-    if (!defaultFormula && documentType === "purchase") {
-      defaultFormula = DEFAULT_FORMULAS.find(
-        f => f.documentType === "expense" && f.businessType === formulaBusinessType
-      );
-    }
-    console.log(`[AutoJournal] Lookup: docType=${documentType}, bizType=${formulaBusinessType}, found=${!!defaultFormula}${defaultFormula ? ` (${defaultFormula.name}, lines=${defaultFormula.lines.length})` : ''}`);
-    if (defaultFormula) {
-      noJournalEntry = defaultFormula.noJournalEntry === true;
-      formulaLines = defaultFormula.lines;
-    } else {
-      return { journalEntryId: null, skipped: true, reason: `ไม่พบสูตรบัญชีสำหรับ ${documentType} (${formulaBusinessType})` };
-    }
+    console.log(`[AutoJournal] No formula in DB for docType=${documentType}, bizType=${formulaBusinessType} — skipping (no hardcode fallback)`);
+    return { journalEntryId: null, skipped: true, reason: `ไม่พบสูตรบัญชีใน DB สำหรับ ${documentType} (${formulaBusinessType}) — กรุณาไปที่หน้าสูตรบัญชีแล้วกดตรวจสอบสูตร` };
   }
 
   if (noJournalEntry) {

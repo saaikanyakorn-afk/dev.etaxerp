@@ -3,7 +3,7 @@ import * as XLSX from "xlsx";
 import { db } from "../db";
 import { storage } from "../storage";
 import { eq, and, desc, or, sql, count, not, ilike, inArray } from "drizzle-orm";
-import { purchaseRequests, purchaseRequestItems, bidComparisons, bidComparisonItems, bidVendors, purchaseOrders, purchaseOrderItems, purchaseInvoices, purchaseInvoiceItems, companies, accounts, contacts, products, journalEntries, journalLines, productStock, stockMovements, expenses, expenseItems, withholdingTaxCerts, whtCertItems, documentImportBatches, firmClients, clientUploadLinks, clientUploadFiles, purchaseDebitNotes, purchaseDebitNoteItems } from "@shared/schema";
+import { purchaseRequests, purchaseRequestItems, bidComparisons, bidComparisonItems, bidVendors, purchaseOrders, purchaseOrderItems, purchaseInvoices, purchaseInvoiceItems, companies, accounts, contacts, products, journalEntries, journalLines, productStock, stockMovements, expenses, expenseItems, withholdingTaxCerts, whtCertItems, documentImportBatches, firmClients, clientUploadLinks, clientUploadFiles, purchaseDebitNotes, purchaseDebitNoteItems, accountingFormulas, accountingFormulaLines } from "@shared/schema";
 import { expenseDailyBatches, pdfImportTemplates } from "@shared/schema-extra";
 import { requireAuth, requireModule, requireRole, checkDocOwnership } from "../route-middleware";
 import { getNextDocNo, validateDocNo, createAutoJournalEntry, resolvePaymentMethodAccountCode, getNextJournalEntryNo, checkDocumentLimit, deleteStockMovementsForDoc, deleteJournalEntriesForDoc, logActivity } from "../route-helpers";
@@ -12,7 +12,6 @@ import { invalidateCompanyReports } from "./report-cache";
 import { recalcBundleStock, recalcBomStock } from "../inventory-recalc";
 import { decodeMulterFilename } from "../utils/safe-filename";
 import { INVOICE_PREFIX_MAP } from "../utils/pdf-invoice-parser";
-import { DEFAULT_FORMULAS } from "@shared/accounting-formulas";
 import multer from "multer";
 import crypto from "crypto";
 // ═══════════════════════════════════════════════════════════════════════
@@ -2523,14 +2522,16 @@ export function registerPurchaseRoutes(app: Express) {
         return PLATFORM_FORMULA_MAP[key] || fallbackBt || null;
       }
 
-      function getDebitCodeForFormula(bt: string): string | null {
-        const defFormula = DEFAULT_FORMULAS.find((f: any) => f.documentType === "purchase" && f.businessType === bt)
-          || DEFAULT_FORMULAS.find((f: any) => f.documentType === "expense" && f.businessType === bt);
-        if (defFormula) {
-          const debitLine = defFormula.lines.find((l: any) => l.direction === "debit" && !l.accountCode.startsWith("143"));
-          if (debitLine) return debitLine.accountCode;
-        }
-        return null;
+      async function getDebitCodeForFormula(bt: string): Promise<string | null> {
+        const dbFormula = await db.select().from(accountingFormulas)
+          .where(and(eq(accountingFormulas.companyId, companyId), eq(accountingFormulas.businessType, bt), eq(accountingFormulas.active, true)))
+          .limit(1);
+        if (dbFormula.length === 0) return null;
+        const lines = await db.select().from(accountingFormulaLines)
+          .where(eq(accountingFormulaLines.formulaId, dbFormula[0].id))
+          .orderBy(accountingFormulaLines.sortOrder);
+        const debitLine = lines.find((l: any) => l.direction === "debit" && !l.accountCode.startsWith("143"));
+        return debitLine ? debitLine.accountCode : null;
       }
 
       const AD_CREDIT_ACCOUNT_MAP: Record<string, string> = {
@@ -2552,7 +2553,7 @@ export function registerPurchaseRoutes(app: Express) {
 
       let formulaDebitCode: string | null = null;
       if (formulaBusinessType && formulaBusinessType !== "auto-detect") {
-        formulaDebitCode = getDebitCodeForFormula(formulaBusinessType);
+        formulaDebitCode = await getDebitCodeForFormula(formulaBusinessType);
       }
 
       const CREDIT_NOTE_PREFIXES = new Set(["TTSTHCN"]);
@@ -2818,7 +2819,7 @@ export function registerPurchaseRoutes(app: Express) {
             }).returning();
 
             const docFormulaBt = resolveFormulaForDoc(doc);
-            const docDebitCode = docFormulaBt ? getDebitCodeForFormula(docFormulaBt) : formulaDebitCode;
+            const docDebitCode = docFormulaBt ? await getDebitCodeForFormula(docFormulaBt) : formulaDebitCode;
 
             const itemValues = validItems.map((item: any) => {
               let acctCode = item.accountCode || "";
@@ -2887,11 +2888,15 @@ export function registerPurchaseRoutes(app: Express) {
           if (/commission|คอมมิชชั่น|commerce\s*growth|affiliate/i.test(d)) return "commission";
           return "service";
         };
-        const buildFormulaAcctMapPD = (bt: string): Record<string, { code: string; name: string }> | null => {
-          const formula = DEFAULT_FORMULAS.find((f: any) => f.businessType === bt && f.documentType === "purchase")
-            || DEFAULT_FORMULAS.find((f: any) => f.businessType === bt && f.documentType === "expense");
-          if (!formula) return null;
-          const expLines = formula.lines.filter((l: any) => l.direction === "debit" && l.accountCode?.startsWith("5"));
+        const buildFormulaAcctMapPD = async (bt: string): Promise<Record<string, { code: string; name: string }> | null> => {
+          const dbFormula = await db.select().from(accountingFormulas)
+            .where(and(eq(accountingFormulas.companyId, companyId), eq(accountingFormulas.businessType, bt), eq(accountingFormulas.active, true)))
+            .limit(1);
+          if (dbFormula.length === 0) return null;
+          const lines = await db.select().from(accountingFormulaLines)
+            .where(eq(accountingFormulaLines.formulaId, dbFormula[0].id))
+            .orderBy(accountingFormulaLines.sortOrder);
+          const expLines = lines.filter((l: any) => l.direction === "debit" && l.accountCode?.startsWith("5"));
           if (expLines.length < 2) return null;
           const map: Record<string, { code: string; name: string }> = {};
           for (const el of expLines) {
@@ -2915,7 +2920,7 @@ export function registerPurchaseRoutes(app: Express) {
             const wht = Math.round(parseFloat(String(result.withholdingTax || "0")) * 100) / 100;
 
             let perDocLineItems: { accountCode: string; accountName: string; amount: number; description?: string }[] | undefined;
-            const formulaItemMapPD = buildFormulaAcctMapPD(resolvedBt);
+            const formulaItemMapPD = await buildFormulaAcctMapPD(resolvedBt);
             if (formulaItemMapPD && validItems) {
               perDocLineItems = [];
               const feeMap = new Map<string, number>();
@@ -2988,10 +2993,15 @@ export function registerPurchaseRoutes(app: Express) {
           if (/commission|คอมมิชชั่น|commerce\s*growth|affiliate/i.test(d)) return "commission";
           return "service";
         };
-        const buildFormulaAcctMap = (bt: string): Record<string, { code: string; name: string }> | null => {
-          const formula = DEFAULT_FORMULAS.find((f: any) => f.businessType === bt && f.documentType === "purchase");
-          if (!formula) return null;
-          const expLines = formula.lines.filter((l: any) => l.direction === "debit" && l.accountCode?.startsWith("5"));
+        const buildFormulaAcctMap = async (bt: string): Promise<Record<string, { code: string; name: string }> | null> => {
+          const dbFormula = await db.select().from(accountingFormulas)
+            .where(and(eq(accountingFormulas.companyId, companyId), eq(accountingFormulas.businessType, bt), eq(accountingFormulas.active, true)))
+            .limit(1);
+          if (dbFormula.length === 0) return null;
+          const lines = await db.select().from(accountingFormulaLines)
+            .where(eq(accountingFormulaLines.formulaId, dbFormula[0].id))
+            .orderBy(accountingFormulaLines.sortOrder);
+          const expLines = lines.filter((l: any) => l.direction === "debit" && l.accountCode?.startsWith("5"));
           if (expLines.length < 2) return null;
           const map: Record<string, { code: string; name: string }> = {};
           for (const el of expLines) {
@@ -3092,7 +3102,7 @@ export function registerPurchaseRoutes(app: Express) {
 
             let dxpLineItemAccounts: { accountCode: string; accountName: string; amount: number; description?: string }[] | undefined;
 
-            const formulaItemMap = buildFormulaAcctMap(group.formulaBt);
+            const formulaItemMap = await buildFormulaAcctMap(group.formulaBt);
             if (formulaItemMap && group.feeBreakdown.size > 0) {
               dxpLineItemAccounts = [];
               for (const [feeType, feeAmt] of group.feeBreakdown) {
@@ -3181,14 +3191,26 @@ export function registerPurchaseRoutes(app: Express) {
         if (dnFormulaLines && Array.isArray(dnFormulaLines) && dnFormulaLines.length > 0) {
           formulaLines = dnFormulaLines;
         } else if (dnFormulaBusinessType) {
-          const defF = DEFAULT_FORMULAS.find((f: any) => f.documentType === "debit_note" && f.businessType === dnFormulaBusinessType);
-          if (defF) formulaLines = defF.lines;
+          const dnDbFormula = await db.select().from(accountingFormulas)
+            .where(and(eq(accountingFormulas.companyId, companyId), eq(accountingFormulas.documentType, "debit_note"), eq(accountingFormulas.businessType, dnFormulaBusinessType), eq(accountingFormulas.active, true)))
+            .limit(1);
+          if (dnDbFormula.length > 0) {
+            const dnDbLines = await db.select().from(accountingFormulaLines)
+              .where(eq(accountingFormulaLines.formulaId, dnDbFormula[0].id))
+              .orderBy(accountingFormulaLines.sortOrder);
+            formulaLines = dnDbLines;
+          }
         }
         if (!formulaLines) {
-          const defF = DEFAULT_FORMULAS.find((f: any) => f.documentType === "debit_note" && f.businessType === "tiktok_platform_fee")
-            || DEFAULT_FORMULAS.find((f: any) => f.documentType === "debit_note" && f.businessType === "ecommerce")
-            || DEFAULT_FORMULAS.find((f: any) => f.documentType === "debit_note");
-          if (defF) formulaLines = defF.lines;
+          const dnFallback = await db.select().from(accountingFormulas)
+            .where(and(eq(accountingFormulas.companyId, companyId), eq(accountingFormulas.documentType, "debit_note"), eq(accountingFormulas.active, true)))
+            .limit(1);
+          if (dnFallback.length > 0) {
+            const dnFbLines = await db.select().from(accountingFormulaLines)
+              .where(eq(accountingFormulaLines.formulaId, dnFallback[0].id))
+              .orderBy(accountingFormulaLines.sortOrder);
+            formulaLines = dnFbLines;
+          }
         }
 
         for (const [gk, g] of dnGroups) {
