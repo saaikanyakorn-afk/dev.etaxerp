@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation, useRoute } from "wouter";
 import Layout from "@/components/layout";
@@ -244,7 +244,7 @@ export default function Expense() {
     enabled: !!companyId,
   });
 
-  const accountsForSelect = React.useMemo(() => {
+  const accountsForSelect = useMemo(() => {
     return (accounts as any[])
       .filter(a => !a.isHeader)
       .sort((a, b) => String(a.code).localeCompare(String(b.code), undefined, { numeric: true }));
