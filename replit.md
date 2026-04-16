@@ -6,6 +6,18 @@
 ## Overview
 The E-Tax Center is a multi-tenant digital accounting platform designed to revolutionize accounting processes for Thai accounting firms. It integrates with major e-commerce platforms (Shopee, Lazada, TikTok Shop) to automate order retrieval, tax invoice generation, and service fee calculation. The platform provides comprehensive client and human resources management (attendance, overtime, payroll), robust financial document processing, and advanced e-commerce functionalities, aiming to be a holistic solution for managing financial operations and expanding digital commerce services for its clients. Its vision is to be an all-in-one solution for managing clients' financial operations and expanding digital commerce service offerings.
 
+## 🔒 PRODUCTION BUILD BASELINE (Safety-net — compare after every build)
+Last verified build: **2026-04-16 (v97 cherry-pick)**
+| File | Size | gzip | Note |
+|------|------|------|------|
+| dist/index.cjs | **7.3 MB** | — | Server bundle — if this changes, index.ts was touched |
+| index-ByhAZnFC.js | **8,078.91 kB** | 1,643.09 kB | Main client bundle — if this jumps significantly, App.tsx or new pages were added |
+| vendor-pdf | **1,444.18 kB** | 470.44 kB | PDF library — should be stable |
+| vendor-charts | **453.93 kB** | 118.73 kB | Charts library — should be stable |
+
+**Rule:** If `dist/index.cjs` size changes by more than ±0.1 MB → investigate. Something touched protected server files.
+**Rule:** If main client bundle jumps by more than ±500 kB → investigate. Something touched App.tsx or added/removed pages.
+
 ## ⛔ PRE-PUSH CHECKLIST (MANDATORY — DO BEFORE EVERY GIT PUSH)
 1. **Insert schema_version record** in BOTH Replit DB AND Production DB — version, description, change_type, pushed_repos
 2. **Bump SCHEMA_VERSION** constant in server/index.ts
