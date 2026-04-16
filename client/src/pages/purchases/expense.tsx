@@ -186,6 +186,7 @@ export default function Expense() {
   const [showVendorCodeDropdown, setShowVendorCodeDropdown] = useState(false);
   const [items, setItems] = useState<EXPItemForm[]>([emptyItem()]);
   const [editingAmountIdx, setEditingAmountIdx] = useState<number | null>(null);
+  const [openAccountPopover, setOpenAccountPopover] = useState<string | null>(null);
   const [discountMode, setDiscountMode] = useState<"amount" | "percent">("amount");
   const [loaded, setLoaded] = useState(false);
   const [manualDueDate, setManualDueDate] = useState(false);
@@ -1239,7 +1240,7 @@ export default function Expense() {
                     <tr key={idx} className="border-b border-slate-300 group" data-testid={`row-item-${idx}`}>
                       <td className="text-center text-xs py-1 px-1 text-slate-400">{idx + 1}</td>
                       <td className="py-1 px-1">
-                        <Popover>
+                        <Popover open={openAccountPopover === `${idx}-code`} onOpenChange={(o) => setOpenAccountPopover(o ? `${idx}-code` : null)}>
                           <PopoverTrigger asChild>
                             <Button
                               variant="outline"
@@ -1272,6 +1273,7 @@ export default function Expense() {
                                         } else {
                                           updateItem(idx, "expenseType", "other");
                                         }
+                                        setOpenAccountPopover(null);
                                       }}
                                       className="text-xs"
                                     >
@@ -1286,7 +1288,7 @@ export default function Expense() {
                         </Popover>
                       </td>
                       <td className="py-1 px-1">
-                        <Popover>
+                        <Popover open={openAccountPopover === `${idx}-name`} onOpenChange={(o) => setOpenAccountPopover(o ? `${idx}-name` : null)}>
                           <PopoverTrigger asChild>
                             <Button
                               variant="outline"
@@ -1319,6 +1321,7 @@ export default function Expense() {
                                         } else {
                                           updateItem(idx, "expenseType", "other");
                                         }
+                                        setOpenAccountPopover(null);
                                       }}
                                       className="text-xs"
                                     >
