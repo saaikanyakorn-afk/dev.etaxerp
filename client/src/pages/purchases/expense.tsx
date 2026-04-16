@@ -718,6 +718,20 @@ export default function Expense() {
     doSave();
   }
 
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "F2") {
+        e.preventDefault();
+        const saving = createMutation.isPending || updateMutation.isPending;
+        const locked = !isNew && ["pending_approval", "paid", "cancelled"].includes(form.status);
+        if (saving || locked) return;
+        handleSubmit();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [createMutation.isPending, updateMutation.isPending, form, items, isNew]);
+
   async function handleSaveAndWht() {
     if (!validateItems()) return;
     if (!checkAssetThreshold("saveWht")) return;
