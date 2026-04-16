@@ -2324,7 +2324,7 @@ export function registerPurchaseRoutes(app: Express) {
   app.post("/api/pdf-import/create-expense", requireAuth, requireModule("purchases"), async (req, res) => {
     try {
       const user = req.user as any;
-      const { companyId, documents, autoJournal, journalMode, autoWht, autoCreateContact, paymentMethod: reqPaymentMethod, formulaId, formulaBusinessType, archiveToDocs } = req.body;
+      const { companyId, documents, autoJournal, journalMode, autoWht, autoCreateContact, paymentMethod: reqPaymentMethod, formulaId, formulaBusinessType, archiveToDocs, existingBatchId } = req.body;
       const shouldCreateContact = autoCreateContact !== false;
       const usePerDoc = journalMode === "per_doc";
       console.log(`[PDF-Import] create-expense: companyId=${companyId}, autoJournal=${autoJournal}, journalMode=${journalMode || "daily"}, autoCreateContact=${shouldCreateContact}, formulaId=${formulaId}, formulaBusinessType=${formulaBusinessType}, docs=${documents?.length}`);
@@ -3362,14 +3362,38 @@ export function registerPurchaseRoutes(app: Express) {
 
       const createdExpIds = created.map((c: any) => c.id).filter(Boolean);
       if (createdExpIds.length > 0) {
-        const [batch] = await db.insert(documentImportBatches).values({
-          companyId, docType: "expense", fileName: req.body.fileName || "PDF Import",
-          totalCreated: createdExpIds.length, totalSkipped: skipped.length, totalErrors: errors.length,
-          createdDocIds: JSON.stringify(createdExpIds), createdBy: user.id,
-        }).returning();
-        res.json({ created, skipped, errors, total: documents.length, batchId: batch.id });
+        let batchId: number;
+        if (existingBatchId) {
+          const [existing] = await db.select().from(documentImportBatches).where(eq(documentImportBatches.id, existingBatchId));
+          if (existing) {
+            const oldIds: number[] = JSON.parse(existing.createdDocIds as string || "[]");
+            const mergedIds = [...oldIds, ...createdExpIds];
+            await db.update(documentImportBatches).set({
+              totalCreated: mergedIds.length,
+              totalSkipped: (existing.totalSkipped || 0) + skipped.length,
+              totalErrors: (existing.totalErrors || 0) + errors.length,
+              createdDocIds: JSON.stringify(mergedIds),
+            }).where(eq(documentImportBatches.id, existingBatchId));
+            batchId = existingBatchId;
+          } else {
+            const [batch] = await db.insert(documentImportBatches).values({
+              companyId, docType: "expense", fileName: req.body.fileName || "PDF Import",
+              totalCreated: createdExpIds.length, totalSkipped: skipped.length, totalErrors: errors.length,
+              createdDocIds: JSON.stringify(createdExpIds), createdBy: user.id,
+            }).returning();
+            batchId = batch.id;
+          }
+        } else {
+          const [batch] = await db.insert(documentImportBatches).values({
+            companyId, docType: "expense", fileName: req.body.fileName || "PDF Import",
+            totalCreated: createdExpIds.length, totalSkipped: skipped.length, totalErrors: errors.length,
+            createdDocIds: JSON.stringify(createdExpIds), createdBy: user.id,
+          }).returning();
+          batchId = batch.id;
+        }
+        res.json({ created, skipped, errors, total: documents.length, batchId });
       } else {
-        res.json({ created, skipped, errors, total: documents.length });
+        res.json({ created, skipped, errors, total: documents.length, batchId: existingBatchId || undefined });
       }
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });

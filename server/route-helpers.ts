@@ -318,13 +318,22 @@ async function _createAutoJournalEntryInner(params: AutoJournalParams): Promise<
   const formulaBusinessType = overrideBusinessType || ((businessType === "accounting" || businessType === "accounting_firm") ? "service" : businessType);
 
   let dbFormulas: typeof accountingFormulas.$inferSelect[] = [];
-  const formulaQuery = formulaId
-    ? db.select().from(accountingFormulas)
-        .where(and(eq(accountingFormulas.id, formulaId), eq(accountingFormulas.companyId, companyId), eq(accountingFormulas.active, true)))
-    : db.select().from(accountingFormulas)
-        .where(and(eq(accountingFormulas.companyId, companyId), eq(accountingFormulas.documentType, documentType), eq(accountingFormulas.businessType, formulaBusinessType), eq(accountingFormulas.active, true)));
-  dbFormulas = await formulaQuery;
-  if (formulaId && dbFormulas.length > 0) dbFormulas = [dbFormulas[0]];
+  if (formulaId) {
+    dbFormulas = await db.select().from(accountingFormulas)
+      .where(and(eq(accountingFormulas.id, formulaId), eq(accountingFormulas.companyId, companyId), eq(accountingFormulas.active, true)));
+    if (dbFormulas.length > 0) dbFormulas = [dbFormulas[0]];
+  } else {
+    dbFormulas = await db.select().from(accountingFormulas)
+      .where(and(eq(accountingFormulas.companyId, companyId), eq(accountingFormulas.documentType, documentType), eq(accountingFormulas.businessType, formulaBusinessType), eq(accountingFormulas.active, true)));
+    if (dbFormulas.length === 0 && (documentType === "expense" || documentType === "purchase")) {
+      const altType = documentType === "expense" ? "purchase" : "expense";
+      dbFormulas = await db.select().from(accountingFormulas)
+        .where(and(eq(accountingFormulas.companyId, companyId), eq(accountingFormulas.documentType, altType), eq(accountingFormulas.businessType, formulaBusinessType), eq(accountingFormulas.active, true)));
+      if (dbFormulas.length > 0) {
+        console.log(`[AutoJournal] Formula found with altType=${altType} for bizType=${formulaBusinessType} (original docType=${documentType})`);
+      }
+    }
+  }
 
   let formulaLines: { accountCode: string; accountName: string; direction: string; sortOrder: number }[] = [];
   let noJournalEntry = false;

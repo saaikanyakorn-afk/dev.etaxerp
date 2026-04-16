@@ -436,6 +436,7 @@ export default function PdfBulkImport() {
       const allCreated: CreateResult["created"] = [];
       const allSkipped: CreateResult["skipped"] = [];
       const allErrors: CreateResult["errors"] = [];
+      let currentBatchId: number | undefined;
 
       setBatchProgress({ current: 0, total: mappedDocs.length, created: 0, skipped: 0, errors: 0 });
 
@@ -460,6 +461,7 @@ export default function PdfBulkImport() {
             journalOverrideLines: editingJournal && journalOverrideLines.length > 0 ? journalOverrideLines : undefined,
             dnFormulaBusinessType: autoJournal && selectedDnFormula?.businessType ? selectedDnFormula.businessType : undefined,
             dnFormulaLines: autoJournal && selectedDnFormula?.lines ? selectedDnFormula.lines : undefined,
+            existingBatchId: currentBatchId,
           }),
         });
         if (!res.ok) {
@@ -473,6 +475,7 @@ export default function PdfBulkImport() {
           allCreated.push(...result.created);
           allSkipped.push(...result.skipped);
           allErrors.push(...result.errors);
+          if (result.batchId) currentBatchId = result.batchId;
         }
         setBatchProgress({
           current: Math.min((i + 1) * BATCH_SIZE, mappedDocs.length),
