@@ -2,6 +2,7 @@ import { eq, and, desc, sql, inArray, count, ne, or, ilike, gte, lte, asc, isNul
 import { db } from "./db";
 import { posDb } from "./pos-db";
 import { ecomDb } from "./ecom-db";
+import { employeeCounters, type EmployeeCounter, type InsertEmployeeCounter } from "@shared/schema-extra";
 import {
   tenants, users, companies, employees, attendanceRecords, otRecords, leaveRequests, firmClients, firmClientTeam, accounts, journalEntries, journalLines, rolePermissions, userSubPermissions,
   accountingFormulas, accountingFormulaLines, documentSettings, contacts, products, contactSettings,
@@ -17,7 +18,7 @@ import {
   type Tenant, type InsertTenant,
   type User, type InsertUser, type Company, type InsertCompany,
   type Employee, type InsertEmployee, type AttendanceRecord, type InsertAttendance,
-  employeeCounters, type EmployeeCounter, type InsertEmployeeCounter,
+  
   type OtRecord, type InsertOt, type LeaveRequest, type InsertLeave,
   leavePolicies, leaveBalances,
   type LeavePolicy, type InsertLeavePolicy,

@@ -19,10 +19,10 @@ import {
   productLots,
   demandForecasts,
   withholdingTaxCerts, whtCertItems,
-  expenseDailyBatches,
   clientUploadFiles,
   purchaseDebitNotes, purchaseDebitNoteItems,
 } from "@shared/schema";
+import { expenseDailyBatches } from "@shared/schema-extra";
 import { requireAuth, requireModule, requireRole } from "../route-middleware";
 import { logActivity, deleteJournalEntriesForDoc, deleteStockMovementsForDoc, createAutoJournalEntry, getNextJournalEntryNo } from "../route-helpers";
 import { deleteFromPath } from "../replit_integrations/object_storage/routes";

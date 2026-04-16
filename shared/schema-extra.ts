@@ -1,7 +1,7 @@
-// ============================================================
-// SCHEMA PATCH v85 — Append to bottom of shared/schema.ts
-// Tables: employeeCounters, expenseDailyBatches, pdfImportTemplates
-// ============================================================
+import { pgTable, serial, integer, text, varchar, decimal, date, timestamp, boolean, jsonb } from "drizzle-orm/pg-core";
+import { createInsertSchema } from "drizzle-zod";
+import { z } from "zod";
+import { companies, users } from "./schema";
 
 export const employeeCounters = pgTable("employee_counters", {
   id: serial("id").primaryKey(),

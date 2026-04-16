@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { db } from "../db";
 import { eq, and, desc, or, isNull } from "drizzle-orm";
-import { pdfImportTemplates } from "@shared/schema";
+import { pdfImportTemplates } from "@shared/schema-extra";
 import { requireAuth, requireModule } from "../route-middleware";
 import multer from "multer";
 
