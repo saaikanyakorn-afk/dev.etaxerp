@@ -2878,6 +2878,8 @@ export function registerPurchaseRoutes(app: Express) {
       }
 
       const hasAutoJournal = autoJournal && pendingJournals.length > 0;
+      let journalCreationError: string | null = null;
+      try {
       if (hasAutoJournal && usePerDoc) {
         const classifyFeeItemPD = (desc: string): string => {
           const d = (desc || "").toLowerCase().trim();
@@ -3338,6 +3340,11 @@ export function registerPurchaseRoutes(app: Express) {
         }
       }
 
+      } catch (journalErr: any) {
+        journalCreationError = journalErr.message;
+        console.error("[PDF-Import] Journal creation block error:", journalErr.message);
+      }
+
       const createdExpIds = created.map((c: any) => c.id).filter(Boolean);
       if (createdExpIds.length > 0) {
         const [batch] = await db.insert(documentImportBatches).values({
@@ -3345,11 +3352,175 @@ export function registerPurchaseRoutes(app: Express) {
           totalCreated: createdExpIds.length, totalSkipped: skipped.length, totalErrors: errors.length,
           createdDocIds: JSON.stringify(createdExpIds), createdBy: user.id,
         }).returning();
-        res.json({ created, skipped, errors, total: documents.length, batchId: batch.id });
+        res.json({ created, skipped, errors, total: documents.length, batchId: batch.id, journalError: journalCreationError || undefined });
       } else {
-        res.json({ created, skipped, errors, total: documents.length });
+        res.json({ created, skipped, errors, total: documents.length, journalError: journalCreationError || undefined });
       }
     } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.post("/api/pdf-import/retry-journals", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { companyId, formulaBusinessType, paymentMethod, journalMode } = req.body;
+      if (!companyId) return res.status(400).json({ message: "ไม่ระบุ companyId" });
+      const usePerDoc = journalMode === "per_doc";
+
+      const unlinkedExpenses = await db.select().from(expenses)
+        .where(and(eq(expenses.companyId, companyId), eq(expenses.linkJournal, false), eq(expenses.status, "approved")));
+
+      if (unlinkedExpenses.length === 0) {
+        return res.json({ message: "ไม่มีเอกสารที่ต้องลงบัญชี", created: 0 });
+      }
+      console.log(`[PDF-Import] retry-journals: ${unlinkedExpenses.length} expenses for company ${companyId}, mode=${journalMode || "daily"}`);
+
+      const [companyAccounts, companyInfo] = await Promise.all([
+        db.select().from(accounts).where(eq(accounts.companyId, companyId)),
+        db.select({ businessType: companies.businessType }).from(companies).where(eq(companies.id, companyId)).limit(1),
+      ]);
+      const accountMap = new Map(companyAccounts.map(a => [a.code, a]));
+      const isRestaurant = companyInfo[0]?.businessType === "restaurant";
+      const globalPayMethod = paymentMethod || "transfer";
+      const pmAccCode = await resolvePaymentMethodAccountCode(companyId, globalPayMethod);
+
+      const RETRY_PREFIX_FORMULA_MAP: Record<string, string> = {
+        "TRSPEMKP": "shopee_platform_fee", "TRSPESPF": "shopeefood_fee",
+        "TRSPXADB": "spx_admin_fee", "RCSPXSPR": "shopee_shipping",
+        "RCSPXSPB": "shopee_shipping", "TRSLZD": "lazada_platform_fee",
+        "TTSTH": "tiktok_platform_fee", "TTSTHCN": "tiktok_platform_fee",
+        "TTSTHAC": "ecommerce_commission", "THJV": "tiktok_shipping",
+        "THMPTI": "lazada_platform_fee", "THLPTI": "lazada_shipping",
+        "IM": "grab_service_fee",
+      };
+      const RETRY_BATCH_SUFFIX_MAP: Record<string, string> = {
+        "TRSPEMKP": "SH", "TRSPESPF": "SHF", "TRSPXADB": "SPXA",
+        "RCSPXSPR": "SPX", "RCSPXSPB": "SPX",
+        "TRSLZD": "LZ", "THMPTI": "LZ", "THLPTI": "LZX",
+        "TTSTH": "TK", "TTSTHCN": "TKCN", "TTSTHAC": "EC",
+        "THJV": "TKX", "IM": "GR",
+      };
+
+      function resolveRetryBt(docPrefix: string): string {
+        if (RETRY_PREFIX_FORMULA_MAP[docPrefix]) return RETRY_PREFIX_FORMULA_MAP[docPrefix];
+        return formulaBusinessType || "platform_fee";
+      }
+
+      let journalsCreated = 0;
+      const journalErrors: { expNo: string; reason: string }[] = [];
+
+      if (usePerDoc) {
+        for (const exp of unlinkedExpenses) {
+          try {
+            const resolvedBt = resolveRetryBt(exp.docPrefix || "");
+            const result = await createAutoJournalEntry({
+              companyId, documentType: "expense", sourceDocType: "expense", sourceDocId: exp.id,
+              docDate: exp.expDate, docNo: exp.expNo,
+              subtotal: String(exp.subtotal || "0"), vatAmount: String(exp.vatAmount || "0"),
+              totalAmount: String(exp.totalAmount || "0"), withholdingTax: String(exp.withholdingTax || "0"),
+              userId: user.id, customerName: exp.vendorName || "ค่าบริการ",
+              formulaBusinessType: resolvedBt, paymentMethodAccountCode: pmAccCode,
+              paymentMethod: globalPayMethod,
+            });
+            if (result && !result.skipped) {
+              await db.update(expenses).set({ linkJournal: true }).where(eq(expenses.id, exp.id));
+              journalsCreated++;
+            } else {
+              journalErrors.push({ expNo: exp.expNo, reason: result?.reason || "ไม่ทราบ" });
+            }
+          } catch (e) {
+            journalErrors.push({ expNo: exp.expNo, reason: (e as any).message });
+          }
+        }
+      } else {
+        const groups = new Map<string, { date: string; formulaBt: string; subtotal: number; vat: number; total: number; wht: number; expIds: number[]; expNos: string[]; batchSuffix: string }>();
+        for (const exp of unlinkedExpenses) {
+          const prefix = exp.docPrefix || "EXP";
+          const bt = resolveRetryBt(prefix);
+          const suffix = RETRY_BATCH_SUFFIX_MAP[prefix] || "OT";
+          const gk = `${exp.expDate}||${bt}||${suffix}`;
+          const g = groups.get(gk) || { date: exp.expDate, formulaBt: bt, subtotal: 0, vat: 0, total: 0, wht: 0, expIds: [], expNos: [], batchSuffix: suffix };
+          g.subtotal += parseFloat(String(exp.subtotal || "0"));
+          g.vat += parseFloat(String(exp.vatAmount || "0"));
+          g.total += parseFloat(String(exp.totalAmount || "0"));
+          g.wht += parseFloat(String(exp.withholdingTax || "0"));
+          g.expIds.push(exp.id);
+          g.expNos.push(exp.expNo);
+          groups.set(gk, g);
+        }
+
+        for (const [gk, group] of groups) {
+          try {
+            const suffix = group.batchSuffix;
+            const dxpNo = `DXP-${group.date.replace(/-/g, "")}-${suffix}`;
+
+            let batchId: number | null = null;
+            const existingBatch = await db.select({ id: expenseDailyBatches.id })
+              .from(expenseDailyBatches)
+              .where(and(eq(expenseDailyBatches.companyId, companyId), eq(expenseDailyBatches.batchNo, dxpNo)));
+            if (existingBatch.length > 0) {
+              batchId = existingBatch[0].id;
+            } else {
+              const [newBatch] = await db.insert(expenseDailyBatches).values({
+                companyId, batchNo: dxpNo, batchDate: group.date,
+                totalExpenses: group.expIds.length,
+                totalSubtotal: String(group.subtotal), totalVat: String(group.vat),
+                totalAmount: String(group.total), totalWht: String(group.wht),
+                status: "active", createdBy: user.id,
+              }).returning();
+              batchId = newBatch.id;
+            }
+
+            if (batchId && group.expIds.length > 0) {
+              await db.update(expenses)
+                .set({ batchId })
+                .where(inArray(expenses.id, group.expIds));
+            }
+
+            const existingJournals = await db.select({ id: journalEntries.id })
+              .from(journalEntries)
+              .where(and(eq(journalEntries.companyId, companyId), eq(journalEntries.reference, dxpNo), eq(journalEntries.sourceDocType, "expense_daily_batch")));
+            if (existingJournals.length > 0) {
+              for (const ej of existingJournals) {
+                await db.delete(journalLines).where(eq(journalLines.journalEntryId, ej.id));
+                await db.delete(journalEntries).where(eq(journalEntries.id, ej.id));
+              }
+            }
+
+            const journalResult = await createAutoJournalEntry({
+              companyId, documentType: "expense", sourceDocType: "expense_daily_batch",
+              sourceDocId: batchId || 0, docDate: group.date, docNo: dxpNo,
+              subtotal: group.subtotal.toFixed(2), vatAmount: group.vat.toFixed(2),
+              totalAmount: group.total.toFixed(2), withholdingTax: group.wht.toFixed(2),
+              userId: user.id, customerName: `สรุปค่าใช้จ่าย ${suffix} (${group.expNos.length} ใบ)`,
+              paymentMethod: globalPayMethod, paymentMethodAccountCode: pmAccCode,
+              formulaBusinessType: group.formulaBt,
+            });
+
+            if (journalResult && !journalResult.skipped) {
+              await db.update(expenses)
+                .set({ linkJournal: true })
+                .where(inArray(expenses.id, group.expIds));
+              journalsCreated += group.expIds.length;
+              console.log(`[PDF-Import] Retry journal ${dxpNo}: ${group.expIds.length} expenses, formula=${group.formulaBt}`);
+            } else {
+              for (const no of group.expNos) {
+                journalErrors.push({ expNo: no, reason: journalResult?.reason || "ไม่ทราบ" });
+              }
+            }
+          } catch (e) {
+            console.log(`[PDF-Import] Retry journal for group ${gk} failed:`, (e as any).message);
+            for (const no of group.expNos) {
+              journalErrors.push({ expNo: no, reason: (e as any).message });
+            }
+          }
+        }
+      }
+
+      res.json({ message: `ลงบัญชีสำเร็จ ${journalsCreated} รายการ`, created: journalsCreated, errors: journalErrors, total: unlinkedExpenses.length });
+    } catch (err: any) {
+      console.error("[PDF-Import] retry-journals error:", err);
+      res.status(500).json({ message: err.message });
+    }
   });
 
   // ============ Purchase Invoice Import ============
