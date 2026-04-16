@@ -142,7 +142,7 @@ export default function ThaiDateInput({
 
   const handleYearClick = () => {
     setPickingYear(navMonth.getFullYear());
-    setViewMode("year");
+    setViewMode("month");
   };
 
   const handleYearSelect = (year: number) => {
