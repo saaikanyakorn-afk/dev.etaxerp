@@ -40,6 +40,8 @@ interface MultiFileAttachmentProps {
 export default function MultiFileAttachment({ value, onChange, disabled, testIdPrefix = "attachment" }: MultiFileAttachmentProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadQueue, setUploadQueue] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const dragCounterRef = useRef(0);
   const files = parseAttachedUrl(value);
 
   const { uploadFile, isUploading } = useUpload({
@@ -68,13 +70,64 @@ export default function MultiFileAttachment({ value, onChange, disabled, testIdP
     e.target.value = "";
   };
 
+  const uploadFiles = (fileList: FileList | File[]) => {
+    const arr = Array.from(fileList);
+    if (arr.length === 0) return;
+    setUploadQueue(q => q + arr.length);
+    arr.forEach(f => uploadFile(f));
+  };
+
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (disabled) return;
+    dragCounterRef.current += 1;
+    if (e.dataTransfer.types?.includes("Files")) {
+      setIsDragging(true);
+    }
+  };
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
+  };
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current = Math.max(0, dragCounterRef.current - 1);
+    if (dragCounterRef.current === 0) setIsDragging(false);
+  };
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current = 0;
+    setIsDragging(false);
+    if (disabled) return;
+    const dropped = e.dataTransfer.files;
+    if (dropped && dropped.length > 0) {
+      uploadFiles(dropped);
+    }
+  };
+
   const removeFile = (idx: number) => {
     const updated = files.filter((_, i) => i !== idx);
     onChange(serializeFiles(updated));
   };
 
   return (
-    <div className="space-y-1.5">
+    <div
+      className={`space-y-1.5 rounded-md transition-colors ${isDragging ? "bg-orange-50 ring-2 ring-[#fb9678] ring-dashed p-2" : ""}`}
+      onDragEnter={handleDragEnter}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+      data-testid={`${testIdPrefix}-dropzone`}
+    >
+      {isDragging && (
+        <div className="text-xs text-[#fb9678] font-medium text-center py-1">
+          วางไฟล์ที่นี่เพื่ออัพโหลด
+        </div>
+      )}
       <div className="flex items-center gap-2 flex-wrap">
         <input
           ref={fileInputRef}
