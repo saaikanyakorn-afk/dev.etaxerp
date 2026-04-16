@@ -169,6 +169,9 @@
   body {
     @apply font-sans antialiased bg-background text-foreground;
     font-family: 'Sarabun', 'Inter', sans-serif !important;
+    font-variant-numeric: tabular-nums !important;
+    -webkit-font-feature-settings: "tnum" !important;
+    font-feature-settings: "tnum" !important;
   }
   h1, h2, h3, h4, h5, h6 {
     @apply font-heading tracking-tight;
