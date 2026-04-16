@@ -1656,7 +1656,7 @@ export default function Expense() {
               onClick={handleSaveAndWht}
               disabled={isSaving}
               className="text-white hover:opacity-90"
-              style={{ background: whtBtnColor }}
+              style={{ backgroundColor: whtBtnColor }}
               data-testid="button-save-wht"
             >
               <FileText className="h-4 w-4 mr-2" /> บันทึกพร้อมออก 50 ทวิ
