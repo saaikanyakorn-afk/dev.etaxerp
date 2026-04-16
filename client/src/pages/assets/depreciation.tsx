@@ -45,26 +45,71 @@ export default function DepreciationPage() {
   const pageSize = 50;
 
   const { dateEra, dateFmt } = useDateSettings();
-  const { data: docSettings } = useQuery<any>({
+  const { data: docSettings, error: docSettingsError } = useQuery<any>({
     queryKey: ["/api/document-settings", selectedCompanyId],
     queryFn: async () => {
-      if (!selectedCompanyId) return null;
+      if (!selectedCompanyId) throw new Error("ไม่พบ companyId");
       const res = await fetch(`/api/document-settings?companyId=${selectedCompanyId}`, { credentials: "include" });
-      if (!res.ok) return null;
+      if (!res.ok) {
+        const errText = await res.text().catch(() => res.statusText);
+        throw new Error(`โหลด document-settings ล้มเหลว (${res.status}): ${errText}`);
+      }
       return res.json();
     },
     enabled: !!selectedCompanyId,
+    retry: false,
   });
-  const { data: assetCategories = [] } = useQuery<any[]>({
+  const { data: assetCategories = [], error: assetCategoriesError } = useQuery<any[]>({
     queryKey: ["/api/asset-categories", selectedCompanyId],
     queryFn: async () => {
-      if (!selectedCompanyId) return [];
+      if (!selectedCompanyId) throw new Error("ไม่พบ companyId");
       const res = await fetch(`/api/asset-categories?companyId=${selectedCompanyId}`, { credentials: "include" });
-      if (!res.ok) return [];
+      if (!res.ok) {
+        const errText = await res.text().catch(() => res.statusText);
+        throw new Error(`โหลด asset-categories ล้มเหลว (${res.status}): ${errText}`);
+      }
       return res.json();
     },
     enabled: !!selectedCompanyId,
+    retry: false,
   });
+
+  if (docSettingsError || assetCategoriesError) {
+    const err = docSettingsError || assetCategoriesError;
+    return (
+      <Layout>
+        <div className="min-h-[60vh] flex items-center justify-center p-6">
+          <Card className="max-w-2xl w-full border-red-300 bg-red-50">
+            <CardHeader>
+              <CardTitle className="text-red-700 text-lg">⚠️ เกิดข้อผิดพลาด — ระบบจะออกจากระบบเพื่อความปลอดภัย</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="bg-white p-3 rounded border border-red-200">
+                <div className="text-xs text-muted-foreground mb-1">รายละเอียด error (กรุณาแคปหน้าจอนี้แล้วแจ้งทีมพัฒนา):</div>
+                <div className="font-mono text-xs text-red-800 break-all" data-testid="text-error-detail">
+                  {(err as any)?.message || String(err)}
+                </div>
+              </div>
+              <div className="text-sm text-gray-700">
+                หน้าคำนวณค่าเสื่อมไม่สามารถโหลดข้อมูลตั้งต้นได้ — กรุณาแจ้งทีมพัฒนาทันทีเพื่อตรวจสอบสาเหตุที่แท้จริง
+              </div>
+              <Button
+                variant="destructive"
+                className="w-full"
+                onClick={async () => {
+                  await fetch("/api/auth/logout", { method: "POST", credentials: "include" }).catch(() => {});
+                  window.location.href = "/login";
+                }}
+                data-testid="button-force-logout"
+              >
+                ออกจากระบบทันที
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </Layout>
+    );
+  }
 
   const calculateMutation = useMutation({
     mutationFn: async () => {
