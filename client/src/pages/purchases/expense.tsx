@@ -1340,11 +1340,18 @@ export default function Expense() {
                       <td className="py-1 px-1">
                         <Input
                           data-testid={`input-amount-${idx}`}
-                          value={editingAmountIdx === idx ? item.amount : fmt(item.amount)}
-                          onFocus={() => setEditingAmountIdx(idx)}
+                          value={(() => {
+                            const isEditing = editingAmountIdx === idx;
+                            const raw = item.amount;
+                            const isZero = !raw || raw === "0" || parseFloat(raw) === 0;
+                            if (isZero) return "";
+                            return isEditing ? raw : fmt(raw);
+                          })()}
+                          onFocus={(e) => { setEditingAmountIdx(idx); e.target.select(); }}
                           onBlur={() => setEditingAmountIdx(null)}
                           onChange={e => updateItem(idx, "amount", e.target.value)}
                           className="h-7 text-xs border-dashed text-right"
+                          placeholder="0.00"
                         />
                       </td>
                       <td className="py-1 px-1">
