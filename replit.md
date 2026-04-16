@@ -371,14 +371,20 @@ Every block of code that calls an external AI API MUST be marked with a `⚠️ 
 - **DESTRUCTIVE SQL SAFETY RULES (ABSOLUTE — พี่ช้าง rule 2026-04-16):**
   - **DELETE RULE:** DELETE on production (deep-main) is IRREVERSIBLE. No tool, no history, no person can bring deleted data back. This is REAL customer data.
   - **ALTER TABLE RULE (EVEN MORE DANGEROUS):** ALTER TABLE on a table that already has data is MORE dangerous than DELETE. DELETE destroys data but the structure remains — data can potentially be restored from backups. ALTER destroys BOTH the data AND the "home" of the data — column drops lose data permanently, type changes can corrupt/truncate data silently, and the application code that depends on the old structure breaks system-wide. Even with backups, if the structure no longer matches, restoration becomes extremely difficult or impossible.
+  - **MANDATORY BACKUP — every single time, no exception:**
+    - Before ANY DELETE or ALTER on a table with data, the one-time migration code MUST first create a backup:
+      `CREATE TABLE backup_{tablename}_{yyyymmdd} AS SELECT * FROM {tablename};`
+    - This applies to EVERY table, no matter how small or large.
+    - Do NOT rely on พี่ช้าง or anyone else as the safety net — that is shifting blame, not prevention. The backup in the database IS the real safety net.
+    - After the operation, verify the data is correct. If something went wrong → restore from the backup table immediately.
   - **Mandatory safety loop for DELETE or ALTER on tables with data:**
-    1. Write the one-time code → push → พี่ช้าง pulls + builds + runs
+    1. Write the one-time code (WITH backup step first) → push → pull + build + run
     2. **STOP EVERYTHING** — go back, remove the one-time code from source
     3. Push the clean version → pull → rebuild
     4. Only then continue with other work
   - **Never skip step 2-3.** Never rush. Never let anyone (พี่ทราย, พี่ช้าง, or yourself) pressure you into moving on before the destructive code is removed.
-  - **Before writing any ALTER:** Ask yourself — does this table have real data? What happens to existing data? Can it cast safely? If unsure → ask พี่ช้าง first.
-  - **Never** drop column or change column type without informing พี่ช้าง first.
+  - **Before writing any ALTER:** Ask yourself — does this table have real data? What happens to existing data? Can it cast safely?
+  - **Never** drop column or change column type without backup + verification.
   - Adding a new column (nullable/default) is safer but still must use one-time migration pattern because schema.ts is never pushed.
 - **Known prefixes**: TRSPEMKP=Shopee Marketplace, TRSPESPF=ShopeeFood Commission, TRSPXADB=SPX Express Admin Fee, RCSPXSPR/RCSPXSPB=SPX Shipping, TTSTH=TikTok Tax Invoice, TTSTHCN=TikTok Credit Note, TTSTHAC=TikTok Affiliate, THJV=TikTok Logistics, THMPTI=Lazada Limited, THLPTI=Lazada Express, IM=Grab Service Fee
   - **Platform account codes**: 5241=Shopee Commission, 5242=Lazada, 5243=TikTok, 5244=Grab, 5245=ShopeeFood, 5251=Shopee Service, 5252=Lazada Service, 5253=TikTok Service, 5254=Grab Service, 5255=ShopeeFood Service, 5256=SPX Admin, 5265=SPX Shipping, 5266=Lazada Shipping, 5267=TikTok Shipping
