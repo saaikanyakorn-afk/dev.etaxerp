@@ -801,6 +801,19 @@ async function runMigrationsInBackground() {
     }
     migrationReady = true;
     log("Core schema ready - API enabled");
+    try {
+      const ruleRows = await db.execute(sql`SELECT config_key, config_value FROM system_config WHERE config_key LIKE 'RULE_%' ORDER BY config_key`);
+      if ((ruleRows.rows || []).length > 0) {
+        console.log("\n╔══════════════════════════════════════════════════════════════╗");
+        console.log("║  ⚠️  CRITICAL RULES — Kai must follow these at all times    ║");
+        console.log("╠══════════════════════════════════════════════════════════════╣");
+        for (const r of ruleRows.rows as any[]) {
+          const key = r.config_key.replace("RULE_", "").replace(/_/g, " ");
+          console.log(`║ ${key}: ${r.config_value}`);
+        }
+        console.log("╚══════════════════════════════════════════════════════════════╝\n");
+      }
+    } catch (_) {}
     const { initMaintenanceOnStartup } = await import("./maintenance");
     initMaintenanceOnStartup().catch(e => console.error("[MAINTENANCE] Post-schema init error:", e));
     await migrateChartOfAccountCodes();
