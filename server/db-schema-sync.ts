@@ -456,4 +456,11 @@ export async function fullSchemaSync(): Promise<void> {
 
   await syncEcomSchema();
   await syncPosSchema();
+
+  try {
+    const { runOneTimeSchemaV85Migration } = await import("./one-time-schema-migration");
+    await runOneTimeSchemaV85Migration();
+  } catch (e: any) {
+    if (!e.message?.includes("already exists")) console.log("[schema-sync] one-time migration skip:", e.message?.slice(0, 100));
+  }
 }
