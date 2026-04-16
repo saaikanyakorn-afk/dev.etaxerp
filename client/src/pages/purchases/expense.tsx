@@ -767,6 +767,8 @@ export default function Expense() {
         sourceDocId: String(savedDoc.id),
         sourceDocNo: savedDoc.expNo || "",
         incomeDescription: descList,
+        certDate: savedDoc.expDate || form.expDate || "",
+        paidDate: savedDoc.paymentDate || form.paymentDate || savedDoc.expDate || form.expDate || "",
       });
       navigate(`/purchases/wht/new?${params.toString()}`);
     } catch (err: any) {
@@ -835,6 +837,8 @@ export default function Expense() {
         sourceDocId: String(savedDoc.id),
         sourceDocNo: savedDoc.expNo || "",
         incomeDescription: descList2,
+        certDate: savedDoc.expDate || form.expDate || "",
+        paidDate: savedDoc.paymentDate || form.paymentDate || savedDoc.expDate || form.expDate || "",
       });
       navigate(`/purchases/wht/new?${p.toString()}`);
     } catch (err: any) {

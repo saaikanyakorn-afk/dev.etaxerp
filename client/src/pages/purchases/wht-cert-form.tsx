@@ -101,10 +101,10 @@ export default function WhtCertForm() {
   });
 
   const { data: nextNo } = useQuery<any>({
-    queryKey: ["/api/wht-certs/next-no", companyId, form.docPrefix],
+    queryKey: ["/api/wht-certs/next-no", companyId, form.docPrefix, form.certDate],
     queryFn: async () => {
       if (!companyId) return null;
-      const res = await fetch(`/api/wht-certs/next-no?companyId=${companyId}&prefix=${form.docPrefix}`, { credentials: "include" });
+      const res = await fetch(`/api/wht-certs/next-no?companyId=${companyId}&prefix=${form.docPrefix}&docDate=${encodeURIComponent(form.certDate || "")}`, { credentials: "include" });
       if (!res.ok) return null;
       return res.json();
     },
@@ -200,6 +200,8 @@ export default function WhtCertForm() {
       const sourceDocNo = searchParams.get("sourceDocNo");
       const totalAmount = searchParams.get("totalAmount");
       const incomeDesc = searchParams.get("incomeDescription");
+      const certDateParam = searchParams.get("certDate");
+      const paidDateParam = searchParams.get("paidDate");
 
       if (vendorName || wht) {
         const taxId = vendorTaxId || "";
@@ -218,6 +220,9 @@ export default function WhtCertForm() {
           sourceDocId: sourceDocId ? Number(sourceDocId) : undefined,
           sourceDocNo: sourceDocNo || f.sourceDocNo,
           formType: taxId ? autoForm : f.formType,
+          certDate: certDateParam || f.certDate,
+          paidDate: paidDateParam || certDateParam || f.paidDate,
+          certNo: "",
         }));
         const amt = totalAmount || "0";
         const whtVal = wht || "0";
@@ -225,7 +230,7 @@ export default function WhtCertForm() {
         setItems([{
           incomeType: "5",
           incomeDescription: incomeDesc || "",
-          paidDate: toLocalDateStr(new Date()),
+          paidDate: paidDateParam || certDateParam || toLocalDateStr(new Date()),
           amountPaid: amt,
           taxRate: rateCalc,
           taxWithheld: whtVal,
