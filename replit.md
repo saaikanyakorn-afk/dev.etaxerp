@@ -22,6 +22,7 @@ Last verified build: **2026-04-16 (v97 cherry-pick)**
 1. **Insert schema_version record** in BOTH Replit DB AND Production DB — version, description, change_type, pushed_repos
 2. **Bump SCHEMA_VERSION** constant in server/index.ts
 3. **NEVER push these files**: shared/schema.ts, server/index.ts, client/src/App.tsx
+4. **NEVER cherry-pick to etaxerp**: server/db.ts, server/ecom-db.ts, server/pos-db.ts, server/db-schema-sync.ts (uses encryption — production-specific), server/route-middleware.ts, server/routes.ts, server/storage.ts, server/routes/pos-routes.ts, server/routes/line-routes.ts, client/src/pages/platform/*
 4. **NEVER checkout `client/` as folder** — cherry-pick individual files only
 5. **NEVER `pm2 restart all`** — always `pm2 restart etax-center`
 6. **Production deploy = cherry-pick only** — list every file explicitly, no folder-level checkout
