@@ -784,6 +784,14 @@ async function runMigrationsInBackground() {
     await autoSyncSchema();
     await ensureCriticalTables();
     await ensureCriticalColumns();
+    // ONE-TIME MIGRATION: schema v85 — new tables + columns for push without schema.ts
+    // After production verified, remark this block out and push clean in next cycle
+    try {
+      const { runOneTimeSchemaV85Migration } = await import("./one-time-schema-migration");
+      await runOneTimeSchemaV85Migration();
+    } catch (e: any) {
+      console.error("[OneTimeMigration] import/run error:", e.message);
+    }
     migrationReady = true;
     log("Core schema ready - API enabled");
     const { initMaintenanceOnStartup } = await import("./maintenance");
