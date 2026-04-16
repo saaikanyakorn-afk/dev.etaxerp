@@ -244,6 +244,12 @@ export default function Expense() {
     enabled: !!companyId,
   });
 
+  const accountsForSelect = React.useMemo(() => {
+    return (accounts as any[])
+      .filter(a => !a.isHeader)
+      .sort((a, b) => String(a.code).localeCompare(String(b.code), undefined, { numeric: true }));
+  }, [accounts]);
+
   const { data: contacts = [] } = useQuery<Contact[]>({
     queryKey: ["/api/contacts", companyId],
     queryFn: async () => {
@@ -1236,7 +1242,7 @@ export default function Expense() {
                               <CommandList>
                                 <CommandEmpty>ไม่พบบัญชี</CommandEmpty>
                                 <CommandGroup>
-                                  {accounts.map((acc: any) => (
+                                  {accountsForSelect.map((acc: any) => (
                                     <CommandItem
                                       key={acc.id}
                                       value={`${acc.code} ${acctName(acc)}`}
@@ -1283,7 +1289,7 @@ export default function Expense() {
                               <CommandList>
                                 <CommandEmpty>ไม่พบบัญชี</CommandEmpty>
                                 <CommandGroup>
-                                  {accounts.map((acc: any) => (
+                                  {accountsForSelect.map((acc: any) => (
                                     <CommandItem
                                       key={acc.id}
                                       value={`${acc.code} ${acctName(acc)}`}
