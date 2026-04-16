@@ -1652,9 +1652,8 @@ export default function Expense() {
             <Button
               onClick={handleSaveAndWht}
               disabled={isSaving}
-              variant="outline"
-              className="hover:bg-[var(--theme-primary-light)]"
-              style={{ borderColor: "var(--theme-primary)", color: "var(--theme-primary)", borderWidth: "2px", background: "transparent" }}
+              className="text-white hover:opacity-90"
+              style={{ background: "#fb9678" }}
               data-testid="button-save-wht"
             >
               <FileText className="h-4 w-4 mr-2" /> บันทึกพร้อมออก 50 ทวิ
