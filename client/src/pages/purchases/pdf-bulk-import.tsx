@@ -157,8 +157,6 @@ export default function PdfBulkImport() {
   const [, navigate] = useLocation();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
-  const addFileInputRef = useRef<HTMLInputElement>(null);
-  const addFolderInputRef = useRef<HTMLInputElement>(null);
   const { dateEra, dateFmt } = useDateSettings();
 
   const [step, setStep] = useState<"upload" | "preview" | "result">("upload");
@@ -964,27 +962,6 @@ export default function PdfBulkImport() {
                         <span>กำลังอ่าน {parseProgress}/{parseTotalFiles}...</span>
                       </div>
                     )}
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => addFileInputRef.current?.click()}
-                      disabled={parseMutation.isPending}
-                      className="gap-1.5 text-xs"
-                      data-testid="button-add-more-files"
-                    >
-                      <FileText className="h-3.5 w-3.5" /> เพิ่มไฟล์
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => addFolderInputRef.current?.click()}
-                      disabled={parseMutation.isPending}
-                      className="gap-1.5 text-xs"
-                      style={{ borderColor: "#03c9d7", color: "#03c9d7" }}
-                      data-testid="button-add-more-folder"
-                    >
-                      <FolderOpen className="h-3.5 w-3.5" /> เพิ่มโฟลเดอร์
-                    </Button>
                     {parseResult && parseResult.documents.length > 0 && (
                     <Button
                       variant="outline"
@@ -996,21 +973,6 @@ export default function PdfBulkImport() {
                       <FileText className="h-3.5 w-3.5" /> Export Excel
                     </Button>
                     )}
-                    <input
-                      ref={addFileInputRef}
-                      type="file"
-                      multiple
-                      accept=".pdf"
-                      className="hidden"
-                      onChange={handleFileSelect}
-                    />
-                    <input
-                      ref={addFolderInputRef}
-                      type="file"
-                      className="hidden"
-                      onChange={handleFolderSelect}
-                      {...({ webkitdirectory: "", directory: "", multiple: true } as any)}
-                    />
                   </div>
                 </div>
                 <div className="overflow-x-auto">
