@@ -36,42 +36,12 @@ Last verified build: **2026-04-16 (v97 cherry-pick)**
 
 ## Cherry-Pick Tracking (Production Deploy Log)
 
-Kai tracks all files cherry-picked to production. This is the single source of truth.
-
-### v1.0.2 (cherry-picked 2026-04-05, confirmed by พี่ช้าง)
-| File | Purpose | Status |
-|---|---|---|
-| server/routes/sales-docs-routes.ts | Related docs fix, data isolation | Deployed |
-| server/routes/billing-notes-routes.ts | Firm billing journal fix | Deployed |
-| server/routes/approval-center-routes.ts | Approval scope fix | Deployed |
-| server/routes/expense-routes.ts | Non-deductible VAT fix | Deployed |
-| client/src/components/related-docs-dialog.tsx | Related docs UI | Deployed |
-| shared/schema.ts | Schema (code-only, no new tables) | Deployed |
-
-### Pending Cherry-Pick (not yet deployed)
-| File | Purpose | Status | Commit |
-|---|---|---|---|
-| server/routes/expense-routes.ts | Error logging + fallback message | Deployed 2026-04-06 | fd3f574 |
-| server/route-helpers.ts | checkDocumentLimit try-catch (fix ECONNREFUSED) | Deployed 2026-04-06 | 6f5c366 |
-| client/src/pages/purchases/wht-cert-list.tsx | Fix dateFormat → dateFmt (50ทวิ page crash) | Deployed 2026-04-06 | 08f1bde |
-| server/routes/expense-routes.ts | Remove auto journal from WHT cert (50ทวิ = doc only) | Deployed 2026-04-06 | 8ac7213 |
-| server/route-helpers.ts | deleteJournalEntriesForDoc: try-catch ecomDb | Ready | ca95c74 |
-| server/routes/expense-routes.ts | Expense delete: error logging + fix | Ready | 113fe6a |
-| server/ecom-db.ts | ROOT FIX: lazy init — pool created on first use, not module load | Ready | a9b3e7b |
-| server/pos-db.ts | ROOT FIX: lazy init — pool created on first use, not module load | Ready | 0785fad |
-| server/index.ts | Call reinitializeEcomDb/PosDb after bootstrap | Ready | f3df8da |
-| server/replit_integrations/object_storage/routes.ts | Fix logo lost on pull (UPLOAD_DIR) | Ready | 102ddaf |
-| deepmain_schema_sync.sql | Add tax_invoices.customer_branch_id | Ready | a6a5853 |
-
-### Production Server Commands
-- **Build:** `npm run build`
-- **Restart:** `pm2 restart etax-center`
-- **Status:** `pm2 status`
-- **Logs:** `pm2 logs etax-center`
-- **Project path:** `C:\GitApp\etaxcenter`
+⚠️ **SOURCE OF TRUTH for push history is `.local/push-pull-log.md`** — NOT this section.
+⚠️ **Kai MUST read `.local/push-pull-log.md` BEFORE answering ANY question about push/deploy status.**
+⚠️ **Last verified (2026-04-16): `git diff github-dev/main HEAD` shows only `server/index.ts` differs — all other files are synced.**
 
 ### Rules
-- Kai must update this table whenever requesting or confirming a cherry-pick.
+- Kai must update `.local/push-pull-log.md` whenever requesting or confirming a cherry-pick.
 - Files from unfinished features (security/infra) must NEVER appear here.
 - Production is NOT a debugging tool. Only cherry-pick solutions, never test code.
 - Kai must NEVER send wrong commands for production. Verify process names, paths, and syntax before sending.
