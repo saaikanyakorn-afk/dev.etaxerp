@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from "react";
+import { useThemeColor } from "@/hooks/use-theme-color";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation, useRoute } from "wouter";
 import Layout from "@/components/layout";
@@ -143,6 +144,8 @@ export default function Expense() {
   const companyId = selectedCompany?.id;
   const defaultVatType = selectedCompany?.vatRegistered ? "vat7" : "non_vat";
   const { toast } = useToast();
+  const { theme } = useThemeColor();
+  const whtBtnColor = theme === "orange" ? "#03c9d7" : "#fb9678";
   const queryClient = useQueryClient();
   const { checkVatClosed, buildWarningMessage } = useVatClosingCheck();
   const { lookup: lookupDBD, loading: dbdLoading } = useDbdLookup();
@@ -1653,7 +1656,7 @@ export default function Expense() {
               onClick={handleSaveAndWht}
               disabled={isSaving}
               className="text-white hover:opacity-90"
-              style={{ background: "#fb9678" }}
+              style={{ background: whtBtnColor }}
               data-testid="button-save-wht"
             >
               <FileText className="h-4 w-4 mr-2" /> บันทึกพร้อมออก 50 ทวิ
