@@ -168,7 +168,7 @@ export default function PdfBulkImport() {
   const [expandedDocs, setExpandedDocs] = useState<Set<string>>(new Set());
   const [docType, setDocType] = useState<"purchase" | "expense">("expense");
   const [autoJournal, setAutoJournal] = useState(true);
-  const [journalMode, setJournalMode] = useState<"daily" | "per_doc">("daily");
+  const [journalMode, setJournalMode] = useState<"daily" | "per_doc">("per_doc");
   const [autoCreateContact, setAutoCreateContact] = useState(true);
   const [paymentMethod, setPaymentMethod] = useState("transfer");
   const [globalWhtRate, setGlobalWhtRate] = useState("0");
@@ -1865,39 +1865,6 @@ export default function PdfBulkImport() {
                   <div className="text-[11px] text-gray-400 mt-1">
                     * เทียบยอดเงินจาก PDF กับที่บันทึกจริง — เครื่องหมาย ✓ = ตรงกัน, ⚠ = ต่างกัน
                   </div>
-                </div>
-              )}
-
-              {(createResult as any).journalError && (
-                <div className="mb-4 bg-orange-50 border border-orange-200 rounded-lg p-3">
-                  <div className="text-sm font-medium text-orange-700 mb-1">เอกสารสร้างแล้ว แต่ลงบัญชีไม่สำเร็จ:</div>
-                  <div className="text-xs text-orange-600">{(createResult as any).journalError}</div>
-                  <Button
-                    size="sm"
-                    className="mt-2 bg-blue-600 hover:bg-blue-700 text-white"
-                    data-testid="button-retry-journals"
-                    onClick={async () => {
-                      try {
-                        const resp = await fetch("/api/pdf-import/retry-journals", {
-                          method: "POST",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ companyId, paymentMethod, journalMode, formulaBusinessType: "auto-detect" }),
-                        });
-                        const data = await resp.json();
-                        if (resp.ok) {
-                          alert(`ลงบัญชีสำเร็จ ${data.created} รายการ จาก ${data.total} รายการ${data.errors?.length ? `\nผิดพลาด: ${data.errors.map((e: any) => e.expNo + ": " + e.reason).join(", ")}` : ""}`);
-                          queryClient.invalidateQueries({ queryKey: ["/api/expenses"] });
-                          queryClient.invalidateQueries({ queryKey: ["/api/journal"] });
-                        } else {
-                          alert("เกิดข้อผิดพลาด: " + (data.message || "ไม่ทราบ"));
-                        }
-                      } catch (e) {
-                        alert("ไม่สามารถเชื่อมต่อ server ได้");
-                      }
-                    }}
-                  >
-                    ลงบัญชีซ้ำ
-                  </Button>
                 </div>
               )}
 
