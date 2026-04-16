@@ -146,3 +146,7 @@ export async function runOneTimeSchemaV85Migration() {
     console.error("[OneTimeMigration] ❌ Error:", err.message);
   }
 }
+
+if (process.argv[1]?.includes("one-time-schema-migration")) {
+  runOneTimeSchemaV85Migration().then(() => process.exit(0)).catch(() => process.exit(1));
+}
