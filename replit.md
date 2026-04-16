@@ -6,6 +6,16 @@
 ## Overview
 The E-Tax Center is a multi-tenant digital accounting platform designed to revolutionize accounting processes for Thai accounting firms. It integrates with major e-commerce platforms (Shopee, Lazada, TikTok Shop) to automate order retrieval, tax invoice generation, and service fee calculation. The platform provides comprehensive client and human resources management (attendance, overtime, payroll), robust financial document processing, and advanced e-commerce functionalities, aiming to be a holistic solution for managing financial operations and expanding digital commerce services for its clients. Its vision is to be an all-in-one solution for managing clients' financial operations and expanding digital commerce service offerings.
 
+## ⛔ PRE-PUSH CHECKLIST (MANDATORY — DO BEFORE EVERY GIT PUSH)
+1. **Insert schema_version record** in BOTH Replit DB AND Production DB — version, description, change_type, pushed_repos
+2. **Bump SCHEMA_VERSION** constant in server/index.ts
+3. **NEVER push these files**: shared/schema.ts, server/index.ts, client/src/App.tsx
+4. **NEVER checkout `client/` as folder** — cherry-pick individual files only
+5. **NEVER `pm2 restart all`** — always `pm2 restart etax-center`
+6. **Production deploy = cherry-pick only** — list every file explicitly, no folder-level checkout
+7. **DB structure changes = one-time migration file** — never modify schema.ts for production
+8. **New table definitions for production = shared/schema-extra.ts** — not schema.ts
+
 ## Daily Git Push Rule
 - **Every morning BEFORE making any code changes**, push to GitHub first: `git push origin replit-agent:main --force` (use orphan branch method if repo is large)
 - **GitHub PAT expiry check**: Current token expires **Jun 24, 2026**. If within 7 days of expiry, warn the first person in conversation that morning.
