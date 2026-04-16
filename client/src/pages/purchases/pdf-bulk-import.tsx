@@ -180,6 +180,7 @@ export default function PdfBulkImport() {
 
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [finalElapsed, setFinalElapsed] = useState(0);
+  const [parseElapsedFinal, setParseElapsedFinal] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [batchProgress, setBatchProgress] = useState({ current: 0, total: 0, created: 0, skipped: 0, errors: 0 });
   const BATCH_SIZE = 50;
@@ -289,6 +290,7 @@ export default function PdfBulkImport() {
     },
     onSuccess: (data) => {
       if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+      setParseElapsedFinal(prev => prev + elapsedSeconds);
       setImportedFolderCount(prev => prev + 1);
 
       if (parseResult) {
@@ -913,6 +915,22 @@ export default function PdfBulkImport() {
                         {importedFolderCount} รอบนำเข้า
                       </Badge>
                     )}
+                    {parseElapsedFinal > 0 && (
+                      <span className="text-sm text-gray-500 font-mono">
+                        อ่านไฟล์ {Math.floor(parseElapsedFinal / 60)} นาที {parseElapsedFinal % 60} วินาที
+                      </span>
+                    )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => folderInputRef.current?.click()}
+                      className="gap-1.5 text-xs"
+                      style={{ borderColor: "#03c9d7", color: "#03c9d7" }}
+                      disabled={parseMutation.isPending}
+                      data-testid="button-add-more-folder"
+                    >
+                      <FolderOpen className="h-3.5 w-3.5" /> เพิ่มโฟลเดอร์
+                    </Button>
                   </div>
                   <div className="flex flex-wrap items-center gap-3">
                     <div className="flex items-center gap-2">
