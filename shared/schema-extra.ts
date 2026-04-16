@@ -1,7 +1,7 @@
 import { pgTable, serial, integer, text, varchar, decimal, date, timestamp, boolean, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
-import { companies, users } from "./schema";
+import { companies, users, tenants, subscriptionPlans } from "./schema";
 
 export const employeeCounters = pgTable("employee_counters", {
   id: serial("id").primaryKey(),
@@ -55,3 +55,104 @@ export const pdfImportTemplates = pgTable("pdf_import_templates", {
 export const insertPdfImportTemplateSchema = createInsertSchema(pdfImportTemplates).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertPdfImportTemplate = z.infer<typeof insertPdfImportTemplateSchema>;
 export type PdfImportTemplate = typeof pdfImportTemplates.$inferSelect;
+
+export const subscriptionPaymentOrders = pgTable("subscription_payment_orders", {
+  id: serial("id").primaryKey(),
+  tenantId: integer("tenant_id").references(() => tenants.id).notNull(),
+  planId: integer("plan_id").references(() => subscriptionPlans.id).notNull(),
+  amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
+  setupFeeAmount: decimal("setup_fee_amount", { precision: 10, scale: 2 }).default("0"),
+  billingCycle: text("billing_cycle").notNull().default("monthly"),
+  status: text("status").notNull().default("pending"),
+  orderType: text("order_type").notNull().default("renewal"),
+  promptpayRef: text("promptpay_ref"),
+  slipImageUrl: text("slip_image_url"),
+  confirmedByUserId: integer("confirmed_by_user_id"),
+  confirmedAt: timestamp("confirmed_at"),
+  invoiceNumber: text("invoice_number"),
+  taxInvoiceId: integer("tax_invoice_id"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertSubscriptionPaymentOrderSchema = createInsertSchema(subscriptionPaymentOrders).omit({ id: true, createdAt: true });
+export type InsertSubscriptionPaymentOrder = z.infer<typeof insertSubscriptionPaymentOrderSchema>;
+export type SubscriptionPaymentOrder = typeof subscriptionPaymentOrders.$inferSelect;
+
+export const subscriptionAddons = pgTable("subscription_addons", {
+  id: serial("id").primaryKey(),
+  code: text("code").notNull().unique(),
+  name: text("name").notNull(),
+  nameEn: text("name_en"),
+  description: text("description"),
+  monthlyPrice: decimal("monthly_price", { precision: 10, scale: 2 }).notNull().default("0"),
+  yearlyPrice: decimal("yearly_price", { precision: 10, scale: 2 }),
+  featureFlag: text("feature_flag").notNull(),
+  icon: text("icon"),
+  active: boolean("active").notNull().default(true),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertSubscriptionAddonSchema = createInsertSchema(subscriptionAddons).omit({ id: true, createdAt: true });
+export type InsertSubscriptionAddon = z.infer<typeof insertSubscriptionAddonSchema>;
+export type SubscriptionAddon = typeof subscriptionAddons.$inferSelect;
+
+export const tenantAddonSubscriptions = pgTable("tenant_addon_subscriptions", {
+  id: serial("id").primaryKey(),
+  tenantId: integer("tenant_id").references(() => tenants.id).notNull(),
+  addonId: integer("addon_id").references(() => subscriptionAddons.id).notNull(),
+  status: text("status").notNull().default("active"),
+  billingCycle: text("billing_cycle").notNull().default("monthly"),
+  startDate: timestamp("start_date").defaultNow(),
+  endDate: timestamp("end_date"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertTenantAddonSubscriptionSchema = createInsertSchema(tenantAddonSubscriptions).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertTenantAddonSubscription = z.infer<typeof insertTenantAddonSubscriptionSchema>;
+export type TenantAddonSubscription = typeof tenantAddonSubscriptions.$inferSelect;
+
+export const modulePlans = pgTable("module_plans", {
+  id: serial("id").primaryKey(),
+  moduleKey: text("module_key").notNull(),
+  tier: text("tier").notNull(),
+  name: text("name").notNull(),
+  nameEn: text("name_en"),
+  description: text("description"),
+  monthlyPrice: decimal("monthly_price", { precision: 10, scale: 2 }).notNull().default("0"),
+  yearlyPrice: decimal("yearly_price", { precision: 10, scale: 2 }),
+  maxUsers: integer("max_users").notNull().default(1),
+  maxDocuments: integer("max_documents").notNull().default(100),
+  maxCompanies: integer("max_companies").notNull().default(1),
+  limits: text("limits"),
+  features: text("features").array(),
+  popular: boolean("popular").notNull().default(false),
+  active: boolean("active").notNull().default(true),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export const insertModulePlanSchema = createInsertSchema(modulePlans).omit({ id: true, createdAt: true });
+export type InsertModulePlan = z.infer<typeof insertModulePlanSchema>;
+export type ModulePlan = typeof modulePlans.$inferSelect;
+
+export const tenantModuleSubscriptions = pgTable("tenant_module_subscriptions", {
+  id: serial("id").primaryKey(),
+  tenantId: integer("tenant_id").references(() => tenants.id).notNull(),
+  moduleKey: text("module_key").notNull(),
+  modulePlanId: integer("module_plan_id").references(() => modulePlans.id).notNull(),
+  tier: text("tier").notNull(),
+  status: text("status").notNull().default("trial"),
+  billingCycle: text("billing_cycle").notNull().default("monthly"),
+  startDate: timestamp("start_date").defaultNow(),
+  endDate: timestamp("end_date"),
+  trialEndsAt: timestamp("trial_ends_at"),
+  autoRenew: boolean("auto_renew").notNull().default(true),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+export const insertTenantModuleSubscriptionSchema = createInsertSchema(tenantModuleSubscriptions).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertTenantModuleSubscription = z.infer<typeof insertTenantModuleSubscriptionSchema>;
+export type TenantModuleSubscription = typeof tenantModuleSubscriptions.$inferSelect;

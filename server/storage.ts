@@ -2,7 +2,7 @@ import { eq, and, desc, sql, inArray, count, ne, or, ilike, gte, lte, asc, isNul
 import { db } from "./db";
 import { posDb } from "./pos-db";
 import { ecomDb } from "./ecom-db";
-import { employeeCounters, type EmployeeCounter, type InsertEmployeeCounter } from "@shared/schema-extra";
+import { employeeCounters, type EmployeeCounter, type InsertEmployeeCounter, subscriptionPaymentOrders, type SubscriptionPaymentOrder, type InsertSubscriptionPaymentOrder } from "@shared/schema-extra";
 import {
   tenants, users, companies, employees, attendanceRecords, otRecords, leaveRequests, firmClients, firmClientTeam, accounts, journalEntries, journalLines, rolePermissions, userSubPermissions,
   accountingFormulas, accountingFormulaLines, documentSettings, contacts, products, contactSettings,
@@ -72,10 +72,9 @@ import {
   type WorkBoardGroup, type InsertWorkBoardGroup,
   type WorkBoardColumn, type InsertWorkBoardColumn,
   type WorkBoardItem, type InsertWorkBoardItem,
-  subscriptionPlans, tenantSubscriptions, subscriptionPaymentOrders,
+  subscriptionPlans, tenantSubscriptions,
   type SubscriptionPlan, type InsertSubscriptionPlan,
   type TenantSubscription, type InsertTenantSubscription,
-  type SubscriptionPaymentOrder, type InsertSubscriptionPaymentOrder,
   whiteLabelSettings,
   type WhiteLabelSettings, type InsertWhiteLabelSettings,
   workStatusBoards, workStatusColumns, workStatusGroups, workStatusRows, workStatusCells, workStatusAttachments,
