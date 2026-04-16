@@ -489,8 +489,16 @@ export default function InventoryList(props: { Wrapper?: React.ComponentType<{ c
                       })()}
                     </TableCell>
                     <TableCell className="text-right text-sm text-muted-foreground">{formatNumber(product.cost)}</TableCell>
-                    <TableCell className={`text-right text-sm font-medium ${parseFloat(String(product.quantity || "0")) < 0 ? "text-red-600" : parseFloat(String(product.quantity || "0")) === 0 ? "text-muted-foreground" : "text-blue-700"}`} data-testid={`text-qty-${product.id}`}>
-                      {formatNumber(parseFloat(String(product.quantity || "0")), 2)}
+                    <TableCell className={(() => {
+                      const wTotal = (stockByWarehouse[product.id] || []).reduce((s, ws) => s + (ws.qty || 0), 0);
+                      const totalQty = wTotal > 0 ? wTotal : parseFloat(String(product.quantity || "0"));
+                      return `text-right text-sm font-medium ${totalQty < 0 ? "text-red-600" : totalQty === 0 ? "text-muted-foreground" : "text-blue-700"}`;
+                    })()} data-testid={`text-qty-${product.id}`}>
+                      {(() => {
+                        const wTotal = (stockByWarehouse[product.id] || []).reduce((s, ws) => s + (ws.qty || 0), 0);
+                        const totalQty = wTotal > 0 ? wTotal : parseFloat(String(product.quantity || "0"));
+                        return formatNumber(totalQty, 2);
+                      })()}
                     </TableCell>
                     <TableCell className="text-xs" data-testid={`text-warehouse-stock-${product.id}`}>
                       {(() => {
