@@ -592,7 +592,13 @@ app.get("/api/accounting-formulas", requireAuth, requireModule("accounting"), as
   const businessType = req.query.businessType as string | undefined;
   const documentType = req.query.documentType as string | undefined;
   const formulas = await storage.getAccountingFormulas(companyId, businessType, documentType);
-  res.json(formulas);
+  const formulasWithLines = await Promise.all(
+    formulas.map(async (f) => {
+      const lines = await storage.getFormulaLines(f.id);
+      return { ...f, lines };
+    })
+  );
+  res.json(formulasWithLines);
 });
 
 app.get("/api/accounting-formulas/available", requireAuth, async (req, res) => {
