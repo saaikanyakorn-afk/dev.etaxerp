@@ -10,6 +10,7 @@ vite.config.ts.*
 .clone-history.json
 .env
 attached_assets/
+uploads/
 cookie.txt
 /tmp/
 logs/
