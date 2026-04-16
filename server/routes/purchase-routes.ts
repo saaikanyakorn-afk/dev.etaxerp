@@ -2272,7 +2272,7 @@ export function registerPurchaseRoutes(app: Express) {
                           "TRSPEMKP": "shopee_platform_fee", "TRSPESPF": "shopeefood_fee",
                           "TRSPXADB": "spx_admin_fee", "RCSPXSPR": "shopee_shipping", "RCSPXSPB": "shopee_shipping",
                           "TTSTH": "tiktok_platform_fee", "TTSTHCN": "tiktok_platform_fee",
-                          "TTSTHAC": "ecommerce_commission", "THJV": "tiktok_shipping",
+                          "TTSTHAC": "tiktok_affiliate_commission", "THJV": "tiktok_shipping",
                           "THMPTI": "lazada_platform_fee", "THLPTI": "lazada_shipping",
                           "IM": "grab_service_fee",
                         };
@@ -2488,7 +2488,7 @@ export function registerPurchaseRoutes(app: Express) {
         "TRSLZD":   "lazada_platform_fee",
         "TTSTH":    "tiktok_platform_fee",
         "TTSTHCN":  "tiktok_platform_fee",
-        "TTSTHAC":  "ecommerce_commission",
+        "TTSTHAC":  "tiktok_affiliate_commission",
         "THJV":     "tiktok_shipping",
         "THMPTI":   "lazada_platform_fee",
         "THLPTI":   "lazada_shipping",
