@@ -464,10 +464,4 @@ export async function fullSchemaSync(): Promise<void> {
     if (!e.message?.includes("already exists")) console.log("[schema-sync] one-time migration skip:", e.message?.slice(0, 100));
   }
 
-  try {
-    const { runCleanupGarbageImportBatches } = await import("./one-time-schema-migration");
-    await runCleanupGarbageImportBatches();
-  } catch (e: any) {
-    console.log("[schema-sync] cleanup skip:", e.message?.slice(0, 100));
-  }
 }
