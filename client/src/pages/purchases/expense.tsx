@@ -433,6 +433,7 @@ export default function Expense() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/expenses"] });
       toast({ title: "อัพเดทรายจ่ายสำเร็จ", variant: "success" as any });
+      navigate("/purchases/expense");
     },
     onError: (err: any) => toast({ title: "เกิดข้อผิดพลาด", description: err.message, variant: "destructive" }),
   });
