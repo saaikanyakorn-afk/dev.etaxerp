@@ -147,6 +147,42 @@ export async function runOneTimeSchemaV85Migration() {
   }
 }
 
+const CLEANUP_KEY = "CLEANUP_GARBAGE_IMPORT_BATCHES_20260416_DONE";
+
+export async function runCleanupGarbageImportBatches() {
+  try {
+    const flagRows = await db.execute(sql`SELECT config_value FROM system_config WHERE config_key = ${CLEANUP_KEY} LIMIT 1`);
+    if ((flagRows.rows || []).length > 0) {
+      return;
+    }
+
+    console.log("[Cleanup] Starting garbage import batches cleanup...");
+
+    console.log("[Cleanup] Step 1: Backup document_import_batches...");
+    await db.execute(sql`CREATE TABLE IF NOT EXISTS backup_document_import_batches_20260416 AS SELECT * FROM document_import_batches`);
+    const backupCount = await db.execute(sql`SELECT COUNT(*) as cnt FROM backup_document_import_batches_20260416`);
+    console.log("[Cleanup] Backup created:", (backupCount.rows || [])[0], "rows");
+
+    console.log("[Cleanup] Step 2: Count garbage records...");
+    const garbageCount = await db.execute(sql`SELECT COUNT(*) as cnt FROM document_import_batches WHERE status = 'deleted'`);
+    console.log("[Cleanup] Found garbage (status=deleted):", (garbageCount.rows || [])[0]);
+
+    console.log("[Cleanup] Step 3: Delete garbage records...");
+    const deleted = await db.execute(sql`DELETE FROM document_import_batches WHERE status = 'deleted'`);
+    console.log("[Cleanup] Deleted:", deleted.rowCount, "rows");
+
+    await db.execute(sql`
+      INSERT INTO system_config (config_key, config_value, description)
+      VALUES (${CLEANUP_KEY}, ${"done_" + new Date().toISOString()}, 'Cleanup deleted document_import_batches — backup in backup_document_import_batches_20260416')
+      ON CONFLICT (config_key) DO NOTHING
+    `);
+
+    console.log("[Cleanup] ✅ Garbage cleanup complete — backup table: backup_document_import_batches_20260416");
+  } catch (err: any) {
+    console.error("[Cleanup] ❌ Error:", err.message);
+  }
+}
+
 if (process.argv[1]?.includes("one-time-schema-migration")) {
   runOneTimeSchemaV85Migration().then(() => process.exit(0)).catch(() => process.exit(1));
 }
