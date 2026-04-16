@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from "react";
+import React, { useState, useRef, useCallback, useEffect } from "react";
 import * as XLSX from "xlsx";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
@@ -180,6 +180,12 @@ export default function PdfBulkImport() {
   const [journalOverrideLines, setJournalOverrideLines] = useState<{ accountCode: string; accountName: string; debit: string; credit: string }[]>([]);
   const PAGE_SIZE = 50;
 
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [finalElapsed, setFinalElapsed] = useState(0);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [batchProgress, setBatchProgress] = useState({ current: 0, total: 0, created: 0, skipped: 0, errors: 0 });
+  const BATCH_SIZE = 50;
+
   const { data: companyPaymentMethods = [] } = useQuery<any[]>({
     queryKey: ["/api/payment-methods", companyId],
     queryFn: async () => {
@@ -330,8 +336,23 @@ export default function PdfBulkImport() {
     },
   });
 
+  const startTimer = useCallback(() => {
+    setElapsedSeconds(0);
+    setFinalElapsed(0);
+    if (timerRef.current) clearInterval(timerRef.current);
+    timerRef.current = setInterval(() => setElapsedSeconds(prev => prev + 1), 1000);
+  }, []);
+
+  const stopTimer = useCallback(() => {
+    if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+    setElapsedSeconds(prev => { setFinalElapsed(prev); return prev; });
+  }, []);
+
+  useEffect(() => { return () => { if (timerRef.current) clearInterval(timerRef.current); }; }, []);
+
   const createMutation = useMutation({
     mutationFn: async () => {
+      startTimer();
       if (!parseResult) throw new Error("ไม่มีข้อมูล");
       const docs = parseResult.documents.filter(d => selectedDocs.has(d.key) && !d.hasErrors);
       const whtRate = parseFloat(globalWhtRate) / 100;
@@ -405,35 +426,61 @@ export default function PdfBulkImport() {
       });
 
       const endpoint = docType === "expense" ? "/api/pdf-import/create-expense" : "/api/pdf-import/create-purchase";
-      const res = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
-          companyId,
-          documents: mappedDocs,
-          autoJournal,
-          journalMode: autoJournal ? journalMode : undefined,
-          autoCreateContact,
-          autoWht: docType === "expense" && whtRate > 0,
-          paymentMethod,
-          formulaId: autoJournal && selectedFormulaIdx !== "auto-detect" && selectedFormula?.id ? selectedFormula.id : undefined,
-          formulaBusinessType: autoJournal
-            ? (selectedFormulaIdx === "auto-detect" ? "auto-detect" : (selectedFormula?.businessType || undefined))
-            : undefined,
-          journalOverrideLines: editingJournal && journalOverrideLines.length > 0 ? journalOverrideLines : undefined,
-          dnFormulaBusinessType: autoJournal && selectedDnFormula?.businessType ? selectedDnFormula.businessType : undefined,
-          dnFormulaLines: autoJournal && selectedDnFormula?.lines ? selectedDnFormula.lines : undefined,
-        }),
-      });
-      if (!res.ok) {
-        let msg = "ไม่สามารถสร้างเอกสารได้";
-        try { const err = await res.json(); msg = err.message || msg; } catch {}
-        throw new Error(msg);
+      const totalBatches = Math.ceil(mappedDocs.length / BATCH_SIZE);
+      const allCreated: CreateResult["created"] = [];
+      const allSkipped: CreateResult["skipped"] = [];
+      const allErrors: CreateResult["errors"] = [];
+
+      setBatchProgress({ current: 0, total: mappedDocs.length, created: 0, skipped: 0, errors: 0 });
+
+      for (let i = 0; i < totalBatches; i++) {
+        const batch = mappedDocs.slice(i * BATCH_SIZE, (i + 1) * BATCH_SIZE);
+        const res = await fetch(endpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({
+            companyId,
+            documents: batch,
+            autoJournal,
+            journalMode: autoJournal ? journalMode : undefined,
+            autoCreateContact,
+            autoWht: docType === "expense" && whtRate > 0,
+            paymentMethod,
+            formulaId: autoJournal && selectedFormulaIdx !== "auto-detect" && selectedFormula?.id ? selectedFormula.id : undefined,
+            formulaBusinessType: autoJournal
+              ? (selectedFormulaIdx === "auto-detect" ? "auto-detect" : (selectedFormula?.businessType || undefined))
+              : undefined,
+            journalOverrideLines: editingJournal && journalOverrideLines.length > 0 ? journalOverrideLines : undefined,
+            dnFormulaBusinessType: autoJournal && selectedDnFormula?.businessType ? selectedDnFormula.businessType : undefined,
+            dnFormulaLines: autoJournal && selectedDnFormula?.lines ? selectedDnFormula.lines : undefined,
+          }),
+        });
+        if (!res.ok) {
+          let msg = `Batch ${i + 1}/${totalBatches} ล้มเหลว`;
+          try { const err = await res.json(); msg = err.message || msg; } catch {}
+          for (const doc of batch) {
+            allErrors.push({ apNo: (doc as any).apNo || (doc as any).expNo, error: msg });
+          }
+        } else {
+          const result: CreateResult = await res.json();
+          allCreated.push(...result.created);
+          allSkipped.push(...result.skipped);
+          allErrors.push(...result.errors);
+        }
+        setBatchProgress({
+          current: Math.min((i + 1) * BATCH_SIZE, mappedDocs.length),
+          total: mappedDocs.length,
+          created: allCreated.length,
+          skipped: allSkipped.length,
+          errors: allErrors.length,
+        });
       }
-      return res.json() as Promise<CreateResult>;
+
+      return { created: allCreated, skipped: allSkipped, errors: allErrors, total: mappedDocs.length } as CreateResult;
     },
     onSuccess: (data) => {
+      stopTimer();
       setCreateResult(data);
       setStep("result");
       queryClient.invalidateQueries({ queryKey: ["/api/expenses"] });
@@ -441,6 +488,7 @@ export default function PdfBulkImport() {
       queryClient.invalidateQueries({ queryKey: ["import-batches"] });
     },
     onError: (err: any) => {
+      stopTimer();
       toast({ title: "เกิดข้อผิดพลาด", description: err.message, variant: "destructive" });
     },
   });
@@ -1767,6 +1815,19 @@ export default function PdfBulkImport() {
                       <><CheckCircle2 className="h-4 w-4 mr-1" /> สร้างเอกสาร {selectedDocs.size} รายการ</>
                     )}
                   </Button>
+                  {createMutation.isPending && batchProgress.total > 0 && (
+                    <div className="flex items-center gap-3 ml-2" data-testid="import-timer">
+                      <div className="w-48 h-3 bg-gray-200 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-[#fb9678] rounded-full transition-all duration-300"
+                          style={{ width: `${Math.round((batchProgress.current / batchProgress.total) * 100)}%` }}
+                        />
+                      </div>
+                      <span className="text-sm font-mono text-gray-600 whitespace-nowrap">
+                        {batchProgress.current}/{batchProgress.total} ({Math.round((batchProgress.current / batchProgress.total) * 100)}%) — {Math.floor(elapsedSeconds / 60)}:{String(elapsedSeconds % 60).padStart(2, "0")}
+                      </span>
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -1779,6 +1840,11 @@ export default function PdfBulkImport() {
               <div className="text-center mb-6">
                 <CheckCircle2 className="h-16 w-16 text-emerald-500 mx-auto mb-3" />
                 <h2 className="text-xl font-bold" data-testid="text-result-title">สร้างเอกสารเสร็จสิ้น</h2>
+                {finalElapsed > 0 && (
+                  <p className="text-sm text-gray-500 mt-1" data-testid="text-elapsed-time">
+                    ใช้เวลา {Math.floor(finalElapsed / 60)} นาที {finalElapsed % 60} วินาที
+                  </p>
+                )}
               </div>
               <div className="grid grid-cols-3 gap-4 max-w-md mx-auto mb-6">
                 <div className="text-center p-3 bg-emerald-50 rounded-lg">
