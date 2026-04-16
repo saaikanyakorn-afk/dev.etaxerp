@@ -96,7 +96,7 @@ const S = {
 };
 
 function aggregateByIncomeType(items: any[], fallbackData: any, dateEra: string, dateFmt: string) {
-  const map: Record<string, { amountPaid: number; taxWithheld: number; descriptions: string[]; paidDate: string }> = {};
+  const map: Record<string, { amountPaid: number; taxWithheld: number; descriptions: string[]; paidDate: string; lines: Array<{ description: string; paidDate: string; amountPaid: number; taxWithheld: number }> }> = {};
   const effectiveItems = items && items.length > 0 ? items : [{
     incomeType: fallbackData.incomeType || "5",
     incomeDescription: fallbackData.incomeDescription || "",
@@ -106,12 +106,29 @@ function aggregateByIncomeType(items: any[], fallbackData: any, dateEra: string,
   }];
   for (const it of effectiveItems) {
     const key = it.incomeType || "5";
-    if (!map[key]) map[key] = { amountPaid: 0, taxWithheld: 0, descriptions: [], paidDate: formatDate(it.paidDate || fallbackData.paidDate, dateEra, dateFmt) };
-    map[key].amountPaid += parseFloat(it.amountPaid || "0");
-    map[key].taxWithheld += parseFloat(it.taxWithheld || "0");
+    if (!map[key]) map[key] = { amountPaid: 0, taxWithheld: 0, descriptions: [], paidDate: formatDate(it.paidDate || fallbackData.paidDate, dateEra, dateFmt), lines: [] };
+    const amt = parseFloat(it.amountPaid || "0");
+    const tax = parseFloat(it.taxWithheld || "0");
+    map[key].amountPaid += amt;
+    map[key].taxWithheld += tax;
     if (it.incomeDescription && !map[key].descriptions.includes(it.incomeDescription)) map[key].descriptions.push(it.incomeDescription);
+    map[key].lines.push({
+      description: it.incomeDescription || "",
+      paidDate: formatDate(it.paidDate || fallbackData.paidDate, dateEra, dateFmt),
+      amountPaid: amt,
+      taxWithheld: tax,
+    });
   }
   return map;
+}
+
+function MultiLineCell({ lines, render, align = "right" }: { lines: any[]; render: (l: any) => React.ReactNode; align?: "left" | "right" | "center" }) {
+  if (!lines || lines.length === 0) return <></>;
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "1px", textAlign: align as any }}>
+      {lines.map((l, i) => <div key={i}>{render(l)}</div>)}
+    </div>
+  );
 }
 
 export function WhtCertContent({ data, dateEra = "CE", dateFmt = "DD/MM/YYYY" }: { data: any; dateEra?: string; dateFmt?: string }) {
@@ -286,19 +303,32 @@ export function WhtCertContent({ data, dateEra = "CE", dateFmt = "DD/MM/YYYY" }:
               <td className={tdL}>
                 <div>5. การจ่ายเงินได้ที่ต้องหักภาษี ณ ที่จ่าย ตามคำสั่งกรมสรรพากรที่ออกตามมาตรา</div>
                 <div style={{ paddingLeft: "12px", fontSize: "10px" }}>3 เตรส เช่น รางวัล ส่วนลดหรือประโยชน์ใดๆ เนื่องจากการส่งเสริมการขาย รางวัลในการประกวด การแข่งขัน การชิงโชค ค่าแสดงของนักแสดงสาธารณะ ค่าจ้างทำของ ค่าโฆษณา ค่าเช่า ค่าขนส่ง ค่าบริการ ค่าเบี้ยประกันวินาศภัย ฯลฯ</div>
-                {agg["5"]?.descriptions && agg["5"].descriptions.length > 0 && (
-                  <div style={{ paddingLeft: "12px", fontWeight: 600 }}>({agg["5"].descriptions.join(", ")})</div>
+                {agg["5"]?.lines && agg["5"].lines.length > 0 && (
+                  <div style={{ paddingLeft: "12px", fontWeight: 600 }}>
+                    {agg["5"].lines.map((l, i) => (
+                      <div key={i}>({l.description || "-"})</div>
+                    ))}
+                  </div>
                 )}
               </td>
-              <td className={tdC}>{agg["5"]?.paidDate || ""}</td>
-              <td className={tdR}>{agg["5"] ? fmt(agg["5"].amountPaid) : ""}</td>
-              <td className={tdR}>{agg["5"] ? fmt(agg["5"].taxWithheld) : ""}</td>
+              <td className={tdC}><MultiLineCell lines={agg["5"]?.lines || []} render={(l) => l.paidDate} align="center" /></td>
+              <td className={tdR}><MultiLineCell lines={agg["5"]?.lines || []} render={(l) => fmt(l.amountPaid)} /></td>
+              <td className={tdR}><MultiLineCell lines={agg["5"]?.lines || []} render={(l) => fmt(l.taxWithheld)} /></td>
             </tr>
             <tr>
-              <td className={tdL}>6. อื่นๆ (ระบุ) {agg["6"]?.descriptions && agg["6"].descriptions.length > 0 ? agg["6"].descriptions.join(", ") : "..........................................................."}</td>
-              <td className={tdC}>{agg["6"]?.paidDate || ""}</td>
-              <td className={tdR}>{agg["6"] ? fmt(agg["6"].amountPaid) : ""}</td>
-              <td className={tdR}>{agg["6"] ? fmt(agg["6"].taxWithheld) : ""}</td>
+              <td className={tdL}>
+                <div>6. อื่นๆ (ระบุ) {(!agg["6"]?.lines || agg["6"].lines.length === 0) && "..........................................................."}</div>
+                {agg["6"]?.lines && agg["6"].lines.length > 0 && (
+                  <div style={{ paddingLeft: "12px", fontWeight: 600 }}>
+                    {agg["6"].lines.map((l, i) => (
+                      <div key={i}>({l.description || "-"})</div>
+                    ))}
+                  </div>
+                )}
+              </td>
+              <td className={tdC}><MultiLineCell lines={agg["6"]?.lines || []} render={(l) => l.paidDate} align="center" /></td>
+              <td className={tdR}><MultiLineCell lines={agg["6"]?.lines || []} render={(l) => fmt(l.amountPaid)} /></td>
+              <td className={tdR}><MultiLineCell lines={agg["6"]?.lines || []} render={(l) => fmt(l.taxWithheld)} /></td>
             </tr>
             <tr style={{ fontWeight: "bold" }}>
               <td className={tdR} colSpan={2}>รวมเงินที่จ่ายและภาษีที่หักนำส่ง</td>
