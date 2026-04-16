@@ -11,9 +11,16 @@ vite.config.ts.*
 .env
 attached_assets/
 uploads/
+.canvas/assets/
+client/public/assets/
 cookie.txt
 /tmp/
 logs/
+
+# Data files (import/export/temp)
+*.xlsx
+*.sql
+!drizzle/*.sql
 
 # Deploy package (may contain secrets)
 deploy-package/
