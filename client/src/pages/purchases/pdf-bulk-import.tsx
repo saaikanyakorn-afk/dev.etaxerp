@@ -241,6 +241,10 @@ export default function PdfBulkImport() {
       const allErrors: { fileName: string; error: string }[] = [];
       let totalSuccess = 0;
 
+      setElapsedSeconds(0);
+      if (timerRef.current) clearInterval(timerRef.current);
+      timerRef.current = setInterval(() => setElapsedSeconds(prev => prev + 1), 1000);
+
       setParseTotalFiles(files.length);
       setParseProgress(0);
 
@@ -284,6 +288,7 @@ export default function PdfBulkImport() {
       } as BulkParseResult;
     },
     onSuccess: (data) => {
+      if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
       setImportedFolderCount(prev => prev + 1);
 
       if (parseResult) {
@@ -328,6 +333,7 @@ export default function PdfBulkImport() {
       }
     },
     onError: (err: any) => {
+      if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
       setParseProgress(0);
       setParseTotalFiles(0);
       toast({ title: "เกิดข้อผิดพลาด", description: err.message, variant: "destructive" });
@@ -833,10 +839,11 @@ export default function PdfBulkImport() {
                     <p className="text-lg font-medium">กำลังอ่านไฟล์ PDF...</p>
                     {parseTotalFiles > 0 && (
                       <>
-                        <p className="text-sm text-gray-500">{parseProgress} / {parseTotalFiles} ไฟล์</p>
-                        <div className="w-64 bg-gray-200 rounded-full h-2">
-                          <div className="bg-[#fb9678] h-2 rounded-full transition-all" style={{ width: `${Math.round((parseProgress / parseTotalFiles) * 100)}%` }} />
+                        <p className="text-sm text-gray-500">{parseProgress} / {parseTotalFiles} ไฟล์ ({Math.round((parseProgress / parseTotalFiles) * 100)}%)</p>
+                        <div className="w-64 bg-gray-200 rounded-full h-3">
+                          <div className="bg-[#fb9678] h-3 rounded-full transition-all duration-300" style={{ width: `${Math.round((parseProgress / parseTotalFiles) * 100)}%` }} />
                         </div>
+                        <p className="text-sm font-mono text-gray-400">{Math.floor(elapsedSeconds / 60)}:{String(elapsedSeconds % 60).padStart(2, "0")}</p>
                       </>
                     )}
                   </div>
@@ -956,10 +963,18 @@ export default function PdfBulkImport() {
                     <Button variant="link" size="sm" onClick={deselectAll} className="text-xs" data-testid="button-deselect-all">ยกเลิกทั้งหมด</Button>
                   </div>
                   <div className="flex items-center gap-2">
-                    {parseMutation.isPending && (
-                      <div className="flex items-center gap-2 text-sm text-[#03c9d7]">
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        <span>กำลังอ่าน {parseProgress}/{parseTotalFiles}...</span>
+                    {parseMutation.isPending && parseTotalFiles > 0 && (
+                      <div className="flex items-center gap-3 text-sm" data-testid="parse-progress">
+                        <Loader2 className="h-4 w-4 animate-spin text-[#03c9d7]" />
+                        <div className="w-48 h-3 bg-gray-200 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-[#03c9d7] rounded-full transition-all duration-300"
+                            style={{ width: `${Math.round((parseProgress / parseTotalFiles) * 100)}%` }}
+                          />
+                        </div>
+                        <span className="font-mono text-gray-600 whitespace-nowrap">
+                          {parseProgress}/{parseTotalFiles} ({Math.round((parseProgress / parseTotalFiles) * 100)}%) — {Math.floor(elapsedSeconds / 60)}:{String(elapsedSeconds % 60).padStart(2, "0")}
+                        </span>
                       </div>
                     )}
                     {parseResult && parseResult.documents.length > 0 && (
