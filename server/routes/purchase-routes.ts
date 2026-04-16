@@ -2321,6 +2321,99 @@ export function registerPurchaseRoutes(app: Express) {
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
+  app.post("/api/pdf-import/preview-formulas", requireAuth, requireModule("purchases"), async (req, res) => {
+    try {
+      const { companyId, documents } = req.body;
+      if (!companyId || !documents || !Array.isArray(documents)) {
+        return res.status(400).json({ message: "ข้อมูลไม่ถูกต้อง" });
+      }
+
+      const company = await db.select({ businessType: companies.businessType }).from(companies).where(eq(companies.id, companyId)).limit(1);
+      const isRestaurant = company[0]?.businessType === "restaurant";
+
+      const RESTAURANT_PREFIX_MAP: Record<string, string> = { "IM": "restaurant_grab_gp", "TRSPESPF": "restaurant_shopeefood_gp" };
+      const RESTAURANT_PLAT_MAP: Record<string, string> = {
+        "grab:service_fee": "restaurant_grab_gp", "grab:platform_fee": "restaurant_grab_gp", "grab:commission": "restaurant_grab_gp", "grab:mixed": "restaurant_grab_gp",
+        "lineman:service_fee": "restaurant_lineman_gp", "lineman:platform_fee": "restaurant_lineman_gp", "lineman:commission": "restaurant_lineman_gp", "lineman:mixed": "restaurant_lineman_gp",
+        "foodpanda:service_fee": "restaurant_foodpanda_gp", "foodpanda:platform_fee": "restaurant_foodpanda_gp", "foodpanda:commission": "restaurant_foodpanda_gp", "foodpanda:mixed": "restaurant_foodpanda_gp",
+        "robinhood:service_fee": "restaurant_robinhood_gp", "robinhood:platform_fee": "restaurant_robinhood_gp", "robinhood:commission": "restaurant_robinhood_gp", "robinhood:mixed": "restaurant_robinhood_gp",
+        "shopee:service_fee": "restaurant_shopeefood_gp", "other:mixed": "platform_fee",
+      };
+
+      const PREFIX_MAP: Record<string, string> = {
+        "TRSPEMKP": "shopee_platform_fee", "TRSPESPF": "shopeefood_fee",
+        "TRSPXADB": "spx_admin_fee", "RCSPXSPR": "shopee_shipping", "RCSPXSPB": "shopee_shipping",
+        "TRSLZD": "lazada_platform_fee", "TTSTH": "tiktok_platform_fee", "TTSTHCN": "tiktok_platform_fee",
+        "TTSTHAC": "tiktok_affiliate_commission", "THJV": "tiktok_shipping",
+        "THMPTI": "lazada_platform_fee", "THLPTI": "lazada_shipping", "IM": "grab_service_fee",
+      };
+      const PLAT_MAP: Record<string, string> = {
+        "shopee:platform_fee": "shopee_platform_fee", "shopee:shipping": "shopee_shipping",
+        "shopee:commission": "shopee_platform_fee", "shopee:service_fee": "shopeefood_fee",
+        "shopee:mixed": "shopee_platform_fee",
+        "tiktok:platform_fee": "tiktok_platform_fee", "tiktok:shipping": "tiktok_shipping",
+        "tiktok:commission": "ecommerce_commission", "tiktok:mixed": "tiktok_platform_fee",
+        "lazada:platform_fee": "lazada_platform_fee", "lazada:shipping": "lazada_shipping",
+        "lazada:commission": "lazada_platform_fee", "lazada:mixed": "lazada_platform_fee",
+        "grab:service_fee": "grab_service_fee", "grab:mixed": "grab_service_fee",
+        "other:mixed": "platform_fee",
+      };
+
+      function resolveFormula(doc: any): string {
+        if (isRestaurant) {
+          if (doc.invoicePrefix && RESTAURANT_PREFIX_MAP[doc.invoicePrefix]) return RESTAURANT_PREFIX_MAP[doc.invoicePrefix];
+          const rKey = `${doc.platform || "other"}:${doc.docSubType || "mixed"}`;
+          if (RESTAURANT_PLAT_MAP[rKey]) return RESTAURANT_PLAT_MAP[rKey];
+        }
+        if (doc.invoicePrefix) {
+          const sorted = Object.keys(PREFIX_MAP).sort((a, b) => b.length - a.length);
+          for (const k of sorted) {
+            if (doc.invoicePrefix.startsWith(k)) return PREFIX_MAP[k];
+          }
+        }
+        if (doc.invoiceNo) {
+          const upper = doc.invoiceNo.toUpperCase();
+          const sorted = Object.keys(PREFIX_MAP).sort((a, b) => b.length - a.length);
+          for (const k of sorted) {
+            if (upper.startsWith(k)) return PREFIX_MAP[k];
+          }
+        }
+        const key = `${doc.platform || "other"}:${doc.docSubType || "mixed"}`;
+        return PLAT_MAP[key] || "platform_fee";
+      }
+
+      const formulaCounts = new Map<string, number>();
+      for (const doc of documents) {
+        const bt = resolveFormula(doc);
+        formulaCounts.set(bt, (formulaCounts.get(bt) || 0) + 1);
+      }
+
+      const uniqueBts = Array.from(formulaCounts.keys());
+      const dbFormulas = uniqueBts.length > 0
+        ? await db.select({ businessType: accountingFormulas.businessType, name: accountingFormulas.name, nameTh: accountingFormulas.nameTh, documentType: accountingFormulas.documentType, id: accountingFormulas.id })
+            .from(accountingFormulas)
+            .where(and(eq(accountingFormulas.companyId, companyId), eq(accountingFormulas.active, true), inArray(accountingFormulas.businessType, uniqueBts)))
+        : [];
+
+      const dbFormulaMap = new Map<string, { id: number; name: string; nameTh: string | null; documentType: string }>();
+      for (const f of dbFormulas) {
+        if (!dbFormulaMap.has(f.businessType)) {
+          dbFormulaMap.set(f.businessType, { id: f.id, name: f.name, nameTh: f.nameTh, documentType: f.documentType });
+        }
+      }
+
+      const results = uniqueBts.map(bt => ({
+        businessType: bt,
+        count: formulaCounts.get(bt) || 0,
+        exists: dbFormulaMap.has(bt),
+        formulaName: dbFormulaMap.get(bt)?.nameTh || dbFormulaMap.get(bt)?.name || null,
+        formulaId: dbFormulaMap.get(bt)?.id || null,
+      }));
+
+      res.json({ formulas: results, total: documents.length });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
   app.post("/api/pdf-import/create-expense", requireAuth, requireModule("purchases"), async (req, res) => {
     try {
       const user = req.user as any;

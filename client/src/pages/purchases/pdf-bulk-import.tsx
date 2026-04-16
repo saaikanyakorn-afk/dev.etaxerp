@@ -230,10 +230,48 @@ export default function PdfBulkImport() {
     ? companyPaymentMethods.map((m: any) => ({ value: m.code || m.name, label: m.name }))
     : FALLBACK_PAYMENT_METHODS;
 
+  const [formulaPreview, setFormulaPreview] = useState<{ businessType: string; count: number; exists: boolean; formulaName: string | null; formulaId: number | null }[] | null>(null);
+  const [formulaPreviewLoading, setFormulaPreviewLoading] = useState(false);
+
   const [parseProgress, setParseProgress] = useState(0);
   const [parseTotalFiles, setParseTotalFiles] = useState(0);
 
   const [importedFolderCount, setImportedFolderCount] = useState(0);
+
+  const BUSINESS_TYPE_LABELS: Record<string, string> = {
+    shopee_platform_fee: "Shopee ค่าบริการ", shopeefood_fee: "ShopeeFood ค่าบริการ",
+    spx_admin_fee: "SPX Admin Fee", shopee_shipping: "Shopee ค่าขนส่ง",
+    tiktok_platform_fee: "TikTok ค่าบริการ", tiktok_affiliate_commission: "TikTok Affiliate ค่าคอมมิชชั่น",
+    tiktok_shipping: "TikTok ค่าขนส่ง", lazada_platform_fee: "Lazada ค่าบริการ",
+    lazada_shipping: "Lazada ค่าขนส่ง", grab_service_fee: "Grab ค่าบริการ",
+    ecommerce_commission: "E-Commerce ค่าคอมมิชชั่น", platform_fee: "ค่าบริการแพลตฟอร์ม",
+    restaurant_grab_gp: "ร้านอาหาร Grab GP", restaurant_lineman_gp: "ร้านอาหาร LINE MAN GP",
+    restaurant_foodpanda_gp: "ร้านอาหาร Foodpanda GP", restaurant_robinhood_gp: "ร้านอาหาร Robinhood GP",
+    restaurant_shopeefood_gp: "ร้านอาหาร ShopeeFood GP",
+  };
+
+  const loadFormulaPreview = useCallback(async (docs: ParsedDoc[]) => {
+    if (!companyId || docs.length === 0) return;
+    setFormulaPreviewLoading(true);
+    try {
+      const res = await fetch("/api/pdf-import/preview-formulas", {
+        method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
+        body: JSON.stringify({ companyId, documents: docs }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setFormulaPreview(data.formulas || []);
+      }
+    } catch {} finally { setFormulaPreviewLoading(false); }
+  }, [companyId]);
+
+  const hasFormulaErrors = formulaPreview?.some(f => !f.exists) || false;
+
+  useEffect(() => {
+    if (selectedFormulaIdx === "auto-detect" && parseResult?.documents && parseResult.documents.length > 0 && !formulaPreview) {
+      loadFormulaPreview(parseResult.documents);
+    }
+  }, [selectedFormulaIdx, parseResult, formulaPreview, loadFormulaPreview]);
 
   const parseMutation = useMutation({
     mutationFn: async (files: File[]) => {
@@ -333,6 +371,8 @@ export default function PdfBulkImport() {
       if (hasPlatformDocs) {
         setSelectedFormulaIdx("auto-detect");
       }
+      const allDocs = parseResult ? [...parseResult.documents, ...data.documents.filter(d => !parseResult.documents.some(e => e.key === d.key))] : data.documents;
+      loadFormulaPreview(allDocs);
     },
     onError: (err: any) => {
       if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
@@ -1504,27 +1544,49 @@ export default function PdfBulkImport() {
                       )}
                     </div>
                     {selectedFormulaIdx === "auto-detect" && !editingJournal ? (
-                      <div className="bg-white rounded border p-4 text-sm text-gray-600">
-                        <p className="font-medium text-gray-800 mb-2">โหมด Auto-Detect — สูตรจะถูกเลือกตามประเภทเอกสารอัตโนมัติ</p>
-                        <p className="text-xs text-gray-500 mb-3">แต่ละเอกสารจะถูกจับคู่สูตรบัญชีจาก Invoice No. prefix โดยอัตโนมัติ<br/>Journal Entry จะแยกตามวันที่ + ประเภทแพลตฟอร์ม</p>
-                        <div className="grid grid-cols-2 gap-2 text-xs">
-                          {[
-                            { prefix: "TRSPEMKP", label: "Shopee ค่าบริการ", acct: "5241+5251+5271" },
-                            { prefix: "TRSPESPF", label: "ShopeeFood", acct: "5245+5255" },
-                            { prefix: "TRSPXADB", label: "SPX Admin Fee", acct: "5256" },
-                            { prefix: "RCSPXSPR/B", label: "SPX ค่าขนส่ง", acct: "5265" },
-                            { prefix: "TTSTH", label: "TikTok ค่าบริการ", acct: "5243+5253+5273" },
-                            { prefix: "THJV", label: "TikTok ค่าขนส่ง", acct: "5267" },
-                            { prefix: "THMPTI", label: "Lazada ค่าบริการ", acct: "5242+5252+5272" },
-                            { prefix: "THLPTI", label: "Lazada ค่าขนส่ง", acct: "5266" },
-                            { prefix: "IM", label: "Grab ค่าบริการ", acct: "5244+5254" },
-                          ].map(r => (
-                            <div key={r.prefix} className="flex justify-between bg-gray-50 rounded px-2 py-1">
-                              <span className="font-mono text-gray-500">{r.prefix}</span>
-                              <span>{r.label} → {r.acct}</span>
+                      <div className="bg-white rounded border p-4 text-sm text-gray-600" data-testid="formula-preview-panel">
+                        <p className="font-medium text-gray-800 mb-2">สูตรบัญชีที่จะใช้ (Auto-Detect จาก Invoice No.)</p>
+                        {formulaPreviewLoading ? (
+                          <div className="flex items-center gap-2 py-4 justify-center text-gray-500">
+                            <Loader2 className="h-4 w-4 animate-spin" /> กำลังตรวจสอบสูตรบัญชี...
+                          </div>
+                        ) : formulaPreview && formulaPreview.length > 0 ? (
+                          <>
+                            {hasFormulaErrors && (
+                              <div className="bg-red-50 border border-red-200 rounded p-3 mb-3 text-red-700 text-xs" data-testid="formula-missing-warning">
+                                <AlertCircle className="h-4 w-4 inline mr-1" />
+                                <strong>ไม่สามารถสร้างเอกสารได้</strong> — กรุณาไปตั้งสูตรบัญชีที่ขาดก่อน (เมนู "สูตรบัญชีอัตโนมัติ")
+                              </div>
+                            )}
+                            <div className="space-y-1.5">
+                              {formulaPreview.map(f => (
+                                <div key={f.businessType} className={`flex items-center justify-between rounded px-3 py-2 text-xs ${f.exists ? "bg-green-50 border border-green-200" : "bg-red-50 border border-red-200"}`} data-testid={`formula-row-${f.businessType}`}>
+                                  <div className="flex items-center gap-2">
+                                    {f.exists ? <CheckCircle2 className="h-4 w-4 text-green-600" /> : <XCircle className="h-4 w-4 text-red-500" />}
+                                    <span className="font-medium">{BUSINESS_TYPE_LABELS[f.businessType] || f.businessType}</span>
+                                    <Badge variant="outline" className="text-[10px]">{f.count} เอกสาร</Badge>
+                                  </div>
+                                  <div className="text-right">
+                                    {f.exists ? (
+                                      <span className="text-green-700">{f.formulaName}</span>
+                                    ) : (
+                                      <span className="text-red-600 font-medium">ยังไม่มีสูตร "{f.businessType}"</span>
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
                             </div>
-                          ))}
-                        </div>
+                            {!hasFormulaErrors && (
+                              <p className="text-xs text-green-600 mt-2">
+                                <CheckCircle2 className="h-3 w-3 inline mr-1" /> สูตรบัญชีครบทุกประเภท — พร้อมสร้างเอกสาร
+                              </p>
+                            )}
+                          </>
+                        ) : formulaPreview && formulaPreview.length === 0 ? (
+                          <p className="text-xs text-amber-600 py-2">ไม่พบเอกสารที่ต้องใช้สูตร Auto-Detect</p>
+                        ) : (
+                          <p className="text-xs text-gray-500 py-2">อัปโหลดเอกสารเพื่อตรวจสอบสูตรบัญชี</p>
+                        )}
                       </div>
                     ) : editingJournal ? (
                     <div className="bg-white rounded border overflow-x-auto">
@@ -1804,7 +1866,7 @@ export default function PdfBulkImport() {
                   </Button>
                   <Button
                     onClick={() => createMutation.mutate()}
-                    disabled={selectedDocs.size === 0 || createMutation.isPending}
+                    disabled={selectedDocs.size === 0 || createMutation.isPending || (selectedFormulaIdx === "auto-detect" && hasFormulaErrors)}
                     className="bg-[#fb9678] hover:bg-[#e8856a] text-white"
                     data-testid="button-create-all"
                   >
