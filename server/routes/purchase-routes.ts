@@ -2388,11 +2388,22 @@ export function registerPurchaseRoutes(app: Express) {
         formulaCounts.set(bt, (formulaCounts.get(bt) || 0) + 1);
       }
 
+      const user = req.user as any;
+      const userCompanyIds: number[] = (user.companies || []).map((c: any) => c.id || c.companyId);
+      if (user.role !== "superadmin" && !userCompanyIds.includes(companyId)) {
+        return res.status(403).json({ message: "ไม่มีสิทธิ์เข้าถึงบริษัทนี้" });
+      }
+
       const uniqueBts = Array.from(formulaCounts.keys());
       const dbFormulas = uniqueBts.length > 0
         ? await db.select({ businessType: accountingFormulas.businessType, name: accountingFormulas.name, nameTh: accountingFormulas.nameTh, documentType: accountingFormulas.documentType, id: accountingFormulas.id })
             .from(accountingFormulas)
-            .where(and(eq(accountingFormulas.companyId, companyId), eq(accountingFormulas.active, true), inArray(accountingFormulas.businessType, uniqueBts)))
+            .where(and(
+              eq(accountingFormulas.companyId, companyId),
+              eq(accountingFormulas.active, true),
+              inArray(accountingFormulas.businessType, uniqueBts),
+              or(eq(accountingFormulas.documentType, "expense"), eq(accountingFormulas.documentType, "purchase"))
+            ))
         : [];
 
       const dbFormulaMap = new Map<string, { id: number; name: string; nameTh: string | null; documentType: string }>();
