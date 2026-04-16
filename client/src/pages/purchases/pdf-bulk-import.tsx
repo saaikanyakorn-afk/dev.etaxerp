@@ -877,26 +877,27 @@ export default function PdfBulkImport() {
                   <FolderOpen className="h-4 w-4" /> เลือกโฟลเดอร์
                 </Button>
               </div>
-              <input
-                ref={fileInputRef}
-                type="file"
-                multiple
-                accept=".pdf"
-                className="hidden"
-                onChange={handleFileSelect}
-                data-testid="input-pdf-files"
-              />
-              <input
-                ref={folderInputRef}
-                type="file"
-                className="hidden"
-                onChange={handleFolderSelect}
-                {...({ webkitdirectory: "", directory: "", multiple: true } as any)}
-                data-testid="input-folder"
-              />
             </CardContent>
           </Card>
         )}
+
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          accept=".pdf"
+          className="hidden"
+          onChange={handleFileSelect}
+          data-testid="input-pdf-files"
+        />
+        <input
+          ref={folderInputRef}
+          type="file"
+          className="hidden"
+          onChange={handleFolderSelect}
+          {...({ webkitdirectory: "", directory: "", multiple: true } as any)}
+          data-testid="input-folder"
+        />
 
         {step === "preview" && parseResult && (
           <div className="space-y-4">
