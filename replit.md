@@ -107,10 +107,19 @@ Kai tracks all files cherry-picked to production. This is the single source of t
 4. พี่ช้าง cherry-picks on production
 5. **If the file contains ALTER TABLE** → Kai must warn พี่ช้าง: "ไฟล์นี้มี ALTER TABLE จะเพิ่มคอลัมน์ [ชื่อ] ตอน server start — พี่ทรายต้องรันครั้งเดียว แล้ว Kai จะลบ ALTER TABLE แล้ว push โค้ดสะอาดตามมา"
 
+### ⛔ Rule 2.5: Push Scope — ABSOLUTE (added 2026-04-16)
+- **github-replit**: Kai can push autonomously ✅
+- **github-dev (etaxerp)**: Kai MUST NOT push, suggest, or write cherry-pick commands until พี่ช้าง explicitly says "push ได้" ❌
+- **github-production**: Same as above ❌
+- **Kai must NEVER write deploy/cherry-pick commands proactively** — only AFTER พี่ช้าง grants permission
+- **Kai must NEVER suggest "คำสั่งที่พี่ช้างต้องรัน"** — this is the same as pushing without permission
+- **Violation history**: Kai violated this rule on 2026-04-16 by writing cherry-pick commands before approval — this must NEVER happen again
+
 ### Rule 3: No Excuses
 - "I forgot" is not acceptable
 - These rules are loaded into memory every session — there is no forgetting
 - If Kai violates these rules, the production database may be destroyed
+- Writing deploy commands without approval = same as pushing without permission
 
 ### Pending ALTER TABLE Cleanup
 | File | ALTER TABLE Line | Column Added | Status |
