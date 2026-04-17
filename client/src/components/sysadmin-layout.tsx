@@ -45,6 +45,7 @@ function ForceChangePasswordScreen({ me, onChanged }: { me: SysAdminMe; onChange
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showCurrent, setShowCurrent] = useState(false);
   const [showNew, setShowNew] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
   const [error, setError] = useState("");
   const [errors, setErrors] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
@@ -174,15 +175,24 @@ function ForceChangePasswordScreen({ me, onChanged }: { me: SysAdminMe; onChange
 
           <div>
             <Label className="text-gray-300 text-sm">ยืนยันรหัสผ่านใหม่</Label>
-            <Input
-              type="password"
-              value={confirmPassword}
-              onChange={e => setConfirmPassword(e.target.value)}
-              className="bg-gray-700 border-gray-600 text-white placeholder:text-gray-500 mt-1"
-              placeholder="••••••••"
-              autoComplete="off"
-              data-testid="input-confirm-password"
-            />
+            <div className="relative mt-1">
+              <Input
+                type={showConfirm ? "text" : "password"}
+                value={confirmPassword}
+                onChange={e => setConfirmPassword(e.target.value)}
+                className="bg-gray-700 border-gray-600 text-white placeholder:text-gray-500 pr-10"
+                placeholder="••••••••"
+                autoComplete="off"
+                data-testid="input-confirm-password"
+              />
+              <button
+                type="button"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
+                onClick={() => setShowConfirm(!showConfirm)}
+              >
+                {showConfirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
             {confirmPassword && newPassword !== confirmPassword && (
               <p className="text-[10px] text-red-400 mt-1">รหัสผ่านไม่ตรงกัน</p>
             )}
