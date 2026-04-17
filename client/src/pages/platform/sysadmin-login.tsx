@@ -1,11 +1,18 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Shield, Eye, EyeOff, LogIn, AlertTriangle, UserPlus,
   Smartphone, MessageCircle, Mail, ChevronRight, ChevronLeft,
-  CheckCircle2, Key, Copy, Check, Loader2,
+  CheckCircle2, Key, Copy, Check, Loader2, Search, X,
 } from "lucide-react";
+
+type ForestLineEntry = {
+  lineUserId: string;
+  displayName: string;
+  source?: string;
+  lastSeenAt?: string | null;
+};
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -30,6 +37,55 @@ export default function SysAdminLogin() {
 
   const [bootstrapStep, setBootstrapStep] = useState<BootstrapStep>("info");
   const [twoFAMethod, setTwoFAMethod] = useState<TwoFAMethod | "">("");
+
+  const [lineSearch, setLineSearch] = useState("");
+  const [lineSearchDebounced, setLineSearchDebounced] = useState("");
+  const [linePickerOpen, setLinePickerOpen] = useState(false);
+  const [selectedLineDisplayName, setSelectedLineDisplayName] = useState("");
+  const linePickerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const t = setTimeout(() => setLineSearchDebounced(lineSearch.trim()), 250);
+    return () => clearTimeout(t);
+  }, [lineSearch]);
+
+  const { data: forestLineResults = [], isFetching: forestLineFetching } = useQuery<ForestLineEntry[]>({
+    queryKey: ["/api/sysadmin/forest-line-directory", lineSearchDebounced],
+    enabled: bootstrapMode && linePickerOpen && lineSearchDebounced.length >= 1 && !lineUserId,
+    queryFn: async () => {
+      const res = await fetch(`/api/sysadmin/forest-line-directory?q=${encodeURIComponent(lineSearchDebounced)}`, { credentials: "include" });
+      if (!res.ok) return [];
+      const data = await res.json();
+      return Array.isArray(data) ? data : (data.items || []);
+    },
+    retry: false,
+  });
+
+  useEffect(() => {
+    if (!linePickerOpen) return;
+    const onClickAway = (e: MouseEvent) => {
+      if (linePickerRef.current && !linePickerRef.current.contains(e.target as Node)) {
+        setLinePickerOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onClickAway);
+    return () => document.removeEventListener("mousedown", onClickAway);
+  }, [linePickerOpen]);
+
+  const handlePickLine = (entry: ForestLineEntry) => {
+    setLineUserId(entry.lineUserId);
+    setSelectedLineDisplayName(entry.displayName);
+    setLineSearch(entry.displayName);
+    setLinePickerOpen(false);
+  };
+
+  const handleClearLine = () => {
+    setLineUserId("");
+    setSelectedLineDisplayName("");
+    setLineSearch("");
+    setLinePickerOpen(false);
+  };
+
   const [totpUri, setTotpUri] = useState("");
   const [otpCode, setOtpCode] = useState("");
   const [otpSent, setOtpSent] = useState(false);
@@ -380,16 +436,92 @@ export default function SysAdminLogin() {
                   />
                 </div>
 
-                <div>
-                  <Label className="text-gray-300 text-sm">LINE User ID</Label>
-                  <Input
-                    value={lineUserId}
-                    onChange={e => setLineUserId(e.target.value)}
-                    className="bg-gray-700 border-gray-600 text-white placeholder:text-gray-500 mt-1 font-mono"
-                    placeholder="U1234567890abcdef..."
-                    data-testid="input-bootstrap-line-id"
-                  />
-                  <p className="text-[10px] text-gray-500 mt-1">จำเป็นถ้าเลือก 2FA ผ่าน LINE</p>
+                <div ref={linePickerRef} className="relative">
+                  <Label className="text-gray-300 text-sm">LINE</Label>
+                  <div className="relative mt-1">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500 pointer-events-none" />
+                    <Input
+                      value={lineSearch}
+                      onChange={e => {
+                        setLineSearch(e.target.value);
+                        if (lineUserId) {
+                          setLineUserId("");
+                          setSelectedLineDisplayName("");
+                        }
+                        setLinePickerOpen(true);
+                      }}
+                      onFocus={() => setLinePickerOpen(true)}
+                      className="bg-gray-700 border-gray-600 text-white placeholder:text-gray-500 pl-9 pr-9"
+                      placeholder="ค้นหาด้วยชื่อ / ชื่อบัญชี LINE"
+                      autoComplete="off"
+                      data-testid="input-bootstrap-line-search"
+                    />
+                    {lineSearch && (
+                      <button
+                        type="button"
+                        onClick={handleClearLine}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
+                        data-testid="btn-clear-line"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+
+                  {lineUserId && selectedLineDisplayName && !linePickerOpen && (
+                    <div className="flex items-center gap-1.5 mt-1.5 text-[11px] text-green-400" data-testid="badge-line-verified">
+                      <CheckCircle2 className="h-3 w-3" />
+                      ทราบจาก Forest — {selectedLineDisplayName}
+                    </div>
+                  )}
+
+                  {linePickerOpen && !lineUserId && (
+                    <div className="absolute left-0 right-0 top-full mt-1 bg-gray-800 border border-gray-600 rounded-lg shadow-2xl max-h-64 overflow-y-auto z-50" data-testid="dropdown-line-picker">
+                      {lineSearchDebounced.length < 1 ? (
+                        <div className="p-3 text-xs text-gray-500 text-center">
+                          พิมพ์ชื่อเพื่อค้นหา LINE ที่รู้จักใน Forest
+                        </div>
+                      ) : forestLineFetching ? (
+                        <div className="p-3 text-xs text-gray-500 text-center flex items-center justify-center gap-2">
+                          <Loader2 className="h-3 w-3 animate-spin" /> กำลังค้นหา...
+                        </div>
+                      ) : forestLineResults.length === 0 ? (
+                        <div className="p-3 text-xs text-amber-300 text-center">
+                          <AlertTriangle className="h-3.5 w-3.5 inline mr-1" />
+                          ยังไม่พบใน Forest — เพิ่ม LINE Friend ของบอทก่อน แล้วค่อยกลับมาเลือก
+                        </div>
+                      ) : (
+                        <ul className="py-1">
+                          {forestLineResults.map((entry, i) => (
+                            <li key={`${entry.lineUserId}-${i}`}>
+                              <button
+                                type="button"
+                                onClick={() => handlePickLine(entry)}
+                                className="w-full text-left px-3 py-2 hover:bg-gray-700 transition-colors flex items-start gap-2"
+                                data-testid={`option-line-${i}`}
+                              >
+                                <MessageCircle className="h-4 w-4 text-green-400 mt-0.5 shrink-0" />
+                                <div className="min-w-0 flex-1">
+                                  <div className="text-sm text-white truncate">{entry.displayName}</div>
+                                  {(entry.source || entry.lastSeenAt) && (
+                                    <div className="text-[10px] text-gray-400 truncate">
+                                      {entry.source && <span>{entry.source}</span>}
+                                      {entry.source && entry.lastSeenAt && <span> · </span>}
+                                      {entry.lastSeenAt && <span>เห็นล่าสุด {new Date(entry.lastSeenAt).toLocaleDateString("th-TH")}</span>}
+                                    </div>
+                                  )}
+                                </div>
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  )}
+
+                  <p className="text-[10px] text-gray-500 mt-1">
+                    ไม่บังคับ — แต่จำเป็นถ้าเลือก 2FA ผ่าน LINE (ผู้ใช้ไม่ทราบ ID ยาวของตัวเอง — เลือกจากรายชื่อที่ Forest รู้จักเท่านั้น)
+                  </p>
                 </div>
 
                 <div>
