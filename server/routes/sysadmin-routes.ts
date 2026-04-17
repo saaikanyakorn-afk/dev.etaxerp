@@ -782,9 +782,16 @@ export function registerSysAdminRoutes(app: Express) {
   app.post("/api/sysadmin/users", requireSysAdminAuth, async (req, res) => {
     try {
       const session = req.session as any;
-      const { username, password, fullName, email } = req.body;
+      const { username, password, fullName, email, lineUserId, twoFactorMethod } = req.body;
       if (!username || !password || !fullName) {
         return res.status(400).json({ message: "กรุณากรอกข้อมูลให้ครบ" });
+      }
+      if (!lineUserId || !String(lineUserId).trim()) {
+        return res.status(400).json({ message: "กรุณากรอก LINE User ID (ใช้สำหรับ 2FA)" });
+      }
+      const method = twoFactorMethod || "line";
+      if (!["totp", "line", "email"].includes(method)) {
+        return res.status(400).json({ message: "วิธี 2FA ไม่ถูกต้อง" });
       }
 
       const policy = await getPasswordPolicy();
@@ -804,6 +811,9 @@ export function registerSysAdminRoutes(app: Express) {
         password: hashed,
         fullName,
         email: email || null,
+        lineUserId: String(lineUserId).trim(),
+        twoFactorMethod: method,
+        twoFactorVerified: false,
         isMaster: false,
         mustChangePassword: true,
         passwordExpiryDays: policy.expiryDays,

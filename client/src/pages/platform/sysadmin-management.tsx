@@ -141,7 +141,7 @@ function PasswordStrengthBar({ password, policy }: { password: string; policy: P
 function AddSysAdminDialog({ onClose, policy }: { onClose: () => void; policy: PasswordPolicy | null }) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const [form, setForm] = useState({ username: "", password: "", fullName: "", email: "" });
+  const [form, setForm] = useState({ username: "", password: "", fullName: "", email: "", lineUserId: "" });
   const [showPw, setShowPw] = useState(false);
 
   const createMut = useMutation({
@@ -150,7 +150,7 @@ function AddSysAdminDialog({ onClose, policy }: { onClose: () => void; policy: P
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify(data),
+        body: JSON.stringify({ ...data, twoFactorMethod: "line" }),
       });
       if (!res.ok) {
         const err = await res.json();
@@ -188,6 +188,11 @@ function AddSysAdminDialog({ onClose, policy }: { onClose: () => void; policy: P
             <Input value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} placeholder="email@example.com" data-testid="input-sysadmin-email" />
           </div>
           <div>
+            <Label className="text-sm font-medium">LINE User ID * <span className="text-xs text-gray-400 font-normal">(2FA)</span></Label>
+            <Input value={form.lineUserId} onChange={e => setForm({ ...form, lineUserId: e.target.value })} placeholder="Uxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" className="font-mono" data-testid="input-sysadmin-line-user-id" />
+            <p className="text-xs text-gray-500 mt-1">ใช้ยืนยันตัวตน 2 ขั้นตอนผ่าน LINE OTP</p>
+          </div>
+          <div>
             <Label className="text-sm font-medium">รหัสผ่าน *</Label>
             <div className="flex gap-2">
               <Input
@@ -215,7 +220,7 @@ function AddSysAdminDialog({ onClose, policy }: { onClose: () => void; policy: P
           <Button
             className="bg-[#fb9678] hover:bg-[#e8855a] text-white"
             onClick={() => createMut.mutate(form)}
-            disabled={createMut.isPending || !form.username || !form.password || !form.fullName}
+            disabled={createMut.isPending || !form.username || !form.password || !form.fullName || !form.lineUserId.trim()}
             data-testid="btn-save-sysadmin"
           >
             <Check className="h-4 w-4 mr-1" /> {createMut.isPending ? "กำลังบันทึก..." : "เพิ่ม SysAdmin"}
