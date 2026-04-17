@@ -582,7 +582,7 @@ export default function WarehousePage(props: { Wrapper?: React.ComponentType<{ c
                                   {status.label}
                                 </Badge>
                                 {!(p as any).active && (
-                                  <Badge variant="outline" className="text-[9px] px-1.5 py-0 bg-slate-200 text-slate-600 border-slate-300" data-testid={`badge-inactive-card-${p.id}`}>
+                                  <Badge variant="outline" className="text-[9px] px-1.5 py-0 bg-red-100 text-red-700 border-red-300" data-testid={`badge-inactive-card-${p.id}`}>
                                     เลิกใช้งาน
                                   </Badge>
                                 )}
@@ -707,7 +707,7 @@ export default function WarehousePage(props: { Wrapper?: React.ComponentType<{ c
                                 <div className="text-xs font-medium flex items-center gap-2" data-testid={`text-product-name-${p.id}`}>
                                   {p.name}
                                   {!(p as any).active && (
-                                    <Badge variant="outline" className="text-[9px] px-1.5 py-0 bg-slate-200 text-slate-600 border-slate-300" data-testid={`badge-inactive-row-${p.id}`}>
+                                    <Badge variant="outline" className="text-[9px] px-1.5 py-0 bg-red-100 text-red-700 border-red-300" data-testid={`badge-inactive-row-${p.id}`}>
                                       เลิกใช้งาน
                                     </Badge>
                                   )}

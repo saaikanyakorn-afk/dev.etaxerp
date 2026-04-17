@@ -597,7 +597,7 @@ export default function InventoryList(props: { Wrapper?: React.ComponentType<{ c
                       <div className="font-medium flex items-center gap-2">
                         {product.name}
                         {!product.active && (
-                          <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-slate-200 text-slate-600 border-slate-300" data-testid={`badge-inactive-${product.id}`}>
+                          <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-red-100 text-red-700 border-red-300" data-testid={`badge-inactive-${product.id}`}>
                             เลิกใช้งาน
                           </Badge>
                         )}
