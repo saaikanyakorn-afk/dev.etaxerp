@@ -7,6 +7,8 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Search, Plus, Package, Pencil, Trash2, Upload, FileDown, CheckCircle2, XCircle, AlertCircle, ClipboardList, RefreshCw, Barcode, Send } from "lucide-react";
 import ListExportButton from "@/components/list-export-button";
@@ -51,6 +53,10 @@ export default function InventoryList(props: { Wrapper?: React.ComponentType<{ c
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [showInactive, setShowInactive] = useState(false);
+  const [pageSize, setPageSize] = useState<number>(50);
+  const [selectedInactiveIds, setSelectedInactiveIds] = useState<Set<number>>(new Set());
+  const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
+  const [bulkDeleteResult, setBulkDeleteResult] = useState<{ deleted: number; skipped: { id: number; code: string; name: string; reason: string }[] } | null>(null);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [importStep, setImportStep] = useState<"upload" | "preview" | "done">("upload");
   const [importPreview, setImportPreview] = useState<any>(null);
@@ -94,6 +100,31 @@ export default function InventoryList(props: { Wrapper?: React.ComponentType<{ c
     onError: (err: any) => toast({ title: "เกิดข้อผิดพลาด", description: err.message, variant: "destructive" }),
   });
 
+  const bulkPermanentDeleteMutation = useMutation({
+    mutationFn: async (productIds: number[]) => {
+      const r = await fetch("/api/products/bulk-permanent-delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ companyId: selectedCompanyId, productIds }),
+      });
+      if (!r.ok) throw new Error((await r.json()).message);
+      return r.json() as Promise<{ deleted: number; skipped: { id: number; code: string; name: string; reason: string }[] }>;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/products"] });
+      setSelectedInactiveIds(new Set());
+      setShowBulkDeleteConfirm(false);
+      setBulkDeleteResult(data);
+      const skippedMsg = data.skipped.length > 0 ? ` ข้าม ${data.skipped.length} รายการ (ยังถูกอ้างอิงในเอกสาร)` : "";
+      toast({ title: `ลบสินค้าถาวรสำเร็จ ${data.deleted} รายการ${skippedMsg}`, variant: "success" as any });
+    },
+    onError: (err: any) => {
+      setShowBulkDeleteConfirm(false);
+      toast({ title: "ลบไม่สำเร็จ", description: err.message, variant: "destructive" });
+    },
+  });
+
   const bulkBarcodeMutation = useMutation({
     mutationFn: async () => {
       const r = await fetch("/api/products/bulk-generate-barcodes", {
@@ -123,7 +154,7 @@ export default function InventoryList(props: { Wrapper?: React.ComponentType<{ c
       return p.name.toLowerCase().includes(s) || p.code.toLowerCase().includes(s) || (p.description || "").toLowerCase().includes(s);
     });
 
-  const { visibleItems, hasMore, remainingCount, totalCount, showMore } = useShowMore(filtered);
+  const { visibleItems, hasMore, remainingCount, totalCount, showMore } = useShowMore(filtered, pageSize);
 
   const activeProducts = products.filter(p => p.active);
   const stats = {
@@ -442,6 +473,21 @@ export default function InventoryList(props: { Wrapper?: React.ComponentType<{ c
                     แสดงสินค้าเลิกใช้งาน
                   </Label>
                 </div>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <Label htmlFor="page-size-select" className="text-xs text-muted-foreground">แสดง</Label>
+                  <select
+                    id="page-size-select"
+                    data-testid="select-page-size"
+                    value={pageSize}
+                    onChange={e => setPageSize(Number(e.target.value))}
+                    className="h-9 rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                  >
+                    <option value={25}>25</option>
+                    <option value={50}>50</option>
+                    <option value={100}>100</option>
+                  </select>
+                  <span className="text-xs text-muted-foreground">/ หน้า</span>
+                </div>
                 <div className="relative w-full sm:w-64 shrink-0">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input data-testid="input-search" className="pl-9" placeholder="ค้นหาชื่อ, รหัส..." value={search} onChange={e => setSearch(e.target.value)} />
@@ -449,10 +495,69 @@ export default function InventoryList(props: { Wrapper?: React.ComponentType<{ c
               </div>
             </div>
           </CardHeader>
+          {(() => {
+            const visibleInactive = visibleItems.filter(p => !p.active);
+            const allVisibleSelected = visibleInactive.length > 0 && visibleInactive.every(p => selectedInactiveIds.has(p.id));
+            const someVisibleSelected = visibleInactive.some(p => selectedInactiveIds.has(p.id)) && !allVisibleSelected;
+            const toggleAllVisible = () => {
+              setSelectedInactiveIds(prev => {
+                const next = new Set(prev);
+                if (allVisibleSelected) {
+                  visibleInactive.forEach(p => next.delete(p.id));
+                } else {
+                  visibleInactive.forEach(p => next.add(p.id));
+                }
+                return next;
+              });
+            };
+            const toggleOne = (id: number) => {
+              setSelectedInactiveIds(prev => {
+                const next = new Set(prev);
+                if (next.has(id)) next.delete(id); else next.add(id);
+                return next;
+              });
+            };
+            return (
+              <>
+                {selectedInactiveIds.size > 0 && (
+                  <div className="px-4 py-2 bg-red-50 border-y border-red-200 flex items-center justify-between gap-3" data-testid="bar-bulk-delete">
+                    <div className="text-sm text-red-700">
+                      เลือกสินค้าเลิกใช้งาน <span className="font-bold">{selectedInactiveIds.size}</span> รายการ
+                      <button
+                        type="button"
+                        onClick={() => setSelectedInactiveIds(new Set())}
+                        className="ml-3 text-xs underline hover:opacity-70"
+                        data-testid="button-clear-selection"
+                      >
+                        ยกเลิกการเลือก
+                      </button>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => setShowBulkDeleteConfirm(true)}
+                      disabled={bulkPermanentDeleteMutation.isPending}
+                      data-testid="button-bulk-permanent-delete"
+                    >
+                      <Trash2 className="h-4 w-4 mr-1" />
+                      ลบถาวร ({selectedInactiveIds.size})
+                    </Button>
+                  </div>
+                )}
           <CardContent className="p-0 overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-10 text-center">
+                    {showInactive && visibleInactive.length > 0 ? (
+                      <Checkbox
+                        checked={allVisibleSelected ? true : someVisibleSelected ? "indeterminate" : false}
+                        onCheckedChange={toggleAllVisible}
+                        data-testid="checkbox-select-all-inactive"
+                        aria-label="เลือกสินค้าเลิกใช้งานทั้งหน้า"
+                      />
+                    ) : null}
+                  </TableHead>
                   <TableHead className="w-24">รหัส</TableHead>
                   <TableHead>ชื่อสินค้า/บริการ</TableHead>
                   <TableHead className="w-28">หมวดหมู่</TableHead>
@@ -467,16 +572,26 @@ export default function InventoryList(props: { Wrapper?: React.ComponentType<{ c
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">กำลังโหลด...</TableCell>
+                    <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">กำลังโหลด...</TableCell>
                   </TableRow>
                 ) : filtered.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
                       {activeProducts.length === 0 ? "ยังไม่มีข้อมูลสินค้า กด \"เพิ่มสินค้า/บริการ\" เพื่อเริ่มต้น" : "ไม่พบข้อมูลที่ค้นหา"}
                     </TableCell>
                   </TableRow>
                 ) : visibleItems.map(product => (
                   <TableRow key={product.id} data-testid={`row-product-${product.id}`} className={!product.active ? "opacity-60 bg-slate-50" : ""}>
+                    <TableCell className="text-center">
+                      {!product.active ? (
+                        <Checkbox
+                          checked={selectedInactiveIds.has(product.id)}
+                          onCheckedChange={() => toggleOne(product.id)}
+                          data-testid={`checkbox-product-${product.id}`}
+                          aria-label={`เลือก ${product.name}`}
+                        />
+                      ) : null}
+                    </TableCell>
                     <TableCell className="text-sm">{product.code}</TableCell>
                     <TableCell>
                       <div className="font-medium flex items-center gap-2">
@@ -588,7 +703,80 @@ export default function InventoryList(props: { Wrapper?: React.ComponentType<{ c
               </div>
             )}
           </CardContent>
+              </>
+            );
+          })()}
         </Card>
+
+        <AlertDialog open={showBulkDeleteConfirm} onOpenChange={setShowBulkDeleteConfirm}>
+          <AlertDialogContent className="max-h-[90vh] overflow-y-auto">
+            <AlertDialogHeader>
+              <AlertDialogTitle className="text-red-600">
+                <Trash2 className="h-5 w-5 inline mr-2" />
+                ยืนยันลบสินค้าถาวร {selectedInactiveIds.size} รายการ
+              </AlertDialogTitle>
+              <AlertDialogDescription asChild>
+                <div className="space-y-2 text-sm">
+                  <div className="text-red-700 font-medium">
+                    การลบนี้ <span className="underline">ไม่สามารถกู้คืนได้</span>
+                  </div>
+                  <div className="text-muted-foreground">
+                    ระบบจะตรวจสอบอีกครั้งก่อนลบ — สินค้าที่ยังถูกอ้างอิงในเอกสาร (invoice/PO/order) จะถูกข้ามและรายงานกลับมา
+                  </div>
+                  <div className="mt-3 max-h-48 overflow-y-auto border rounded p-2 bg-slate-50 text-xs">
+                    {Array.from(selectedInactiveIds).slice(0, 50).map(id => {
+                      const p = products.find(pp => pp.id === id);
+                      if (!p) return null;
+                      return <div key={id} className="py-0.5">• {p.code} — {p.name}</div>;
+                    })}
+                    {selectedInactiveIds.size > 50 && (
+                      <div className="text-muted-foreground italic mt-1">…และอีก {selectedInactiveIds.size - 50} รายการ</div>
+                    )}
+                  </div>
+                </div>
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel data-testid="button-cancel-bulk-delete">ยกเลิก</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => bulkPermanentDeleteMutation.mutate(Array.from(selectedInactiveIds))}
+                disabled={bulkPermanentDeleteMutation.isPending}
+                className="bg-red-600 hover:bg-red-700"
+                data-testid="button-confirm-bulk-delete"
+              >
+                {bulkPermanentDeleteMutation.isPending ? "กำลังลบ..." : `ลบถาวร ${selectedInactiveIds.size} รายการ`}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {bulkDeleteResult && bulkDeleteResult.skipped.length > 0 && (
+          <AlertDialog open={!!bulkDeleteResult} onOpenChange={(o) => { if (!o) setBulkDeleteResult(null); }}>
+            <AlertDialogContent className="max-h-[90vh] overflow-y-auto">
+              <AlertDialogHeader>
+                <AlertDialogTitle>ผลการลบ</AlertDialogTitle>
+                <AlertDialogDescription asChild>
+                  <div className="space-y-2 text-sm">
+                    <div className="text-emerald-700">
+                      ✓ ลบสำเร็จ <span className="font-bold">{bulkDeleteResult.deleted}</span> รายการ
+                    </div>
+                    <div className="text-amber-700">
+                      ⚠ ข้าม <span className="font-bold">{bulkDeleteResult.skipped.length}</span> รายการ (ยังถูกอ้างอิงในเอกสาร)
+                    </div>
+                    <div className="mt-2 max-h-64 overflow-y-auto border rounded p-2 bg-amber-50 text-xs">
+                      {bulkDeleteResult.skipped.map(s => (
+                        <div key={s.id} className="py-0.5">• {s.code} — {s.name}</div>
+                      ))}
+                    </div>
+                  </div>
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogAction onClick={() => setBulkDeleteResult(null)} data-testid="button-close-bulk-result">ปิด</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        )}
         {showCostLogs && costUpdateLogs.length > 0 && (
           <Dialog open={showCostLogs} onOpenChange={setShowCostLogs}>
             <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">

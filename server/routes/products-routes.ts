@@ -709,6 +709,102 @@ app.delete("/api/products/:id", requireAuth, requireModule("inventory"), async (
   }
 });
 
+// ==================== Bulk Permanent Delete (inactive products only) ====================
+// Reuses FK ref check from import-batch-routes deactivate logic
+app.post("/api/products/bulk-permanent-delete", requireAuth, requireModule("inventory"), async (req, res) => {
+  try {
+    const { companyId, productIds } = req.body as { companyId: number; productIds: number[] };
+    if (!companyId || !Array.isArray(productIds) || productIds.length === 0) {
+      return res.status(400).json({ message: "กรุณาระบุ companyId และ productIds" });
+    }
+    if (productIds.length > 500) {
+      return res.status(400).json({ message: "ลบได้ครั้งละไม่เกิน 500 รายการ" });
+    }
+    { const ac = await checkDocOwnership(companyId, req.user); if (!ac.allowed) return res.status(403).json({ message: ac.message }); }
+
+    // Verify ทั้งหมดเป็นของ company นี้ + active=false (กันลบสินค้า active โดยอุบัติเหตุ)
+    const targets = await db.select({ id: products.id, name: products.name, code: products.code, active: products.active })
+      .from(products)
+      .where(and(eq(products.companyId, companyId), inArray(products.id, productIds)));
+
+    const ownedIds = new Set(targets.map(t => t.id));
+    const notOwned = productIds.filter(id => !ownedIds.has(id));
+    const activeProducts = targets.filter(t => t.active);
+    if (notOwned.length > 0) {
+      return res.status(400).json({ message: `ไม่พบสินค้า ${notOwned.length} รายการในบริษัทนี้` });
+    }
+    if (activeProducts.length > 0) {
+      return res.status(400).json({
+        message: `ไม่สามารถลบสินค้าที่ยังใช้งานอยู่ (${activeProducts.length} รายการ) — กรุณาเลือกเฉพาะสินค้าที่ "เลิกใช้งาน"`,
+      });
+    }
+
+    // FK ref check
+    const pgIds = sql.raw(`ARRAY[${productIds.join(',')}]::int[]`);
+    const usedRows = await db.execute(sql`
+      SELECT DISTINCT product_id FROM (
+        SELECT product_id FROM pos_transaction_items WHERE product_id = ANY(${pgIds})
+        UNION ALL SELECT product_id FROM invoice_items WHERE product_id = ANY(${pgIds})
+        UNION ALL SELECT product_id FROM stock_movements WHERE product_id = ANY(${pgIds})
+        UNION ALL SELECT product_id FROM quotation_items WHERE product_id = ANY(${pgIds})
+        UNION ALL SELECT product_id FROM sales_order_items WHERE product_id = ANY(${pgIds})
+        UNION ALL SELECT product_id FROM tax_invoice_items WHERE product_id = ANY(${pgIds})
+        UNION ALL SELECT product_id FROM receipt_items WHERE product_id = ANY(${pgIds})
+        UNION ALL SELECT product_id FROM purchase_order_items WHERE product_id = ANY(${pgIds})
+        UNION ALL SELECT product_id FROM purchase_invoice_items WHERE product_id = ANY(${pgIds})
+        UNION ALL SELECT product_id FROM ecommerce_order_items WHERE product_id = ANY(${pgIds})
+        UNION ALL SELECT product_id FROM goods_receiving_items WHERE product_id = ANY(${pgIds})
+      ) t
+    `);
+    const usedIds = new Set((usedRows.rows as any[]).map(r => r.product_id));
+    const canDeleteIds = productIds.filter(id => !usedIds.has(id));
+    const skippedTargets = targets.filter(t => usedIds.has(t.id));
+
+    let deleted = 0;
+    if (canDeleteIds.length > 0) {
+      await db.transaction(async (tx) => {
+        const pgDelIds = sql.raw(`ARRAY[${canDeleteIds.join(',')}]::int[]`);
+        // Mirror cleanup pattern from import-batch-routes.ts product case
+        await tx.execute(sql`DELETE FROM product_stock WHERE product_id = ANY(${pgDelIds})`);
+        await tx.execute(sql`DELETE FROM product_bundles WHERE bundle_product_id = ANY(${pgDelIds}) OR component_product_id = ANY(${pgDelIds})`);
+        await tx.execute(sql`DELETE FROM ecommerce_product_mappings WHERE product_id = ANY(${pgDelIds})`);
+        await tx.delete(warehouseStockLevels).where(inArray(warehouseStockLevels.productId, canDeleteIds));
+        await tx.delete(productLots).where(inArray(productLots.productId, canDeleteIds));
+        await tx.execute(sql`DELETE FROM demand_forecasts WHERE product_id = ANY(${pgDelIds})`);
+        await tx.execute(sql`DELETE FROM product_bin_assignments WHERE product_id = ANY(${pgDelIds})`);
+        await tx.execute(sql`DELETE FROM menu_items WHERE product_id = ANY(${pgDelIds})`);
+        await tx.execute(sql`DELETE FROM promotion_rules WHERE buy_product_id = ANY(${pgDelIds}) OR get_product_id = ANY(${pgDelIds})`);
+        await tx.execute(sql`DELETE FROM product_mappings WHERE buy_product_id = ANY(${pgDelIds}) OR sell_product_id = ANY(${pgDelIds})`);
+        await tx.execute(sql`DELETE FROM supplier_quote_items WHERE product_id = ANY(${pgDelIds})`);
+        const result = await tx.delete(products).where(and(eq(products.companyId, companyId), inArray(products.id, canDeleteIds)));
+        deleted = result.rowCount || canDeleteIds.length;
+      });
+    }
+
+    await logActivity({
+      userId: (req.user as any).id,
+      companyId,
+      action: "bulk_permanent_delete_products",
+      entityType: "product",
+      entityId: canDeleteIds.join(","),
+      entityName: `ลบสินค้าถาวร ${deleted} รายการ (ข้าม ${skippedTargets.length})`,
+    });
+
+    res.json({
+      deleted,
+      skipped: skippedTargets.map(t => ({
+        id: t.id,
+        code: t.code,
+        name: t.name,
+        reason: "ยังถูกอ้างอิงในเอกสาร (invoice/PO/order)",
+      })),
+    });
+  } catch (err: any) {
+    console.error("[bulk-permanent-delete-products] error:", err);
+    res.status(500).json({ message: err.message });
+  }
+});
+
 // ===== Bundle Components =====
 app.get("/api/products/:id/bundle-components", requireAuth, async (req, res) => {
   try {
