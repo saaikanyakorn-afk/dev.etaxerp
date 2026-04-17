@@ -1083,6 +1083,12 @@ Once Stage 3 begins, revisit the JOIN inventory below and add appropriate indexe
 - **Local Filesystem:** All uploaded files (logos, signatures, LINE documents, slips, work board files, firm documents, PDF imports, etc.) are stored in `{cwd}/uploads/` directory using `saveBufferLocally()` and `saveBufferToPath()` from `server/replit_integrations/object_storage/routes.ts`. Custom path via `UPLOAD_DIR` env var. Works on any OS (Linux, Windows). No dependency on any cloud/proprietary storage — purely local disk.
 - **Storage utility functions:** `saveBufferLocally(buffer, contentType, originalName)` → UUID-named flat file; `saveBufferToPath(buffer, relativePath)` → organized subdirectory; `readFromPath(relativePath)` → read; `deleteFromPath(relativePath)` → delete; `getFullLocalPath(relativePath)` → absolute path.
 
+## CRITICAL DEPLOY RULES — READ EVERY SESSION
+- **NEVER push security-related code to etaxerp (github-production) EVER.** This includes: sysAdmin features, 2FA/MFA, auth methods, password policy, IP whitelist, session/lockout logic, audit log changes, permissions changes, anything under `/sys-k7x9` or `server/routes/sysadmin-routes.ts` or `client/src/pages/platform/`.
+- **etaxerp is in FREEZE mode** waiting for พี่ทราย to confirm all business requirements complete. Only business/bug fixes may go to prod, and only with พี่ช้าง's explicit per-commit approval.
+- Security work lives ONLY on github-replit (and github-dev when approved). Never cherry-pick security commits to prod working dir.
+- Commit `73e7d519` (sysAdmin LINE ID 2FA requirement) — github-replit ONLY. DO NOT propagate.
+
 ## External Dependencies
 - **LINE Messaging API:** Used for sending messages and processing webhooks.
 - **Resend (Email Service):** Sends e-Tax Invoice emails with PDF/A-3 attachments, document sharing, and HR payslips.
