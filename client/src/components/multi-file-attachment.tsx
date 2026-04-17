@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Paperclip, FileDown, X, Loader2 } from "lucide-react";
 import { useUpload } from "@/hooks/use-upload";
@@ -43,6 +43,16 @@ export default function MultiFileAttachment({ value, onChange, disabled, testIdP
   const [isDragging, setIsDragging] = useState(false);
   const dragCounterRef = useRef(0);
   const files = parseAttachedUrl(value);
+
+  useEffect(() => {
+    const prevent = (e: DragEvent) => { e.preventDefault(); };
+    window.addEventListener("dragover", prevent);
+    window.addEventListener("drop", prevent);
+    return () => {
+      window.removeEventListener("dragover", prevent);
+      window.removeEventListener("drop", prevent);
+    };
+  }, []);
 
   const { uploadFile, isUploading } = useUpload({
     onSuccess: (response) => {
