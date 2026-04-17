@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
@@ -84,6 +85,7 @@ export default function WarehousePage(props: { Wrapper?: React.ComponentType<{ c
   const [activeTab, setActiveTab] = useState("overview");
   const [viewMode, setViewMode] = useState<"table" | "cards">("cards");
   const [searchText, setSearchText] = useState("");
+  const [showInactive, setShowInactive] = useState(false);
   const [showAdjustDialog, setShowAdjustDialog] = useState(false);
   const [showReceiveDialog, setShowReceiveDialog] = useState(false);
   const [showImportDialog, setShowImportDialog] = useState(false);
@@ -274,12 +276,14 @@ export default function WarehousePage(props: { Wrapper?: React.ComponentType<{ c
   const stockMap = new Map<number, ProductStock>();
   stockData.forEach(s => stockMap.set(s.productId, s));
 
-  const productsWithStock = products.map(p => ({
-    ...p,
-    stock: stockMap.get(p.id),
-    currentQty: parseFloat(stockMap.get(p.id)?.quantity || "0"),
-    reservedQty: parseFloat(stockMap.get(p.id)?.reservedQty || "0"),
-  }));
+  const productsWithStock = products
+    .filter(p => showInactive || (p as any).active)
+    .map(p => ({
+      ...p,
+      stock: stockMap.get(p.id),
+      currentQty: parseFloat(stockMap.get(p.id)?.quantity || "0"),
+      reservedQty: parseFloat(stockMap.get(p.id)?.reservedQty || "0"),
+    }));
 
   const filteredProducts = productsWithStock.filter(p =>
     !searchText || p.name.toLowerCase().includes(searchText.toLowerCase()) ||
@@ -522,8 +526,8 @@ export default function WarehousePage(props: { Wrapper?: React.ComponentType<{ c
           </div>
 
           <TabsContent value="overview">
-            <div className="mb-3">
-              <div className="relative max-w-md">
+            <div className="mb-3 flex flex-col sm:flex-row sm:items-center gap-3">
+              <div className="relative max-w-md flex-1">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   placeholder="ค้นหาชื่อสินค้า หรือรหัส..."
@@ -532,6 +536,17 @@ export default function WarehousePage(props: { Wrapper?: React.ComponentType<{ c
                   className="pl-9 h-9 bg-white border shadow-sm"
                   data-testid="input-search-stock"
                 />
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <Switch
+                  id="show-inactive-warehouse"
+                  data-testid="switch-show-inactive-warehouse"
+                  checked={showInactive}
+                  onCheckedChange={setShowInactive}
+                />
+                <Label htmlFor="show-inactive-warehouse" className="text-xs cursor-pointer text-muted-foreground">
+                  แสดงสินค้าเลิกใช้งาน
+                </Label>
               </div>
             </div>
 
@@ -551,7 +566,7 @@ export default function WarehousePage(props: { Wrapper?: React.ComponentType<{ c
                     return (
                       <Card
                         key={p.id}
-                        className={`border shadow-sm hover:shadow-md transition-all cursor-pointer group relative overflow-hidden ${status.borderColor}`}
+                        className={`border shadow-sm hover:shadow-md transition-all cursor-pointer group relative overflow-hidden ${status.borderColor} ${!(p as any).active ? "opacity-60" : ""}`}
                         onClick={() => handleOpenStockCard(p.id)}
                         data-testid={`card-product-${p.id}`}
                       >
@@ -559,13 +574,18 @@ export default function WarehousePage(props: { Wrapper?: React.ComponentType<{ c
                         <CardContent className="p-4">
                           <div className="flex items-start justify-between mb-3">
                             <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 mb-1">
+                              <div className="flex items-center gap-2 mb-1 flex-wrap">
                                 {p.code && (
                                   <span className="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded">{p.code}</span>
                                 )}
                                 <Badge variant="outline" className={`text-[9px] px-1.5 py-0 ${status.bgColor} ${status.color} ${status.borderColor}`}>
                                   {status.label}
                                 </Badge>
+                                {!(p as any).active && (
+                                  <Badge variant="outline" className="text-[9px] px-1.5 py-0 bg-slate-200 text-slate-600 border-slate-300" data-testid={`badge-inactive-card-${p.id}`}>
+                                    เลิกใช้งาน
+                                  </Badge>
+                                )}
                               </div>
                               <h3 className="text-sm font-semibold text-slate-800 truncate" data-testid={`text-card-name-${p.id}`}>{p.name}</h3>
                               <div className="flex items-center gap-2 mt-1">
@@ -677,14 +697,21 @@ export default function WarehousePage(props: { Wrapper?: React.ComponentType<{ c
                           return (
                             <TableRow
                               key={p.id}
-                              className="hover:bg-[#fffcf0]/50 border-b cursor-pointer"
+                              className={`hover:bg-[#fffcf0]/50 border-b cursor-pointer ${!(p as any).active ? "opacity-60 bg-slate-50" : ""}`}
                               onClick={() => handleOpenStockCard(p.id)}
                               data-testid={`row-product-${p.id}`}
                             >
                               <TableCell className="text-center text-xs text-muted-foreground">{idx + 1}</TableCell>
                               <TableCell className="text-xs text-slate-500">{p.code || "-"}</TableCell>
                               <TableCell>
-                                <div className="text-xs font-medium" data-testid={`text-product-name-${p.id}`}>{p.name}</div>
+                                <div className="text-xs font-medium flex items-center gap-2" data-testid={`text-product-name-${p.id}`}>
+                                  {p.name}
+                                  {!(p as any).active && (
+                                    <Badge variant="outline" className="text-[9px] px-1.5 py-0 bg-slate-200 text-slate-600 border-slate-300" data-testid={`badge-inactive-row-${p.id}`}>
+                                      เลิกใช้งาน
+                                    </Badge>
+                                  )}
+                                </div>
                                 {p.unit && <div className="text-[10px] text-muted-foreground">หน่วย: {p.unit}</div>}
                               </TableCell>
                               <TableCell className="text-xs text-muted-foreground">{p.category || "-"}</TableCell>

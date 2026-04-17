@@ -5,6 +5,8 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Search, Plus, Package, Pencil, Trash2, Upload, FileDown, CheckCircle2, XCircle, AlertCircle, ClipboardList, RefreshCw, Barcode, Send } from "lucide-react";
 import ListExportButton from "@/components/list-export-button";
@@ -48,6 +50,7 @@ export default function InventoryList(props: { Wrapper?: React.ComponentType<{ c
     : FALLBACK_CATEGORIES;
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
+  const [showInactive, setShowInactive] = useState(false);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [importStep, setImportStep] = useState<"upload" | "preview" | "done">("upload");
   const [importPreview, setImportPreview] = useState<any>(null);
@@ -112,7 +115,7 @@ export default function InventoryList(props: { Wrapper?: React.ComponentType<{ c
   const withoutBarcode = products.filter(p => p.active && !p.barcode).length;
 
   const filtered = products
-    .filter(p => p.active)
+    .filter(p => showInactive || p.active)
     .filter(p => categoryFilter === "all" || p.category === categoryFilter)
     .filter(p => {
       if (!search) return true;
@@ -427,9 +430,22 @@ export default function InventoryList(props: { Wrapper?: React.ComponentType<{ c
                   <TabsTrigger data-testid="tab-consumable" value="consumable">วัสดุสิ้นเปลือง</TabsTrigger>
                 </TabsList>
               </Tabs>
-              <div className="relative w-full sm:w-64 shrink-0">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input data-testid="input-search" className="pl-9" placeholder="ค้นหาชื่อ, รหัส..." value={search} onChange={e => setSearch(e.target.value)} />
+              <div className="flex items-center gap-3 w-full sm:w-auto">
+                <div className="flex items-center gap-2 shrink-0">
+                  <Switch
+                    id="show-inactive-list"
+                    data-testid="switch-show-inactive"
+                    checked={showInactive}
+                    onCheckedChange={setShowInactive}
+                  />
+                  <Label htmlFor="show-inactive-list" className="text-xs cursor-pointer text-muted-foreground">
+                    แสดงสินค้าเลิกใช้งาน
+                  </Label>
+                </div>
+                <div className="relative w-full sm:w-64 shrink-0">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input data-testid="input-search" className="pl-9" placeholder="ค้นหาชื่อ, รหัส..." value={search} onChange={e => setSearch(e.target.value)} />
+                </div>
               </div>
             </div>
           </CardHeader>
@@ -460,10 +476,17 @@ export default function InventoryList(props: { Wrapper?: React.ComponentType<{ c
                     </TableCell>
                   </TableRow>
                 ) : visibleItems.map(product => (
-                  <TableRow key={product.id} data-testid={`row-product-${product.id}`}>
+                  <TableRow key={product.id} data-testid={`row-product-${product.id}`} className={!product.active ? "opacity-60 bg-slate-50" : ""}>
                     <TableCell className="text-sm">{product.code}</TableCell>
                     <TableCell>
-                      <div className="font-medium">{product.name}</div>
+                      <div className="font-medium flex items-center gap-2">
+                        {product.name}
+                        {!product.active && (
+                          <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-slate-200 text-slate-600 border-slate-300" data-testid={`badge-inactive-${product.id}`}>
+                            เลิกใช้งาน
+                          </Badge>
+                        )}
+                      </div>
                       {product.nameEn && <div className="text-xs text-muted-foreground">{product.nameEn}</div>}
                       {product.barcode && <div className="text-xs text-muted-foreground flex items-center gap-1"><Barcode className="h-3 w-3" />{product.barcode}</div>}
                       {product.description && <div className="text-xs text-muted-foreground truncate max-w-xs">{product.description}</div>}
