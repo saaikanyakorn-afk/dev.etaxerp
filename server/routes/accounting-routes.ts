@@ -405,6 +405,9 @@ app.post("/api/journal-entries", requireAuth, requireModule("accounting"), async
         return res.status(403).json({ message: periodCheck.message });
       }
     }
+    if (entryData.reference && /^DEP-/i.test(String(entryData.reference).trim()) && entryData.sourceDocType !== "depreciation") {
+      return res.status(400).json({ message: "เลขที่อ้างอิงห้ามขึ้นต้นด้วย 'DEP-' เพราะสงวนไว้สำหรับรายการค่าเสื่อมราคาอัตโนมัติเท่านั้น" });
+    }
     if (lines && Array.isArray(lines)) {
       const totalDebit = lines.reduce((s: number, l: any) => s + (parseFloat(l.debit) || 0), 0);
       const totalCredit = lines.reduce((s: number, l: any) => s + (parseFloat(l.credit) || 0), 0);
@@ -468,6 +471,9 @@ app.patch("/api/journal-entries/:id", requireAuth, requireModule("accounting"), 
     const [existing] = await db.select().from(journalEntries).where(eq(journalEntries.id, entryId));
     if (!existing) return res.status(404).json({ message: "ไม่พบรายการบัญชี" });
     { const ac = await checkDocOwnership(existing.companyId, req.user); if (!ac.allowed) return res.status(403).json({ message: ac.message }); }
+    if (entryData.reference && /^DEP-/i.test(String(entryData.reference).trim()) && existing.sourceDocType !== "depreciation") {
+      return res.status(400).json({ message: "เลขที่อ้างอิงห้ามขึ้นต้นด้วย 'DEP-' เพราะสงวนไว้สำหรับรายการค่าเสื่อมราคาอัตโนมัติเท่านั้น" });
+    }
     if (lineData && Array.isArray(lineData)) {
       const totalDebit = lineData.reduce((s: number, l: any) => s + (parseFloat(l.debit) || 0), 0);
       const totalCredit = lineData.reduce((s: number, l: any) => s + (parseFloat(l.credit) || 0), 0);
