@@ -1,7 +1,7 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { db } from "../db";
-import { sysAdmins, sysAdminPasswordHistory, sysAdminPasswordPolicy, sysAdminAuditLog } from "@shared/schema";
-import { eq, desc, sql } from "drizzle-orm";
+import { sysAdmins, sysAdminPasswordHistory, sysAdminPasswordPolicy, sysAdminAuditLog, customers, employees, lineRecipients } from "@shared/schema";
+import { eq, desc, sql, isNotNull, or, ilike, and } from "drizzle-orm";
 import { hashPassword, comparePasswords } from "../auth";
 import * as OTPAuth from "otpauth";
 
@@ -563,6 +563,75 @@ export function registerSysAdminRoutes(app: Express) {
     delete session.sysAdminId;
     delete session.sysAdminLastActivity;
     res.json({ message: "ออกจากระบบ SysAdmin สำเร็จ" });
+  });
+
+  app.get("/api/sysadmin/forest-line-directory", async (req, res) => {
+    try {
+      const session = req.session as any;
+      const [{ count }] = await db.select({ count: sql<number>`count(*)::int` }).from(sysAdmins);
+      const isBootstrap = count === 0;
+      if (!isBootstrap && !session.sysAdminId) {
+        return res.status(401).json({ message: "กรุณาเข้าสู่ระบบ SysAdmin" });
+      }
+
+      const q = String(req.query.q || "").trim();
+      if (q.length < 1) return res.json([]);
+      const needle = `%${q}%`;
+      const limit = Math.min(parseInt(String(req.query.limit || "30"), 10) || 30, 100);
+
+      const customerRows = await db
+        .select({
+          lineUserId: customers.lineUserId,
+          displayName: customers.name,
+          source: sql<string>`'ลูกค้า'`,
+          lastSeenAt: customers.createdAt,
+        })
+        .from(customers)
+        .where(and(isNotNull(customers.lineUserId), ilike(customers.name, needle)))
+        .limit(limit);
+
+      const employeeRows = await db
+        .select({
+          lineUserId: employees.lineUserId,
+          displayName: employees.fullName,
+          source: sql<string>`'พนักงาน'`,
+          lastSeenAt: sql<string | null>`null`,
+        })
+        .from(employees)
+        .where(and(isNotNull(employees.lineUserId), ilike(employees.fullName, needle)))
+        .limit(limit);
+
+      const recipientRows = await db
+        .select({
+          lineUserId: lineRecipients.lineId,
+          displayName: lineRecipients.displayName,
+          source: sql<string>`'LINE Recipient'`,
+          lastSeenAt: lineRecipients.createdAt,
+        })
+        .from(lineRecipients)
+        .where(or(ilike(lineRecipients.displayName, needle), ilike(lineRecipients.lineId, needle)))
+        .limit(limit);
+
+      const seen = new Set<string>();
+      const merged: Array<{ lineUserId: string; displayName: string; source: string; lastSeenAt: any }> = [];
+      for (const row of [...customerRows, ...employeeRows, ...recipientRows]) {
+        if (!row.lineUserId || !row.displayName) continue;
+        if (seen.has(row.lineUserId)) continue;
+        seen.add(row.lineUserId);
+        merged.push({
+          lineUserId: row.lineUserId,
+          displayName: row.displayName,
+          source: row.source,
+          lastSeenAt: row.lastSeenAt,
+        });
+        if (merged.length >= limit) break;
+      }
+
+      res.json(merged);
+    } catch (err: any) {
+      console.error("forest-line-directory error:", err);
+      res.status(500).json({ message: "ค้นหา LINE ไม่สำเร็จ", error: err.message });
+    }
   });
 
   app.get("/api/sysadmin/me", requireSysAdminAuth, async (req, res) => {
