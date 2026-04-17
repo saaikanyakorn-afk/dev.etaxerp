@@ -204,11 +204,20 @@ export default function InventoryList(props: { Wrapper?: React.ComponentType<{ c
     try {
       const okItems = importPreview.preview.filter((p: any) => p.status === "ok").map((p: any) => p.data);
       const dupItems = updateDuplicates ? importPreview.preview.filter((p: any) => p.status === "duplicate" && p.data.code).map((p: any) => p.data) : [];
+      const stockEntries = importPreview.hasWarehouseCol
+        ? importPreview.preview
+            .filter((p: any) => p.status !== "error" && p.data.code && p.data.warehouseName && Number(p.data.stockQty) > 0)
+            .map((p: any) => ({
+              code: p.data.code,
+              warehouseName: p.data.warehouseName,
+              stockQty: Number(p.data.stockQty),
+            }))
+        : [];
       const r = await fetch("/api/products/import/execute", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ companyId: selectedCompanyId, products: okItems, updateProducts: dupItems }),
+        body: JSON.stringify({ companyId: selectedCompanyId, products: okItems, updateProducts: dupItems, stockEntries }),
       });
       if (!r.ok) { const err = await r.json(); throw new Error(err.message); }
       const result = await r.json();
