@@ -22,10 +22,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 const SYSADMIN_NAV = [
-  { icon: UserCog, label: "จัดการ SysAdmin", href: "/sys-k7x9/users" },
-  { icon: Network, label: "โครงสร้างพื้นฐาน", href: "/sys-k7x9/infrastructure" },
-  { icon: ArrowLeftRight, label: "สลับฐานข้อมูล", href: "/sys-k7x9/db-switch" },
-  { icon: Database, label: "Clone ข้อมูล", href: "/sys-k7x9/clone-data" },
+  { icon: UserCog, label: "SysAdmin Users", href: "/sys-k7x9/users" },
+  { icon: Network, label: "Infrastructure", href: "/sys-k7x9/infrastructure" },
+  { icon: ArrowLeftRight, label: "Database Switch", href: "/sys-k7x9/db-switch" },
+  { icon: Database, label: "Clone Data", href: "/sys-k7x9/clone-data" },
   { icon: Wrench, label: "Maintenance Schedule", href: "/sys-k7x9/maintenance" },
   { icon: Download, label: "Github Push & Pull", href: "/sys-k7x9/github" },
 ];
