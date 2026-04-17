@@ -250,7 +250,7 @@ export default function Expense() {
 
   const accountsForSelect = useMemo(() => {
     return (accounts as any[])
-      .filter(a => !a.isHeader)
+      .filter(a => !a.isHeader && String(a.code || "").length >= 7)
       .sort((a, b) => String(a.code).localeCompare(String(b.code), undefined, { numeric: true }));
   }, [accounts]);
 
@@ -1376,7 +1376,7 @@ export default function Expense() {
                           onBlur={() => setEditingAmountIdx(null)}
                           onChange={e => updateItem(idx, "amount", e.target.value)}
                           className="h-7 text-xs border-dashed text-right"
-                          placeholder="0.00"
+                          placeholder=""
                         />
                       </td>
                       <td className="py-1 px-1">

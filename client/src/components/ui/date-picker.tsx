@@ -81,7 +81,7 @@ export function DatePicker({
   value,
   onChange,
   dateFormat = "DD/MM/YYYY",
-  dateEra = "CE",
+  dateEra = "BE",
   className,
   placeholder = "วว/ดด/ปปปป",
   ...props
