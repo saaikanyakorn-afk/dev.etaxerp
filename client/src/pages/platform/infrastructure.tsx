@@ -2992,6 +2992,7 @@ export default function AllServers() {
   const [credentialsUnlocked, setCredentialsUnlocked] = useState(false);
   const [showPasswordPrompt, setShowPasswordPrompt] = useState(false);
   const [masterPwInput, setMasterPwInput] = useState("");
+  const [showMasterPw, setShowMasterPw] = useState(false);
 
   const verifyPasswordMut = useMutation({
     mutationFn: async (password: string) => {
@@ -3337,15 +3338,21 @@ export default function AllServers() {
             </h3>
             <p className="text-xs text-amber-600 mb-3">ใส่รหัสผ่านเพื่อดู Credentials ของ Router, Domain และ Machine</p>
             <div className="flex gap-2 max-w-md">
-              <Input
-                type="password"
-                className="h-8 text-sm"
-                placeholder="Master password"
-                value={masterPwInput}
-                onChange={e => setMasterPwInput(e.target.value)}
-                onKeyDown={e => { if (e.key === "Enter" && masterPwInput) verifyPasswordMut.mutate(masterPwInput); }}
-                data-testid="input-master-password"
-              />
+              <div className="relative flex-1">
+                <Input
+                  type={showMasterPw ? "text" : "password"}
+                  className="h-8 text-sm pr-9"
+                  placeholder="Master password"
+                  value={masterPwInput}
+                  onChange={e => setMasterPwInput(e.target.value)}
+                  onKeyDown={e => { if (e.key === "Enter" && masterPwInput) verifyPasswordMut.mutate(masterPwInput); }}
+                  autoComplete="off"
+                  data-testid="input-master-password"
+                />
+                <button type="button" onClick={() => setShowMasterPw(v => !v)} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700" data-testid="btn-toggle-master-pw">
+                  {showMasterPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
               <Button size="sm" className="h-8 bg-amber-600 hover:bg-amber-700 text-white" onClick={() => verifyPasswordMut.mutate(masterPwInput)} disabled={!masterPwInput || verifyPasswordMut.isPending} data-testid="btn-verify-password">
                 <Unlock className="h-3.5 w-3.5 mr-1" /> ปลดล็อค
               </Button>
