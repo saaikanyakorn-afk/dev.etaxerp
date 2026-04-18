@@ -574,20 +574,6 @@ export function registerSysAdminRoutes(app: Express) {
         return res.status(401).json({ message: "กรุณาเข้าสู่ระบบ SysAdmin" });
       }
 
-      const idLookup = String(req.query.id || "").trim();
-      if (idLookup) {
-        const [cust] = await db.select({ lineUserId: customers.lineUserId, displayName: customers.name, source: sql<string>`'ลูกค้า'` })
-          .from(customers).where(eq(customers.lineUserId, idLookup)).limit(1);
-        if (cust) return res.json([cust]);
-        const [emp] = await db.select({ lineUserId: employees.lineUserId, displayName: employees.fullName, source: sql<string>`'พนักงาน'` })
-          .from(employees).where(eq(employees.lineUserId, idLookup)).limit(1);
-        if (emp) return res.json([emp]);
-        const [rec] = await db.select({ lineUserId: lineRecipients.lineId, displayName: lineRecipients.displayName, source: sql<string>`'LINE Recipient'` })
-          .from(lineRecipients).where(eq(lineRecipients.lineId, idLookup)).limit(1);
-        if (rec) return res.json([rec]);
-        return res.json([]);
-      }
-
       const q = String(req.query.q || "").trim();
       if (q.length < 1) return res.json([]);
       const needle = `%${q}%`;

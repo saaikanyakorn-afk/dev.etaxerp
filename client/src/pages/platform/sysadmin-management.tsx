@@ -379,18 +379,6 @@ function EditSysAdminDialog({ admin, onClose }: { admin: SysAdminUser; onClose: 
   const [lineEditMode, setLineEditMode] = useState(false);
   const linePickerRef = useRef<HTMLDivElement>(null);
 
-  const { data: currentLineLookup } = useQuery<ForestLineEntry[]>({
-    queryKey: ["/api/sysadmin/forest-line-directory", "id", admin.lineUserId],
-    enabled: !!admin.lineUserId,
-    queryFn: async () => {
-      const res = await fetch(`/api/sysadmin/forest-line-directory?id=${encodeURIComponent(admin.lineUserId!)}`, { credentials: "include" });
-      if (!res.ok) return [];
-      return res.json();
-    },
-  });
-  const currentLineDisplayName = currentLineLookup?.[0]?.displayName || "";
-  const currentLineSource = currentLineLookup?.[0]?.source || "";
-
   useEffect(() => {
     const t = setTimeout(() => setLineSearchDebounced(lineSearch.trim()), 250);
     return () => clearTimeout(t);
@@ -479,12 +467,10 @@ function EditSysAdminDialog({ admin, onClose }: { admin: SysAdminUser; onClose: 
             </div>
             {!lineEditMode ? (
               <div className="border rounded-lg p-2.5 bg-gray-50" data-testid="text-current-line">
-                <div className="text-sm text-gray-900 font-medium flex items-center gap-1.5">
-                  <MessageCircle className="h-3.5 w-3.5 text-green-500" />
-                  {currentLineDisplayName || <span className="text-gray-400 italic">(ไม่พบใน Forest)</span>}
-                  {currentLineSource && <span className="text-[10px] text-gray-500 font-normal">— {currentLineSource}</span>}
+                <div className="text-sm font-mono text-gray-900 truncate flex items-center gap-1.5">
+                  <MessageCircle className="h-3.5 w-3.5 text-green-500 shrink-0" />
+                  {admin.lineUserId}
                 </div>
-                <div className="text-[10px] font-mono text-gray-500 truncate mt-0.5">{admin.lineUserId}</div>
               </div>
             ) : (
               <>
