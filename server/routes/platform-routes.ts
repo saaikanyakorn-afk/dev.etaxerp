@@ -3049,7 +3049,7 @@ app.get("/api/platform/server-identity", requireSuperAdminOrSysAdmin, async (_re
   } catch (err: any) { res.status(500).json({ message: err.message }); }
 });
 
-app.post("/api/platform/verify-infra-password", requireAuth, requireSuperAdmin, async (req, res) => {
+app.post("/api/platform/verify-infra-password", requireSuperAdminOrSysAdmin, async (req, res) => {
   try {
     const { password } = req.body;
     const secret = process.env.INFRA_MASTER_PASSWORD || "deep-sysadmin-2024";
