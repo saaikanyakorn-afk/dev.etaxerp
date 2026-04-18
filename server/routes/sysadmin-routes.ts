@@ -574,6 +574,20 @@ export function registerSysAdminRoutes(app: Express) {
         return res.status(401).json({ message: "กรุณาเข้าสู่ระบบ SysAdmin" });
       }
 
+      const idLookup = String(req.query.id || "").trim();
+      if (idLookup) {
+        const [cust] = await db.select({ lineUserId: customers.lineUserId, displayName: customers.name, source: sql<string>`'ลูกค้า'` })
+          .from(customers).where(eq(customers.lineUserId, idLookup)).limit(1);
+        if (cust) return res.json([cust]);
+        const [emp] = await db.select({ lineUserId: employees.lineUserId, displayName: employees.fullName, source: sql<string>`'พนักงาน'` })
+          .from(employees).where(eq(employees.lineUserId, idLookup)).limit(1);
+        if (emp) return res.json([emp]);
+        const [adm] = await db.select({ lineUserId: sysAdmins.lineUserId, displayName: sysAdmins.fullName, source: sql<string>`'SysAdmin'` })
+          .from(sysAdmins).where(eq(sysAdmins.lineUserId, idLookup)).limit(1);
+        if (adm) return res.json([adm]);
+        return res.json([]);
+      }
+
       const q = String(req.query.q || "").trim();
       if (q.length < 1) return res.json([]);
       const needle = `%${q}%`;
@@ -772,6 +786,9 @@ export function registerSysAdminRoutes(app: Express) {
         lastLoginIp: sysAdmins.lastLoginIp,
         createdAt: sysAdmins.createdAt,
         createdBy: sysAdmins.createdBy,
+        lineUserId: sysAdmins.lineUserId,
+        twoFactorMethod: sysAdmins.twoFactorMethod,
+        twoFactorVerified: sysAdmins.twoFactorVerified,
       }).from(sysAdmins).orderBy(desc(sysAdmins.isMaster), sysAdmins.createdAt);
       res.json(admins);
     } catch (err: any) {
