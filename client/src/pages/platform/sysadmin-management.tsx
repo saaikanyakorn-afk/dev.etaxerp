@@ -554,9 +554,6 @@ function EditSysAdminDialog({ admin, onClose }: { admin: SysAdminUser; onClose: 
                     )}
                   </div>
                 )}
-                <p className="text-[10px] text-amber-600 mt-1">
-                  <AlertTriangle className="h-3 w-3 inline mr-0.5" /> เปลี่ยน LINE → user ต้อง verify LINE ใหม่ตอน login ครั้งถัดไป
-                </p>
               </>
             )}
           </div>
