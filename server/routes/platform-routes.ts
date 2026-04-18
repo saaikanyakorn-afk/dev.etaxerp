@@ -5,6 +5,20 @@ import { storage } from "../storage";
 import { eq, desc, and, notInArray, count , sql } from "drizzle-orm";
 import { users, tenants, companies, cloneHistory, ecommerceOrders, ecommerceOrderItems, invoices, products, tenantSubscriptions, subscriptionPlans, rolePermissions, firmClients } from "@shared/schema";
 import { requireAuth, requireAdmin, requireSuperAdmin } from "../route-middleware";
+import type { NextFunction } from "express";
+
+function requireSuperAdminOrSysAdmin(req: Request, res: Response, next: NextFunction) {
+  const session = req.session as any;
+  if (session?.sysAdminId) {
+    session.sysAdminLastActivity = Date.now();
+    return next();
+  }
+  const user = req.user as any;
+  if (user && user.role === "super_admin") {
+    return next();
+  }
+  return res.status(401).json({ message: "ต้อง login เป็น Super Admin หรือ SysAdmin" });
+}
 import crypto from "crypto";
 import path from "path";
 import fs from "fs";
@@ -2125,7 +2139,7 @@ app.get("/api/platform/tenant-overview", requireAuth, requireSuperAdmin, async (
 
 // ========== Machines (Server Registry) ==========
 
-app.get("/api/platform/machines", requireAuth, requireSuperAdmin, async (_req, res) => {
+app.get("/api/platform/machines", requireSuperAdminOrSysAdmin, async (_req, res) => {
   try {
     const { machines: machinesTable } = await import("@shared/schema");
     const rows = await db.select().from(machinesTable).orderBy(machinesTable.id);
@@ -2153,7 +2167,7 @@ app.patch("/api/platform/machines/:id", requireAuth, requireSuperAdmin, async (r
   } catch (err: any) { res.status(400).json({ message: err.message }); }
 });
 
-app.get("/api/platform/machines/:id/nics", requireAuth, requireSuperAdmin, async (req, res) => {
+app.get("/api/platform/machines/:id/nics", requireSuperAdminOrSysAdmin, async (req, res) => {
   try {
     const { machineNics } = await import("@shared/schema");
     const machineId = Number(req.params.id);
@@ -2200,7 +2214,7 @@ app.delete("/api/platform/machine-nics/:nicId", requireAuth, requireSuperAdmin, 
   } catch (err: any) { res.status(500).json({ message: err.message }); }
 });
 
-app.get("/api/platform/all-nics", requireAuth, requireSuperAdmin, async (req, res) => {
+app.get("/api/platform/all-nics", requireSuperAdminOrSysAdmin, async (req, res) => {
   try {
     const { machineNics } = await import("@shared/schema");
     const rows = await db.select().from(machineNics).orderBy(machineNics.machineId, machineNics.nicName);
@@ -2568,7 +2582,7 @@ app.post("/api/platform/machines/test-decrypt", requireAuth, requireSuperAdmin, 
   }
 });
 
-app.get("/api/platform/db-health-events", requireAuth, requireSuperAdmin, async (req, res) => {
+app.get("/api/platform/db-health-events", requireSuperAdminOrSysAdmin, async (req, res) => {
   try {
     const { getConfigDbUrl } = await import("../config-bootstrap");
     const configUrl = getConfigDbUrl();
@@ -2596,7 +2610,7 @@ app.get("/api/platform/db-health-events", requireAuth, requireSuperAdmin, async 
   } catch (err: any) { res.status(500).json({ message: err.message }); }
 });
 
-app.get("/api/platform/clone-history-target", requireAuth, requireSuperAdmin, async (_req, res) => {
+app.get("/api/platform/clone-history-target", requireSuperAdminOrSysAdmin, async (_req, res) => {
   try {
     const { getTargetMachineInfo } = await import("../services/clone-history-central");
     const info = getTargetMachineInfo();
@@ -2625,7 +2639,7 @@ app.patch("/api/platform/clone-history-target", requireAuth, requireSuperAdmin, 
   } catch (err: any) { res.status(500).json({ message: err.message }); }
 });
 
-app.get("/api/platform/routers", requireAuth, requireSuperAdmin, async (req, res) => {
+app.get("/api/platform/routers", requireSuperAdminOrSysAdmin, async (req, res) => {
   try {
     const { routers: routersTable } = await import("@shared/schema");
     const rows = await db.select().from(routersTable).orderBy(routersTable.name);
@@ -2662,7 +2676,7 @@ app.delete("/api/platform/routers/:id", requireAuth, requireSuperAdmin, async (r
   } catch (err: any) { res.status(500).json({ message: err.message }); }
 });
 
-app.get("/api/platform/routers/:id/domains", requireAuth, requireSuperAdmin, async (req, res) => {
+app.get("/api/platform/routers/:id/domains", requireSuperAdminOrSysAdmin, async (req, res) => {
   try {
     const { routerDomains } = await import("@shared/schema");
     const routerId = Number(req.params.id);
@@ -2715,7 +2729,7 @@ app.get("/api/platform/all-router-domains", requireAuth, requireSuperAdmin, asyn
   } catch (err: any) { res.status(500).json({ message: err.message }); }
 });
 
-app.get("/api/platform/domains", requireAuth, requireSuperAdmin, async (req, res) => {
+app.get("/api/platform/domains", requireSuperAdminOrSysAdmin, async (req, res) => {
   try {
     const { platformDomains } = await import("@shared/schema");
     const rows = await db.select().from(platformDomains).orderBy(platformDomains.domainName);
@@ -2779,7 +2793,7 @@ app.get("/api/platform/nics/:nicId/ips", requireAuth, requireSuperAdmin, async (
   } catch (err: any) { res.status(500).json({ message: err.message }); }
 });
 
-app.get("/api/platform/all-nic-ips", requireAuth, requireSuperAdmin, async (req, res) => {
+app.get("/api/platform/all-nic-ips", requireSuperAdminOrSysAdmin, async (req, res) => {
   try {
     const { nicIpAddresses } = await import("@shared/schema");
     const rows = await db.select().from(nicIpAddresses).orderBy(nicIpAddresses.nicId, nicIpAddresses.id);
@@ -2835,7 +2849,7 @@ app.delete("/api/platform/nic-ips/:id", requireAuth, requireSuperAdmin, async (r
   } catch (err: any) { res.status(500).json({ message: err.message }); }
 });
 
-app.get("/api/platform/locations", requireAuth, requireSuperAdmin, async (req, res) => {
+app.get("/api/platform/locations", requireSuperAdminOrSysAdmin, async (req, res) => {
   try {
     const { platformLocations } = await import("@shared/schema");
     const rows = await db.select().from(platformLocations).orderBy(platformLocations.locationType, platformLocations.name);
@@ -2887,7 +2901,7 @@ app.delete("/api/platform/locations/:id", requireAuth, requireSuperAdmin, async 
   } catch (err: any) { res.status(500).json({ message: err.message }); }
 });
 
-app.get("/api/platform/all-port-forwards", requireAuth, requireSuperAdmin, async (req, res) => {
+app.get("/api/platform/all-port-forwards", requireSuperAdminOrSysAdmin, async (req, res) => {
   try {
     const { routerPortForwards } = await import("@shared/schema");
     const rows = await db.select().from(routerPortForwards).orderBy(routerPortForwards.routerId, routerPortForwards.externalPort);
@@ -2933,7 +2947,7 @@ app.delete("/api/platform/port-forwards/:id", requireAuth, requireSuperAdmin, as
   } catch (err: any) { res.status(500).json({ message: err.message }); }
 });
 
-app.get("/api/platform/server-identity", requireAuth, requireSuperAdmin, async (_req, res) => {
+app.get("/api/platform/server-identity", requireSuperAdminOrSysAdmin, async (_req, res) => {
   try {
     const machineName = process.env.MACHINE_NAME || os.hostname();
     const nets = os.networkInterfaces();
