@@ -3053,14 +3053,21 @@ app.post("/api/platform/verify-infra-password", requireSuperAdminOrSysAdmin, asy
   try {
     const { password } = req.body;
     const session = req.session as any;
+    const expected = "Deep-sysAdmin-0204";
     if (!session?.sysAdminId) {
-      return res.status(403).json({ message: "เฉพาะ SysAdmin เท่านั้น" });
+      return res.status(403).json({ message: `DEBUG-A: no sysAdmin session (sysAdminId=${session?.sysAdminId ?? "null"})` });
     }
-    if (password === "Deep-sysAdmin-0204") {
+    if (typeof password !== "string") {
+      return res.status(400).json({ message: `DEBUG-B: password not string (typeof=${typeof password})` });
+    }
+    if (password === expected) {
       return res.json({ success: true });
     }
-    return res.status(401).json({ message: "รหัสผ่านไม่ถูกต้อง" });
-  } catch (err: any) { res.status(500).json({ message: err.message }); }
+    const got = password;
+    const gotCodes = Array.from(got).map(c => c.charCodeAt(0)).join(",");
+    const expCodes = Array.from(expected).map(c => c.charCodeAt(0)).join(",");
+    return res.status(401).json({ message: `DEBUG-C: mismatch | gotLen=${got.length} expLen=${expected.length} | got="${got}" | gotCodes=[${gotCodes}] | expCodes=[${expCodes}]` });
+  } catch (err: any) { res.status(500).json({ message: `DEBUG-E: ${err.message}` }); }
 });
 
 }

@@ -3000,7 +3000,7 @@ export default function AllServers() {
       return res.json();
     },
     onSuccess: () => { setCredentialsUnlocked(true); setShowPasswordPrompt(false); setMasterPwInput(""); toast({ title: "ปลดล็อค Credentials สำเร็จ" }); },
-    onError: (err: any) => toast({ title: "รหัสผ่านไม่ถูกต้อง", variant: "destructive" }),
+    onError: (err: any) => toast({ title: "ปลดล็อคไม่สำเร็จ", description: err?.message || "unknown error", variant: "destructive" }),
   });
 
   const [editingLocation, setEditingLocation] = useState<LocationRecord | null | undefined>(undefined);
