@@ -38,6 +38,9 @@ interface SysAdminUser {
   lastLoginIp: string | null;
   createdAt: string;
   createdBy: number | null;
+  lineUserId?: string | null;
+  lineDisplayName?: string | null;
+  twoFactorVerified?: boolean;
 }
 
 interface PasswordPolicy {
@@ -149,7 +152,7 @@ function PasswordStrengthBar({ password, policy }: { password: string; policy: P
 function AddSysAdminDialog({ onClose, policy }: { onClose: () => void; policy: PasswordPolicy | null }) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const [form, setForm] = useState({ username: "", password: "", fullName: "", email: "", lineUserId: "" });
+  const [form, setForm] = useState({ username: "", password: "", fullName: "", email: "", lineUserId: "", lineDisplayName: "" });
   const [showPw, setShowPw] = useState(false);
   const [lineSearch, setLineSearch] = useState("");
   const [lineSearchDebounced, setLineSearchDebounced] = useState("");
@@ -185,13 +188,13 @@ function AddSysAdminDialog({ onClose, policy }: { onClose: () => void; policy: P
   });
 
   const handlePickLine = (entry: ForestLineEntry) => {
-    setForm(f => ({ ...f, lineUserId: entry.lineUserId }));
+    setForm(f => ({ ...f, lineUserId: entry.lineUserId, lineDisplayName: entry.displayName }));
     setSelectedLineDisplayName(entry.displayName);
     setLineSearch(entry.displayName);
     setLinePickerOpen(false);
   };
   const handleClearLine = () => {
-    setForm(f => ({ ...f, lineUserId: "" }));
+    setForm(f => ({ ...f, lineUserId: "", lineDisplayName: "" }));
     setSelectedLineDisplayName("");
     setLineSearch("");
     setLinePickerOpen(false);
@@ -249,7 +252,7 @@ function AddSysAdminDialog({ onClose, policy }: { onClose: () => void; policy: P
                 onChange={e => {
                   setLineSearch(e.target.value);
                   if (form.lineUserId) {
-                    setForm(f => ({ ...f, lineUserId: "" }));
+                    setForm(f => ({ ...f, lineUserId: "", lineDisplayName: "" }));
                     setSelectedLineDisplayName("");
                   }
                   setLinePickerOpen(true);
@@ -352,7 +355,7 @@ function AddSysAdminDialog({ onClose, policy }: { onClose: () => void; policy: P
           <Button
             className="bg-[#fb9678] hover:bg-[#e8855a] text-white"
             onClick={() => createMut.mutate(form)}
-            disabled={createMut.isPending || !form.username || !form.password || !form.fullName || !form.lineUserId.trim()}
+            disabled={createMut.isPending || !form.username || !form.password || !form.fullName || !form.lineUserId.trim() || !form.lineDisplayName.trim()}
             data-testid="btn-save-sysadmin"
           >
             <Check className="h-4 w-4 mr-1" /> {createMut.isPending ? "กำลังบันทึก..." : "เพิ่ม SysAdmin"}
@@ -370,6 +373,7 @@ function EditSysAdminDialog({ admin, onClose }: { admin: SysAdminUser; onClose: 
     fullName: admin.fullName,
     email: admin.email || "",
     lineUserId: admin.lineUserId || "",
+    lineDisplayName: admin.lineDisplayName || "",
     active: admin.active,
   });
   const [lineSearch, setLineSearch] = useState("");
@@ -378,6 +382,7 @@ function EditSysAdminDialog({ admin, onClose }: { admin: SysAdminUser; onClose: 
   const [selectedLineDisplayName, setSelectedLineDisplayName] = useState("");
   const [lineEditMode, setLineEditMode] = useState(false);
   const linePickerRef = useRef<HTMLDivElement>(null);
+  const pickerDropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const t = setTimeout(() => setLineSearchDebounced(lineSearch.trim()), 250);
@@ -395,6 +400,13 @@ function EditSysAdminDialog({ admin, onClose }: { admin: SysAdminUser; onClose: 
     return () => document.removeEventListener("mousedown", onClick);
   }, [linePickerOpen]);
 
+  useEffect(() => {
+    if (linePickerOpen && pickerDropdownRef.current) {
+      const t = setTimeout(() => pickerDropdownRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" }), 50);
+      return () => clearTimeout(t);
+    }
+  }, [linePickerOpen, lineSearchDebounced]);
+
   const { data: forestLineResults = [], isFetching: forestLineFetching } = useQuery<ForestLineEntry[]>({
     queryKey: ["/api/sysadmin/forest-line-directory", lineSearchDebounced],
     enabled: linePickerOpen && lineSearchDebounced.length >= 1 && lineEditMode,
@@ -407,7 +419,7 @@ function EditSysAdminDialog({ admin, onClose }: { admin: SysAdminUser; onClose: 
   });
 
   const handlePickLine = (entry: ForestLineEntry) => {
-    setForm(f => ({ ...f, lineUserId: entry.lineUserId }));
+    setForm(f => ({ ...f, lineUserId: entry.lineUserId, lineDisplayName: entry.displayName }));
     setSelectedLineDisplayName(entry.displayName);
     setLineSearch(entry.displayName);
     setLinePickerOpen(false);
@@ -419,6 +431,7 @@ function EditSysAdminDialog({ admin, onClose }: { admin: SysAdminUser; onClose: 
       if (!admin.isMaster) payload.active = form.active;
       if (lineEditMode && form.lineUserId && form.lineUserId !== admin.lineUserId) {
         payload.lineUserId = form.lineUserId;
+        payload.lineDisplayName = form.lineDisplayName;
       }
       const res = await fetch(`/api/sysadmin/users/${admin.id}`, {
         method: "PATCH",
@@ -467,10 +480,11 @@ function EditSysAdminDialog({ admin, onClose }: { admin: SysAdminUser; onClose: 
             </div>
             {!lineEditMode ? (
               <div className="border rounded-lg p-2.5 bg-gray-50" data-testid="text-current-line">
-                <div className="text-sm font-mono text-gray-900 truncate flex items-center gap-1.5">
+                <div className="text-sm text-gray-900 flex items-center gap-1.5">
                   <MessageCircle className="h-3.5 w-3.5 text-green-500 shrink-0" />
-                  {admin.lineUserId}
+                  <span className="font-medium">{admin.lineDisplayName || <span className="text-gray-400 italic font-normal">(ไม่มีชื่อ — สร้างก่อน column นี้มี)</span>}</span>
                 </div>
+                <div className="text-[10px] font-mono text-gray-400 truncate mt-0.5 ml-5">{admin.lineUserId}</div>
               </div>
             ) : (
               <>

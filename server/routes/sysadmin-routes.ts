@@ -773,6 +773,7 @@ export function registerSysAdminRoutes(app: Express) {
         createdAt: sysAdmins.createdAt,
         createdBy: sysAdmins.createdBy,
         lineUserId: sysAdmins.lineUserId,
+        lineDisplayName: sysAdmins.lineDisplayName,
         twoFactorMethod: sysAdmins.twoFactorMethod,
         twoFactorVerified: sysAdmins.twoFactorVerified,
       }).from(sysAdmins).orderBy(desc(sysAdmins.isMaster), sysAdmins.createdAt);
@@ -785,12 +786,15 @@ export function registerSysAdminRoutes(app: Express) {
   app.post("/api/sysadmin/users", requireSysAdminAuth, async (req, res) => {
     try {
       const session = req.session as any;
-      const { username, password, fullName, email, lineUserId, twoFactorMethod } = req.body;
+      const { username, password, fullName, email, lineUserId, lineDisplayName, twoFactorMethod } = req.body;
       if (!username || !password || !fullName) {
         return res.status(400).json({ message: "กรุณากรอกข้อมูลให้ครบ" });
       }
       if (!lineUserId || !String(lineUserId).trim()) {
         return res.status(400).json({ message: "กรุณากรอก LINE User ID (ใช้สำหรับ 2FA)" });
+      }
+      if (!lineDisplayName || !String(lineDisplayName).trim()) {
+        return res.status(400).json({ message: "กรุณาเลือก LINE จาก Forest (ต้องมีชื่อเรียกที่อ่านได้)" });
       }
       const method = twoFactorMethod || "line";
       if (!["totp", "line", "email"].includes(method)) {
@@ -815,6 +819,7 @@ export function registerSysAdminRoutes(app: Express) {
         fullName,
         email: email || null,
         lineUserId: String(lineUserId).trim(),
+        lineDisplayName: String(lineDisplayName).trim(),
         twoFactorMethod: method,
         twoFactorVerified: false,
         isMaster: false,
@@ -854,11 +859,16 @@ export function registerSysAdminRoutes(app: Express) {
       if (req.body.active !== undefined && !target.isMaster) updates.active = req.body.active;
       if (req.body.lineUserId !== undefined) {
         const newLineId = String(req.body.lineUserId || "").trim();
+        const newDisplayName = String(req.body.lineDisplayName || "").trim();
         if (!newLineId) {
           return res.status(400).json({ message: "LINE User ID ห้ามเป็นค่าว่าง" });
         }
+        if (!newDisplayName) {
+          return res.status(400).json({ message: "กรุณาเลือก LINE จาก Forest (ต้องมีชื่อเรียก)" });
+        }
         if (newLineId !== target.lineUserId) {
           updates.lineUserId = newLineId;
+          updates.lineDisplayName = newDisplayName;
           updates.twoFactorVerified = false;
         }
       }

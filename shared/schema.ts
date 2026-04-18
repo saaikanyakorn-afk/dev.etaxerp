@@ -6315,6 +6315,7 @@ export const sysAdmins = pgTable("sys_admins", {
   createdAt: timestamp("created_at").defaultNow(),
   createdBy: integer("created_by"),
   lineUserId: text("line_user_id"),
+  lineDisplayName: text("line_display_name"),
   twoFactorMethod: text("two_factor_method"),
   twoFactorSecret: text("two_factor_secret"),
   twoFactorVerified: boolean("two_factor_verified").notNull().default(false),
