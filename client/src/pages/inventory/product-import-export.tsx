@@ -122,6 +122,8 @@ export default function ProductImportExport(props: { Wrapper?: React.ComponentTy
       setImportResult(result);
       setStep("done");
       queryClient.invalidateQueries({ queryKey: ["/api/products"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/inventory/stock-by-warehouse", selectedCompanyId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/warehouses"] });
     } catch (err: any) {
       toast({ title: "นำเข้าไม่สำเร็จ", description: err.message, variant: "destructive" });
     } finally {
