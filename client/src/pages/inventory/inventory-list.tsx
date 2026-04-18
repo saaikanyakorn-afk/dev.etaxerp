@@ -460,7 +460,7 @@ export default function InventoryList(props: { Wrapper?: React.ComponentType<{ c
 
         <Card>
           <CardHeader className="pb-3">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 flex-wrap">
               <Tabs value={categoryFilter} onValueChange={setCategoryFilter}>
                 <TabsList className="flex-wrap h-auto">
                   <TabsTrigger data-testid="tab-all" value="all">ทั้งหมด ({stats.total})</TabsTrigger>
@@ -470,7 +470,7 @@ export default function InventoryList(props: { Wrapper?: React.ComponentType<{ c
                   <TabsTrigger data-testid="tab-consumable" value="consumable">วัสดุสิ้นเปลือง</TabsTrigger>
                 </TabsList>
               </Tabs>
-              <div className="flex items-center gap-3 w-full sm:w-auto">
+              <div className="flex items-center gap-3 w-full sm:w-auto flex-wrap min-w-0">
                 <div className="flex items-center gap-2 shrink-0">
                   <Switch
                     id="show-inactive-list"
