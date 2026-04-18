@@ -410,7 +410,7 @@ export function registerSysAdminRoutes(app: Express) {
         lastLoginIp: clientIp,
       }).where(eq(sysAdmins.id, admin.id));
 
-      if (admin.twoFactorMethod && admin.twoFactorVerified) {
+      if (admin.twoFactorMethod) {
         const session = req.session as any;
         session.sysAdmin2faPendingId = admin.id;
         session.sysAdmin2faAttempts = 0;
@@ -537,6 +537,10 @@ export function registerSysAdminRoutes(app: Express) {
       delete session.sysAdmin2faAttempts;
       delete session.login2faOtp;
       delete session.login2faExpiry;
+
+      if (!admin.twoFactorVerified) {
+        await db.update(sysAdmins).set({ twoFactorVerified: true }).where(eq(sysAdmins.id, admin.id));
+      }
 
       const policy = await getPasswordPolicy();
       await logAudit(req, "login_2fa_verified", "sysadmin", admin.id, admin.username);
