@@ -799,12 +799,6 @@ async function runMigrationsInBackground() {
     } catch (e: any) {
       console.error("[OneTimeMigration] import/run error:", e.message);
     }
-    try {
-      const { runOneTimeLineDisplayNameMigration } = await import("./one-time-migration-line-display-name");
-      await runOneTimeLineDisplayNameMigration();
-    } catch (e: any) {
-      console.error("[OneTimeMigration] line_display_name error:", e.message);
-    }
     migrationReady = true;
     log("Core schema ready - API enabled");
     try {

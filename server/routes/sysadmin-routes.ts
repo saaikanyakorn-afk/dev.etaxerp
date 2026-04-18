@@ -574,6 +574,21 @@ export function registerSysAdminRoutes(app: Express) {
         return res.status(401).json({ message: "กรุณาเข้าสู่ระบบ SysAdmin" });
       }
 
+      const idLookup = String(req.query.id || "").trim();
+      if (idLookup) {
+        const matches: Array<{ lineUserId: string; displayName: string; source: string }> = [];
+        const recRows = await db.select({ lineUserId: lineRecipients.lineId, displayName: lineRecipients.displayName, source: sql<string>`'LINE Recipient'` })
+          .from(lineRecipients).where(eq(lineRecipients.lineId, idLookup));
+        const empRows = await db.select({ lineUserId: employees.lineUserId, displayName: employees.fullName, source: sql<string>`'พนักงาน'` })
+          .from(employees).where(eq(employees.lineUserId, idLookup));
+        const custRows = await db.select({ lineUserId: customers.lineUserId, displayName: customers.name, source: sql<string>`'ลูกค้า'` })
+          .from(customers).where(eq(customers.lineUserId, idLookup));
+        for (const r of [...recRows, ...empRows, ...custRows]) {
+          if (r.lineUserId && r.displayName) matches.push({ lineUserId: r.lineUserId, displayName: r.displayName, source: r.source });
+        }
+        return res.json(matches);
+      }
+
       const q = String(req.query.q || "").trim();
       if (q.length < 1) return res.json([]);
       const needle = `%${q}%`;
@@ -773,7 +788,6 @@ export function registerSysAdminRoutes(app: Express) {
         createdAt: sysAdmins.createdAt,
         createdBy: sysAdmins.createdBy,
         lineUserId: sysAdmins.lineUserId,
-        lineDisplayName: sysAdmins.lineDisplayName,
         twoFactorMethod: sysAdmins.twoFactorMethod,
         twoFactorVerified: sysAdmins.twoFactorVerified,
       }).from(sysAdmins).orderBy(desc(sysAdmins.isMaster), sysAdmins.createdAt);
@@ -786,15 +800,12 @@ export function registerSysAdminRoutes(app: Express) {
   app.post("/api/sysadmin/users", requireSysAdminAuth, async (req, res) => {
     try {
       const session = req.session as any;
-      const { username, password, fullName, email, lineUserId, lineDisplayName, twoFactorMethod } = req.body;
+      const { username, password, fullName, email, lineUserId, twoFactorMethod } = req.body;
       if (!username || !password || !fullName) {
         return res.status(400).json({ message: "กรุณากรอกข้อมูลให้ครบ" });
       }
       if (!lineUserId || !String(lineUserId).trim()) {
         return res.status(400).json({ message: "กรุณากรอก LINE User ID (ใช้สำหรับ 2FA)" });
-      }
-      if (!lineDisplayName || !String(lineDisplayName).trim()) {
-        return res.status(400).json({ message: "กรุณาเลือก LINE จาก Forest (ต้องมีชื่อเรียกที่อ่านได้)" });
       }
       const method = twoFactorMethod || "line";
       if (!["totp", "line", "email"].includes(method)) {
@@ -819,7 +830,6 @@ export function registerSysAdminRoutes(app: Express) {
         fullName,
         email: email || null,
         lineUserId: String(lineUserId).trim(),
-        lineDisplayName: String(lineDisplayName).trim(),
         twoFactorMethod: method,
         twoFactorVerified: false,
         isMaster: false,
@@ -859,16 +869,11 @@ export function registerSysAdminRoutes(app: Express) {
       if (req.body.active !== undefined && !target.isMaster) updates.active = req.body.active;
       if (req.body.lineUserId !== undefined) {
         const newLineId = String(req.body.lineUserId || "").trim();
-        const newDisplayName = String(req.body.lineDisplayName || "").trim();
         if (!newLineId) {
           return res.status(400).json({ message: "LINE User ID ห้ามเป็นค่าว่าง" });
         }
-        if (!newDisplayName) {
-          return res.status(400).json({ message: "กรุณาเลือก LINE จาก Forest (ต้องมีชื่อเรียก)" });
-        }
         if (newLineId !== target.lineUserId) {
           updates.lineUserId = newLineId;
-          updates.lineDisplayName = newDisplayName;
           updates.twoFactorVerified = false;
         }
       }

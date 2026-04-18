@@ -39,7 +39,6 @@ interface SysAdminUser {
   createdAt: string;
   createdBy: number | null;
   lineUserId?: string | null;
-  lineDisplayName?: string | null;
   twoFactorVerified?: boolean;
 }
 
@@ -152,7 +151,7 @@ function PasswordStrengthBar({ password, policy }: { password: string; policy: P
 function AddSysAdminDialog({ onClose, policy }: { onClose: () => void; policy: PasswordPolicy | null }) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const [form, setForm] = useState({ username: "", password: "", fullName: "", email: "", lineUserId: "", lineDisplayName: "" });
+  const [form, setForm] = useState({ username: "", password: "", fullName: "", email: "", lineUserId: "" });
   const [showPw, setShowPw] = useState(false);
   const [lineSearch, setLineSearch] = useState("");
   const [lineSearchDebounced, setLineSearchDebounced] = useState("");
@@ -188,13 +187,13 @@ function AddSysAdminDialog({ onClose, policy }: { onClose: () => void; policy: P
   });
 
   const handlePickLine = (entry: ForestLineEntry) => {
-    setForm(f => ({ ...f, lineUserId: entry.lineUserId, lineDisplayName: entry.displayName }));
+    setForm(f => ({ ...f, lineUserId: entry.lineUserId }));
     setSelectedLineDisplayName(entry.displayName);
     setLineSearch(entry.displayName);
     setLinePickerOpen(false);
   };
   const handleClearLine = () => {
-    setForm(f => ({ ...f, lineUserId: "", lineDisplayName: "" }));
+    setForm(f => ({ ...f, lineUserId: "" }));
     setSelectedLineDisplayName("");
     setLineSearch("");
     setLinePickerOpen(false);
@@ -252,7 +251,7 @@ function AddSysAdminDialog({ onClose, policy }: { onClose: () => void; policy: P
                 onChange={e => {
                   setLineSearch(e.target.value);
                   if (form.lineUserId) {
-                    setForm(f => ({ ...f, lineUserId: "", lineDisplayName: "" }));
+                    setForm(f => ({ ...f, lineUserId: "" }));
                     setSelectedLineDisplayName("");
                   }
                   setLinePickerOpen(true);
@@ -355,7 +354,7 @@ function AddSysAdminDialog({ onClose, policy }: { onClose: () => void; policy: P
           <Button
             className="bg-[#fb9678] hover:bg-[#e8855a] text-white"
             onClick={() => createMut.mutate(form)}
-            disabled={createMut.isPending || !form.username || !form.password || !form.fullName || !form.lineUserId.trim() || !form.lineDisplayName.trim()}
+            disabled={createMut.isPending || !form.username || !form.password || !form.fullName || !form.lineUserId.trim()}
             data-testid="btn-save-sysadmin"
           >
             <Check className="h-4 w-4 mr-1" /> {createMut.isPending ? "กำลังบันทึก..." : "เพิ่ม SysAdmin"}
@@ -373,8 +372,17 @@ function EditSysAdminDialog({ admin, onClose }: { admin: SysAdminUser; onClose: 
     fullName: admin.fullName,
     email: admin.email || "",
     lineUserId: admin.lineUserId || "",
-    lineDisplayName: admin.lineDisplayName || "",
     active: admin.active,
+  });
+
+  const { data: currentLineLookup = [] } = useQuery<ForestLineEntry[]>({
+    queryKey: ["/api/sysadmin/forest-line-directory", "id", admin.lineUserId],
+    enabled: !!admin.lineUserId,
+    queryFn: async () => {
+      const res = await fetch(`/api/sysadmin/forest-line-directory?id=${encodeURIComponent(admin.lineUserId!)}`, { credentials: "include" });
+      if (!res.ok) return [];
+      return res.json();
+    },
   });
   const [lineSearch, setLineSearch] = useState("");
   const [lineSearchDebounced, setLineSearchDebounced] = useState("");
@@ -419,7 +427,7 @@ function EditSysAdminDialog({ admin, onClose }: { admin: SysAdminUser; onClose: 
   });
 
   const handlePickLine = (entry: ForestLineEntry) => {
-    setForm(f => ({ ...f, lineUserId: entry.lineUserId, lineDisplayName: entry.displayName }));
+    setForm(f => ({ ...f, lineUserId: entry.lineUserId }));
     setSelectedLineDisplayName(entry.displayName);
     setLineSearch(entry.displayName);
     setLinePickerOpen(false);
@@ -431,7 +439,6 @@ function EditSysAdminDialog({ admin, onClose }: { admin: SysAdminUser; onClose: 
       if (!admin.isMaster) payload.active = form.active;
       if (lineEditMode && form.lineUserId && form.lineUserId !== admin.lineUserId) {
         payload.lineUserId = form.lineUserId;
-        payload.lineDisplayName = form.lineDisplayName;
       }
       const res = await fetch(`/api/sysadmin/users/${admin.id}`, {
         method: "PATCH",
@@ -482,7 +489,8 @@ function EditSysAdminDialog({ admin, onClose }: { admin: SysAdminUser; onClose: 
               <div className="border rounded-lg p-2.5 bg-gray-50" data-testid="text-current-line">
                 <div className="text-sm text-gray-900 flex items-center gap-1.5">
                   <MessageCircle className="h-3.5 w-3.5 text-green-500 shrink-0" />
-                  <span className="font-medium">{admin.lineDisplayName || <span className="text-gray-400 italic font-normal">(ไม่มีชื่อ — สร้างก่อน column นี้มี)</span>}</span>
+                  <span className="font-medium">{currentLineLookup[0]?.displayName || <span className="text-gray-400 italic font-normal">(ไม่พบใน Forest)</span>}</span>
+                  {currentLineLookup[0]?.source && <span className="ml-2 text-[10px] text-gray-400">[{currentLineLookup[0].source}]</span>}
                 </div>
                 <div className="text-[10px] font-mono text-gray-400 truncate mt-0.5 ml-5">{admin.lineUserId}</div>
               </div>
