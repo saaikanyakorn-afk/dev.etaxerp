@@ -582,9 +582,9 @@ export function registerSysAdminRoutes(app: Express) {
         const [emp] = await db.select({ lineUserId: employees.lineUserId, displayName: employees.fullName, source: sql<string>`'พนักงาน'` })
           .from(employees).where(eq(employees.lineUserId, idLookup)).limit(1);
         if (emp) return res.json([emp]);
-        const [adm] = await db.select({ lineUserId: sysAdmins.lineUserId, displayName: sysAdmins.fullName, source: sql<string>`'SysAdmin'` })
-          .from(sysAdmins).where(eq(sysAdmins.lineUserId, idLookup)).limit(1);
-        if (adm) return res.json([adm]);
+        const [rec] = await db.select({ lineUserId: lineRecipients.lineId, displayName: lineRecipients.displayName, source: sql<string>`'LINE Recipient'` })
+          .from(lineRecipients).where(eq(lineRecipients.lineId, idLookup)).limit(1);
+        if (rec) return res.json([rec]);
         return res.json([]);
       }
 
