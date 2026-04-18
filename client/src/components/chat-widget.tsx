@@ -206,7 +206,7 @@ export default function ChatWidget() {
 
 
   return (
-    <div className={`fixed bottom-4 right-4 z-40 print:!hidden flex flex-col items-center gap-3 transition-all duration-500 ${showButtons ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8 pointer-events-none"}`}>
+    <div className={`group fixed bottom-4 right-4 z-40 print:!hidden flex flex-col items-center gap-3 transition-all duration-500 ${showButtons ? "opacity-40 hover:opacity-100 translate-y-0" : "opacity-0 translate-y-8 pointer-events-none"}`}>
       {showContactIcons && <ContactIcons />}
       {open && (
         <div
