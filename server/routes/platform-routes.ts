@@ -2151,6 +2151,9 @@ app.post("/api/platform/machines", requireAuth, requireSuperAdmin, async (req, r
   try {
     const { machines: machinesTable, insertMachineSchema } = await import("@shared/schema");
     const parsed = insertMachineSchema.parse(req.body);
+    if (!parsed.sysadminFolder || !parsed.sysadminFolder.trim()) {
+      parsed.sysadminFolder = "srv-" + crypto.randomBytes(4).toString("hex");
+    }
     const [row] = await db.insert(machinesTable).values(parsed).returning();
     res.json(row);
   } catch (err: any) { res.status(400).json({ message: err.message }); }

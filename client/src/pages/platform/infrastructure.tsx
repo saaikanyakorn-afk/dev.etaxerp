@@ -58,6 +58,7 @@ interface MachineRecord {
   internetType: string;
   sysadminEmail: string | null;
   sysadminLineId: string | null;
+  sysadminFolder: string | null;
   physicalLocation: string | null;
   locationId: number | null;
   createdAt?: string;
@@ -1769,6 +1770,20 @@ function MachineCard({ machine, onEdit, expanded, onToggle, onToggleOfficial, al
               <div>
                 <span className="text-gray-400 text-xs block">Sysadmin LINE</span>
                 <span className="text-xs font-mono truncate">{machine.sysadminLineId}</span>
+              </div>
+            )}
+            {machine.sysadminFolder && (
+              <div>
+                <span className="text-gray-400 text-xs block">Secret Folder</span>
+                <button
+                  type="button"
+                  className="text-xs font-mono text-orange-600 hover:underline"
+                  onClick={(e) => { e.stopPropagation(); copyToClipboard(machine.sysadminFolder!); }}
+                  data-testid={`button-copy-folder-${machine.id}`}
+                  title="คลิกเพื่อคัดลอก"
+                >
+                  {machine.sysadminFolder}
+                </button>
               </div>
             )}
           </div>

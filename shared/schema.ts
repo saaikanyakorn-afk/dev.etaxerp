@@ -68,6 +68,7 @@ export const machines = pgTable("machines", {
   repoBranch: text("repo_branch").default("main"),
   sysadminEmail: text("sysadmin_email"),
   sysadminLineId: text("sysadmin_line_id"),
+  sysadminFolder: text("sysadmin_folder"),
   physicalLocation: text("physical_location"),
   locationId: integer("location_id"),
   createdAt: timestamp("created_at").defaultNow(),
