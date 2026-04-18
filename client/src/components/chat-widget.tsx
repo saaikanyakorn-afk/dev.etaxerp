@@ -343,10 +343,12 @@ export default function ChatWidget() {
       {showChatButton && user && (
         <a
           href="/user-guide"
+          target="_blank"
+          rel="noopener noreferrer"
           data-testid="btn-help-guide"
           className="w-10 h-10 rounded-full text-white shadow-lg hover:shadow-xl hover:scale-110 transition-all flex items-center justify-center"
           style={{ background: "#fb9678" }}
-          title="คู่มือการใช้งาน"
+          title="คู่มือการใช้งาน (เปิดหน้าต่างใหม่)"
         >
           <CircleHelp className="w-5 h-5" />
         </a>
