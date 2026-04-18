@@ -479,18 +479,12 @@ function EditSysAdminDialog({ admin, onClose }: { admin: SysAdminUser; onClose: 
             </div>
             {!lineEditMode ? (
               <div className="border rounded-lg p-2.5 bg-gray-50" data-testid="text-current-line">
-                {admin.lineUserId ? (
-                  <>
-                    <div className="text-sm text-gray-900 font-medium flex items-center gap-1.5">
-                      <MessageCircle className="h-3.5 w-3.5 text-green-500" />
-                      {currentLineDisplayName || <span className="text-gray-400 italic">(ไม่พบใน Forest)</span>}
-                      {currentLineSource && <span className="text-[10px] text-gray-500 font-normal">— {currentLineSource}</span>}
-                    </div>
-                    <div className="text-[10px] font-mono text-gray-500 truncate mt-0.5">{admin.lineUserId}</div>
-                  </>
-                ) : (
-                  <span className="text-gray-400 italic text-sm">ยังไม่ได้ตั้ง LINE</span>
-                )}
+                <div className="text-sm text-gray-900 font-medium flex items-center gap-1.5">
+                  <MessageCircle className="h-3.5 w-3.5 text-green-500" />
+                  {currentLineDisplayName || <span className="text-gray-400 italic">(ไม่พบใน Forest)</span>}
+                  {currentLineSource && <span className="text-[10px] text-gray-500 font-normal">— {currentLineSource}</span>}
+                </div>
+                <div className="text-[10px] font-mono text-gray-500 truncate mt-0.5">{admin.lineUserId}</div>
               </div>
             ) : (
               <>
