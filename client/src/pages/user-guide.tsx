@@ -1722,8 +1722,6 @@ export default function UserGuide() {
           </div>
         </div>
       </div>
-
-      <AiGuideChat />
     </div>
   );
 }
