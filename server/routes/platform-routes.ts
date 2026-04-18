@@ -2164,6 +2164,14 @@ app.patch("/api/platform/machines/:id", requireAuth, requireSuperAdmin, async (r
     const { machines: machinesTable } = await import("@shared/schema");
     const id = Number(req.params.id);
     const { id: _id, code: _code, createdAt: _ca, ...updates } = req.body;
+    if (!updates.sysadminFolder || !String(updates.sysadminFolder).trim()) {
+      const [existing] = await db.select({ f: machinesTable.sysadminFolder }).from(machinesTable).where(eq(machinesTable.id, id));
+      if (existing && (!existing.f || !existing.f.trim())) {
+        updates.sysadminFolder = "srv-" + crypto.randomBytes(4).toString("hex");
+      } else {
+        delete updates.sysadminFolder;
+      }
+    }
     const [row] = await db.update(machinesTable).set({ ...updates, updatedAt: new Date() }).where(eq(machinesTable.id, id)).returning();
     if (!row) return res.status(404).json({ message: "ไม่พบเครื่องนี้" });
     res.json(row);
