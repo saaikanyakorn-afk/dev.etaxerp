@@ -163,6 +163,27 @@ function sameSubnet(ip1: string, ip2: string, mask1: string, mask2: string): boo
   return (ipToInt(ip1) & m1) === (ipToInt(ip2) & m1);
 }
 
+function isValidIPv4(ip: string): boolean {
+  const m = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(ip.trim());
+  if (!m) return false;
+  return m.slice(1).every(p => { const n = Number(p); return n >= 0 && n <= 255; });
+}
+
+function maskToCidr(mask: string): string {
+  if (!mask) return "";
+  if (!isValidIPv4(mask)) return mask;
+  const parts = mask.split(".").map(Number);
+  const bin = parts.map(p => p.toString(2).padStart(8, "0")).join("");
+  if (!/^1*0*$/.test(bin)) return mask;
+  const ones = bin.indexOf("0");
+  return String(ones === -1 ? 32 : ones);
+}
+
+async function copyToClipboard(text: string): Promise<boolean> {
+  try { await navigator.clipboard.writeText(text); return true; }
+  catch { return false; }
+}
+
 const OS_CONFIG: Record<string, { icon: any; label: string; color: string }> = {
   windows: { icon: Monitor, label: "Windows", color: "text-blue-600 bg-blue-50 border-blue-200" },
   linux: { icon: MonitorSmartphone, label: "Linux (aaPanel)", color: "text-orange-600 bg-orange-50 border-orange-200" },
@@ -990,13 +1011,31 @@ function EditDomainDialog({ domain, routers, machines, onSave, onCancel, saving 
   );
 }
 
-function NicIpList({ nicId }: { nicId: number }) {
+function NicIpList({ nicId, parentMask }: { nicId: number; parentMask?: string }) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { data: allNicIps = [] } = useQuery<NicIpRecord[]>({ queryKey: ["/api/platform/all-nic-ips"] });
   const myIps = allNicIps.filter(ip => ip.nicId === nicId);
   const [adding, setAdding] = useState(false);
-  const [ipForm, setIpForm] = useState({ ipAddress: "", subnetMask: "255.255.255.0", label: "", isPrimary: false });
+  const defaultMask = parentMask || "255.255.255.0";
+  const [ipForm, setIpForm] = useState({ ipAddress: "", subnetMask: defaultMask, label: "", isPrimary: false });
+
+  const handleCopy = async (ip: string) => {
+    const ok = await copyToClipboard(ip);
+    toast({ title: ok ? `คัดลอก ${ip}` : "คัดลอกไม่สำเร็จ", variant: ok ? "default" : "destructive" });
+  };
+
+  const submitAdd = () => {
+    if (!isValidIPv4(ipForm.ipAddress)) {
+      toast({ title: "IP Address ไม่ถูกต้อง", description: "ต้องเป็นรูปแบบ IPv4 เช่น 192.168.1.101", variant: "destructive" });
+      return;
+    }
+    if (!isValidIPv4(ipForm.subnetMask)) {
+      toast({ title: "Subnet Mask ไม่ถูกต้อง", description: "เช่น 255.255.255.0", variant: "destructive" });
+      return;
+    }
+    addIpMut.mutate(ipForm);
+  };
 
   const addIpMut = useMutation({
     mutationFn: async (data: typeof ipForm) => {
@@ -1004,7 +1043,7 @@ function NicIpList({ nicId }: { nicId: number }) {
       if (!res.ok) throw new Error((await res.json()).message);
       return res.json();
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/platform/all-nic-ips"] }); setAdding(false); setIpForm({ ipAddress: "", subnetMask: "255.255.255.0", label: "", isPrimary: false }); toast({ title: "เพิ่ม IP แล้ว" }); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/platform/all-nic-ips"] }); setAdding(false); setIpForm({ ipAddress: "", subnetMask: defaultMask, label: "", isPrimary: false }); toast({ title: "เพิ่ม IP แล้ว" }); },
     onError: (err: any) => toast({ title: "เกิดข้อผิดพลาด", description: err.message, variant: "destructive" }),
   });
 
@@ -1037,8 +1076,8 @@ function NicIpList({ nicId }: { nicId: number }) {
       </div>
       {myIps.map(ip => (
         <div key={ip.id} className="flex items-center gap-2 text-[11px] group/ip py-0.5" data-testid={`nic-ip-row-${ip.id}`}>
-          <span className={`font-mono ${ip.isPrimary ? "text-blue-700 font-bold" : "text-gray-600"}`}>{ip.ipAddress}</span>
-          <span className="font-mono text-gray-400 text-[10px]">/{ip.subnetMask}</span>
+          <button onClick={() => handleCopy(ip.ipAddress)} className={`font-mono hover:underline cursor-pointer ${ip.isPrimary ? "text-blue-700 font-bold" : "text-gray-600"}`} title="คลิกเพื่อคัดลอก">{ip.ipAddress}</button>
+          <span className="font-mono text-gray-400 text-[10px]" title={ip.subnetMask}>/{maskToCidr(ip.subnetMask)}</span>
           {ip.isPrimary && (
             <Badge className="bg-blue-600 text-white text-[9px] px-1 py-0">Primary</Badge>
           )}
@@ -1054,14 +1093,14 @@ function NicIpList({ nicId }: { nicId: number }) {
         </div>
       ))}
       {adding && (
-        <div className="flex items-end gap-1.5 flex-wrap py-1" onClick={e => e.stopPropagation()}>
+        <form onSubmit={e => { e.preventDefault(); submitAdd(); }} onKeyDown={e => { if (e.key === "Escape") setAdding(false); }} className="flex items-end gap-1.5 flex-wrap py-1" onClick={e => e.stopPropagation()}>
           <div>
             <Label className="text-[9px] text-gray-400">IP *</Label>
-            <Input className="h-6 text-[11px] font-mono w-32" placeholder="192.168.1.101" value={ipForm.ipAddress} onChange={e => setIpForm({ ...ipForm, ipAddress: e.target.value })} data-testid={`input-extra-ip-${nicId}`} />
+            <Input autoFocus className={`h-6 text-[11px] font-mono w-32 ${ipForm.ipAddress && !isValidIPv4(ipForm.ipAddress) ? "border-red-400" : ""}`} placeholder="192.168.1.101" value={ipForm.ipAddress} onChange={e => setIpForm({ ...ipForm, ipAddress: e.target.value })} data-testid={`input-extra-ip-${nicId}`} />
           </div>
           <div>
-            <Label className="text-[9px] text-gray-400">Subnet</Label>
-            <Input className="h-6 text-[11px] font-mono w-32" placeholder="255.255.255.0" value={ipForm.subnetMask} onChange={e => setIpForm({ ...ipForm, subnetMask: e.target.value })} data-testid={`input-extra-subnet-${nicId}`} />
+            <Label className="text-[9px] text-gray-400">Subnet (/{maskToCidr(ipForm.subnetMask)})</Label>
+            <Input className={`h-6 text-[11px] font-mono w-32 ${ipForm.subnetMask && !isValidIPv4(ipForm.subnetMask) ? "border-red-400" : ""}`} placeholder="255.255.255.0" value={ipForm.subnetMask} onChange={e => setIpForm({ ...ipForm, subnetMask: e.target.value })} data-testid={`input-extra-subnet-${nicId}`} />
           </div>
           <div>
             <Label className="text-[9px] text-gray-400">Label</Label>
@@ -1071,11 +1110,11 @@ function NicIpList({ nicId }: { nicId: number }) {
             <input type="checkbox" checked={ipForm.isPrimary} onChange={e => setIpForm({ ...ipForm, isPrimary: e.target.checked })} className="rounded h-3 w-3" />
             Primary
           </label>
-          <Button size="sm" className="h-6 text-[10px] px-2 bg-blue-600 hover:bg-blue-700" onClick={() => addIpMut.mutate(ipForm)} disabled={!ipForm.ipAddress} data-testid={`btn-save-ip-${nicId}`}>
+          <Button type="submit" size="sm" className="h-6 text-[10px] px-2 bg-blue-600 hover:bg-blue-700" disabled={!ipForm.ipAddress || addIpMut.isPending} data-testid={`btn-save-ip-${nicId}`}>
             <Check className="h-2.5 w-2.5 mr-0.5" /> เพิ่ม
           </Button>
-          <Button size="sm" variant="ghost" className="h-6 text-[10px] px-2" onClick={() => setAdding(false)}>ยกเลิก</Button>
-        </div>
+          <Button type="button" size="sm" variant="ghost" className="h-6 text-[10px] px-2" onClick={() => setAdding(false)}>ยกเลิก</Button>
+        </form>
       )}
     </div>
   );
@@ -1174,8 +1213,8 @@ function NicSection({ machineId, allNics, allMachines, allRouters }: { machineId
               </button>
               <Plug className="h-3.5 w-3.5 text-gray-400 shrink-0" />
               <span className="font-medium text-gray-700 w-24 truncate">{nic.nicName}</span>
-              <span className="font-mono text-blue-600 font-bold">{nic.ipAddress}</span>
-              <span className="font-mono text-gray-400 text-[10px]">/{nic.subnetMask}</span>
+              <button onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(nic.ipAddress).then(() => toast({ title: `คัดลอก ${nic.ipAddress}` })); }} className="font-mono text-blue-600 font-bold hover:underline cursor-pointer" title="คลิกเพื่อคัดลอก">{nic.ipAddress}</button>
+              <span className="font-mono text-gray-400 text-[10px]" title={nic.subnetMask}>/{maskToCidr(nic.subnetMask)}</span>
               {nic.macAddress && <span className="font-mono text-gray-400 text-[10px] hidden lg:inline">{nic.macAddress}</span>}
               {linkedRouter && (
                 <Badge variant="outline" className="bg-teal-50 text-teal-700 border-teal-300 text-[10px] px-1.5 py-0">
@@ -1202,7 +1241,7 @@ function NicSection({ machineId, allNics, allMachines, allRouters }: { machineId
             </div>
             {isExpanded && (
               <div className="bg-blue-50/30 border border-t-0 border-blue-300 rounded-b p-2">
-                <NicIpList nicId={nic.id} />
+                <NicIpList nicId={nic.id} parentMask={nic.subnetMask} />
               </div>
             )}
           </div>

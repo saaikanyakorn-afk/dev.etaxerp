@@ -2801,12 +2801,22 @@ app.get("/api/platform/all-nic-ips", requireSuperAdminOrSysAdmin, async (req, re
   } catch (err: any) { res.status(500).json({ message: err.message }); }
 });
 
+function isValidIPv4Server(ip: string): boolean {
+  if (typeof ip !== "string") return false;
+  const m = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(ip.trim());
+  if (!m) return false;
+  return m.slice(1).every(p => { const n = Number(p); return n >= 0 && n <= 255; });
+}
+
 app.post("/api/platform/nics/:nicId/ips", requireAuth, requireSuperAdmin, async (req, res) => {
   try {
     const { nicIpAddresses } = await import("@shared/schema");
     const nicId = Number(req.params.nicId);
     const { ipAddress, subnetMask, label, isPrimary } = req.body;
     if (!ipAddress) return res.status(400).json({ message: "ต้องระบุ IP Address" });
+    if (!isValidIPv4Server(ipAddress)) return res.status(400).json({ message: `IP Address "${ipAddress}" ไม่ใช่รูปแบบ IPv4 ที่ถูกต้อง` });
+    const finalMask = subnetMask || "255.255.255.0";
+    if (!isValidIPv4Server(finalMask)) return res.status(400).json({ message: `Subnet Mask "${finalMask}" ไม่ถูกต้อง` });
     if (isPrimary) {
       await db.update(nicIpAddresses).set({ isPrimary: false }).where(
         sql`${nicIpAddresses.nicId} = ${nicId} AND ${nicIpAddresses.isPrimary} = true`
@@ -2825,6 +2835,8 @@ app.patch("/api/platform/nic-ips/:id", requireAuth, requireSuperAdmin, async (re
     const { nicIpAddresses } = await import("@shared/schema");
     const id = Number(req.params.id);
     const { id: _id, createdAt: _ca, ...updates } = req.body;
+    if (updates.ipAddress !== undefined && !isValidIPv4Server(updates.ipAddress)) return res.status(400).json({ message: `IP Address "${updates.ipAddress}" ไม่ถูกต้อง` });
+    if (updates.subnetMask !== undefined && !isValidIPv4Server(updates.subnetMask)) return res.status(400).json({ message: `Subnet Mask "${updates.subnetMask}" ไม่ถูกต้อง` });
     if (updates.isPrimary) {
       const existing = await db.select().from(nicIpAddresses).where(eq(nicIpAddresses.id, id));
       if (existing.length > 0) {
