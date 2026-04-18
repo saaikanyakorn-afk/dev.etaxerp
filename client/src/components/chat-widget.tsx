@@ -204,9 +204,82 @@ export default function ChatWidget() {
 
   let lastDate = "";
 
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const [avoidOffset, setAvoidOffset] = useState(0);
+
+  useEffect(() => {
+    if (!showButtons) return;
+
+    const isInteractive = (el: Element | null): boolean => {
+      while (el && el !== document.body) {
+        if (wrapperRef.current?.contains(el)) return false;
+        const tag = el.tagName;
+        if (tag === "BUTTON" || tag === "A" || tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA") return true;
+        const role = el.getAttribute?.("role");
+        if (role === "button" || role === "link" || role === "menuitem" || role === "tab") return true;
+        const tid = el.getAttribute?.("data-testid") || "";
+        if (tid.startsWith("button-") || tid.startsWith("link-") || tid.startsWith("input-")) return true;
+        if ((el as HTMLElement).onclick) return true;
+        el = el.parentElement;
+      }
+      return false;
+    };
+
+    const checkCollision = () => {
+      const wrap = wrapperRef.current;
+      if (!wrap) return;
+      const prevPointer = wrap.style.pointerEvents;
+      wrap.style.pointerEvents = "none";
+      try {
+        const rect = wrap.getBoundingClientRect();
+        const points = [
+          [rect.left + rect.width / 2, rect.top + rect.height / 2],
+          [rect.left + 4, rect.top + 4],
+          [rect.right - 4, rect.top + 4],
+          [rect.left + 4, rect.bottom - 4],
+          [rect.right - 4, rect.bottom - 4],
+        ];
+        let hit = false;
+        for (const [x, y] of points) {
+          const els = document.elementsFromPoint(x, y);
+          if (els.some(isInteractive)) {
+            hit = true;
+            break;
+          }
+        }
+        setAvoidOffset((prev) => {
+          if (hit) return Math.min(prev + 80, 240);
+          if (prev === 0) return 0;
+          return Math.max(prev - 80, 0);
+        });
+      } finally {
+        wrap.style.pointerEvents = prevPointer;
+      }
+    };
+
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const debounced = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(checkCollision, 200);
+    };
+
+    debounced();
+    window.addEventListener("scroll", debounced, { passive: true, capture: true });
+    window.addEventListener("resize", debounced);
+    return () => {
+      if (timer) clearTimeout(timer);
+      window.removeEventListener("scroll", debounced, true);
+      window.removeEventListener("resize", debounced);
+    };
+  }, [showButtons, location, open, showContactIcons]);
+
 
   return (
-    <div className={`fixed bottom-4 right-4 z-40 print:!hidden flex flex-col items-center gap-3 transition-all duration-500 ${showButtons ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8 pointer-events-none"}`}>
+    <div
+      ref={wrapperRef}
+      style={{ transform: `translateY(-${avoidOffset}px)` }}
+      className={`fixed bottom-4 right-4 z-40 print:!hidden flex flex-col items-center gap-3 transition-all duration-500 ${showButtons ? "opacity-100" : "opacity-0 pointer-events-none"}`}
+    >
       {showContactIcons && <ContactIcons />}
       {open && (
         <div
