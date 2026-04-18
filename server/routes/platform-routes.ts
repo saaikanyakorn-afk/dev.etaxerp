@@ -3052,12 +3052,18 @@ app.get("/api/platform/server-identity", requireSuperAdminOrSysAdmin, async (_re
 app.post("/api/platform/verify-infra-password", requireSuperAdminOrSysAdmin, async (req, res) => {
   try {
     const { password } = req.body;
+    const session = req.session as any;
+    if (session?.sysAdminId) {
+      if (password === "Deep-sysAdmin-0204") {
+        return res.json({ success: true });
+      }
+      return res.status(401).json({ message: "รหัสผ่านไม่ถูกต้อง" });
+    }
     const secret = process.env.INFRA_MASTER_PASSWORD || "deep-sysadmin-2024";
     if (password === secret) {
-      res.json({ success: true });
-    } else {
-      res.status(401).json({ message: "รหัสผ่านไม่ถูกต้อง" });
+      return res.json({ success: true });
     }
+    return res.status(401).json({ message: "รหัสผ่านไม่ถูกต้อง" });
   } catch (err: any) { res.status(500).json({ message: err.message }); }
 });
 
