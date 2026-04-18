@@ -849,6 +849,16 @@ export function registerSysAdminRoutes(app: Express) {
       if (req.body.fullName !== undefined) updates.fullName = req.body.fullName;
       if (req.body.email !== undefined) updates.email = req.body.email;
       if (req.body.active !== undefined && !target.isMaster) updates.active = req.body.active;
+      if (req.body.lineUserId !== undefined) {
+        const newLineId = String(req.body.lineUserId || "").trim();
+        if (!newLineId) {
+          return res.status(400).json({ message: "LINE User ID ห้ามเป็นค่าว่าง" });
+        }
+        if (newLineId !== target.lineUserId) {
+          updates.lineUserId = newLineId;
+          updates.twoFactorVerified = false;
+        }
+      }
 
       if (Object.keys(updates).length === 0) {
         return res.status(400).json({ message: "ไม่มีข้อมูลให้อัพเดท" });

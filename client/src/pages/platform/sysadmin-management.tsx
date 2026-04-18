@@ -363,6 +363,206 @@ function AddSysAdminDialog({ onClose, policy }: { onClose: () => void; policy: P
   );
 }
 
+function EditSysAdminDialog({ admin, onClose }: { admin: SysAdminUser; onClose: () => void }) {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const [form, setForm] = useState({
+    fullName: admin.fullName,
+    email: admin.email || "",
+    lineUserId: admin.lineUserId || "",
+    active: admin.active,
+  });
+  const [lineSearch, setLineSearch] = useState("");
+  const [lineSearchDebounced, setLineSearchDebounced] = useState("");
+  const [linePickerOpen, setLinePickerOpen] = useState(false);
+  const [selectedLineDisplayName, setSelectedLineDisplayName] = useState("");
+  const [lineEditMode, setLineEditMode] = useState(false);
+  const linePickerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const t = setTimeout(() => setLineSearchDebounced(lineSearch.trim()), 250);
+    return () => clearTimeout(t);
+  }, [lineSearch]);
+
+  useEffect(() => {
+    if (!linePickerOpen) return;
+    const onClick = (e: MouseEvent) => {
+      if (linePickerRef.current && !linePickerRef.current.contains(e.target as Node)) {
+        setLinePickerOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
+  }, [linePickerOpen]);
+
+  const { data: forestLineResults = [], isFetching: forestLineFetching } = useQuery<ForestLineEntry[]>({
+    queryKey: ["/api/sysadmin/forest-line-directory", lineSearchDebounced],
+    enabled: linePickerOpen && lineSearchDebounced.length >= 1 && lineEditMode,
+    queryFn: async () => {
+      const res = await fetch(`/api/sysadmin/forest-line-directory?q=${encodeURIComponent(lineSearchDebounced)}`, { credentials: "include" });
+      if (!res.ok) return [];
+      const data = await res.json();
+      return Array.isArray(data) ? data : (data.items || []);
+    },
+  });
+
+  const handlePickLine = (entry: ForestLineEntry) => {
+    setForm(f => ({ ...f, lineUserId: entry.lineUserId }));
+    setSelectedLineDisplayName(entry.displayName);
+    setLineSearch(entry.displayName);
+    setLinePickerOpen(false);
+  };
+
+  const saveMut = useMutation({
+    mutationFn: async () => {
+      const payload: any = { fullName: form.fullName, email: form.email || null };
+      if (!admin.isMaster) payload.active = form.active;
+      if (lineEditMode && form.lineUserId && form.lineUserId !== admin.lineUserId) {
+        payload.lineUserId = form.lineUserId;
+      }
+      const res = await fetch(`/api/sysadmin/users/${admin.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) throw new Error((await res.json()).message);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/sysadmin/users"] });
+      toast({ title: "บันทึกการแก้ไขสำเร็จ" });
+      onClose();
+    },
+    onError: (err: any) => toast({ title: "เกิดข้อผิดพลาด", description: err.message, variant: "destructive" }),
+  });
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" data-testid="dialog-edit-sysadmin">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+        <div className="p-5 border-b">
+          <h2 className="text-lg font-bold flex items-center gap-2">
+            <Pencil className="h-5 w-5 text-[#fb9678]" /> แก้ไข SysAdmin
+            {admin.isMaster && <Badge className="bg-amber-100 text-amber-700 border-amber-300 text-[10px]"><Crown className="h-3 w-3 mr-0.5" /> Master</Badge>}
+          </h2>
+          <p className="text-xs text-gray-500 mt-1 font-mono">{admin.username}</p>
+        </div>
+        <div className="p-5 space-y-4">
+          <div>
+            <Label className="text-sm font-medium">ชื่อ-นามสกุล *</Label>
+            <Input value={form.fullName} onChange={e => setForm({ ...form, fullName: e.target.value })} data-testid="input-edit-fullname" />
+          </div>
+          <div>
+            <Label className="text-sm font-medium">Email</Label>
+            <Input value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} placeholder="email@example.com" data-testid="input-edit-email" />
+          </div>
+          <div ref={linePickerRef} className="relative">
+            <div className="flex items-center justify-between mb-1">
+              <Label className="text-sm font-medium">LINE * <span className="text-xs text-gray-400 font-normal">(2FA)</span></Label>
+              {!lineEditMode && (
+                <button type="button" onClick={() => { setLineEditMode(true); setLineSearch(""); setLinePickerOpen(true); }} className="text-xs text-blue-600 hover:underline" data-testid="btn-change-line">
+                  เปลี่ยน LINE
+                </button>
+              )}
+            </div>
+            {!lineEditMode ? (
+              <div className="border rounded-lg p-2.5 bg-gray-50 text-sm font-mono text-gray-700 truncate" data-testid="text-current-line">
+                {admin.lineUserId || <span className="text-gray-400 italic font-sans">ยังไม่ได้ตั้ง LINE</span>}
+              </div>
+            ) : (
+              <>
+                <div className="relative mt-1">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+                  <Input
+                    value={lineSearch}
+                    onChange={e => {
+                      setLineSearch(e.target.value);
+                      if (form.lineUserId) {
+                        setForm(f => ({ ...f, lineUserId: admin.lineUserId || "" }));
+                        setSelectedLineDisplayName("");
+                      }
+                      setLinePickerOpen(true);
+                    }}
+                    onFocus={() => setLinePickerOpen(true)}
+                    className="pl-9 pr-9"
+                    placeholder="ค้นหาด้วยชื่อ / ชื่อบัญชี LINE"
+                    autoComplete="off"
+                    data-testid="input-edit-line-search"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => { setLineEditMode(false); setForm(f => ({ ...f, lineUserId: admin.lineUserId || "" })); setLineSearch(""); setSelectedLineDisplayName(""); setLinePickerOpen(false); }}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700"
+                    data-testid="btn-cancel-line-edit"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+                {form.lineUserId && form.lineUserId !== admin.lineUserId && selectedLineDisplayName && !linePickerOpen && (
+                  <div className="flex items-center gap-1.5 mt-1.5 text-[11px] text-green-600">
+                    <CheckCircle2 className="h-3 w-3" />
+                    เลือก: {selectedLineDisplayName}
+                  </div>
+                )}
+                {linePickerOpen && (
+                  <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-2xl max-h-64 overflow-y-auto z-50">
+                    {lineSearchDebounced.length < 1 ? (
+                      <div className="p-3 text-xs text-gray-500 text-center">พิมพ์ชื่อเพื่อค้นหา LINE ที่รู้จักใน Forest</div>
+                    ) : forestLineFetching ? (
+                      <div className="p-3 text-xs text-gray-500 text-center flex items-center justify-center gap-2"><Loader2 className="h-3 w-3 animate-spin" /> กำลังค้นหา...</div>
+                    ) : forestLineResults.length === 0 ? (
+                      <div className="p-3 text-xs text-amber-600 text-center"><AlertTriangle className="h-3.5 w-3.5 inline mr-1" /> ไม่พบใน Forest</div>
+                    ) : (
+                      <ul className="py-1">
+                        {forestLineResults.map((entry, i) => (
+                          <li key={`${entry.lineUserId}-${i}`}>
+                            <button type="button" onClick={() => handlePickLine(entry)} className="w-full text-left px-3 py-2 hover:bg-gray-50 flex items-start gap-2">
+                              <MessageCircle className="h-4 w-4 text-green-500 mt-0.5 shrink-0" />
+                              <div className="min-w-0 flex-1">
+                                <div className="text-sm text-gray-900 truncate">{entry.displayName}</div>
+                                {entry.source && <div className="text-[10px] text-gray-500 truncate">{entry.source}</div>}
+                              </div>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                )}
+                <p className="text-[10px] text-amber-600 mt-1">
+                  <AlertTriangle className="h-3 w-3 inline mr-0.5" /> เปลี่ยน LINE → user ต้อง verify LINE ใหม่ตอน login ครั้งถัดไป
+                </p>
+              </>
+            )}
+          </div>
+          {!admin.isMaster && (
+            <div className="flex items-center justify-between border-t pt-4">
+              <div>
+                <Label className="text-sm font-medium">สถานะใช้งาน</Label>
+                <p className="text-xs text-gray-500">ถ้าปิด → user นี้จะ login ไม่ได้</p>
+              </div>
+              <Switch checked={form.active} onCheckedChange={v => setForm({ ...form, active: v })} data-testid="switch-edit-active" />
+            </div>
+          )}
+        </div>
+        <div className="p-5 border-t flex justify-end gap-2">
+          <Button variant="outline" onClick={onClose} data-testid="btn-cancel-edit">
+            <X className="h-4 w-4 mr-1" /> ยกเลิก
+          </Button>
+          <Button
+            className="bg-[#fb9678] hover:bg-[#e8855a] text-white"
+            onClick={() => saveMut.mutate()}
+            disabled={saveMut.isPending || !form.fullName.trim() || (lineEditMode && !form.lineUserId)}
+            data-testid="btn-save-edit"
+          >
+            <Check className="h-4 w-4 mr-1" /> {saveMut.isPending ? "กำลังบันทึก..." : "บันทึก"}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ResetPasswordDialog({ admin, onClose, policy }: { admin: SysAdminUser; onClose: () => void; policy: PasswordPolicy | null }) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -617,6 +817,7 @@ export default function SysAdminManagement() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [showAdd, setShowAdd] = useState(false);
+  const [editTarget, setEditTarget] = useState<SysAdminUser | null>(null);
   const [showPolicy, setShowPolicy] = useState(false);
   const [resetTarget, setResetTarget] = useState<SysAdminUser | null>(null);
   const [activeTab, setActiveTab] = useState<"users" | "audit">("users");
@@ -847,6 +1048,11 @@ export default function SysAdminManagement() {
                             <Unlock className="h-3 w-3 mr-1" /> ปลดล็อค
                           </Button>
                         )}
+                        {canManage && (
+                          <Button size="sm" variant="outline" className="h-7 text-xs border-blue-300 text-blue-600" onClick={() => setEditTarget(admin)} data-testid={`btn-edit-${admin.id}`}>
+                            <Pencil className="h-3 w-3 mr-1" /> แก้ไข
+                          </Button>
+                        )}
                         <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setResetTarget(admin)} data-testid={`btn-reset-pw-${admin.id}`}>
                           <Key className="h-3 w-3 mr-1" /> รีเซ็ตรหัส
                         </Button>
@@ -930,6 +1136,7 @@ export default function SysAdminManagement() {
       </div>
 
       {showAdd && <AddSysAdminDialog onClose={() => setShowAdd(false)} policy={policy || null} />}
+      {editTarget && <EditSysAdminDialog admin={editTarget} onClose={() => setEditTarget(null)} />}
       {resetTarget && <ResetPasswordDialog admin={resetTarget} onClose={() => setResetTarget(null)} policy={policy || null} />}
       {showPolicy && policy && <PolicySettingsDialog policy={policy} onClose={() => setShowPolicy(false)} />}
     </SysAdminLayout>
