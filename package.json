@@ -12,6 +12,8 @@
     "db:push": "drizzle-kit push"
   },
   "dependencies": {
+    "@fontsource/inter": "^5.2.8",
+    "@fontsource/sarabun": "^5.2.8",
     "@google-cloud/storage": "^7.19.0",
     "@google/genai": "^1.44.0",
     "@hookform/resolvers": "^3.10.0",
