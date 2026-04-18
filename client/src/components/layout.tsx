@@ -902,7 +902,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
-      <main className="flex-1 lg:ml-64 lg:pr-16 flex flex-col min-h-screen overflow-x-hidden print:!ml-0 print:!pr-0">
+      <main className="flex-1 lg:ml-64 flex flex-col min-h-screen overflow-x-hidden print:!ml-0">
         {!import.meta.env.PROD && <DevMenu />}
         {user?.subscription?.status === "trial" && !user?.subscription?.trialExpired && user?.subscription?.daysRemaining != null && (
           <div className="bg-amber-50 border-b border-amber-200 px-4 py-2 text-center text-sm print:!hidden" data-testid="banner-trial">
