@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import SysAdminLayout from "@/components/sysadmin-layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,7 +12,15 @@ import {
   Shield, Plus, Eye, EyeOff, Pencil, Trash2, Check, X,
   Lock, Unlock, Key, AlertTriangle, Crown, UserCog,
   RefreshCw, Clock, Ban, CheckCircle2, Settings,
+  Search, MessageCircle, Loader2,
 } from "lucide-react";
+
+type ForestLineEntry = {
+  lineUserId: string;
+  displayName: string;
+  source?: string;
+  lastSeenAt?: string | null;
+};
 
 interface SysAdminUser {
   id: number;
@@ -143,6 +151,51 @@ function AddSysAdminDialog({ onClose, policy }: { onClose: () => void; policy: P
   const { toast } = useToast();
   const [form, setForm] = useState({ username: "", password: "", fullName: "", email: "", lineUserId: "" });
   const [showPw, setShowPw] = useState(false);
+  const [lineSearch, setLineSearch] = useState("");
+  const [lineSearchDebounced, setLineSearchDebounced] = useState("");
+  const [linePickerOpen, setLinePickerOpen] = useState(false);
+  const [selectedLineDisplayName, setSelectedLineDisplayName] = useState("");
+  const linePickerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const t = setTimeout(() => setLineSearchDebounced(lineSearch.trim()), 250);
+    return () => clearTimeout(t);
+  }, [lineSearch]);
+
+  useEffect(() => {
+    if (!linePickerOpen) return;
+    const onClick = (e: MouseEvent) => {
+      if (linePickerRef.current && !linePickerRef.current.contains(e.target as Node)) {
+        setLinePickerOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
+  }, [linePickerOpen]);
+
+  const { data: forestLineResults = [], isFetching: forestLineFetching } = useQuery<ForestLineEntry[]>({
+    queryKey: ["/api/sysadmin/forest-line-directory", lineSearchDebounced],
+    enabled: linePickerOpen && lineSearchDebounced.length >= 1 && !form.lineUserId,
+    queryFn: async () => {
+      const res = await fetch(`/api/sysadmin/forest-line-directory?q=${encodeURIComponent(lineSearchDebounced)}`, { credentials: "include" });
+      if (!res.ok) return [];
+      const data = await res.json();
+      return Array.isArray(data) ? data : (data.items || []);
+    },
+  });
+
+  const handlePickLine = (entry: ForestLineEntry) => {
+    setForm(f => ({ ...f, lineUserId: entry.lineUserId }));
+    setSelectedLineDisplayName(entry.displayName);
+    setLineSearch(entry.displayName);
+    setLinePickerOpen(false);
+  };
+  const handleClearLine = () => {
+    setForm(f => ({ ...f, lineUserId: "" }));
+    setSelectedLineDisplayName("");
+    setLineSearch("");
+    setLinePickerOpen(false);
+  };
 
   const createMut = useMutation({
     mutationFn: async (data: typeof form) => {
@@ -187,10 +240,89 @@ function AddSysAdminDialog({ onClose, policy }: { onClose: () => void; policy: P
             <Label className="text-sm font-medium">Email</Label>
             <Input value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} placeholder="email@example.com" data-testid="input-sysadmin-email" />
           </div>
-          <div>
-            <Label className="text-sm font-medium">LINE User ID * <span className="text-xs text-gray-400 font-normal">(2FA)</span></Label>
-            <Input value={form.lineUserId} onChange={e => setForm({ ...form, lineUserId: e.target.value })} placeholder="Uxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" className="font-mono" data-testid="input-sysadmin-line-user-id" />
-            <p className="text-xs text-gray-500 mt-1">ใช้ยืนยันตัวตน 2 ขั้นตอนผ่าน LINE OTP</p>
+          <div ref={linePickerRef} className="relative">
+            <Label className="text-sm font-medium">LINE * <span className="text-xs text-gray-400 font-normal">(2FA)</span></Label>
+            <div className="relative mt-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+              <Input
+                value={lineSearch}
+                onChange={e => {
+                  setLineSearch(e.target.value);
+                  if (form.lineUserId) {
+                    setForm(f => ({ ...f, lineUserId: "" }));
+                    setSelectedLineDisplayName("");
+                  }
+                  setLinePickerOpen(true);
+                }}
+                onFocus={() => setLinePickerOpen(true)}
+                className="pl-9 pr-9"
+                placeholder="ค้นหาด้วยชื่อ / ชื่อบัญชี LINE"
+                autoComplete="off"
+                data-testid="input-sysadmin-line-search"
+              />
+              {lineSearch && (
+                <button
+                  type="button"
+                  onClick={handleClearLine}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700"
+                  data-testid="btn-clear-sysadmin-line"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+            {form.lineUserId && selectedLineDisplayName && !linePickerOpen && (
+              <div className="flex items-center gap-1.5 mt-1.5 text-[11px] text-green-600" data-testid="badge-sysadmin-line-verified">
+                <CheckCircle2 className="h-3 w-3" />
+                ทราบจาก Forest — {selectedLineDisplayName}
+              </div>
+            )}
+            {linePickerOpen && !form.lineUserId && (
+              <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-2xl max-h-64 overflow-y-auto z-50" data-testid="dropdown-sysadmin-line-picker">
+                {lineSearchDebounced.length < 1 ? (
+                  <div className="p-3 text-xs text-gray-500 text-center">
+                    พิมพ์ชื่อเพื่อค้นหา LINE ที่รู้จักใน Forest
+                  </div>
+                ) : forestLineFetching ? (
+                  <div className="p-3 text-xs text-gray-500 text-center flex items-center justify-center gap-2">
+                    <Loader2 className="h-3 w-3 animate-spin" /> กำลังค้นหา...
+                  </div>
+                ) : forestLineResults.length === 0 ? (
+                  <div className="p-3 text-xs text-amber-600 text-center">
+                    <AlertTriangle className="h-3.5 w-3.5 inline mr-1" />
+                    ยังไม่พบใน Forest — เพิ่ม LINE Friend ของบอทก่อน แล้วค่อยกลับมาเลือก
+                  </div>
+                ) : (
+                  <ul className="py-1">
+                    {forestLineResults.map((entry, i) => (
+                      <li key={`${entry.lineUserId}-${i}`}>
+                        <button
+                          type="button"
+                          onClick={() => handlePickLine(entry)}
+                          className="w-full text-left px-3 py-2 hover:bg-gray-50 transition-colors flex items-start gap-2"
+                          data-testid={`option-sysadmin-line-${i}`}
+                        >
+                          <MessageCircle className="h-4 w-4 text-green-500 mt-0.5 shrink-0" />
+                          <div className="min-w-0 flex-1">
+                            <div className="text-sm text-gray-900 truncate">{entry.displayName}</div>
+                            {(entry.source || entry.lastSeenAt) && (
+                              <div className="text-[10px] text-gray-500 truncate">
+                                {entry.source && <span>{entry.source}</span>}
+                                {entry.source && entry.lastSeenAt && <span> · </span>}
+                                {entry.lastSeenAt && <span>เห็นล่าสุด {new Date(entry.lastSeenAt).toLocaleDateString("th-TH")}</span>}
+                              </div>
+                            )}
+                          </div>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
+            <p className="text-[10px] text-gray-500 mt-1">
+              เลือกจากรายชื่อที่ Forest รู้จักเท่านั้น — ไม่ต้องส่งรหัสยืนยัน (จะ verify ตอน user นี้ login ครั้งแรก)
+            </p>
           </div>
           <div>
             <Label className="text-sm font-medium">รหัสผ่าน *</Label>
