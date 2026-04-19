@@ -440,6 +440,7 @@ export const STANDARD_CHART_OF_ACCOUNTS: ChartAccountTemplate[] = [
   { code: "5210440", name: "Donation - Taxable", nameTh: "เงินบริจาค-เข้าเกณฑ์", nameZh: "捐赠（可抵税）", type: "expense", parentCode: "521" },
   { code: "5210450", name: "Miscellaneous Expense", nameTh: "ค่าใช้จ่ายเบ็ดเตล็ด", nameZh: "杂项费用", type: "expense", parentCode: "521" },
   { code: "5210460", name: "Excess or Shortage", nameTh: "ส่วนขาดเกินบัญชี", nameZh: "现金溢缺", type: "expense", parentCode: "521" },
+  { code: "5210470", name: "Company Registration Fee", nameTh: "ค่าธรรมเนียมจัดตั้งบริษัท", nameZh: "公司注册费", type: "expense", parentCode: "521" },
 
   // --- Utilities ---
   { code: "522", name: "Utilities & Communication", nameTh: "ค่าสาธารณูปโภค", nameZh: "水电通讯费", type: "expense", parentCode: null },
