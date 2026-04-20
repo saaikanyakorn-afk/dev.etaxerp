@@ -441,7 +441,7 @@ app.get("/api/permissions/me", requireAuth, async (req, res) => {
       case "super_admin":
         break;
       case "accountant": {
-        const accountantExceptions = isAccountingFirm ? ["hr", "firm-mgmt"] : [];
+        const accountantExceptions = isAccountingFirm ? ["hr", "firm-mgmt", "settings"] : ["settings"];
         allowedModules = allowedModules.filter(m =>
           !PRIMARY_ONLY_MODULES.includes(m) || accountantExceptions.includes(m)
         );
