@@ -553,11 +553,6 @@ export function registerHrRoutes(app: Express) {
             await db.update(employees).set(empData).where(eq(employees.id, existing[0].id));
             results.updated++;
           } else {
-            const codeConflict = await db.select({ id: employees.id, companyId: employees.companyId }).from(employees).where(eq(employees.employeeCode, employeeCode)).limit(1);
-            if (codeConflict.length > 0) {
-              results.errors.push(`แถว ${rowNum}: รหัส ${employeeCode} ซ้ำกับพนักงานบริษัทอื่น (companyId=${codeConflict[0].companyId}) — ข้ามการนำเข้า`);
-              continue;
-            }
             await db.insert(employees).values(empData);
             results.created++;
           }
