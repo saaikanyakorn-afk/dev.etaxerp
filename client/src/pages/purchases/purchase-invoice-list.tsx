@@ -30,6 +30,7 @@ import {
   DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu";
 import { apiRequest, getShareBaseUrl } from "@/lib/queryClient";
+import { invalidateDocCaches } from "@/lib/invalidate-doc-caches";
 import { formatDate } from "@/lib/format";
 import ThaiDateInput from "@/components/thai-date-input";
 import { useDateSettings } from "@/hooks/use-date-settings";
@@ -117,7 +118,7 @@ export default function PurchaseInvoiceList() {
       await apiRequest("DELETE", `/api/purchase-invoices/${id}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/purchase-invoices"] });
+      invalidateDocCaches(queryClient, [["/api/purchase-invoices"]]);
       toast({ title: "ลบเอกสารซื้อสำเร็จ", variant: "success" as any });
     },
     onError: (err: any) => toast({ title: "เกิดข้อผิดพลาด", description: err.message, variant: "destructive" }),

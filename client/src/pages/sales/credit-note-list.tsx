@@ -23,6 +23,7 @@ import {
   DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu";
 import { apiRequest } from "@/lib/queryClient";
+import { invalidateDocCaches } from "@/lib/invalidate-doc-caches";
 import { useBulkDelete } from "@/hooks/use-bulk-delete";
 import { BulkDeleteButton, BulkDeleteConfirmDialog, SelectAllCheckbox, RowCheckbox } from "@/components/bulk-delete-bar";
 import { formatDate } from "@/lib/format";
@@ -82,7 +83,7 @@ export default function CreditNoteList() {
       await apiRequest("DELETE", `/api/sales-credit-notes/${id}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/sales-credit-notes"] });
+      invalidateDocCaches(queryClient, [["/api/sales-credit-notes"]]);
       toast({ title: "ลบใบลดหนี้สำเร็จ", variant: "success" as any });
     },
     onError: (err: any) => toast({ title: "เกิดข้อผิดพลาด", description: err.message, variant: "destructive" }),

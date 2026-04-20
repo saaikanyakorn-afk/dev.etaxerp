@@ -22,6 +22,7 @@ import {
   DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu";
 import { apiRequest } from "@/lib/queryClient";
+import { invalidateDocCaches } from "@/lib/invalidate-doc-caches";
 import { useBulkDelete } from "@/hooks/use-bulk-delete";
 import { BulkDeleteButton, BulkDeleteConfirmDialog, SelectAllCheckbox, RowCheckbox } from "@/components/bulk-delete-bar";
 import { formatDate } from "@/lib/format";
@@ -85,7 +86,7 @@ export default function DebitNoteList() {
       await apiRequest("DELETE", `/api/purchase-debit-notes/${id}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/purchase-debit-notes"] });
+      invalidateDocCaches(queryClient, [["/api/purchase-debit-notes"]]);
       toast({ title: "ลบใบลดหนี้ซื้อสำเร็จ", variant: "success" as any });
     },
     onError: (err: any) => toast({ title: "เกิดข้อผิดพลาด", description: err.message, variant: "destructive" }),

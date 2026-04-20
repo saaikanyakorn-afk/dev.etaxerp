@@ -26,6 +26,7 @@ import {
   DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu";
 import { apiRequest, getShareBaseUrl } from "@/lib/queryClient";
+import { invalidateDocCaches } from "@/lib/invalidate-doc-caches";
 import { formatDate } from "@/lib/format";
 import ThaiDateInput from "@/components/thai-date-input";
 import { useDateSettings } from "@/hooks/use-date-settings";
@@ -112,7 +113,7 @@ export default function ReceiptList() {
       await apiRequest("DELETE", `/api/receipts/${id}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/receipts"] });
+      invalidateDocCaches(queryClient, [["/api/receipts"]]);
       toast({ title: "ลบใบเสร็จรับเงินสำเร็จ", variant: "success" as any });
     },
     onError: (err: any) => toast({ title: "เกิดข้อผิดพลาด", description: err.message, variant: "destructive" }),
