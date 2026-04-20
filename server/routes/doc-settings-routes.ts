@@ -70,7 +70,7 @@ app.get("/api/document-settings", requireAuth, async (req, res) => {
       showTaxId: true,
       showBranch: true,
       dateFormat: "DD/MM/YYYY",
-      dateEra: "AD",
+      dateEra: "CE",
     };
     if (!result.logoUrl && company?.tenantId) {
       try {
@@ -108,7 +108,7 @@ app.get("/api/document-settings/:companyId", requireAuth, async (req, res) => {
       colorMode: "color",
       docNumberFormat: "YMD_SEQ",
       docNumberDigits: 4,
-      dateEra: "AD",
+      dateEra: "CE",
       dateFormat: "DD/MM/YYYY",
     };
     if (!result.logoUrl && company?.tenantId) {

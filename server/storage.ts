@@ -2243,9 +2243,9 @@ export class DatabaseStorage implements IStorage {
   async getNextQuotationNo(companyId: number, docDate?: string): Promise<string> {
     const { formatDocNumber } = await import("@shared/document-types");
     const [settings] = await db.select().from(documentSettings).where(eq(documentSettings.companyId, companyId));
-    const format = (settings?.docNumberFormat || "YM_SEQ") as any;
-    const digits = settings?.docNumberDigits || 5;
-    const era = (settings?.dateEra || "BE") as any;
+    const format = (settings?.docNumberFormat || "YMD_SEQ") as any;
+    const digits = settings?.docNumberDigits || 4;
+    const era = (settings?.dateEra || "CE") as any;
     const prefix = "QO";
 
     let now = docDate ? new Date(docDate + "T00:00:00") : new Date();

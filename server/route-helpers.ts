@@ -111,7 +111,7 @@ export async function getNextDocNo(
   const [settings] = await conn.select().from(documentSettings).where(eq(documentSettings.companyId, companyId));
   const format = (settings?.docNumberFormat || "YMD_SEQ") as DocNumberFormat;
   const digits = settings?.docNumberDigits || 4;
-  const era = (settings?.dateEra || "AD") as DateEra;
+  const era = (settings?.dateEra || "CE") as DateEra;
 
   if (settings?.docPrefixes && !skipPrefixOverride) {
     try {
@@ -179,7 +179,7 @@ export async function validateDocNo(companyId: number, docNo: string, prefix: st
   const [settings] = await db.select().from(documentSettings).where(eq(documentSettings.companyId, companyId));
   const format = (settings?.docNumberFormat || "YMD_SEQ") as DocNumberFormat;
   const digits = settings?.docNumberDigits || 4;
-  const era = (settings?.dateEra || "AD") as DateEra;
+  const era = (settings?.dateEra || "CE") as DateEra;
   return validateDocNumberFormat(docNo, prefix, format, digits, docDate, era);
 }
 
@@ -196,7 +196,7 @@ export async function getNextJournalEntryNo(companyId: number, journalBook: stri
   const [settings] = await db.select().from(documentSettings).where(eq(documentSettings.companyId, companyId));
   const format = (settings?.docNumberFormat || "YMD_SEQ") as DocNumberFormat;
   const digits = settings?.docNumberDigits || 4;
-  const era = (settings?.dateEra || "AD") as DateEra;
+  const era = (settings?.dateEra || "CE") as DateEra;
 
   let now = entryDate ? new Date(entryDate + "T00:00:00") : new Date();
   if (isNaN(now.getTime())) now = new Date();

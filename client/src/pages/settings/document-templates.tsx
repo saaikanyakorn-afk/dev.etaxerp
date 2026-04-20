@@ -527,9 +527,9 @@ export default function DocumentTemplates() {
     showQrOnDoc: true,
     docTypeColors: null,
     colorMode: "color",
-    docNumberFormat: "Y_SEQ",
-    docNumberDigits: 5,
-    dateEra: "BE",
+    docNumberFormat: "YMD_SEQ",
+    docNumberDigits: 4,
+    dateEra: "CE",
     dateFormat: "DD/MM/YYYY",
     documentLanguage: "th",
   };
@@ -651,9 +651,9 @@ export default function DocumentTemplates() {
         type: "ใบเสนอราคา",
         number: formatDocNumber(
           "QO", 1,
-          (currentSettings.docNumberFormat as DocNumberFormat) || "Y_SEQ",
-          currentSettings.docNumberDigits || 5,
-          (currentSettings.dateEra as DateEra) || "BE"
+          (currentSettings.docNumberFormat as DocNumberFormat) || "YMD_SEQ",
+          currentSettings.docNumberDigits || 4,
+          (currentSettings.dateEra as DateEra) || "CE"
         )
       }
     : null;
@@ -903,7 +903,7 @@ export default function DocumentTemplates() {
                     <div>
                       <Label>รูปแบบ</Label>
                       <Select
-                        value={currentSettings.docNumberFormat || "Y_SEQ"}
+                        value={currentSettings.docNumberFormat || "YMD_SEQ"}
                         onValueChange={v => updateLocal("docNumberFormat", v)}
                       >
                         <SelectTrigger className="mt-1" data-testid="select-number-format">
@@ -928,7 +928,7 @@ export default function DocumentTemplates() {
                         ธุรกิจออนไลน์ที่มีเอกสารจำนวนมากแนะนำ 5-6 หลัก (รองรับ 99,999 - 999,999 รายการ)
                       </p>
                       <Select
-                        value={String(currentSettings.docNumberDigits || 5)}
+                        value={String(currentSettings.docNumberDigits || 4)}
                         onValueChange={v => updateLocal("docNumberDigits", Number(v))}
                       >
                         <SelectTrigger className="mt-1" data-testid="select-number-digits">
@@ -961,9 +961,9 @@ export default function DocumentTemplates() {
                                 {formatDocNumber(
                                   pfx,
                                   1,
-                                  (currentSettings.docNumberFormat as DocNumberFormat) || "Y_SEQ",
-                                  currentSettings.docNumberDigits || 5,
-                                  (currentSettings.dateEra as DateEra) || "BE"
+                                  (currentSettings.docNumberFormat as DocNumberFormat) || "YMD_SEQ",
+                                  currentSettings.docNumberDigits || 4,
+                                  (currentSettings.dateEra as DateEra) || "CE"
                                 )}
                               </span>
                             </div>
@@ -1003,7 +1003,7 @@ export default function DocumentTemplates() {
                         { key: "BE", label: "พ.ศ. (ปีพุทธศักราช)", example: "2569" },
                         { key: "CE", label: "ค.ศ. (ปีคริสตศักราช)", example: "2026" },
                       ].map(opt => {
-                        const isSelected = (currentSettings.dateEra || "BE") === opt.key;
+                        const isSelected = (currentSettings.dateEra || "CE") === opt.key;
                         return (
                           <button
                             key={opt.key}
