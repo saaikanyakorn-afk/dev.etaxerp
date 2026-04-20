@@ -719,7 +719,15 @@ export default function EmployeeList() {
                 <div>
                   <label className="text-xs font-medium text-muted-foreground">รหัสพนักงาน {editId ? "" : "(อัตโนมัติ)"}</label>
                   {editId ? (
-                    <Input value={form.employeeCode} readOnly className="bg-gray-50 font-mono" data-testid="input-employee-code" />
+                    <>
+                      <Input
+                        value={form.employeeCode}
+                        onChange={e => setForm({ ...form, employeeCode: e.target.value.toUpperCase() })}
+                        className="font-mono"
+                        data-testid="input-employee-code"
+                      />
+                      <p className="text-[10px] text-amber-600 mt-1">⚠ แก้รหัสได้ แต่ต้องไม่ซ้ำกับพนักงานคนอื่นในบริษัทเดียวกัน</p>
+                    </>
                   ) : empCounter ? (
                     <Input value={`${empCounter.prefix}${String(empCounter.lastNumber + 1).padStart(4, "0")} (อัตโนมัติ)`} readOnly className="bg-gray-50 font-mono" data-testid="input-employee-code" />
                   ) : (
