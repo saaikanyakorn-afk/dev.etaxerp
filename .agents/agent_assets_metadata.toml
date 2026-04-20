@@ -60,3 +60,9 @@ id = "W_CW45Xc1ghOeynjol5_-"
 uri = "file://attached_assets/import_products_ETaxCenter.xlsx"
 type = "table"
 title = "สินค้า — พร้อมนำเข้า E-Tax Center (804 รหัส × คลัง = 1,438 row)"
+
+[[outputs]]
+id = "y1kv2GkcsTW3Vnc8QwQ08"
+uri = "file://attached_assets/import_employees_ETaxCenter.xlsx"
+type = "table"
+title = "พนักงาน — พร้อมนำเข้า E-Tax Center (17 ราย)"
