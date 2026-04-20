@@ -1037,14 +1037,17 @@ export default function DocumentTemplates() {
                       เลือกรูปแบบวันที่ที่จะแสดงในเอกสารและหน้าจอต่างๆ
                     </p>
                     <div className="grid grid-cols-3 gap-2">
-                      {[
-                        { key: "DD/MM/YYYY", example: "31/12/2026" },
-                        { key: "MM/DD/YYYY", example: "12/31/2026" },
-                        { key: "YYYY-MM-DD", example: "2026-12-31" },
-                        { key: "DD-MM-YYYY", example: "31-12-2026" },
-                        { key: "YYYY/MM/DD", example: "2026/12/31" },
-                        { key: "DD.MM.YYYY", example: "31.12.2026" },
-                      ].map(opt => {
+                      {(() => {
+                        const yr = (currentSettings.dateEra || "CE") === "BE" ? "2569" : "2026";
+                        return [
+                          { key: "DD/MM/YYYY", example: `31/12/${yr}` },
+                          { key: "MM/DD/YYYY", example: `12/31/${yr}` },
+                          { key: "YYYY-MM-DD", example: `${yr}-12-31` },
+                          { key: "DD-MM-YYYY", example: `31-12-${yr}` },
+                          { key: "YYYY/MM/DD", example: `${yr}/12/31` },
+                          { key: "DD.MM.YYYY", example: `31.12.${yr}` },
+                        ];
+                      })().map(opt => {
                         const isSelected = (currentSettings.dateFormat || "DD/MM/YYYY") === opt.key;
                         return (
                           <button
