@@ -28,7 +28,9 @@ export default function ReportNavTabs() {
                 : "text-slate-500 hover:text-slate-700 hover:bg-slate-100"
             }`}
             onClick={() => {
-              if (!isActive) navigate(tab.path);
+              if (isActive) return;
+              const search = typeof window !== "undefined" ? window.location.search : "";
+              window.open(tab.path + search, "_blank", "noopener,noreferrer");
             }}
           >
             <Icon className="h-3.5 w-3.5" />
