@@ -109,9 +109,9 @@ export async function getNextDocNo(
 ): Promise<string> {
   const conn = dbConn || db;
   const [settings] = await conn.select().from(documentSettings).where(eq(documentSettings.companyId, companyId));
-  const format = (settings?.docNumberFormat || "YM_SEQ") as DocNumberFormat;
-  const digits = settings?.docNumberDigits || 5;
-  const era = (settings?.dateEra || "BE") as DateEra;
+  const format = (settings?.docNumberFormat || "YMD_SEQ") as DocNumberFormat;
+  const digits = settings?.docNumberDigits || 4;
+  const era = (settings?.dateEra || "AD") as DateEra;
 
   if (settings?.docPrefixes && !skipPrefixOverride) {
     try {
@@ -177,9 +177,9 @@ export async function getNextDocNo(
 export async function validateDocNo(companyId: number, docNo: string, prefix: string, docDate?: string): Promise<{ valid: boolean; message?: string }> {
   if (!docNo || !prefix) return { valid: true };
   const [settings] = await db.select().from(documentSettings).where(eq(documentSettings.companyId, companyId));
-  const format = (settings?.docNumberFormat || "YM_SEQ") as DocNumberFormat;
-  const digits = settings?.docNumberDigits || 5;
-  const era = (settings?.dateEra || "BE") as DateEra;
+  const format = (settings?.docNumberFormat || "YMD_SEQ") as DocNumberFormat;
+  const digits = settings?.docNumberDigits || 4;
+  const era = (settings?.dateEra || "AD") as DateEra;
   return validateDocNumberFormat(docNo, prefix, format, digits, docDate, era);
 }
 
@@ -194,9 +194,9 @@ export const JOURNAL_BOOK_PREFIX: Record<string, string> = {
 export async function getNextJournalEntryNo(companyId: number, journalBook: string, entryDate?: string): Promise<string> {
   const prefix = JOURNAL_BOOK_PREFIX[journalBook] || "JV";
   const [settings] = await db.select().from(documentSettings).where(eq(documentSettings.companyId, companyId));
-  const format = (settings?.docNumberFormat || "YM_SEQ") as DocNumberFormat;
-  const digits = settings?.docNumberDigits || 5;
-  const era = (settings?.dateEra || "BE") as DateEra;
+  const format = (settings?.docNumberFormat || "YMD_SEQ") as DocNumberFormat;
+  const digits = settings?.docNumberDigits || 4;
+  const era = (settings?.dateEra || "AD") as DateEra;
 
   let now = entryDate ? new Date(entryDate + "T00:00:00") : new Date();
   if (isNaN(now.getTime())) now = new Date();
