@@ -423,6 +423,7 @@ export default function Expense() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/expenses"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
       toast({ title: "สร้างรายจ่ายสำเร็จ", variant: "success" as any });
       navigate("/purchases/expense");
     },
@@ -436,6 +437,7 @@ export default function Expense() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/expenses"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
       toast({ title: "อัพเดทรายจ่ายสำเร็จ", variant: "success" as any });
       navigate("/purchases/expense");
     },
@@ -449,6 +451,7 @@ export default function Expense() {
     },
     onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ["/api/expenses"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
       const newStatus = data.status || "approved";
       setForm(p => ({ ...p, status: newStatus }));
       toast({ title: newStatus === "approved" ? "อนุมัติแล้ว" : "ยกเลิกแล้ว", variant: "success" as any });
@@ -752,6 +755,7 @@ export default function Expense() {
         savedDoc = await res.json();
       }
       queryClient.invalidateQueries({ queryKey: ["/api/expenses"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
       toast({ title: "บันทึกรายจ่ายสำเร็จ", variant: "success" as any });
       const descList = items
         .map(it => it.description || it.accountName)
@@ -791,6 +795,7 @@ export default function Expense() {
         savedDoc = await res.json();
       }
       queryClient.invalidateQueries({ queryKey: ["/api/expenses"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
       toast({ title: "บันทึกรายจ่ายสำเร็จ พร้อมบันทึกเข้าทะเบียนทรัพย์สิน", variant: "success" as any });
       if (assetAlertItem) {
         const item = items[assetAlertItem.idx];
@@ -822,6 +827,7 @@ export default function Expense() {
         savedDoc = await res.json();
       }
       queryClient.invalidateQueries({ queryKey: ["/api/expenses"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
       toast({ title: "บันทึกรายจ่ายสำเร็จ", variant: "success" as any });
       const descList2 = items
         .map(it => it.description || it.accountName)
