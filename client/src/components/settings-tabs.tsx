@@ -37,7 +37,7 @@ const SETTINGS_TABS: SettingsTab[] = [
   { label: "แพ็คเกจโมดูล", href: "/settings/module-pricing", icon: Package, adminOnly: true },
 ];
 
-const ADMIN_ROLES = ["super_admin", "admin", "manager"];
+const ADMIN_ROLES = ["super_admin", "admin", "manager", "accountant"];
 
 export default function SettingsTabs() {
   const [location] = useLocation();
