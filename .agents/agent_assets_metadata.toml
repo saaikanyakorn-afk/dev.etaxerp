@@ -48,3 +48,15 @@ id = "CLgWy5_gmkwtX3WfXdFPQ"
 uri = "file://asset_import_etax.xlsx"
 type = "table"
 title = "ไฟล์นำเข้าทรัพย์สิน E-Tax (248 รายการ + ค่าเสื่อมสะสม)"
+
+[[outputs]]
+id = "b32QmwaVaZ1kb_GvXc4_Q"
+uri = "file://attached_assets/import_contacts_ETaxCenter.xlsx"
+type = "table"
+title = "คู่ค้า — พร้อมนำเข้า E-Tax Center (2,435 รายการ)"
+
+[[outputs]]
+id = "W_CW45Xc1ghOeynjol5_-"
+uri = "file://attached_assets/import_products_ETaxCenter.xlsx"
+type = "table"
+title = "สินค้า — พร้อมนำเข้า E-Tax Center (804 รหัส × คลัง = 1,438 row)"
