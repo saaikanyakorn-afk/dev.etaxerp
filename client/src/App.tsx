@@ -243,6 +243,10 @@ const LineDocumentArchive = lazy(() => import("@/pages/line-document-archive"));
 const EtaxHubDashboard = lazy(() => import("@/pages/etax-hub/dashboard"));
 const EtaxHubClientBoard = lazy(() => import("@/pages/etax-hub/client-board"));
 const EtaxHubMyCalendar = lazy(() => import("@/pages/etax-hub/my-calendar"));
+const EfilingDashboard = lazy(() => import("@/pages/etax-hub/efiling/dashboard"));
+const EfilingSubmit = lazy(() => import("@/pages/etax-hub/efiling/submit"));
+const EfilingReceipts = lazy(() => import("@/pages/etax-hub/efiling/receipts"));
+const EfilingSettings = lazy(() => import("@/pages/etax-hub/efiling/settings"));
 const TaxReminderSettings = lazy(() => import("@/pages/tax-reminder-settings"));
 const SharedBoardPage = lazy(() => import("@/pages/etax-hub/shared-board"));
 const ExternalRegisterPage = lazy(() => import("@/pages/etax-hub/external-register"));
@@ -883,6 +887,10 @@ function Router() {
       <Route path="/etax-hub" component={EtaxHubDashboard} />
       <Route path="/etax-hub/board" component={EtaxHubClientBoard} />
       <Route path="/etax-hub/calendar" component={EtaxHubMyCalendar} />
+      <Route path="/etax-hub/efiling" component={EfilingDashboard} />
+      <Route path="/etax-hub/efiling/submit" component={EfilingSubmit} />
+      <Route path="/etax-hub/efiling/receipts" component={EfilingReceipts} />
+      <Route path="/etax-hub/efiling/settings" component={EfilingSettings} />
       <Route path="/settings/tax-reminder" component={TaxReminderSettings} />
       <Route path="/office/tasks" component={TaskBoardPage} />
       <Route path="/office/work-board" component={WorkBoardPage} />
