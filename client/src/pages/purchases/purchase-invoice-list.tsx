@@ -372,7 +372,16 @@ export default function PurchaseInvoiceList() {
                                   <button
                                     data-testid={`button-attach-inline-${ap.id}`}
                                     onClick={() => {
-                                      const url = ap.attachedUrl.split(",")[0]?.trim();
+                                      const raw = ap.attachedUrl;
+                                      if (!raw) return;
+                                      let url = "";
+                                      try {
+                                        const parsed = JSON.parse(raw);
+                                        if (Array.isArray(parsed) && parsed[0]) url = parsed[0].path || parsed[0].objectPath || "";
+                                        else if (parsed && (parsed.path || parsed.objectPath)) url = parsed.path || parsed.objectPath;
+                                      } catch {
+                                        url = raw.split(",")[0]?.trim() || "";
+                                      }
                                       if (url) window.open(url, "_blank");
                                     }}
                                     className="flex items-center gap-0.5 text-purple-500 hover:text-purple-700 hover:underline"

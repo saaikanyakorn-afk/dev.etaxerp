@@ -677,7 +677,16 @@ export default function ExpenseList() {
                                   <button
                                     data-testid={`button-attach-inline-${exp.id}`}
                                     onClick={() => {
-                                      const url = exp.attachedUrl.split(",")[0]?.trim();
+                                      const raw = exp.attachedUrl;
+                                      if (!raw) return;
+                                      let url = "";
+                                      try {
+                                        const parsed = JSON.parse(raw);
+                                        if (Array.isArray(parsed) && parsed[0]) url = parsed[0].path || parsed[0].objectPath || "";
+                                        else if (parsed && (parsed.path || parsed.objectPath)) url = parsed.path || parsed.objectPath;
+                                      } catch {
+                                        url = raw.split(",")[0]?.trim() || "";
+                                      }
                                       if (url) window.open(url, "_blank");
                                     }}
                                     className="flex items-center gap-0.5 text-purple-500 hover:text-purple-700 hover:underline"
