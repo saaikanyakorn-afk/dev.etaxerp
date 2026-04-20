@@ -66,3 +66,9 @@ id = "y1kv2GkcsTW3Vnc8QwQ08"
 uri = "file://attached_assets/import_employees_ETaxCenter.xlsx"
 type = "table"
 title = "พนักงาน EM001-EM017 — พร้อมตั้ง prefix EM"
+
+[[outputs]]
+id = "1-SeO_VucQeUr-GobYEKA"
+uri = "file://attached_assets/efiling-spec-checklist.md"
+type = "text"
+title = "📚 Spec Checklist + Roadmap"
