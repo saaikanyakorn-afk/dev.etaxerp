@@ -557,7 +557,11 @@ export class DatabaseStorage implements IStorage {
       console.warn("[SECURITY] getEmployees called without tenantId or companyId — returning empty");
       return [];
     }
-    return db.select().from(employees).where(and(...conditions));
+    return db.select().from(employees).where(and(...conditions)).orderBy(
+      sql`COALESCE(substring(${employees.employeeCode} from '^([A-Za-z]+)'), '')`,
+      sql`COALESCE(NULLIF(substring(${employees.employeeCode} from '([0-9]+)$'), ''), '0')::bigint`,
+      asc(employees.id),
+    );
   }
 
   async getEmployee(id: number): Promise<Employee | undefined> {
