@@ -2737,6 +2737,32 @@ export function registerEtaxHubRoutes(app: Express) {
     }
   });
 
+  app.get("/api/public/upload/:token/files", async (req, res) => {
+    try {
+      const { token } = req.params;
+      const [link] = await db.select({ id: clientUploadLinks.id, isActive: clientUploadLinks.isActive, expiresAt: clientUploadLinks.expiresAt })
+        .from(clientUploadLinks).where(eq(clientUploadLinks.token, token));
+      if (!link) return res.status(404).json({ message: "ลิงก์ไม่ถูกต้อง" });
+      if (!link.isActive) return res.status(403).json({ message: "ลิงก์ถูกปิดใช้งานแล้ว" });
+      if (link.expiresAt && new Date(link.expiresAt) < new Date()) return res.status(403).json({ message: "ลิงก์หมดอายุแล้ว" });
+
+      const rows = await db.select({
+        id: clientUploadFiles.id,
+        fileName: clientUploadFiles.fileName,
+        fileSize: clientUploadFiles.fileSize,
+        category: clientUploadFiles.category,
+        folderPath: clientUploadFiles.folderPath,
+        uploaderName: clientUploadFiles.uploaderName,
+        createdAt: clientUploadFiles.createdAt,
+      })
+        .from(clientUploadFiles)
+        .where(eq(clientUploadFiles.linkId, link.id))
+        .orderBy(desc(clientUploadFiles.createdAt));
+
+      res.json({ files: rows, total: rows.length });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
   app.get("/api/client-documents/monthly-summary", requireAuth, async (req, res) => {
     try {
       const user = req.user as any;

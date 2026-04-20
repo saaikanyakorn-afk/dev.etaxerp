@@ -113,6 +113,14 @@ export default function ClientUploadPage() {
     retry: false,
   });
 
+  const { data: uploadedData, refetch: refetchUploaded } = useQuery<any>({
+    queryKey: ["public-upload-files", token],
+    queryFn: () => fetch(`/api/public/upload/${token}/files`).then(r => r.ok ? r.json() : { files: [], total: 0 }),
+    enabled: !!token && !!linkInfo,
+    retry: false,
+  });
+  const uploadedFiles: any[] = uploadedData?.files || [];
+
   const uploadMutation = useMutation({
     mutationFn: async () => {
       const BATCH_SIZE = 20;
@@ -146,6 +154,7 @@ export default function ClientUploadPage() {
       setUploadDone(true);
       setFiles([]);
       setUploadProgress(0);
+      refetchUploaded();
     },
   });
 
@@ -448,6 +457,42 @@ export default function ClientUploadPage() {
             )}
           </div>
         </div>
+
+        {uploadedFiles.length > 0 && (
+          <div className="bg-white rounded-2xl shadow-lg overflow-hidden mt-4" data-testid="section-uploaded-history">
+            <div className="bg-gray-100 px-6 py-3 border-b">
+              <h2 className="text-sm font-semibold text-gray-700" data-testid="text-uploaded-title">
+                เอกสารที่ส่งไปแล้ว ({uploadedFiles.length})
+              </h2>
+              <p className="text-xs text-gray-500 mt-0.5">รายการไฟล์ที่ส่งผ่านลิงก์นี้</p>
+            </div>
+            <div className="max-h-80 overflow-y-auto divide-y divide-gray-100">
+              {uploadedFiles.map((f) => {
+                const dt = f.createdAt ? new Date(f.createdAt) : null;
+                const dateStr = dt ? `${dt.toLocaleDateString("th-TH", { day: "2-digit", month: "short", year: "2-digit" })} ${dt.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })}` : "";
+                return (
+                  <div key={f.id} className="flex items-start gap-3 px-4 py-2.5" data-testid={`uploaded-file-${f.id}`}>
+                    {getFileIcon(f.mimeType || "")}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-gray-700 truncate" data-testid={`text-uploaded-name-${f.id}`}>{f.fileName}</p>
+                      <div className="flex items-center gap-2 text-xs text-gray-400 mt-0.5">
+                        {f.folderPath && <span className="truncate">{f.folderPath}</span>}
+                        {f.folderPath && <span>•</span>}
+                        <span>{f.category || "อื่นๆ"}</span>
+                        {f.fileSize ? <><span>•</span><span>{formatFileSize(f.fileSize)}</span></> : null}
+                      </div>
+                      <div className="flex items-center gap-2 text-xs text-gray-400 mt-0.5">
+                        {f.uploaderName && <span>โดย {f.uploaderName}</span>}
+                        {f.uploaderName && dateStr && <span>•</span>}
+                        {dateStr && <span>{dateStr}</span>}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         <p className="text-center text-xs text-gray-400 mt-4">
           Powered by E-Tax Center
