@@ -53,7 +53,7 @@ title = "ไฟล์นำเข้าทรัพย์สิน E-Tax (248 �
 id = "b32QmwaVaZ1kb_GvXc4_Q"
 uri = "file://attached_assets/import_contacts_ETaxCenter.xlsx"
 type = "table"
-title = "คู่ค้า — พร้อมนำเข้า E-Tax Center (2,435 รายการ)"
+title = "คู่ค้า (แก้เลขภาษี 13 หลักแล้ว)"
 
 [[outputs]]
 id = "W_CW45Xc1ghOeynjol5_-"
