@@ -32,6 +32,7 @@ export default function ContactList() {
   const [importStep, setImportStep] = useState<"upload" | "preview" | "done">("upload");
   const [importPreview, setImportPreview] = useState<any>(null);
   const [importResult, setImportResult] = useState<any>(null);
+  const [importMode, setImportMode] = useState<"add" | "update">("add");
   const [importing, setImporting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [dupeDialogOpen, setDupeDialogOpen] = useState(false);
@@ -202,6 +203,7 @@ export default function ContactList() {
       const formData = new FormData();
       formData.append("file", file);
       formData.append("companyId", String(selectedCompanyId));
+      formData.append("mode", importMode);
       const r = await fetch("/api/contacts/import/preview", { method: "POST", credentials: "include", body: formData });
       if (!r.ok) { const body = await r.json(); throw new Error(body.message); }
       const data = await r.json();
@@ -219,11 +221,13 @@ export default function ContactList() {
     if (!importPreview) return;
     setImporting(true);
     try {
-      const okItems = importPreview.preview.filter((p: any) => p.status === "ok" || p.status === "warning").map((p: any) => p.data);
+      const okItems = importPreview.preview
+        .filter((p: any) => p.status === "ok" || p.status === "warning" || (importMode === "update" && p.status === "duplicate"))
+        .map((p: any) => p.data);
       const r = await fetch("/api/contacts/import/execute", {
         method: "POST", credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ companyId: selectedCompanyId, contacts: okItems }),
+        body: JSON.stringify({ companyId: selectedCompanyId, contacts: okItems, mode: importMode }),
       });
       if (!r.ok) { const body = await r.json(); throw new Error(body.message); }
       const result = await r.json();
@@ -450,6 +454,31 @@ export default function ContactList() {
 
               {importStep === "upload" && (
                 <div className="space-y-4 py-4">
+                  <div className="rounded-md border p-3 space-y-2">
+                    <p className="text-sm font-medium">โหมดการนำเข้า</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <label
+                        data-testid="radio-mode-add"
+                        className={`flex items-start gap-2 rounded-md border p-3 cursor-pointer transition ${importMode === "add" ? "border-primary bg-primary/5" : "border-muted hover:bg-muted/30"}`}
+                      >
+                        <input type="radio" className="mt-1" checked={importMode === "add"} onChange={() => setImportMode("add")} />
+                        <div className="text-xs">
+                          <p className="font-medium">เพิ่มใหม่อย่างเดียว</p>
+                          <p className="text-muted-foreground mt-0.5">ข้ามรายการที่ซ้ำกับของเดิม (เช็ครหัส, ชื่อ+สาขา, เลขภาษี+สาขา)</p>
+                        </div>
+                      </label>
+                      <label
+                        data-testid="radio-mode-update"
+                        className={`flex items-start gap-2 rounded-md border p-3 cursor-pointer transition ${importMode === "update" ? "border-primary bg-primary/5" : "border-muted hover:bg-muted/30"}`}
+                      >
+                        <input type="radio" className="mt-1" checked={importMode === "update"} onChange={() => setImportMode("update")} />
+                        <div className="text-xs">
+                          <p className="font-medium">อัพเดทของเดิม + เพิ่มใหม่</p>
+                          <p className="text-muted-foreground mt-0.5">ที่ซ้ำกับของเดิม → ทับข้อมูลใหม่ ที่ไม่ซ้ำ → เพิ่มใหม่</p>
+                        </div>
+                      </label>
+                    </div>
+                  </div>
                   <div className="rounded-lg border-2 border-dashed border-muted-foreground/25 p-8 text-center">
                     <Upload className="h-10 w-10 mx-auto text-muted-foreground/50 mb-3" />
                     <p className="text-sm font-medium mb-1">เลือกไฟล์ CSV หรือ Excel (.xlsx, .xls)</p>
@@ -493,12 +522,14 @@ export default function ContactList() {
                       </div>
                       <p className="text-xs text-blue-600">มีข้อสังเกต (นำเข้าได้)</p>
                     </div>
-                    <div className="rounded-md bg-amber-50 border border-amber-200 p-3 text-center">
-                      <div className="flex items-center justify-center gap-1 text-amber-700 mb-1">
+                    <div className={`rounded-md border p-3 text-center ${importMode === "update" ? "bg-purple-50 border-purple-200" : "bg-amber-50 border-amber-200"}`}>
+                      <div className={`flex items-center justify-center gap-1 mb-1 ${importMode === "update" ? "text-purple-700" : "text-amber-700"}`}>
                         <AlertCircle className="h-4 w-4" />
                         <span className="text-lg font-bold">{importPreview.stats.duplicate}</span>
                       </div>
-                      <p className="text-xs text-amber-600">รหัสซ้ำ (ข้าม)</p>
+                      <p className={`text-xs ${importMode === "update" ? "text-purple-600" : "text-amber-600"}`}>
+                        {importMode === "update" ? "ซ้ำ (จะอัพเดท)" : "รหัสซ้ำ (ข้าม)"}
+                      </p>
                     </div>
                     <div className="rounded-md bg-red-50 border border-red-200 p-3 text-center">
                       <div className="flex items-center justify-center gap-1 text-red-700 mb-1">
@@ -564,10 +595,18 @@ export default function ContactList() {
                   <CheckCircle2 className="h-16 w-16 mx-auto text-green-500" />
                   <div>
                     <p className="text-lg font-medium">นำเข้าสำเร็จ</p>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      นำเข้า {importResult.imported} รายการ จากทั้งหมด {importResult.total} รายการ
-                      {importResult.skipped > 0 && ` (ข้าม ${importResult.skipped} รายการ)`}
-                    </p>
+                    <div className="text-sm text-muted-foreground mt-2 space-y-1">
+                      {(importResult.created ?? importResult.imported) > 0 && (
+                        <p data-testid="text-result-created">เพิ่มใหม่ <span className="font-bold text-green-600">{importResult.created ?? importResult.imported}</span> รายการ</p>
+                      )}
+                      {importResult.updated > 0 && (
+                        <p data-testid="text-result-updated">อัพเดท <span className="font-bold text-purple-600">{importResult.updated}</span> รายการ</p>
+                      )}
+                      {importResult.skipped > 0 && (
+                        <p data-testid="text-result-skipped">ข้าม <span className="font-bold text-amber-600">{importResult.skipped}</span> รายการ (ซ้ำกับของเดิม)</p>
+                      )}
+                      <p className="text-xs pt-1">รวมทั้งหมด {importResult.total} รายการ</p>
+                    </div>
                   </div>
                   <Button data-testid="button-close-import" onClick={resetImport}>ปิด</Button>
                 </div>

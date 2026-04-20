@@ -534,9 +534,13 @@ app.post("/api/contacts/import/preview", requireAuth, requireModule("contacts"),
     const columnMapping: Record<string, string | null> = {};
     headers.forEach(h => { columnMapping[h] = mapField(h); });
 
+    const importMode = (req.body.mode === "update") ? "update" : "add";
+    const normBranch = (b: string) => (b || "สำนักงานใหญ่").trim() || "สำนักงานใหญ่";
+
     const existingContacts = await storage.getContacts(companyId);
     const existingCodes = new Set(existingContacts.filter(c => c.active).map(c => c.code));
-    const existingTaxIds = new Set(existingContacts.filter(c => c.active && c.taxId && c.taxId.length >= 5).map(c => c.taxId));
+    const existingNameBranch = new Set(existingContacts.filter(c => c.active && c.name).map(c => `${c.name!.toLowerCase()}|||${normBranch(c.branch || "")}`));
+    const existingTaxBranch = new Set(existingContacts.filter(c => c.active && c.taxId && c.taxId.length >= 5).map(c => `${c.taxId}|||${normBranch(c.branch || "")}`));
 
     const preview = rows.map((row: any, idx: number) => {
       const mapped: any = {};
@@ -551,9 +555,14 @@ app.post("/api/contacts/import/preview", requireAuth, requireModule("contacts"),
       const issues: string[] = [];
       if (!mapped.code) issues.push("ไม่มีรหัสคู่ค้า");
       if (!mapped.name) issues.push("ไม่มีชื่อคู่ค้า");
-      if (mapped.code && existingCodes.has(mapped.code)) issues.push(`รหัส "${mapped.code}" มีในระบบแล้ว`);
+      const branchKey = normBranch(mapped.branch);
+      const codeExists = mapped.code && existingCodes.has(mapped.code);
+      const nameBranchExists = mapped.name && existingNameBranch.has(`${mapped.name.toLowerCase()}|||${branchKey}`);
       const taxIdValid = mapped.taxId && mapped.taxId.length >= 5;
-      if (taxIdValid && existingTaxIds.has(mapped.taxId)) issues.push(`เลขภาษี "${mapped.taxId}" มีในระบบแล้ว (แนะนำตรวจสอบ)`);
+      const taxBranchExists = taxIdValid && existingTaxBranch.has(`${mapped.taxId}|||${branchKey}`);
+      if (codeExists) issues.push(`รหัส "${mapped.code}" มีในระบบแล้ว${importMode === "update" ? " (จะอัพเดท)" : ""}`);
+      if (nameBranchExists) issues.push(`ชื่อ+สาขา "${mapped.name} / ${branchKey}" มีในระบบแล้ว${importMode === "update" ? " (จะอัพเดท)" : ""}`);
+      if (taxBranchExists) issues.push(`เลขภาษี+สาขา "${mapped.taxId} / ${branchKey}" มีในระบบแล้ว${importMode === "update" ? " (จะอัพเดท)" : ""}`);
 
       if (mapped.type) {
         const t = mapped.type.toLowerCase();
@@ -612,27 +621,32 @@ app.post("/api/contacts/import/preview", requireAuth, requireModule("contacts"),
 app.post("/api/contacts/import/execute", requireAuth, requireModule("contacts"), async (req, res) => {
   try {
     const { companyId, contacts: contactList } = req.body;
+    const importMode: "add" | "update" = req.body.mode === "update" ? "update" : "add";
     if (!companyId || !contactList || !Array.isArray(contactList)) {
       return res.status(400).json({ message: "ข้อมูลไม่ถูกต้อง" });
     }
 
+    const normBranch = (b: string) => (b || "สำนักงานใหญ่").trim() || "สำนักงานใหญ่";
     const existingContacts = await storage.getContacts(companyId);
-    const existingCodes = new Set(existingContacts.filter(c => c.active).map(c => c.code));
-    const existingNames = new Set(existingContacts.filter(c => c.active).map(c => c.name?.toLowerCase()));
-    const existingTaxIds = new Set(existingContacts.filter(c => c.active && c.taxId).map(c => c.taxId!));
+    const codeIndex = new Map<string, number>();
+    const nameBranchIndex = new Map<string, number>();
+    const taxBranchIndex = new Map<string, number>();
+    for (const c of existingContacts) {
+      if (!c.active) continue;
+      if (c.code) codeIndex.set(c.code, c.id);
+      if (c.name) nameBranchIndex.set(`${c.name.toLowerCase()}|||${normBranch(c.branch || "")}`, c.id);
+      if (c.taxId && c.taxId.length >= 5) taxBranchIndex.set(`${c.taxId}|||${normBranch(c.branch || "")}`, c.id);
+    }
 
-    const validContacts = contactList
-      .filter((c: any) => {
-        if (!c.code || !c.name) return false;
-        if (existingCodes.has(c.code)) return false;
-        if (existingNames.has(c.name.toLowerCase())) return false;
-        if (c.taxId && existingTaxIds.has(c.taxId)) return false;
-        existingCodes.add(c.code);
-        existingNames.add(c.name.toLowerCase());
-        if (c.taxId) existingTaxIds.add(c.taxId);
-        return true;
-      })
-      .map((c: any) => ({
+    const toInsert: any[] = [];
+    const toUpdate: { id: number; data: any }[] = [];
+    let skipped = 0;
+    const skippedReasons: string[] = [];
+
+    for (const c of contactList) {
+      if (!c.code || !c.name) { skipped++; continue; }
+      const branch = normBranch(c.branch);
+      const data: any = {
         companyId,
         code: c.code,
         name: c.name,
@@ -640,7 +654,7 @@ app.post("/api/contacts/import/execute", requireAuth, requireModule("contacts"),
         nameZh: c.nameZh || null,
         type: c.type || "customer",
         taxId: c.taxId || null,
-        branch: c.branch || "สำนักงานใหญ่",
+        branch,
         address: c.address || null,
         addressEn: c.addressEn || null,
         addressZh: c.addressZh || null,
@@ -649,13 +663,38 @@ app.post("/api/contacts/import/execute", requireAuth, requireModule("contacts"),
         contactPerson: c.contactPerson || null,
         creditDays: Number(c.creditDays) || 30,
         notes: c.notes || null,
-      }));
+      };
 
-    if (validContacts.length === 0) {
+      const matchByCode = codeIndex.get(c.code);
+      const matchByNameBranch = nameBranchIndex.get(`${c.name.toLowerCase()}|||${branch}`);
+      const matchByTaxBranch = c.taxId && c.taxId.length >= 5 ? taxBranchIndex.get(`${c.taxId}|||${branch}`) : undefined;
+      const matchedId = matchByCode || matchByNameBranch || matchByTaxBranch;
+
+      if (importMode === "update" && matchedId) {
+        toUpdate.push({ id: matchedId, data });
+        // บันทึก index ไว้ — ป้องกัน row ถัดไปที่อ้างถึงตัวเดียวกัน
+      } else if (matchedId) {
+        skipped++;
+        if (skippedReasons.length < 20) skippedReasons.push(`${c.code} / ${c.name} (${branch}): ซ้ำกับของเดิม`);
+      } else {
+        toInsert.push(data);
+        codeIndex.set(c.code, -1);
+        nameBranchIndex.set(`${c.name.toLowerCase()}|||${branch}`, -1);
+        if (c.taxId && c.taxId.length >= 5) taxBranchIndex.set(`${c.taxId}|||${branch}`, -1);
+      }
+    }
+
+    if (toInsert.length === 0 && toUpdate.length === 0) {
       return res.status(400).json({ message: "ไม่มีรายการที่สามารถนำเข้าได้" });
     }
 
-    const created = await storage.bulkCreateContacts(validContacts);
+    const created = toInsert.length > 0 ? await storage.bulkCreateContacts(toInsert) : [];
+    let updatedCount = 0;
+    for (const u of toUpdate) {
+      const result = await storage.updateContact(u.id, u.data);
+      if (result) updatedCount++;
+    }
+
     const createdIds = created.map((c: any) => c.id).filter(Boolean);
     let batchId: number | undefined;
     if (createdIds.length > 0) {
@@ -664,14 +703,23 @@ app.post("/api/contacts/import/execute", requireAuth, requireModule("contacts"),
         docType: "contact",
         fileName: req.body.fileName || null,
         totalCreated: createdIds.length,
-        totalSkipped: contactList.length - created.length,
+        totalSkipped: skipped,
         totalErrors: 0,
         createdDocIds: JSON.stringify(createdIds),
         createdBy: (req.user as any).id,
       }).returning();
       batchId = batch.id;
     }
-    res.json({ imported: created.length, total: contactList.length, skipped: contactList.length - created.length, batchId });
+    res.json({
+      imported: created.length,
+      created: created.length,
+      updated: updatedCount,
+      skipped,
+      total: contactList.length,
+      mode: importMode,
+      skippedReasons,
+      batchId,
+    });
   } catch (err: any) {
     res.status(500).json({ message: err.message });
   }
