@@ -442,7 +442,7 @@ export default function HRLayout({ children }: { children: React.ReactNode }) {
         </nav>
 
         <div className="px-3 pb-3 shrink-0">
-          <Link href="/">
+          <Link href="/module-select?select=1">
             <span className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all cursor-pointer border-2 text-sidebar-foreground/70 hover:text-white" style={{ borderColor: MODULE_COLOR, color: MODULE_COLOR }} data-testid="hr-link-back-home">
               <ArrowLeft className="h-4 w-4" />
               กลับหน้าหลัก E-Tax Center

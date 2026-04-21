@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/lib/auth";
-import { useLocation } from "wouter";
+import { useLocation, useSearch } from "wouter";
 import {
   Building2, Calculator, ShoppingCart, Monitor, Users,
   LayoutGrid, Fuel, BarChart3, Truck, Lock, Sparkles,
@@ -37,6 +37,8 @@ const MODULE_CARDS: ModuleCard[] = [
 export default function ModuleSelectPage() {
   const { user, loading: authLoading, logout } = useAuth();
   const [, setLocation] = useLocation();
+  const search = useSearch();
+  const selectMode = new URLSearchParams(search).get("select") === "1";
 
   const { data: permData, isLoading: permLoading } = useQuery<{ modules: string[]; subModules: string[] }>({
     queryKey: ["/api/permissions/me"],
@@ -71,6 +73,7 @@ export default function ModuleSelectPage() {
     if (authLoading || permLoading) return;
     if (!permData) return;
     if (!user) { setLocation("/login"); return; }
+    if (selectMode) return;
     if ((user as any).role === "employee" || (user as any).role === "cashier") {
       const hasMultipleModules = ownedCards.length > 1;
       if (hasMultipleModules) {
@@ -96,7 +99,7 @@ export default function ModuleSelectPage() {
       setLocation(ownedCards[0].href);
       return;
     }
-  }, [authLoading, permLoading, permData, user, ownedCards.length, lockedCards.length, subModules.length]);
+  }, [authLoading, permLoading, permData, user, ownedCards.length, lockedCards.length, subModules.length, selectMode]);
 
   if (authLoading || permLoading) {
     return (
@@ -106,7 +109,7 @@ export default function ModuleSelectPage() {
     );
   }
 
-  if (ownedCards.length === 1 && lockedCards.length === 0) return null;
+  if (!selectMode && ownedCards.length === 1 && lockedCards.length === 0) return null;
 
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center">
