@@ -33,6 +33,7 @@ const INVOICE_PREFIX_MAP: Record<string, { platform: ParsedInvoice["platform"]; 
   "TRSPXADB": { platform: "shopee", docSubType: "service_fee", label: "SPX Express ค่าบริการ (Admin Fee)" },
   "RCSPXSPR": { platform: "shopee", docSubType: "shipping", label: "SPX Express ค่าขนส่ง" },
   "RCSPXSPB": { platform: "shopee", docSubType: "shipping", label: "SPX Express ค่าขนส่ง (Bulk)" },
+  "RCSPXSPW": { platform: "shopee", docSubType: "shipping", label: "SPX Express ค่าขนส่ง (Wallet)" },
   "TRSLZD":   { platform: "lazada", docSubType: "platform_fee", label: "Lazada Tax Invoice" },
   "TTSTH":    { platform: "tiktok", docSubType: "platform_fee", label: "TikTok Shop Tax Invoice" },
   "TTSTHCN":  { platform: "tiktok", docSubType: "platform_fee", label: "TikTok Shop Credit Note" },
@@ -357,7 +358,7 @@ function parseShopeeInvoice(rows: TextItem[][], fullText: string): ParsedInvoice
 
     if (!invoiceNo) {
       for (const item of rows[i]) {
-        const m = item.str.match(/((?:TRSPEMKP|TRSPESPF|TRSPXADB|RCSPXSPR|RCSPXSPB|TRSLZD)[A-Z0-9\-]{10,})/i);
+        const m = item.str.match(/((?:TRSPEMKP|TRSPESPF|TRSPXADB|RCSPXSPR|RCSPXSPB|RCSPXSPW|TRSLZD)[A-Z0-9\-]{10,})/i);
         if (m) { invoiceNo = m[1]; break; }
       }
     }
