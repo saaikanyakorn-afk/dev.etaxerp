@@ -5,7 +5,7 @@ import { useLocation } from "wouter";
 import {
   Building2, Calculator, ShoppingCart, Monitor, Users,
   LayoutGrid, Fuel, BarChart3, Truck, Lock, Sparkles,
-  LogOut, Home, Clock
+  LogOut, Home, Clock, Warehouse, FileText, CreditCard
 } from "lucide-react";
 
 interface ModuleCard {
@@ -23,6 +23,9 @@ interface ModuleCard {
 const MODULE_CARDS: ModuleCard[] = [
   { key: "firm", label: "สำนักงานบัญชี", labelEn: "Accounting Office", icon: Building2, color: "#05b187", bgColor: "bg-green-50", href: "/firm-mgmt/dashboard", requiredModule: "firm-mgmt", firmOnly: true },
   { key: "accounting", label: "ระบบบัญชี", labelEn: "Accounting", icon: Calculator, color: "#539BFF", bgColor: "bg-blue-50", href: "/dashboard/analytical", requiredModule: "accounting" },
+  { key: "sales", label: "ขายสินค้า/บริการ", labelEn: "Sales", icon: FileText, color: "#f97316", bgColor: "bg-orange-50", href: "/sales/invoice", requiredModule: "sales" },
+  { key: "purchases", label: "จัดซื้อ/ค่าใช้จ่าย", labelEn: "Purchases", icon: CreditCard, color: "#8b5cf6", bgColor: "bg-violet-50", href: "/purchases/invoice", requiredModule: "purchases" },
+  { key: "inventory", label: "คลังสินค้า", labelEn: "Inventory", icon: Warehouse, color: "#65a30d", bgColor: "bg-lime-50", href: "/inventory/list", requiredModule: "inventory" },
   { key: "ecommerce", label: "อีคอมเมิร์ซ", labelEn: "E-Commerce", icon: ShoppingCart, color: "#fb9678", bgColor: "bg-orange-50", href: "/ecommerce/dashboard", requiredModule: "ecommerce" },
   { key: "pos", label: "ขายหน้าร้าน", labelEn: "POS", icon: Monitor, color: "#03c9d7", bgColor: "bg-cyan-50", href: "/pos-hub/dashboard", requiredModule: "pos" },
   { key: "hr", label: "ทรัพยากรบุคคล", labelEn: "HR", icon: Users, color: "#05b187", bgColor: "bg-green-50", href: "/hr/dashboard", requiredModule: "hr" },
