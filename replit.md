@@ -31,6 +31,7 @@ Last verified build: **2026-04-21 (v98 cherry-pick — migration seedAccount5210
 | 2026-04-21 | v100 | expense.tsx | 7.4 MB | index-BsEaVt8S.js 360.46 kB | Fix: expense save now invalidates journal-entries + dashboard cache (invalidateDocCaches). Build 43.19s, pm2 85.4mb |
 | 2026-04-21 | v101 | expense.tsx, expense-routes.ts | 7.4 MB | index-BsEaVt8S.js 360.46 kB | Fix: PATCH expense now recreates journal entries when doc is already approved + items changed. Build 43.10s |
 | 2026-04-21 | v102 | expense-routes.ts (debug log removed) | 7.4 MB | index-BsEaVt8S.js 360.46 kB | Clean: remove debug log. Dev confirmed shouldJournal=true. Build 43.63s, pm2 restart 6, 84.5mb |
+| 2026-04-21 | v103 | expense-routes.ts (confirmed pull) | 7.4 MB | index-BsEaVt8S.js 360.46 kB | Confirmed expense-routes.ts was old on prod — pulled correct version. Build 43.75s, pm2 restart 7, 84.6mb |
 
 ## ⛔ PRE-PUSH CHECKLIST (MANDATORY — DO BEFORE EVERY GIT PUSH)
 1. **Insert schema_version record** in BOTH Replit DB AND Production DB — version, description, change_type, pushed_repos
