@@ -203,16 +203,28 @@ export default function HRLayout({ children }: { children: React.ReactNode }) {
     staleTime: 300_000,
   });
 
+  const { data: myModulesNoCompany } = useQuery<{ modules: string[] }>({
+    queryKey: ["/api/permissions/me", user?.id, "no-company-id"],
+    queryFn: async () => {
+      const r = await fetch("/api/permissions/me", { credentials: "include" });
+      if (!r.ok) return { modules: [] };
+      const data = await r.json();
+      return { modules: Array.isArray(data) ? data : (data.modules || []) };
+    },
+    enabled: !!user,
+    staleTime: 300_000,
+  });
+
   useEffect(() => {
-    if (!user || !myRoleModules) return;
+    if (!user || !myModulesNoCompany) return;
     const sessionKey = `hr-module-redirected-${user.id}`;
     if (sessionStorage.getItem(sessionKey)) return;
-    const otherModules = (myRoleModules.modules || []).filter(m => m !== "hr");
+    const otherModules = (myModulesNoCompany.modules || []).filter(m => m !== "hr");
     if (otherModules.length > 0) {
       sessionStorage.setItem(sessionKey, "1");
       setLocation("/module-select");
     }
-  }, [user, myRoleModules]);
+  }, [user, myModulesNoCompany]);
 
   const filteredNav = useMemo(() => {
     if (!myPermissions) return HR_NAV;
