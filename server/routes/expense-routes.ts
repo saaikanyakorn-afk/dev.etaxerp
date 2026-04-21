@@ -585,7 +585,6 @@ export function registerExpenseRoutes(app: Express) {
       const shouldJournal = (statusChanged && body.status === "approved" && effectiveLinkJournal)
         || body.customJournalLines
         || (alreadyApproved && itemsChanged && effectiveLinkJournal);
-      console.log("[EXPENSE PATCH DEBUG]", { id: existing.id, existingStatus: existing.status, updatedStatus: updated.status, statusChanged, alreadyApproved, itemsChanged, effectiveLinkJournal, shouldJournal, hasItems: !!items, itemsLen: Array.isArray(items) ? items.length : null });
       if (shouldJournal) {
         try {
           const existingJE = await db.select().from(journalEntries).where(and(
