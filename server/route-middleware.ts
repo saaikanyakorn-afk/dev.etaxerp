@@ -170,7 +170,7 @@ export function requireModule(moduleKey: string) {
       return res.status(403).json({ message: "ฟีเจอร์นี้ใช้ได้เฉพาะสำนักงานบัญชี" });
     }
 
-    if (user.tenantId && moduleKey !== "settings") {
+    if (user.role !== "super_admin" && user.role !== "admin" && user.tenantId && moduleKey !== "settings") {
       const enabledModules = await getEnabledModulesForTenant(user.tenantId);
       if (enabledModules && enabledModules.length > 0 && !enabledModules.includes(moduleKey)) {
         return res.status(403).json({ message: "แพ็คเกจของคุณไม่รองรับฟีเจอร์นี้" });
