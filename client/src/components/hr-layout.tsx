@@ -34,7 +34,16 @@ import {
   Brain,
   Shield,
   Smile,
+  Warehouse,
+  ShoppingCart,
+  Monitor,
+  Calculator,
+  CreditCard,
+  BarChart3,
+  Truck,
+  Fuel,
 } from "lucide-react";
+
 import { Button } from "@/components/ui/button";
 import {
   Popover,
@@ -42,6 +51,18 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Input } from "@/components/ui/input";
+
+const OTHER_MODULE_LINKS = [
+  { key: "inventory", label: "คลังสินค้า", icon: Warehouse, href: "/inventory/list", color: "#65a30d" },
+  { key: "sales", label: "ขายสินค้า/บริการ", icon: FileText, href: "/sales/invoice", color: "#f97316" },
+  { key: "purchases", label: "จัดซื้อ/ค่าใช้จ่าย", icon: CreditCard, href: "/purchases/invoice", color: "#8b5cf6" },
+  { key: "accounting", label: "ระบบบัญชี", icon: Calculator, href: "/dashboard/analytical", color: "#539BFF" },
+  { key: "pos", label: "ขายหน้าร้าน", icon: Monitor, href: "/pos-hub/dashboard", color: "#03c9d7" },
+  { key: "ecommerce", label: "อีคอมเมิร์ซ", icon: ShoppingCart, href: "/ecommerce/dashboard", color: "#fb9678" },
+  { key: "gas-station", label: "ปั๊มน้ำมัน", icon: Fuel, href: "/gas-station/daily-sales", color: "#f59e0b" },
+  { key: "delivery", label: "ระบบจัดส่ง", icon: Truck, href: "/ecommerce/delivery", color: "#10b981" },
+  { key: "ci", label: "วิเคราะห์ข้อมูล", icon: BarChart3, href: "/ci/executive", color: "#6366f1" },
+];
 
 type NavChild = { label: string; href: string; icon?: any; subKey?: string };
 
@@ -441,14 +462,23 @@ export default function HRLayout({ children }: { children: React.ReactNode }) {
           })}
         </nav>
 
-        <div className="px-3 pb-3 shrink-0">
-          <Link href="/module-select?select=1">
-            <span className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all cursor-pointer border-2 text-sidebar-foreground/70 hover:text-white" style={{ borderColor: MODULE_COLOR, color: MODULE_COLOR }} data-testid="hr-link-back-home">
-              <ArrowLeft className="h-4 w-4" />
-              กลับหน้าหลัก E-Tax Center
-            </span>
-          </Link>
-        </div>
+        {(() => {
+          const otherMods = OTHER_MODULE_LINKS.filter(m => myPermissions?.modules?.includes(m.key));
+          if (otherMods.length === 0) return null;
+          return (
+            <div className="px-3 pb-2 shrink-0 border-t border-sidebar-border pt-2">
+              <p className="text-xs text-sidebar-foreground/40 px-2 pb-1 font-medium uppercase tracking-wide">โมดูลอื่น</p>
+              {otherMods.map(mod => (
+                <Link key={mod.key} href={mod.href}>
+                  <span className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium cursor-pointer transition-all hover:bg-sidebar-accent" style={{ color: mod.color }} data-testid={`hr-link-module-${mod.key}`}>
+                    <mod.icon className="h-4 w-4 shrink-0" />
+                    {mod.label}
+                  </span>
+                </Link>
+              ))}
+            </div>
+          );
+        })()}
 
         <div className="p-4 border-t border-sidebar-border shrink-0">
           <div className="flex items-center gap-3 px-2 py-2">
