@@ -639,6 +639,7 @@ app.get("/api/permissions/me", requireAuth, async (req, res) => {
     } catch {}
   }
 
+  console.log(`[DEBUG permissions/me] userId=${user.id} role=${user.role} tenantId=${user.tenantId} modules=${JSON.stringify(allowedModules)}`);
   res.json({ modules: allowedModules, subModules: allowedSubModules });
 });
 
