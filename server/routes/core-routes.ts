@@ -354,9 +354,10 @@ app.get("/api/my-role-modules", requireAuth, async (req, res) => {
     const modules = [...new Set(
       SUB_MODULES.filter(s => allowedSubKeys.has(s.key)).map(s => s.parentModule)
     )];
-    res.json({ modules });
+    const subModules = [...allowedSubKeys];
+    res.json({ modules, subModules });
   } catch (e: any) {
-    res.json({ modules: [] });
+    res.json({ modules: [], subModules: [] });
   }
 });
 

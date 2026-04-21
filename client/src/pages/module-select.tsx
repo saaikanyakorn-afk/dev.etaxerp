@@ -41,9 +41,9 @@ export default function ModuleSelectPage() {
   const selectMode = new URLSearchParams(search).get("select") === "1";
 
   const { data: permData, isLoading: permLoading } = useQuery<{ modules: string[]; subModules: string[] }>({
-    queryKey: ["/api/permissions/me"],
+    queryKey: ["/api/my-role-modules"],
     queryFn: async () => {
-      const r = await fetch("/api/permissions/me", { credentials: "include" });
+      const r = await fetch("/api/my-role-modules", { credentials: "include" });
       if (!r.ok) return { modules: [], subModules: [] };
       const data = await r.json();
       return Array.isArray(data) ? { modules: data, subModules: [] } : data;
