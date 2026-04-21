@@ -1,5 +1,6 @@
 import { pgTable, serial, integer, text, varchar, decimal, date, timestamp, boolean, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
+import { sql } from "drizzle-orm";
 import { z } from "zod";
 import { companies, users, tenants, subscriptionPlans } from "./schema";
 
@@ -156,3 +157,50 @@ export const tenantModuleSubscriptions = pgTable("tenant_module_subscriptions", 
 export const insertTenantModuleSubscriptionSchema = createInsertSchema(tenantModuleSubscriptions).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertTenantModuleSubscription = z.infer<typeof insertTenantModuleSubscriptionSchema>;
 export type TenantModuleSubscription = typeof tenantModuleSubscriptions.$inferSelect;
+
+// ─── One-time Data Migrations ────────────────────────────────────────────────
+
+const MIGRATION_KEY_5210470 = "SEED_ACCOUNT_5210470_ALL_COMPANIES";
+
+export async function seedAccount5210470(db: any) {
+  try {
+    const flagRows = await db.execute(sql`
+      SELECT config_value FROM system_config
+      WHERE config_key = ${MIGRATION_KEY_5210470} LIMIT 1
+    `);
+    if ((flagRows.rows || []).length > 0) return;
+
+    await db.execute(sql`
+      INSERT INTO accounts (
+        company_id, code, name, name_th, name_zh,
+        type, parent_code, active, is_header
+      )
+      SELECT DISTINCT
+        a.company_id,
+        '5210470',
+        'Company Registration Fee',
+        'ค่าธรรมเนียมจัดตั้งบริษัท',
+        '公司注册费',
+        'expense', '521', true, false
+      FROM accounts a
+      WHERE NOT EXISTS (
+        SELECT 1 FROM accounts b
+        WHERE b.company_id = a.company_id AND b.code = '5210470'
+      )
+    `);
+
+    await db.execute(sql`
+      INSERT INTO system_config (config_key, config_value, description)
+      VALUES (
+        ${MIGRATION_KEY_5210470},
+        ${"done_" + new Date().toISOString()},
+        'Seed account 5210470 (Company Registration Fee) to all existing companies'
+      )
+      ON CONFLICT (config_key) DO NOTHING
+    `);
+
+    console.log("[Migration] ✅ Account 5210470 seeded to all companies");
+  } catch (err: any) {
+    console.error("[Migration] ❌ seedAccount5210470:", err.message);
+  }
+}
