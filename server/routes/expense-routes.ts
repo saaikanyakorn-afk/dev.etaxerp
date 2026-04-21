@@ -580,7 +580,11 @@ export function registerExpenseRoutes(app: Express) {
       let journalResult = null;
       const statusChanged = body.status && body.status !== existing.status;
       const effectiveLinkJournal = updated.linkJournal !== false;
-      const shouldJournal = (statusChanged && body.status === "approved" && effectiveLinkJournal) || body.customJournalLines;
+      const alreadyApproved = existing.status === "approved" && updated.status === "approved";
+      const itemsChanged = items && Array.isArray(items);
+      const shouldJournal = (statusChanged && body.status === "approved" && effectiveLinkJournal)
+        || body.customJournalLines
+        || (alreadyApproved && itemsChanged && effectiveLinkJournal);
       if (shouldJournal) {
         try {
           const existingJE = await db.select().from(journalEntries).where(and(
