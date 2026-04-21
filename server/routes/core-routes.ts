@@ -345,9 +345,17 @@ app.post("/api/users/:id/unlock", requireAuth, async (req, res) => {
 
 app.get("/api/my-role-modules", requireAuth, async (req, res) => {
   const user = req.user as any;
-  const perms = await storage.getRolePermissionsByRole(user.role);
-  const modules = perms.filter((p: any) => p.allowed).map((p: any) => p.moduleKey);
-  res.json({ modules });
+  try {
+    const userSubPerms = await storage.getUserSubPermissions(user.id);
+    const allowedSubKeys = new Set(userSubPerms.filter((p: any) => p.allowed).map((p: any) => p.subModuleKey));
+    const { SUB_MODULES } = await import("@shared/permissions");
+    const modules = [...new Set(
+      SUB_MODULES.filter(s => allowedSubKeys.has(s.key)).map(s => s.parentModule)
+    )];
+    res.json({ modules });
+  } catch (e: any) {
+    res.json({ modules: [] });
+  }
 });
 
 app.get("/api/permissions", requireAuth, async (_req, res) => {
