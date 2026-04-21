@@ -72,3 +72,9 @@ id = "1-SeO_VucQeUr-GobYEKA"
 uri = "file://attached_assets/efiling-spec-checklist.md"
 type = "text"
 title = "📚 Spec Checklist + Roadmap"
+
+[[outputs]]
+id = "orjW-4tm5fVLKSFzL0l1S"
+uri = "file://attached_assets/batch-summary-2026-04-21.md"
+type = "text"
+title = "สรุป Batch รอพี่ช้างอนุมัติ — 25 ไฟล์ + 1 SQL"
