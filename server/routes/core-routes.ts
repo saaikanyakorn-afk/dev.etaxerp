@@ -1,4 +1,5 @@
 import type { Express } from "express";
+import { registerIndexExtraRoutes } from "../index-extra";
 import { db } from "../db";
 import { storage } from "../storage";
 import { eq, desc, and, or, isNull, inArray , sql } from "drizzle-orm";
@@ -16,6 +17,7 @@ async function getTenantOwnerAdminId(tenantId: number | null): Promise<number | 
 }
 
 export function registerCoreRoutes(app: Express) {
+registerIndexExtraRoutes(app);
 app.get("/api/users", requireAuth, async (req, res) => {
   const cu = req.user as any;
   if (!cu || !["admin", "super_admin", "manager"].includes(cu.role)) {

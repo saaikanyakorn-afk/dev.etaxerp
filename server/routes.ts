@@ -47,7 +47,6 @@ import { registerLegacyImportRoutes } from "./routes/legacy-import";
 import { registerJobCostingRoutes } from "./routes/job-costing-routes";
 
 import { registerMiscRoutes } from "./routes/misc-routes";
-import { registerIndexExtraRoutes } from "./index-extra";
 import { registerCoreRoutes } from "./routes/core-routes";
 import { registerTaskMgmtRoutes } from "./routes/task-mgmt-routes";
 import { registerFirmRoutes } from "./routes/firm-routes";
@@ -192,7 +191,6 @@ export async function registerRoutes(
 
   registerObjectStorageRoutes(app);
   registerMiscRoutes(app);
-  registerIndexExtraRoutes(app);
   registerCoreRoutes(app);
   registerTaskMgmtRoutes(app);
   registerFirmRoutes(app);
