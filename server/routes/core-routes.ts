@@ -349,13 +349,25 @@ app.get("/api/my-role-modules", requireAuth, async (req, res) => {
   const user = req.user as any;
   try {
     const userSubPerms = await storage.getUserSubPermissions(user.id);
-    const allowedSubKeys = new Set(userSubPerms.filter((p: any) => p.allowed).map((p: any) => p.subModuleKey));
     const { SUB_MODULES } = await import("@shared/permissions");
-    const modules = [...new Set(
-      SUB_MODULES.filter(s => allowedSubKeys.has(s.key)).map(s => s.parentModule)
-    )];
-    const subModules = [...allowedSubKeys];
-    res.json({ modules, subModules });
+
+    if (userSubPerms.length > 0) {
+      const allowedSubKeys = new Set(userSubPerms.filter((p: any) => p.allowed).map((p: any) => p.subModuleKey));
+      const modules = [...new Set(
+        SUB_MODULES.filter(s => allowedSubKeys.has(s.key)).map(s => s.parentModule)
+      )];
+      const subModules = [...allowedSubKeys];
+      return res.json({ modules, subModules });
+    }
+
+    let perms = await storage.getRolePermissionsByRole(user.role);
+    if (perms.length === 0) {
+      await storage.initDefaultPermissions();
+      perms = await storage.getRolePermissionsByRole(user.role);
+    }
+    const allowedModules = perms.filter((p: any) => p.allowed).map((p: any) => p.moduleKey);
+    const subModules = SUB_MODULES.filter(s => allowedModules.includes(s.parentModule)).map(s => s.key);
+    return res.json({ modules: allowedModules, subModules });
   } catch (e: any) {
     res.json({ modules: [], subModules: [] });
   }
