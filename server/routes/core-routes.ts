@@ -649,6 +649,17 @@ app.get("/api/permissions/me", requireAuth, async (req, res) => {
       if (enabledModules && enabledModules.length > 0) {
         const enabledSet = new Set(enabledModules);
         enabledSet.add("settings");
+        // Also include modules that user has explicit sub-permissions for (bypass plan filter)
+        try {
+          const userSubPermsForPlan = await storage.getUserSubPermissions(user.id);
+          const { SUB_MODULES: SUB_MODS } = await import("@shared/permissions");
+          userSubPermsForPlan
+            .filter((p: any) => p.allowed)
+            .forEach((p: any) => {
+              const subMod = SUB_MODS.find(s => s.key === p.subModuleKey);
+              if (subMod) enabledSet.add(subMod.parentModule);
+            });
+        } catch {}
         allowedModules = allowedModules.filter(m => enabledSet.has(m));
       }
     } catch {}
