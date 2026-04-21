@@ -397,6 +397,10 @@ Every block of code that calls an external AI API MUST be marked with a `⚠️ 
   - **Never** drop column or change column type without backup + verification.
   - Adding a new column (nullable/default) is safer but still must use one-time migration pattern because schema.ts is never pushed.
   - **LOOK INSIDE RULE (every DB change, no exception):** After any DB change on production (INSERT, UPDATE, DELETE, ALTER, migration), Kai MUST query real rows — not just COUNT — before moving on to the next task, even within the same work loop. Verify: sample rows look correct, no anomalies, data matches intent. This is non-negotiable even under time pressure.
+  - **SCHEMA-EXTRA LOOP RULE (absolute):** Any cherry-pick that involves schema-extra.ts (migration code) has its OWN isolated loop that must fully complete before any other cherry-pick is done. The loop has two parts that must both close:
+    - **DB loop:** migration active → push → pull+restart → look inside real data → verify correct → done
+    - **Code loop:** comment out migration → push round 2 → pull+restart on server → loop closed
+    - Do NOT bundle schema-extra cherry-picks with other file cherry-picks. Do NOT start another cherry-pick until both the DB loop and code loop are fully closed. No exceptions.
 - **Known prefixes**: TRSPEMKP=Shopee Marketplace, TRSPESPF=ShopeeFood Commission, TRSPXADB=SPX Express Admin Fee, RCSPXSPR/RCSPXSPB=SPX Shipping, TTSTH=TikTok Tax Invoice, TTSTHCN=TikTok Credit Note, TTSTHAC=TikTok Affiliate, THJV=TikTok Logistics, THMPTI=Lazada Limited, THLPTI=Lazada Express, IM=Grab Service Fee
   - **Platform account codes**: 5241=Shopee Commission, 5242=Lazada, 5243=TikTok, 5244=Grab, 5245=ShopeeFood, 5251=Shopee Service, 5252=Lazada Service, 5253=TikTok Service, 5254=Grab Service, 5255=ShopeeFood Service, 5256=SPX Admin, 5265=SPX Shipping, 5266=Lazada Shipping, 5267=TikTok Shipping
   - **Formula mapping**: `PREFIX_FORMULA_MAP` in purchase-routes.ts maps invoice prefix → accounting formula businessType; `FORMULA_SUFFIX_MAP` creates distinct DXP journal numbers (SH/SPX/SHF/SPXA/LZ/LZX/TK/TKX/EC/GR/PF)
