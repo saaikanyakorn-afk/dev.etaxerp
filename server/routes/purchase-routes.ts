@@ -2321,7 +2321,7 @@ export function registerPurchaseRoutes(app: Express) {
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
-  app.post("/api/pdf-import/preview-formulas", requireAuth, requireModule("purchases"), async (req, res) => {
+  app.post("/api/pdf-import/preview-formulas", requireAuth, async (req, res) => {
     try {
       const { companyId, documents } = req.body;
       if (!companyId || !documents || !Array.isArray(documents)) {
