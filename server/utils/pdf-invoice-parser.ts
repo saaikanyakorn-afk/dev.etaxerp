@@ -44,6 +44,12 @@ const INVOICE_PREFIX_MAP: Record<string, { platform: ParsedInvoice["platform"]; 
   "IM":       { platform: "grab", docSubType: "service_fee", label: "Grab Service Fee" },
 };
 
+function extractAlphaPrefix(invoiceNo: string): string {
+  if (!invoiceNo) return "";
+  const m = invoiceNo.match(/^([A-Za-z]+)/);
+  return m ? m[1].toUpperCase() : "";
+}
+
 function classifyByPrefix(invoiceNo: string): { platform: ParsedInvoice["platform"]; docSubType: ParsedInvoice["docSubType"]; prefix: string } | null {
   if (!invoiceNo) return null;
   const upper = invoiceNo.toUpperCase();
@@ -479,7 +485,7 @@ function parseShopeeInvoice(rows: TextItem[][], fullText: string): ParsedInvoice
     rawText: fullText.substring(0, 3000),
     platform: prefixInfo?.platform || "shopee",
     docSubType: prefixInfo?.docSubType || (vendorName.includes("SPX") ? "shipping" : "platform_fee"),
-    invoicePrefix: prefixInfo?.prefix || "",
+    invoicePrefix: prefixInfo?.prefix || extractAlphaPrefix(invoiceNo),
   };
 }
 
@@ -617,7 +623,7 @@ function parseTikTokReceipt(rows: TextItem[][], fullText: string): ParsedInvoice
     rawText: fullText.substring(0, 3000),
     platform: prefixInfo?.platform || "tiktok",
     docSubType: prefixInfo?.docSubType || "commission",
-    invoicePrefix: prefixInfo?.prefix || "",
+    invoicePrefix: prefixInfo?.prefix || extractAlphaPrefix(invoiceNo),
   };
 }
 
@@ -764,7 +770,7 @@ function parseTikTokInvoice(rows: TextItem[][], fullText: string): ParsedInvoice
     rawText: fullText.substring(0, 3000),
     platform: prefixInfo?.platform || "tiktok",
     docSubType: prefixInfo?.docSubType || (isLogistics ? "shipping" : "platform_fee"),
-    invoicePrefix: prefixInfo?.prefix || "",
+    invoicePrefix: prefixInfo?.prefix || extractAlphaPrefix(invoiceNo),
   };
 }
 
@@ -900,7 +906,7 @@ function parseLazadaInvoice(rows: TextItem[][], fullText: string): ParsedInvoice
     rawText: fullText.substring(0, 3000),
     platform: prefixInfo?.platform || "lazada",
     docSubType: prefixInfo?.docSubType || (isLazExpress ? "shipping" : "platform_fee"),
-    invoicePrefix: prefixInfo?.prefix || "",
+    invoicePrefix: prefixInfo?.prefix || extractAlphaPrefix(invoiceNo),
   };
 }
 
@@ -1292,7 +1298,7 @@ function parseGenericInvoice(rows: TextItem[][], fullText: string): ParsedInvoic
     rawText: fullText.substring(0, 3000),
     platform: prefixInfo?.platform || "other",
     docSubType: prefixInfo?.docSubType || "mixed",
-    invoicePrefix: prefixInfo?.prefix || "",
+    invoicePrefix: prefixInfo?.prefix || extractAlphaPrefix(invoiceNo),
   };
 }
 
