@@ -7,16 +7,25 @@
 The E-Tax Center is a multi-tenant digital accounting platform designed to revolutionize accounting processes for Thai accounting firms. It integrates with major e-commerce platforms (Shopee, Lazada, TikTok Shop) to automate order retrieval, tax invoice generation, and service fee calculation. The platform provides comprehensive client and human resources management (attendance, overtime, payroll), robust financial document processing, and advanced e-commerce functionalities, aiming to be a holistic solution for managing financial operations and expanding digital commerce services for its clients. Its vision is to be an all-in-one solution for managing clients' financial operations and expanding digital commerce service offerings.
 
 ## 🔒 PRODUCTION BUILD BASELINE (Safety-net — compare after every build)
-Last verified build: **2026-04-16 (v97 cherry-pick)**
+Last verified build: **2026-04-21 (v98 cherry-pick — migration seedAccount5210470)**
 | File | Size | gzip | Note |
 |------|------|------|------|
-| dist/index.cjs | **7.3 MB** | — | Server bundle — if this changes, index.ts was touched |
-| index-ByhAZnFC.js | **8,078.91 kB** | 1,643.09 kB | Main client bundle — if this jumps significantly, App.tsx or new pages were added |
-| vendor-pdf | **1,444.18 kB** | 470.44 kB | PDF library — should be stable |
-| vendor-charts | **453.93 kB** | 118.73 kB | Charts library — should be stable |
+| dist/index.cjs | **7.4 MB** | — | Server bundle — +0.1 MB from v97 (maintenance.ts hook added). ⚠️ At rule boundary — watch next build |
+| index-DWEFVmOj.js | **360.30 kB** | 101.97 kB | Main entry chunk (Vite re-split from v97's 8,078 kB — ecommerce code-split out) |
+| ecommerce-orders-CuZCwrnB.js | **459.92 kB** | 142.13 kB | E-commerce orders chunk (code-split from main bundle) |
+| vendor-excel-DWxefIvp.js | **429.27 kB** | 143.01 kB | Excel library |
+| vendor-charts-55SOi1f8.js | **453.93 kB** | 118.73 kB | Charts library — stable |
+| vendor-pdf-D4dLDnyT.js | **1,444.18 kB** | 470.44 kB | PDF library ⚠️ largest chunk — stable but too big, no time to fix now |
 
 **Rule:** If `dist/index.cjs` size changes by more than ±0.1 MB → investigate. Something touched protected server files.
 **Rule:** If main client bundle jumps by more than ±500 kB → investigate. Something touched App.tsx or added/removed pages.
+**⚠️ vendor-pdf is 1,444 kB — needs code-splitting in future sprint (dynamic import). Currently monitored only.**
+
+### Cherry-pick history
+| Date | v# | Files | dist/index.cjs | Main JS chunk | Notes |
+|------|-----|-------|----------------|---------------|-------|
+| 2026-04-16 | v97 | schema-extra.ts + 24 others (batch) | 7.3 MB | index-ByhAZnFC.js 8,078.91 kB | Batch 25 files |
+| 2026-04-21 | v98 | schema-extra.ts, maintenance.ts | 7.4 MB | index-DWEFVmOj.js 360.30 kB | Migration: seed account 5210470 (453 companies). Vite re-chunked: ecommerce split out |
 
 ## ⛔ PRE-PUSH CHECKLIST (MANDATORY — DO BEFORE EVERY GIT PUSH)
 1. **Insert schema_version record** in BOTH Replit DB AND Production DB — version, description, change_type, pushed_repos
