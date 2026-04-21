@@ -28,6 +28,7 @@ Last verified build: **2026-04-21 (v98 cherry-pick — migration seedAccount5210
 | 2026-04-21 | v98 r1 | schema-extra.ts, maintenance.ts | 7.4 MB | index-DWEFVmOj.js 360.30 kB | Migration ACTIVE: seed account 5210470 (453 companies). Vite re-chunked: ecommerce split out. Build 44.26s, pm2 84.1mb |
 | 2026-04-21 | v98 r2 | schema-extra.ts, maintenance.ts | 7.4 MB | index-DWEFVmOj.js 360.30 kB | Migration COMMENT-OUT (loop close). No size change. Build 43.75s, pm2 83.8mb |
 | 2026-04-21 | v99 | 21 files (groups A–G) | 7.4 MB | index-CTaC-RlI.js 360.46 kB | Batch A-G: cache refresh, nav fix, HR import, public upload, contacts import, doc settings, user guide. +0.16kB client. Build 43.57s, pm2 84.2mb |
+| 2026-04-21 | v100 | expense.tsx | 7.4 MB | index-BsEaVt8S.js 360.46 kB | Fix: expense save now invalidates journal-entries + dashboard cache (invalidateDocCaches). Build 43.19s, pm2 85.4mb |
 
 ## ⛔ PRE-PUSH CHECKLIST (MANDATORY — DO BEFORE EVERY GIT PUSH)
 1. **Insert schema_version record** in BOTH Replit DB AND Production DB — version, description, change_type, pushed_repos
