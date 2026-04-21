@@ -203,6 +203,17 @@ export default function HRLayout({ children }: { children: React.ReactNode }) {
     staleTime: 300_000,
   });
 
+  useEffect(() => {
+    if (!user || !myRoleModules) return;
+    const sessionKey = `hr-module-redirected-${user.id}`;
+    if (sessionStorage.getItem(sessionKey)) return;
+    const otherModules = (myRoleModules.modules || []).filter(m => m !== "hr");
+    if (otherModules.length > 0) {
+      sessionStorage.setItem(sessionKey, "1");
+      setLocation("/module-select");
+    }
+  }, [user, myRoleModules]);
+
   const filteredNav = useMemo(() => {
     if (!myPermissions) return HR_NAV;
     if (myPermissions.subModules.length === 0) return [];
