@@ -2269,7 +2269,7 @@ export function registerPurchaseRoutes(app: Express) {
                         const upper = invNo.toUpperCase();
                         const PREFIX_MAP: Record<string, string> = {
                           "TRSPEMKP": "shopee_platform_fee", "TRSPESPF": "shopeefood_fee",
-                          "TRSPXADB": "spx_admin_fee", "RCSPXSPR": "shopee_shipping", "RCSPXSPB": "shopee_shipping",
+                          "TRSPXADB": "spx_admin_fee", "RCSPXSPR": "shopee_shipping", "RCSPXSPB": "shopee_shipping", "RCSPXSPW": "shopee_shipping",
                           "TTSTH": "tiktok_platform_fee", "TTSTHCN": "tiktok_platform_fee",
                           "TTSTHAC": "tiktok_affiliate_commission", "THJV": "tiktok_shipping",
                           "THMPTI": "lazada_platform_fee", "THLPTI": "lazada_shipping",
@@ -2342,7 +2342,7 @@ export function registerPurchaseRoutes(app: Express) {
 
       const PREFIX_MAP: Record<string, string> = {
         "TRSPEMKP": "shopee_platform_fee", "TRSPESPF": "shopeefood_fee",
-        "TRSPXADB": "spx_admin_fee", "RCSPXSPR": "shopee_shipping", "RCSPXSPB": "shopee_shipping",
+        "TRSPXADB": "spx_admin_fee", "RCSPXSPR": "shopee_shipping", "RCSPXSPB": "shopee_shipping", "RCSPXSPW": "shopee_shipping",
         "TRSLZD": "lazada_platform_fee", "TTSTH": "tiktok_platform_fee", "TTSTHCN": "tiktok_platform_fee",
         "TTSTHAC": "tiktok_affiliate_commission", "THJV": "tiktok_shipping",
         "THMPTI": "lazada_platform_fee", "THLPTI": "lazada_shipping", "IM": "grab_service_fee",
@@ -2588,6 +2588,7 @@ export function registerPurchaseRoutes(app: Express) {
         "TRSPXADB": "spx_admin_fee",
         "RCSPXSPR": "shopee_shipping",
         "RCSPXSPB": "shopee_shipping",
+        "RCSPXSPW": "shopee_shipping",
         "TRSLZD":   "lazada_platform_fee",
         "TTSTH":    "tiktok_platform_fee",
         "TTSTHCN":  "tiktok_platform_fee",
