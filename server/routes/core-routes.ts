@@ -343,6 +343,13 @@ app.post("/api/users/:id/unlock", requireAuth, async (req, res) => {
   }
 });
 
+app.get("/api/my-role-modules", requireAuth, async (req, res) => {
+  const user = req.user as any;
+  const perms = await storage.getRolePermissionsByRole(user.role);
+  const modules = perms.filter((p: any) => p.allowed).map((p: any) => p.moduleKey);
+  res.json({ modules });
+});
+
 app.get("/api/permissions", requireAuth, async (_req, res) => {
   const perms = await storage.getRolePermissions();
   if (perms.length === 0) {

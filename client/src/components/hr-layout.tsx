@@ -192,6 +192,17 @@ export default function HRLayout({ children }: { children: React.ReactNode }) {
     staleTime: 60_000,
   });
 
+  const { data: myRoleModules } = useQuery<{ modules: string[] }>({
+    queryKey: ["/api/my-role-modules", user?.id],
+    queryFn: async () => {
+      const r = await fetch("/api/my-role-modules", { credentials: "include" });
+      if (!r.ok) return { modules: [] };
+      return r.json();
+    },
+    enabled: !!user,
+    staleTime: 300_000,
+  });
+
   const filteredNav = useMemo(() => {
     if (!myPermissions) return HR_NAV;
     if (myPermissions.subModules.length === 0) return [];
@@ -463,7 +474,7 @@ export default function HRLayout({ children }: { children: React.ReactNode }) {
         </nav>
 
         {(() => {
-          const otherMods = OTHER_MODULE_LINKS.filter(m => myPermissions?.modules?.includes(m.key));
+          const otherMods = OTHER_MODULE_LINKS.filter(m => myRoleModules?.modules?.includes(m.key));
           if (otherMods.length === 0) return null;
           return (
             <div className="px-3 pb-2 shrink-0 border-t border-sidebar-border pt-2">
