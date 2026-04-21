@@ -162,51 +162,52 @@ export type TenantModuleSubscription = typeof tenantModuleSubscriptions.$inferSe
 // NOTE: Completed migrations are kept here as commented-out history for audit.
 // Workflow: write migration → hook → verify in DB → comment out → push.
 
-/* ── DONE 2026-04-21: Seed account 5210470 (Company Registration Fee) ──
- * Verified: 450 / 450 companies have code 5210470. No re-run needed.
- *
- * const MIGRATION_KEY_5210470 = "SEED_ACCOUNT_5210470_ALL_COMPANIES";
- *
- * export async function seedAccount5210470(db: any) {
- *   try {
- *     const flagRows = await db.execute(sql`
- *       SELECT config_value FROM system_config
- *       WHERE config_key = ${MIGRATION_KEY_5210470} LIMIT 1
- *     `);
- *     if ((flagRows.rows || []).length > 0) return;
- *
- *     await db.execute(sql`
- *       INSERT INTO accounts (
- *         company_id, code, name, name_th, name_zh,
- *         type, parent_code, active, is_header
- *       )
- *       SELECT DISTINCT
- *         a.company_id,
- *         '5210470',
- *         'Company Registration Fee',
- *         'ค่าธรรมเนียมจัดตั้งบริษัท',
- *         '公司注册费',
- *         'expense', '521', true, false
- *       FROM accounts a
- *       WHERE NOT EXISTS (
- *         SELECT 1 FROM accounts b
- *         WHERE b.company_id = a.company_id AND b.code = '5210470'
- *       )
- *     `);
- *
- *     await db.execute(sql`
- *       INSERT INTO system_config (config_key, config_value, description)
- *       VALUES (
- *         ${MIGRATION_KEY_5210470},
- *         ${"done_" + new Date().toISOString()},
- *         'Seed account 5210470 (Company Registration Fee) to all existing companies'
- *       )
- *       ON CONFLICT (config_key) DO NOTHING
- *     `);
- *
- *     console.log("[Migration] ✅ Account 5210470 seeded to all companies");
- *   } catch (err: any) {
- *     console.error("[Migration] ❌ seedAccount5210470:", err.message);
- *   }
- * }
- */
+// ── ACTIVE 2026-04-21: Seed account 5210470 (Company Registration Fee) ──
+// Production has 0/453 companies with this code. Insert idempotently for all.
+// After verified on prod, comment this out and push again to lock the history.
+
+const MIGRATION_KEY_5210470 = "SEED_ACCOUNT_5210470_ALL_COMPANIES";
+
+export async function seedAccount5210470(db: any) {
+  try {
+    const flagRows = await db.execute(sql`
+      SELECT config_value FROM system_config
+      WHERE config_key = ${MIGRATION_KEY_5210470} LIMIT 1
+    `);
+    if ((flagRows.rows || []).length > 0) return;
+
+    await db.execute(sql`
+      INSERT INTO accounts (
+        company_id, code, name, name_th, name_zh,
+        type, parent_code, active, is_header
+      )
+      SELECT DISTINCT
+        a.company_id,
+        '5210470',
+        'Company Registration Fee',
+        'ค่าธรรมเนียมจัดตั้งบริษัท',
+        '公司注册费',
+        'expense', '521', true, false
+      FROM accounts a
+      WHERE a.company_id IS NOT NULL
+        AND NOT EXISTS (
+          SELECT 1 FROM accounts b
+          WHERE b.company_id = a.company_id AND b.code = '5210470'
+        )
+    `);
+
+    await db.execute(sql`
+      INSERT INTO system_config (config_key, config_value, description)
+      VALUES (
+        ${MIGRATION_KEY_5210470},
+        ${"done_" + new Date().toISOString()},
+        'Seed account 5210470 (Company Registration Fee) to all existing companies'
+      )
+      ON CONFLICT (config_key) DO NOTHING
+    `);
+
+    console.log("[Migration] ✅ Account 5210470 seeded to all companies");
+  } catch (err: any) {
+    console.error("[Migration] ❌ seedAccount5210470:", err.message);
+  }
+}

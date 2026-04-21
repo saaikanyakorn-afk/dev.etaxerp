@@ -1,5 +1,6 @@
 import { db, activeDbInfo } from "./db";
 import { maintenanceSchedules, users } from "@shared/schema";
+import { seedAccount5210470 } from "@shared/schema-extra";
 import { eq, sql, and, desc, inArray } from "drizzle-orm";
 
 let onEnableCallback: (() => void) | null = null;
@@ -538,6 +539,9 @@ export async function initMaintenanceOnStartup(): Promise<void> {
       console.log(`[MAINTENANCE] Restored pending timer for schedule #${s.id} at ${s.scheduledAt.toISOString()}`);
     }
   }
+
+  // ── One-time data migrations (idempotent; guarded by system_config flags) ──
+  await seedAccount5210470(db);
 }
 
 export function getMaintenanceState() {
