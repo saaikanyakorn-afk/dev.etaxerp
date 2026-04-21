@@ -31,6 +31,7 @@ import {
 import { cn, toLocalDateStr } from "@/lib/utils";
 import { usePrefixOptions } from "@/hooks/use-prefix-options";
 import { apiRequest } from "@/lib/queryClient";
+import { invalidateDocCaches } from "@/lib/invalidate-doc-caches";
 import { DatePicker, toDisplayDate } from "@/components/ui/date-picker";
 import type { DateFormat } from "@/components/ui/date-picker";
 import type { Contact } from "@shared/schema";
@@ -422,8 +423,7 @@ export default function Expense() {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/expenses"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
+      invalidateDocCaches(queryClient, [["/api/expenses"], ["/api/contacts"]]);
       toast({ title: "สร้างรายจ่ายสำเร็จ", variant: "success" as any });
       navigate("/purchases/expense");
     },
@@ -436,8 +436,7 @@ export default function Expense() {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/expenses"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
+      invalidateDocCaches(queryClient, [["/api/expenses"], ["/api/contacts"]]);
       toast({ title: "อัพเดทรายจ่ายสำเร็จ", variant: "success" as any });
       navigate("/purchases/expense");
     },
@@ -450,8 +449,7 @@ export default function Expense() {
       return res.json();
     },
     onSuccess: (data: any) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/expenses"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
+      invalidateDocCaches(queryClient, [["/api/expenses"], ["/api/contacts"]]);
       const newStatus = data.status || "approved";
       setForm(p => ({ ...p, status: newStatus }));
       toast({ title: newStatus === "approved" ? "อนุมัติแล้ว" : "ยกเลิกแล้ว", variant: "success" as any });
@@ -754,8 +752,7 @@ export default function Expense() {
         const res = await apiRequest("POST", "/api/expenses", payload);
         savedDoc = await res.json();
       }
-      queryClient.invalidateQueries({ queryKey: ["/api/expenses"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
+      invalidateDocCaches(queryClient, [["/api/expenses"], ["/api/contacts"]]);
       toast({ title: "บันทึกรายจ่ายสำเร็จ", variant: "success" as any });
       const descList = items
         .map(it => it.description || it.accountName)
@@ -794,8 +791,7 @@ export default function Expense() {
         const res = await apiRequest("POST", "/api/expenses", payload);
         savedDoc = await res.json();
       }
-      queryClient.invalidateQueries({ queryKey: ["/api/expenses"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
+      invalidateDocCaches(queryClient, [["/api/expenses"], ["/api/contacts"]]);
       toast({ title: "บันทึกรายจ่ายสำเร็จ พร้อมบันทึกเข้าทะเบียนทรัพย์สิน", variant: "success" as any });
       if (assetAlertItem) {
         const item = items[assetAlertItem.idx];
@@ -826,8 +822,7 @@ export default function Expense() {
         const res = await apiRequest("POST", "/api/expenses", payload);
         savedDoc = await res.json();
       }
-      queryClient.invalidateQueries({ queryKey: ["/api/expenses"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
+      invalidateDocCaches(queryClient, [["/api/expenses"], ["/api/contacts"]]);
       toast({ title: "บันทึกรายจ่ายสำเร็จ", variant: "success" as any });
       const descList2 = items
         .map(it => it.description || it.accountName)
