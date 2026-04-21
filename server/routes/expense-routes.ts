@@ -582,14 +582,16 @@ export function registerExpenseRoutes(app: Express) {
       const effectiveLinkJournal = updated.linkJournal !== false;
       const alreadyApproved = existing.status === "approved" && updated.status === "approved";
       const itemsChanged = items && Array.isArray(items);
+      const existingJE = await db.select().from(journalEntries).where(and(
+        eq(journalEntries.sourceDocType, "expense"), eq(journalEntries.sourceDocId, updated.id)
+      ));
+      const hasExistingJournal = existingJE.length > 0;
+      const isCurrentlyApproved = updated.status === "approved";
       const shouldJournal = (statusChanged && body.status === "approved" && effectiveLinkJournal)
         || body.customJournalLines
-        || (alreadyApproved && itemsChanged && effectiveLinkJournal);
+        || (itemsChanged && effectiveLinkJournal && isCurrentlyApproved && (alreadyApproved || hasExistingJournal));
       if (shouldJournal) {
         try {
-          const existingJE = await db.select().from(journalEntries).where(and(
-            eq(journalEntries.sourceDocType, "expense"), eq(journalEntries.sourceDocId, updated.id)
-          ));
           if (existingJE.length > 0) {
             for (const je of existingJE) {
               await db.delete(journalLines).where(eq(journalLines.journalEntryId, je.id));
