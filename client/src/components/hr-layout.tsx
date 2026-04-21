@@ -491,6 +491,15 @@ export default function HRLayout({ children }: { children: React.ReactNode }) {
           );
         })()}
 
+        <div className="px-3 pb-3 shrink-0">
+          <Link href="/">
+            <span className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all cursor-pointer border-2 text-sidebar-foreground/70 hover:text-white" style={{ borderColor: MODULE_COLOR, color: MODULE_COLOR }} data-testid="hr-link-back-home">
+              <ArrowLeft className="h-4 w-4" />
+              กลับหน้าหลัก E-Tax Center
+            </span>
+          </Link>
+        </div>
+
         <div className="p-4 border-t border-sidebar-border shrink-0">
           <div className="flex items-center gap-3 px-2 py-2">
             <div className="h-10 w-10 rounded-full flex items-center justify-center shrink-0" style={{ background: MODULE_COLOR }}>
