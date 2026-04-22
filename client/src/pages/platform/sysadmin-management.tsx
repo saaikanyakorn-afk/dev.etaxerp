@@ -1018,7 +1018,15 @@ function SmtpConfigDialog({ onClose }: { onClose: () => void }) {
       const res = await fetch("/api/sysadmin/smtp-config/test", {
         method: "POST", credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ testEmail }),
+        body: JSON.stringify({
+          testEmail,
+          host: form.host,
+          port: form.port,
+          user: form.user,
+          pass: form.pass.startsWith("••••") ? undefined : form.pass,
+          from: form.from,
+          secure: form.secure,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message);

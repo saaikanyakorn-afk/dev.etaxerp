@@ -1280,8 +1280,28 @@ export function registerSysAdminRoutes(app: Express) {
       if (!caller?.isMaster) return res.status(403).json({ message: "เฉพาะ Master SysAdmin เท่านั้น" });
       const toEmail = req.body.testEmail || caller.email;
       if (!toEmail) return res.status(400).json({ message: "กรุณากรอก email ทดสอบ" });
+
+      const { host, port, user, pass, from, secure } = req.body;
       const testOtp = String(Math.floor(100000 + Math.random() * 900000));
-      await sendSysAdminEmail(toEmail, "ทดสอบ SMTP — E-Tax Center SysAdmin", buildOtpEmail(testOtp, "ทดสอบระบบ Email"));
+
+      if (host && user && pass) {
+        const nodemailer = await import("nodemailer");
+        const transporter = nodemailer.default.createTransport({
+          host,
+          port: Number(port || 587),
+          secure: secure === true || secure === "true",
+          auth: { user, pass },
+        });
+        await transporter.sendMail({
+          from: from || user,
+          to: toEmail,
+          subject: "ทดสอบ SMTP — E-Tax Center SysAdmin",
+          html: buildOtpEmail(testOtp, "ทดสอบระบบ Email"),
+        });
+      } else {
+        await sendSysAdminEmail(toEmail, "ทดสอบ SMTP — E-Tax Center SysAdmin", buildOtpEmail(testOtp, "ทดสอบระบบ Email"));
+      }
+
       res.json({ message: `ส่ง email ทดสอบไปที่ ${toEmail} สำเร็จ` });
     } catch (err: any) {
       res.status(500).json({ message: `ส่ง email ล้มเหลว: ${err.message}` });
