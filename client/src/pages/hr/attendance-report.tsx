@@ -86,9 +86,11 @@ export default function AttendanceReport() {
   const isAdmin = user?.role === "admin" || user?.role === "super_admin" || user?.role === "manager";
 
   const { data: report = [], isLoading } = useQuery<AttendanceRow[]>({
-    queryKey: ["/api/attendance-report", dateFrom, dateTo],
+    queryKey: ["/api/attendance-report", dateFrom, dateTo, companyId],
     queryFn: async () => {
-      const res = await fetch(`/api/attendance-report?dateFrom=${dateFrom}&dateTo=${dateTo}`, { credentials: "include" });
+      const params = new URLSearchParams({ dateFrom, dateTo });
+      if (companyId) params.set("companyId", String(companyId));
+      const res = await fetch(`/api/attendance-report?${params}`, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch");
       return res.json();
     },

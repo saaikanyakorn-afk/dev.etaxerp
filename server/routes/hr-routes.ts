@@ -1163,7 +1163,12 @@ export function registerHrRoutes(app: Express) {
       const dateTo = req.query.dateTo as string;
       if (!dateFrom || !dateTo) return res.status(400).json({ message: "dateFrom and dateTo required" });
 
-      const reportCompanyId = req.query.companyId ? Number(req.query.companyId) : undefined;
+      let reportCompanyId = req.query.companyId ? Number(req.query.companyId) : undefined;
+      // Security: manager/employee must be scoped to their own company when companyId not provided
+      if (!reportCompanyId && !isFullAccessRole(user.role)) {
+        const myEmpRecord = await storage.getEmployeeByUserId(user.id);
+        if (myEmpRecord?.companyId) reportCompanyId = myEmpRecord.companyId;
+      }
       const allEmps = await storage.getEmployees(tenantId, reportCompanyId);
       let activeEmps = allEmps.filter((e: any) => e.employmentStatus !== "resigned" && e.active !== false && !e.exemptFromCheckin);
 
@@ -1538,7 +1543,12 @@ export function registerHrRoutes(app: Express) {
     res.set("Cache-Control", "no-store");
     const user = req.user as any;
     const tenantId = user.tenantId;
-    const companyId = req.query.companyId ? Number(req.query.companyId) : undefined;
+    let companyId = req.query.companyId ? Number(req.query.companyId) : undefined;
+    // Security: non-admin must be scoped to their own company when companyId not provided
+    if (!companyId && !isFullAccessRole(user.role)) {
+      const myEmpRecord = await storage.getEmployeeByUserId(user.id);
+      if (myEmpRecord?.companyId) companyId = myEmpRecord.companyId;
+    }
     let records = await storage.getAllOt(tenantId, companyId);
     if (user.role === "employee") {
       const myEmp = await storage.getEmployeeByUserId(user.id);
@@ -2036,7 +2046,13 @@ export function registerHrRoutes(app: Express) {
   app.get("/api/leaves", requireAuth, requireModule("hr"), async (req, res) => {
     const user = req.user as any;
     const tenantId = user.tenantId;
-    let records = await storage.getAllLeaves(tenantId);
+    let scopedCompanyId = req.query.companyId ? Number(req.query.companyId) : undefined;
+    // Security: non-admin must be scoped to their own company
+    if (!scopedCompanyId && !isFullAccessRole(user.role)) {
+      const myEmpRecord = await storage.getEmployeeByUserId(user.id);
+      if (myEmpRecord?.companyId) scopedCompanyId = myEmpRecord.companyId;
+    }
+    let records = await storage.getAllLeaves(tenantId, scopedCompanyId);
     if (user.role === "employee") {
       const myEmp = await storage.getEmployeeByUserId(user.id);
       if (myEmp) {

@@ -79,9 +79,10 @@ export default function LeaveManagement() {
   const myEmployee = employees.find((e: any) => e.userId === user?.id);
 
   const { data: allLeaves = [] } = useQuery<any[]>({
-    queryKey: ["/api/leaves"],
+    queryKey: ["/api/leaves", companyId],
     queryFn: async () => {
-      const r = await fetch("/api/leaves", { credentials: "include" });
+      const url = companyId ? `/api/leaves?companyId=${companyId}` : "/api/leaves";
+      const r = await fetch(url, { credentials: "include" });
       if (!r.ok) return [];
       return r.json();
     },
