@@ -26,13 +26,15 @@ export async function sendSysAdminEmail(to: string, subject: string, html: strin
     return;
   }
 
+  const smtpPass = cfg.SYSADMIN_SMTP_PASS.trim();
+  console.log(`[SysAdmin SMTP] host=${cfg.SYSADMIN_SMTP_HOST} user=${cfg.SYSADMIN_SMTP_USER} passLen=${smtpPass.length} passFirst6=${smtpPass.slice(0,6)}`);
   const transporter = nodemailer.createTransport({
     host: cfg.SYSADMIN_SMTP_HOST,
     port: Number(cfg.SYSADMIN_SMTP_PORT || "587"),
     secure: cfg.SYSADMIN_SMTP_SECURE === "true",
     auth: {
       user: cfg.SYSADMIN_SMTP_USER,
-      pass: cfg.SYSADMIN_SMTP_PASS,
+      pass: smtpPass,
     },
   });
 
@@ -93,6 +95,6 @@ export async function saveSmtpConfig(cfg: {
   await upsert("SYSADMIN_SMTP_FROM", cfg.from);
   await upsert("SYSADMIN_SMTP_SECURE", String(cfg.secure));
   if (cfg.pass && !cfg.pass.startsWith("••••")) {
-    await upsert("SYSADMIN_SMTP_PASS", cfg.pass);
+    await upsert("SYSADMIN_SMTP_PASS", cfg.pass.trim());
   }
 }
