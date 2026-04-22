@@ -1308,4 +1308,183 @@ export function registerSysAdminRoutes(app: Express) {
     }
   });
 
+  // ─────────────────────────────────────────────────────────────
+  // INFRASTRUCTURE — Locations  (/api/sysadmin/infra/locations)
+  // Independent from platform routes — sysadmin domain only
+  // ─────────────────────────────────────────────────────────────
+  app.get("/api/sysadmin/infra/locations", requireSysAdminAuth, async (_req, res) => {
+    try {
+      const { platformLocations } = await import("@shared/schema");
+      const rows = await db.select().from(platformLocations).orderBy(platformLocations.id);
+      res.json(rows);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/sysadmin/infra/locations", requireSysAdminAuth, async (req, res) => {
+    try {
+      const { platformLocations, insertPlatformLocationSchema } = await import("@shared/schema");
+      const parsed = insertPlatformLocationSchema.parse(req.body);
+      const [row] = await db.insert(platformLocations).values(parsed).returning();
+      res.json(row);
+    } catch (err: any) {
+      res.status(400).json({ message: err.message });
+    }
+  });
+
+  app.patch("/api/sysadmin/infra/locations/:id", requireSysAdminAuth, async (req, res) => {
+    try {
+      const { platformLocations } = await import("@shared/schema");
+      const id = Number(req.params.id);
+      const { createdAt, updatedAt, id: _id, ...updates } = req.body;
+      const [row] = await db.update(platformLocations)
+        .set({ ...updates, updatedAt: new Date() })
+        .where(eq(platformLocations.id, id))
+        .returning();
+      if (!row) return res.status(404).json({ message: "ไม่พบ Location" });
+      res.json(row);
+    } catch (err: any) {
+      res.status(400).json({ message: err.message });
+    }
+  });
+
+  app.delete("/api/sysadmin/infra/locations/:id", requireSysAdminAuth, async (req, res) => {
+    try {
+      const { platformLocations } = await import("@shared/schema");
+      const id = Number(req.params.id);
+      const [row] = await db.delete(platformLocations).where(eq(platformLocations.id, id)).returning();
+      if (!row) return res.status(404).json({ message: "ไม่พบ Location" });
+      res.json({ ok: true });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // ─────────────────────────────────────────────────────────────
+  // INFRASTRUCTURE — Routers  (/api/sysadmin/infra/routers)
+  // ─────────────────────────────────────────────────────────────
+  app.get("/api/sysadmin/infra/routers", requireSysAdminAuth, async (_req, res) => {
+    try {
+      const { routers } = await import("@shared/schema");
+      const rows = await db.select().from(routers).orderBy(routers.name);
+      res.json(rows);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/sysadmin/infra/routers", requireSysAdminAuth, async (req, res) => {
+    try {
+      const { routers, insertRouterSchema } = await import("@shared/schema");
+      const parsed = insertRouterSchema.parse(req.body);
+      const [row] = await db.insert(routers).values(parsed).returning();
+      res.json(row);
+    } catch (err: any) {
+      res.status(400).json({ message: err.message });
+    }
+  });
+
+  app.patch("/api/sysadmin/infra/routers/:id", requireSysAdminAuth, async (req, res) => {
+    try {
+      const { routers } = await import("@shared/schema");
+      const id = Number(req.params.id);
+      const { createdAt, updatedAt, id: _id, ...updates } = req.body;
+      const [row] = await db.update(routers)
+        .set({ ...updates, updatedAt: new Date() })
+        .where(eq(routers.id, id))
+        .returning();
+      if (!row) return res.status(404).json({ message: "ไม่พบ Router" });
+      res.json(row);
+    } catch (err: any) {
+      res.status(400).json({ message: err.message });
+    }
+  });
+
+  app.delete("/api/sysadmin/infra/routers/:id", requireSysAdminAuth, async (req, res) => {
+    try {
+      const { routers } = await import("@shared/schema");
+      const id = Number(req.params.id);
+      const [row] = await db.delete(routers).where(eq(routers.id, id)).returning();
+      if (!row) return res.status(404).json({ message: "ไม่พบ Router" });
+      res.json({ ok: true });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // ─────────────────────────────────────────────────────────────
+  // INFRASTRUCTURE — Domains  (/api/sysadmin/infra/domains)
+  // ─────────────────────────────────────────────────────────────
+  app.get("/api/sysadmin/infra/domains", requireSysAdminAuth, async (_req, res) => {
+    try {
+      const { platformDomains, routers, machines } = await import("@shared/schema");
+      const rows = await db.select({
+        domain: platformDomains,
+        routerName: routers.name,
+        machineName: machines.localName,
+      })
+        .from(platformDomains)
+        .leftJoin(routers, eq(platformDomains.routerId, routers.id))
+        .leftJoin(machines, eq(platformDomains.machineId, machines.id))
+        .orderBy(platformDomains.domainName);
+      res.json(rows);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/sysadmin/infra/domains", requireSysAdminAuth, async (req, res) => {
+    try {
+      const { platformDomains, insertPlatformDomainSchema } = await import("@shared/schema");
+      const parsed = insertPlatformDomainSchema.parse(req.body);
+      const [row] = await db.insert(platformDomains).values(parsed).returning();
+      res.json(row);
+    } catch (err: any) {
+      res.status(400).json({ message: err.message });
+    }
+  });
+
+  app.patch("/api/sysadmin/infra/domains/:id", requireSysAdminAuth, async (req, res) => {
+    try {
+      const { platformDomains } = await import("@shared/schema");
+      const id = Number(req.params.id);
+      const { createdAt, updatedAt, id: _id, ...updates } = req.body;
+      const [row] = await db.update(platformDomains)
+        .set({ ...updates, updatedAt: new Date() })
+        .where(eq(platformDomains.id, id))
+        .returning();
+      if (!row) return res.status(404).json({ message: "ไม่พบ Domain" });
+      res.json(row);
+    } catch (err: any) {
+      res.status(400).json({ message: err.message });
+    }
+  });
+
+  app.delete("/api/sysadmin/infra/domains/:id", requireSysAdminAuth, async (req, res) => {
+    try {
+      const { platformDomains } = await import("@shared/schema");
+      const id = Number(req.params.id);
+      const [row] = await db.delete(platformDomains).where(eq(platformDomains.id, id)).returning();
+      if (!row) return res.status(404).json({ message: "ไม่พบ Domain" });
+      res.json({ ok: true });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // ─────────────────────────────────────────────────────────────
+  // INFRASTRUCTURE — Machines  (/api/sysadmin/infra/machines)
+  // Read-only list for sysadmin view — edit via dedicated screen
+  // ─────────────────────────────────────────────────────────────
+  app.get("/api/sysadmin/infra/machines", requireSysAdminAuth, async (_req, res) => {
+    try {
+      const { machines } = await import("@shared/schema");
+      const rows = await db.select().from(machines).orderBy(machines.id);
+      res.json(rows);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
 }

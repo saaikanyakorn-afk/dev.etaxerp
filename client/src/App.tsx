@@ -70,6 +70,9 @@ const PlatformMaintenance = lazy(() => import("@/pages/platform/maintenance"));
 const PasswordManagement = lazy(() => import("@/pages/platform/password-management"));
 const SysAdminLogin = lazy(() => import("@/pages/platform/sysadmin-login"));
 const SysAdminManagement = lazy(() => import("@/pages/platform/sysadmin-management"));
+const InfraLocations = lazy(() => import("@/pages/sysadmin/infra-locations"));
+const InfraRouters = lazy(() => import("@/pages/sysadmin/infra-routers"));
+const InfraDomains = lazy(() => import("@/pages/sysadmin/infra-domains"));
 const Dashboard = lazy(() => import("@/pages/dashboard"));
 const Journal = lazy(() => import("@/pages/journal"));
 const JournalForm = lazy(() => import("@/pages/journal-form"));
@@ -625,6 +628,9 @@ function Router() {
       <Route path="/sys-k7x9/clone-data" component={CloneData} />
       <Route path="/sys-k7x9/maintenance" component={PlatformMaintenance} />
       <Route path="/sys-k7x9/github" component={GithubManagement} />
+      <Route path="/sys-k7x9/infra/locations" component={InfraLocations} />
+      <Route path="/sys-k7x9/infra/routers" component={InfraRouters} />
+      <Route path="/sys-k7x9/infra/domains" component={InfraDomains} />
       <Route path="/journal" component={Journal} />
       <Route path="/journal/new" component={JournalForm} />
       <Route path="/journal/edit/:id" component={JournalForm} />
