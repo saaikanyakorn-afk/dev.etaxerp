@@ -1,6 +1,7 @@
 import { useLocation, Link } from "wouter";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
+import { useCompany } from "@/lib/company-context";
 import { useQuery } from "@tanstack/react-query";
 import {
   UserCircle, Users, Building2, FileText, Banknote,
@@ -42,6 +43,7 @@ const ADMIN_ROLES = ["super_admin", "admin", "manager", "accountant"];
 export default function SettingsTabs() {
   const [location] = useLocation();
   const { user } = useAuth();
+  const { selectedCompany } = useCompany();
 
   const { data: subInfo } = useQuery<any>({
     queryKey: ["/api/my-subscription-info"],
@@ -52,9 +54,14 @@ export default function SettingsTabs() {
   const addons: any[] = subInfo?.addons || [];
   const isSuperAdmin = user?.role === "super_admin";
 
-  const visibleTabs = SETTINGS_TABS.filter(
-    (tab) => !tab.adminOnly || ADMIN_ROLES.includes(user?.role || "")
-  );
+  const isAccountantOnPrimary =
+    user?.role === "accountant" && (selectedCompany?.isPrimary ?? true);
+
+  const visibleTabs = SETTINGS_TABS.filter((tab) => {
+    if (!tab.adminOnly) return true;
+    if (isAccountantOnPrimary) return false;
+    return ADMIN_ROLES.includes(user?.role || "");
+  });
 
   return (
     <TooltipProvider delayDuration={200}>
