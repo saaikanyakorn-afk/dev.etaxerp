@@ -931,7 +931,7 @@ const SMTP_PRESETS = [
     port: 587,
     secure: false,
     passLabel: "SMTP Key (จาก Brevo dashboard)",
-    passHint: "เข้า app.brevo.com → SMTP & API → Generate SMTP Key",
+    passHint: "เข้า app.brevo.com → SMTP & API → SMTP tab → copy Login + Generate SMTP Key (Login ≠ email account)",
     signupUrl: "https://app.brevo.com",
   },
   {
@@ -1095,7 +1095,9 @@ function SmtpConfigDialog({ onClose }: { onClose: () => void }) {
               </div>
               <div>
                 <Label className="text-sm">{currentPreset?.id === "mailjet" ? "API Key (Username) *" : "Username / Email *"}</Label>
-                <Input value={form.user} onChange={e => setForm(f => ({ ...f, user: e.target.value }))} placeholder={currentPreset?.id === "mailjet" ? "Mailjet API Key" : "yourmail@example.com"} data-testid="input-smtp-user" />
+                <Input value={form.user} onChange={e => setForm(f => ({ ...f, user: e.target.value }))}
+                  placeholder={currentPreset?.id === "mailjet" ? "Mailjet API Key" : currentPreset?.id === "brevo" ? "ดู Login ใน Brevo → SMTP & API → SMTP (เช่น a8dd...@smtp-brevo.com)" : "yourmail@example.com"}
+                  data-testid="input-smtp-user" />
               </div>
               <div>
                 <Label className="text-sm">{currentPreset?.passLabel || "Password"}</Label>
