@@ -395,7 +395,8 @@ export function registerExpenseRoutes(app: Express) {
               eq(contacts.companyId, companyId),
               result.vendorTaxId
                 ? eq(contacts.taxId, result.vendorTaxId)
-                : eq(contacts.name, result.vendorName)
+                : eq(contacts.name, result.vendorName),
+              or(eq(contacts.type, "vendor"), eq(contacts.type, "both"))
             )).limit(1);
           if (!existingContact) {
             const nextCode = await storage.getNextContactCode(companyId);

@@ -622,7 +622,11 @@ export function registerPurchaseRoutes(app: Express) {
       if (body.saveToContacts && !result.vendorId && result.vendorName) {
         try {
           const [existingContact] = await db.select().from(contacts)
-            .where(and(eq(contacts.companyId, companyId), result.vendorTaxId ? eq(contacts.taxId, result.vendorTaxId) : eq(contacts.name, result.vendorName))).limit(1);
+            .where(and(
+              eq(contacts.companyId, companyId),
+              result.vendorTaxId ? eq(contacts.taxId, result.vendorTaxId) : eq(contacts.name, result.vendorName),
+              or(eq(contacts.type, "vendor"), eq(contacts.type, "both"))
+            )).limit(1);
           if (!existingContact) {
             const nextCode = await storage.getNextContactCode(companyId);
             const [newContact] = await db.insert(contacts).values({
@@ -960,7 +964,8 @@ export function registerPurchaseRoutes(app: Express) {
               eq(contacts.companyId, companyId),
               result.vendorTaxId
                 ? eq(contacts.taxId, result.vendorTaxId)
-                : eq(contacts.name, result.vendorName)
+                : eq(contacts.name, result.vendorName),
+              or(eq(contacts.type, "vendor"), eq(contacts.type, "both"))
             )).limit(1);
           if (!existing) {
             const nextCode = await storage.getNextContactCode(companyId);
@@ -1209,7 +1214,8 @@ export function registerPurchaseRoutes(app: Express) {
               eq(contacts.companyId, updated.companyId),
               updated.vendorTaxId
                 ? eq(contacts.taxId, updated.vendorTaxId)
-                : eq(contacts.name, updated.vendorName)
+                : eq(contacts.name, updated.vendorName),
+              or(eq(contacts.type, "vendor"), eq(contacts.type, "both"))
             )).limit(1);
           if (!existingContact) {
             const nextCode = await storage.getNextContactCode(updated.companyId);
