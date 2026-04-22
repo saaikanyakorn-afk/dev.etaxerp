@@ -46,7 +46,7 @@ export default function ShiftSettingsPage() {
   const [editId, setEditId] = useState<number | null>(null);
   const [form, setForm] = useState<ShiftForm>({ ...defaultForm });
 
-  const isAdmin = user?.role === "admin" || user?.role === "owner" || user?.role === "super_admin";
+  const isAdmin = user?.role === "admin" || user?.role === "owner" || user?.role === "super_admin" || user?.role === "manager";
 
   const { data: shiftsList = [] } = useQuery<any[]>({
     queryKey: ["/api/shifts", companyId],

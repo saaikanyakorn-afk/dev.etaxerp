@@ -52,7 +52,7 @@ export default function PayslipPage() {
   const [otForm, setOtForm] = useState({ date: "", otType: "regular", startTime: "", endTime: "" });
   const [selectedOtIds, setSelectedOtIds] = useState<number[]>([]);
 
-  const isAdmin = user?.role === "admin" || user?.role === "owner" || user?.role === "super_admin";
+  const isAdmin = user?.role === "admin" || user?.role === "owner" || user?.role === "super_admin" || user?.role === "manager";
 
   const queryClient = useQueryClient();
 

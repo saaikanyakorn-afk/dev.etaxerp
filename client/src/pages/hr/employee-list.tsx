@@ -83,7 +83,7 @@ export default function EmployeeList() {
   const [resignTarget, setResignTarget] = useState<any>(null);
   const [resignForm, setResignForm] = useState({ resignDate: "", resignReason: "" });
   const [empSearch, setEmpSearch] = useState("");
-  const isAdmin = user?.role === "admin" || user?.role === "super_admin" || user?.role === "owner";
+  const isAdmin = user?.role === "admin" || user?.role === "super_admin" || user?.role === "owner" || user?.role === "manager";
 
   const { data: employees = [] } = useQuery<any[]>({
     queryKey: ["/api/employees", companyId],

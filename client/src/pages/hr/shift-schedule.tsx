@@ -50,7 +50,7 @@ export default function ShiftSchedulePage() {
   const [rotationEmpIds, setRotationEmpIds] = useState<number[]>([]);
   const [selectAllEmps, setSelectAllEmps] = useState(true);
 
-  const isAdmin = user?.role === "admin" || user?.role === "owner" || user?.role === "super_admin";
+  const isAdmin = user?.role === "admin" || user?.role === "owner" || user?.role === "super_admin" || user?.role === "manager";
 
   const weekDates = useMemo(() => getWeekDates(currentDate), [currentDate]);
   const dateFrom = weekDates[0];

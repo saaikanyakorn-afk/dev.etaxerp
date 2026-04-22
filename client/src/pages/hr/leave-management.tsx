@@ -64,7 +64,7 @@ export default function LeaveManagement() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState({ leaveType: "", startDate: "", endDate: "", reason: "", halfDay: "" as "" | "morning" | "afternoon" });
 
-  const isAdmin = user?.role === "admin" || user?.role === "owner" || user?.role === "super_admin";
+  const isAdmin = user?.role === "admin" || user?.role === "owner" || user?.role === "super_admin" || user?.role === "manager";
 
   const { data: employees = [] } = useQuery<any[]>({
     queryKey: ["/api/employees", companyId, "active"],

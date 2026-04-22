@@ -64,7 +64,7 @@ export default function OTManagement() {
   const [editForm, setEditForm] = useState({ hours: "", status: "" });
   const [adminSelectedEmployeeId, setAdminSelectedEmployeeId] = useState<number | null>(null);
 
-  const isAdmin = user?.role === "admin" || user?.role === "owner" || user?.role === "super_admin";
+  const isAdmin = user?.role === "admin" || user?.role === "owner" || user?.role === "super_admin" || user?.role === "manager";
 
   const { data: employees = [] } = useQuery<any[]>({
     queryKey: ["/api/employees", companyId, "active"],
