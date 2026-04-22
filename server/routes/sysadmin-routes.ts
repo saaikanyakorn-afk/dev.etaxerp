@@ -882,7 +882,7 @@ export function registerSysAdminRoutes(app: Express) {
       const updates: any = {};
       if (req.body.fullName !== undefined) updates.fullName = req.body.fullName;
       if (req.body.email !== undefined) updates.email = req.body.email;
-      if (req.body.active !== undefined && !target.isMaster) updates.active = req.body.active;
+      if (req.body.active !== undefined && !target.isMaster && caller?.id !== targetId) updates.active = req.body.active;
       if (req.body.lineUserId !== undefined) {
         const newLineId = String(req.body.lineUserId || "").trim();
         if (!newLineId) {

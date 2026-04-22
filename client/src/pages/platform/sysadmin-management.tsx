@@ -368,7 +368,7 @@ function AddSysAdminDialog({ onClose, policy }: { onClose: () => void; policy: P
   );
 }
 
-function EditSysAdminDialog({ admin, onClose }: { admin: SysAdminUser; onClose: () => void }) {
+function EditSysAdminDialog({ admin, me, onClose }: { admin: SysAdminUser; me?: SysAdminUser; onClose: () => void }) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [form, setForm] = useState({
@@ -439,7 +439,7 @@ function EditSysAdminDialog({ admin, onClose }: { admin: SysAdminUser; onClose: 
   const saveMut = useMutation({
     mutationFn: async () => {
       const payload: any = { fullName: form.fullName, email: form.email || null };
-      if (!admin.isMaster) payload.active = form.active;
+      if (!admin.isMaster && admin.id !== me?.id) payload.active = form.active;
       if (lineEditMode && form.lineUserId && form.lineUserId !== admin.lineUserId) {
         payload.lineUserId = form.lineUserId;
       }
@@ -580,7 +580,7 @@ function EditSysAdminDialog({ admin, onClose }: { admin: SysAdminUser; onClose: 
             </div>
           </div>
 
-          {!admin.isMaster && (
+          {!admin.isMaster && admin.id !== me?.id && (
             <div className="flex items-center justify-between border-t pt-4">
               <div>
                 <Label className="text-sm font-medium">สถานะใช้งาน</Label>
@@ -1802,7 +1802,7 @@ export default function SysAdminManagement() {
       </div>
 
       {showAdd && <AddSysAdminDialog onClose={() => setShowAdd(false)} policy={policy || null} />}
-      {editTarget && <EditSysAdminDialog admin={editTarget} onClose={() => setEditTarget(null)} />}
+      {editTarget && <EditSysAdminDialog admin={editTarget} me={meData} onClose={() => setEditTarget(null)} />}
       {resetTarget && <ResetPasswordDialog admin={resetTarget} onClose={() => setResetTarget(null)} policy={policy || null} />}
       {showPolicy && policy && <PolicySettingsDialog policy={policy} onClose={() => setShowPolicy(false)} />}
       {show2FA && meData && <My2FADialog me={meData as SysAdminUser} onClose={() => setShow2FA(false)} />}
