@@ -12,6 +12,7 @@ import { invalidateCompanyReports } from "./report-cache";
 import { recalcBundleStock, recalcBomStock } from "../inventory-recalc";
 import { decodeMulterFilename } from "../utils/safe-filename";
 import { INVOICE_PREFIX_MAP } from "../utils/pdf-invoice-parser";
+import { DEFAULT_FORMULAS } from "@shared/accounting-formulas";
 import multer from "multer";
 import crypto from "crypto";
 // ═══════════════════════════════════════════════════════════════════════
@@ -2994,14 +2995,25 @@ export function registerPurchaseRoutes(app: Express) {
           return "service";
         };
         const buildFormulaAcctMapPD = async (bt: string): Promise<Record<string, { code: string; name: string }> | null> => {
+          let expLines: Array<{ accountCode: string; accountName: string }> = [];
           const dbFormula = await db.select().from(accountingFormulas)
             .where(and(eq(accountingFormulas.companyId, companyId), eq(accountingFormulas.businessType, bt), eq(accountingFormulas.active, true)))
             .limit(1);
-          if (dbFormula.length === 0) return null;
-          const lines = await db.select().from(accountingFormulaLines)
-            .where(eq(accountingFormulaLines.formulaId, dbFormula[0].id))
-            .orderBy(accountingFormulaLines.sortOrder);
-          const expLines = lines.filter((l: any) => l.direction === "debit" && l.accountCode?.startsWith("5"));
+          if (dbFormula.length > 0) {
+            const lines = await db.select().from(accountingFormulaLines)
+              .where(eq(accountingFormulaLines.formulaId, dbFormula[0].id))
+              .orderBy(accountingFormulaLines.sortOrder);
+            expLines = lines
+              .filter((l: any) => l.direction === "debit" && l.accountCode?.startsWith("5"))
+              .map((l: any) => ({ accountCode: l.accountCode, accountName: l.accountName || "" }));
+          } else {
+            const defFormula = DEFAULT_FORMULAS.find((f: any) => f.businessType === bt && f.documentType === "purchase");
+            if (defFormula) {
+              expLines = (defFormula.lines || [])
+                .filter((l: any) => l.direction === "debit" && l.accountCode?.startsWith("5"))
+                .map((l: any) => ({ accountCode: l.accountCode, accountName: l.accountName || "" }));
+            }
+          }
           if (expLines.length < 2) return null;
           const map: Record<string, { code: string; name: string }> = {};
           for (const el of expLines) {
@@ -3099,14 +3111,25 @@ export function registerPurchaseRoutes(app: Express) {
           return "service";
         };
         const buildFormulaAcctMap = async (bt: string): Promise<Record<string, { code: string; name: string }> | null> => {
+          let expLines: Array<{ accountCode: string; accountName: string }> = [];
           const dbFormula = await db.select().from(accountingFormulas)
             .where(and(eq(accountingFormulas.companyId, companyId), eq(accountingFormulas.businessType, bt), eq(accountingFormulas.active, true)))
             .limit(1);
-          if (dbFormula.length === 0) return null;
-          const lines = await db.select().from(accountingFormulaLines)
-            .where(eq(accountingFormulaLines.formulaId, dbFormula[0].id))
-            .orderBy(accountingFormulaLines.sortOrder);
-          const expLines = lines.filter((l: any) => l.direction === "debit" && l.accountCode?.startsWith("5"));
+          if (dbFormula.length > 0) {
+            const lines = await db.select().from(accountingFormulaLines)
+              .where(eq(accountingFormulaLines.formulaId, dbFormula[0].id))
+              .orderBy(accountingFormulaLines.sortOrder);
+            expLines = lines
+              .filter((l: any) => l.direction === "debit" && l.accountCode?.startsWith("5"))
+              .map((l: any) => ({ accountCode: l.accountCode, accountName: l.accountName || "" }));
+          } else {
+            const defFormula = DEFAULT_FORMULAS.find((f: any) => f.businessType === bt && f.documentType === "purchase");
+            if (defFormula) {
+              expLines = (defFormula.lines || [])
+                .filter((l: any) => l.direction === "debit" && l.accountCode?.startsWith("5"))
+                .map((l: any) => ({ accountCode: l.accountCode, accountName: l.accountName || "" }));
+            }
+          }
           if (expLines.length < 2) return null;
           const map: Record<string, { code: string; name: string }> = {};
           for (const el of expLines) {
