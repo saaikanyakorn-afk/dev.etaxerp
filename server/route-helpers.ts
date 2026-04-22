@@ -191,9 +191,10 @@ export const JOURNAL_BOOK_PREFIX: Record<string, string> = {
   purchase: "BV",
 };
 
-export async function getNextJournalEntryNo(companyId: number, journalBook: string, entryDate?: string): Promise<string> {
+export async function getNextJournalEntryNo(companyId: number, journalBook: string, entryDate?: string, dbConn?: any): Promise<string> {
+  const conn = dbConn || db;
   const prefix = JOURNAL_BOOK_PREFIX[journalBook] || "JV";
-  const [settings] = await db.select().from(documentSettings).where(eq(documentSettings.companyId, companyId));
+  const [settings] = await conn.select().from(documentSettings).where(eq(documentSettings.companyId, companyId));
   const format = (settings?.docNumberFormat || "YMD_SEQ") as DocNumberFormat;
   const digits = settings?.docNumberDigits || 4;
   const era = (settings?.dateEra || "CE") as DateEra;
@@ -213,7 +214,7 @@ export async function getNextJournalEntryNo(companyId: number, journalBook: stri
     case "Y_SEQ": default: likePattern = `${prefix}${yy}%`; break;
   }
 
-  const existing = await db.select({ docNo: journalEntries.entryNo })
+  const existing = await conn.select({ docNo: journalEntries.entryNo })
     .from(journalEntries)
     .where(and(
       eq(journalEntries.companyId, companyId),
@@ -428,7 +429,7 @@ async function _createAutoJournalEntryInner(params: AutoJournalParams): Promise<
     };
     const journalBook = bookMap[documentType] || "general";
 
-    const entryNo = await getNextJournalEntryNo(companyId, journalBook, docDate);
+    const entryNo = await getNextJournalEntryNo(companyId, journalBook, docDate, tx);
 
     const [entry] = await tx.insert(journalEntries).values({
       companyId,
