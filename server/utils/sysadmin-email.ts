@@ -26,15 +26,13 @@ export async function sendSysAdminEmail(to: string, subject: string, html: strin
     return;
   }
 
-  const smtpPass = cfg.SYSADMIN_SMTP_PASS.trim();
-  console.log(`[SysAdmin SMTP] host=${cfg.SYSADMIN_SMTP_HOST} user=${cfg.SYSADMIN_SMTP_USER} passLen=${smtpPass.length} passFirst6=${smtpPass.slice(0,6)}`);
   const transporter = nodemailer.createTransport({
     host: cfg.SYSADMIN_SMTP_HOST,
     port: Number(cfg.SYSADMIN_SMTP_PORT || "587"),
     secure: cfg.SYSADMIN_SMTP_SECURE === "true",
     auth: {
       user: cfg.SYSADMIN_SMTP_USER,
-      pass: smtpPass,
+      pass: cfg.SYSADMIN_SMTP_PASS.trim(),
     },
   });
 
