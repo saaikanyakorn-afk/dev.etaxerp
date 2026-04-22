@@ -416,6 +416,23 @@ function parseShopeeInvoice(rows: TextItem[][], fullText: string): ParsedInvoice
       if (nums) totalAmount = cleanNumber(nums[nums.length - 1]);
     }
 
+    // Match all fee-keyword items in the row (handles merged rows where multiple items share one text row)
+    const feeKwRx = /(\d+)\s+(Paid\s*ads|Commission\s*fee|Transaction\s*fee|Service\s*fee|AMS[^0-9]*Fee|Platform[^0-9]*Fee|Shipping\s*fee|Withdrawal\s*fee|Adjustment[^0-9]*?|FSS[^0-9]*?|Free\s*Shipping[^0-9]*?|Coins\s*Cash\s*Back[^0-9]*?|Voucher[^0-9]*?|Bundle\s*Deal[^0-9]*?|Seller\s*Voucher[^0-9]*?|Flash\s*Sale[^0-9]*?|Return\s*Fee|Penalty[^0-9]*?|Rebate[^0-9]*?)\s+(\d+)\s+([\d,]+\.\d{2})\s+([\d,]+\.\d{2})/gi;
+    const feeMatches = [...text.matchAll(feeKwRx)];
+    if (feeMatches.length > 0) {
+      for (const fm of feeMatches) {
+        items.push({
+          description: fm[2].trim(),
+          qty: parseInt(fm[3]),
+          unit: "ครั้ง",
+          unitPrice: cleanNumber(fm[4]),
+          amount: cleanNumber(fm[5]),
+          vatType: defaultVatType,
+        });
+      }
+      continue;
+    }
+
     const lineMatch = text.match(/^\d+\s+(.+?)\s+(\d+)\s+([\d,]+\.\d{2})\s+([\d,]+\.\d{2})$/);
     if (lineMatch) {
       items.push({
@@ -427,25 +444,6 @@ function parseShopeeInvoice(rows: TextItem[][], fullText: string): ParsedInvoice
         vatType: defaultVatType,
       });
       continue;
-    }
-
-    const feePatterns = [
-      /^(\d+)\s+((?:Paid\s*ads|Commission\s*fee|Transaction\s*fee|Service\s*fee|AMS.*Fee|Platform.*Fee|Shipping\s*fee|Withdrawal\s*fee|Adjustment.*|FSS.*|Free\s*Shipping.*|Coins\s*Cash\s*Back.*|Voucher.*|Bundle\s*Deal.*|Seller\s*Voucher.*|Flash\s*Sale.*|Return.*Fee|Penalty.*|Rebate.*))\s+(\d+)\s+([\d,]+\.\d{2})\s+([\d,]+\.\d{2})/i,
-    ];
-    for (const fp of feePatterns) {
-      const fm = text.match(fp);
-      if (fm) {
-        const descTrimmed = fm[2].trim();
-        items.push({
-          description: descTrimmed,
-          qty: parseInt(fm[3]),
-          unit: "ครั้ง",
-          unitPrice: cleanNumber(fm[4]),
-          amount: cleanNumber(fm[5]),
-          vatType: defaultVatType,
-        });
-        break;
-      }
     }
   }
 
