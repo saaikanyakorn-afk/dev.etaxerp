@@ -1105,11 +1105,30 @@ function SmtpConfigDialog({ onClose }: { onClose: () => void }) {
             <div className="border-t pt-4">
               <p className="text-xs font-medium mb-2">ทดสอบการส่ง Email</p>
               <div className="flex gap-2">
-                <Input value={testEmail} onChange={e => setTestEmail(e.target.value)} placeholder="email ทดสอบ" className="flex-1" data-testid="input-test-email" />
-                <Button variant="outline" onClick={handleTest} disabled={testing || !testEmail} data-testid="btn-test-smtp">
+                <Input
+                  type="email"
+                  value={testEmail}
+                  onChange={e => setTestEmail(e.target.value)}
+                  placeholder="yourmail@gmail.com"
+                  className="flex-1"
+                  data-testid="input-test-email"
+                />
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(testEmail)) {
+                      toast({ title: "กรุณากรอก email address ที่ถูกต้อง", variant: "destructive" });
+                      return;
+                    }
+                    handleTest();
+                  }}
+                  disabled={testing || !testEmail}
+                  data-testid="btn-test-smtp"
+                >
                   {testing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                 </Button>
               </div>
+              <p className="text-[10px] text-gray-400 mt-1">ระบบจะส่ง OTP ทดสอบไปที่ email นี้</p>
             </div>
           </div>
         )}
