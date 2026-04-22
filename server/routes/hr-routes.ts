@@ -211,6 +211,15 @@ export function registerHrRoutes(app: Express) {
     }
     if (!companyId && !tenantId) return res.json([]);
     const allEmployees = await storage.getEmployees(tenantId, companyId);
+    allEmployees.sort((a: any, b: any) => {
+      const prefixA = (a.employeeCode?.match(/^[A-Za-z]+/) || [''])[0];
+      const prefixB = (b.employeeCode?.match(/^[A-Za-z]+/) || [''])[0];
+      if (prefixA !== prefixB) return prefixA.localeCompare(prefixB);
+      const numA = parseInt((a.employeeCode?.match(/\d+$/) || ['0'])[0]) || 0;
+      const numB = parseInt((b.employeeCode?.match(/\d+$/) || ['0'])[0]) || 0;
+      if (numA !== numB) return numA - numB;
+      return (a.id || 0) - (b.id || 0);
+    });
     const sampleIds = allEmployees.slice(0, 5).map((e: any) => `${e.employeeCode}(cid=${e.companyId})`).join(", ");
     console.log(`[employees] tenantId=${tenantId} companyId=${companyId} role=${user.role} returned=${allEmployees.length} sample=[${sampleIds}]`);
     if (!isPrivilegedRole(user.role)) {
