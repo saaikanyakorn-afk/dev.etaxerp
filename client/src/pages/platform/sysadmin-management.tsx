@@ -12,7 +12,8 @@ import {
   Shield, Plus, Eye, EyeOff, Pencil, Trash2, Check, X,
   Lock, Unlock, Key, AlertTriangle, Crown, UserCog,
   RefreshCw, Clock, Ban, CheckCircle2, Settings,
-  Search, MessageCircle, Loader2,
+  Search, MessageCircle, Loader2, Mail, Smartphone,
+  ShieldCheck, ShieldOff, QrCode, Wifi, Send, RotateCcw,
 } from "lucide-react";
 
 type ForestLineEntry = {
@@ -39,7 +40,9 @@ interface SysAdminUser {
   createdAt: string;
   createdBy: number | null;
   lineUserId?: string | null;
+  twoFactorMethod?: string | null;
   twoFactorVerified?: boolean;
+  emailVerified?: boolean;
 }
 
 interface PasswordPolicy {
@@ -557,6 +560,26 @@ function EditSysAdminDialog({ admin, onClose }: { admin: SysAdminUser; onClose: 
               </>
             )}
           </div>
+          {/* 2FA Status section */}
+          <div className="border-t pt-4">
+            <p className="text-sm font-medium mb-2 flex items-center gap-1.5">
+              <ShieldCheck className="h-4 w-4 text-[#fb9678]" /> สถานะ 2FA
+            </p>
+            <div className="bg-gray-50 rounded-lg p-3 flex items-center justify-between">
+              <div>
+                <p className="text-sm">
+                  {admin.twoFactorMethod === "line" && <><MessageCircle className="h-3.5 w-3.5 inline text-green-500 mr-1" />LINE OTP</>}
+                  {admin.twoFactorMethod === "totp" && <><Smartphone className="h-3.5 w-3.5 inline text-purple-500 mr-1" />QR / Authenticator</>}
+                  {admin.twoFactorMethod === "email" && <><Mail className="h-3.5 w-3.5 inline text-blue-500 mr-1" />Email OTP</>}
+                  {!admin.twoFactorMethod && <span className="text-gray-400 italic text-xs">ยังไม่ตั้งค่า 2FA</span>}
+                </p>
+                {admin.twoFactorVerified
+                  ? <p className="text-[10px] text-green-600 mt-0.5">✓ Verified แล้ว</p>
+                  : admin.twoFactorMethod && <p className="text-[10px] text-amber-600 mt-0.5">⏳ ยังไม่ verify</p>}
+              </div>
+            </div>
+          </div>
+
           {!admin.isMaster && (
             <div className="flex items-center justify-between border-t pt-4">
               <div>
@@ -578,6 +601,429 @@ function EditSysAdminDialog({ admin, onClose }: { admin: SysAdminUser; onClose: 
             data-testid="btn-save-edit"
           >
             <Check className="h-4 w-4 mr-1" /> {saveMut.isPending ? "กำลังบันทึก..." : "บันทึก"}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function My2FADialog({ me, onClose }: { me: SysAdminUser; onClose: () => void }) {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const [tab, setTab] = useState<"line" | "totp" | "email">(
+    (me.twoFactorMethod as any) || "line"
+  );
+  const [totpUri, setTotpUri] = useState("");
+  const [totpCode, setTotpCode] = useState("");
+  const [totpLoading, setTotpLoading] = useState(false);
+  const [emailOtpSent, setEmailOtpSent] = useState(false);
+  const [emailOtpSending, setEmailOtpSending] = useState(false);
+  const [emailOtpCode, setEmailOtpCode] = useState("");
+  const [emailChanging, setEmailChanging] = useState(false);
+  const [newEmail, setNewEmail] = useState("");
+  const [emailChangeStep, setEmailChangeStep] = useState<"input" | "verify">("input");
+  const [emailChangeCode, setEmailChangeCode] = useState("");
+  const [switchingLine, setSwitchingLine] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const handleSetupTotp = async () => {
+    setTotpLoading(true);
+    try {
+      const res = await fetch("/api/sysadmin/me/setup-totp", { method: "POST", credentials: "include" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message);
+      setTotpUri(data.uri);
+    } catch (e: any) { toast({ title: "เกิดข้อผิดพลาด", description: e.message, variant: "destructive" }); }
+    finally { setTotpLoading(false); }
+  };
+
+  const handleVerifyTotp = async () => {
+    setSaving(true);
+    try {
+      const res = await fetch("/api/sysadmin/me/verify-totp-setup", {
+        method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: totpCode }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message);
+      toast({ title: data.message });
+      queryClient.invalidateQueries({ queryKey: ["/api/sysadmin/me"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/sysadmin/users"] });
+      onClose();
+    } catch (e: any) { toast({ title: "รหัสไม่ถูกต้อง", description: e.message, variant: "destructive" }); }
+    finally { setSaving(false); }
+  };
+
+  const handleSendEmailVerif = async () => {
+    setEmailOtpSending(true);
+    try {
+      const res = await fetch("/api/sysadmin/me/send-email-verification", { method: "POST", credentials: "include" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message);
+      setEmailOtpSent(true);
+      toast({ title: data.message });
+    } catch (e: any) { toast({ title: "เกิดข้อผิดพลาด", description: e.message, variant: "destructive" }); }
+    finally { setEmailOtpSending(false); }
+  };
+
+  const handleVerifyEmail = async () => {
+    setSaving(true);
+    try {
+      const res = await fetch("/api/sysadmin/me/verify-email", {
+        method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: emailOtpCode }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message);
+      toast({ title: data.message });
+      queryClient.invalidateQueries({ queryKey: ["/api/sysadmin/me"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/sysadmin/users"] });
+      onClose();
+    } catch (e: any) { toast({ title: "รหัสไม่ถูกต้อง", description: e.message, variant: "destructive" }); }
+    finally { setSaving(false); }
+  };
+
+  const handleSwitchLine = async () => {
+    setSwitchingLine(true);
+    try {
+      const res = await fetch("/api/sysadmin/me/switch-to-line", { method: "POST", credentials: "include" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message);
+      toast({ title: data.message });
+      queryClient.invalidateQueries({ queryKey: ["/api/sysadmin/me"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/sysadmin/users"] });
+      onClose();
+    } catch (e: any) { toast({ title: "เกิดข้อผิดพลาด", description: e.message, variant: "destructive" }); }
+    finally { setSwitchingLine(false); }
+  };
+
+  const handleRequestEmailChange = async () => {
+    setSaving(true);
+    try {
+      const res = await fetch("/api/sysadmin/me/request-email-change", {
+        method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ newEmail }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message);
+      if (data.skipVerify) {
+        const res2 = await fetch("/api/sysadmin/me/confirm-email-change", {
+          method: "POST", credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ code: "SKIP" }),
+        });
+        const d2 = await res2.json();
+        if (!res2.ok) throw new Error(d2.message);
+        toast({ title: "บันทึก email สำเร็จ" });
+        queryClient.invalidateQueries({ queryKey: ["/api/sysadmin/me"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/sysadmin/users"] });
+        setEmailChanging(false);
+      } else {
+        toast({ title: data.message });
+        setEmailChangeStep("verify");
+      }
+    } catch (e: any) { toast({ title: "เกิดข้อผิดพลาด", description: e.message, variant: "destructive" }); }
+    finally { setSaving(false); }
+  };
+
+  const handleConfirmEmailChange = async () => {
+    setSaving(true);
+    try {
+      const res = await fetch("/api/sysadmin/me/confirm-email-change", {
+        method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: emailChangeCode }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message);
+      toast({ title: "เปลี่ยน email สำเร็จ" });
+      queryClient.invalidateQueries({ queryKey: ["/api/sysadmin/me"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/sysadmin/users"] });
+      setEmailChanging(false);
+      setEmailChangeStep("input");
+    } catch (e: any) { toast({ title: "รหัสไม่ถูกต้อง", description: e.message, variant: "destructive" }); }
+    finally { setSaving(false); }
+  };
+
+  const methodLabel: Record<string, string> = { line: "LINE OTP", totp: "QR Code / Authenticator", email: "Email OTP" };
+  const currentMethod = me.twoFactorMethod || "ยังไม่ตั้งค่า";
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" data-testid="dialog-my-2fa">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+        <div className="p-5 border-b">
+          <h2 className="text-lg font-bold flex items-center gap-2">
+            <ShieldCheck className="h-5 w-5 text-[#fb9678]" /> ตั้งค่า 2FA ของฉัน
+          </h2>
+          <p className="text-xs text-gray-500 mt-1">
+            ปัจจุบันใช้: <span className="font-semibold text-gray-800">{methodLabel[currentMethod] || currentMethod}</span>
+            {me.twoFactorVerified
+              ? <span className="ml-2 text-green-600 text-[10px]">✓ Verified</span>
+              : <span className="ml-2 text-amber-500 text-[10px]">⏳ ยังไม่ verify</span>}
+          </p>
+        </div>
+
+        <div className="p-5 space-y-4">
+          {/* Email change section */}
+          <div className="border rounded-lg p-3 bg-gray-50">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-sm font-medium flex items-center gap-1.5"><Mail className="h-4 w-4 text-blue-500" /> Email ปัจจุบัน</span>
+              <button onClick={() => { setEmailChanging(!emailChanging); setEmailChangeStep("input"); setNewEmail(""); setEmailChangeCode(""); }} className="text-xs text-blue-600 hover:underline" data-testid="btn-toggle-email-change">
+                {emailChanging ? "ยกเลิก" : "เปลี่ยน Email"}
+              </button>
+            </div>
+            <p className="text-sm text-gray-700 font-mono">{me.email || <span className="italic text-gray-400">ยังไม่มี email</span>}</p>
+            {me.emailVerified && <p className="text-[10px] text-green-600 mt-0.5">✓ Email verified แล้ว</p>}
+            {emailChanging && (
+              <div className="mt-3 space-y-2">
+                {emailChangeStep === "input" && (
+                  <>
+                    <Input value={newEmail} onChange={e => setNewEmail(e.target.value)} placeholder="email ใหม่@example.com" data-testid="input-new-email" />
+                    {me.email && <p className="text-[10px] text-amber-600">รหัสยืนยันจะถูกส่งไปที่ email เก่า ({me.email}) ก่อน</p>}
+                    <Button size="sm" onClick={handleRequestEmailChange} disabled={saving || !newEmail} className="w-full" data-testid="btn-request-email-change">
+                      {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <Send className="h-3.5 w-3.5 mr-1" />}
+                      {me.email ? "ส่งรหัสยืนยันไป email เก่า" : "บันทึก email ใหม่"}
+                    </Button>
+                  </>
+                )}
+                {emailChangeStep === "verify" && (
+                  <>
+                    <p className="text-xs text-gray-600">กรอกรหัสที่ได้รับจาก email เก่า</p>
+                    <Input value={emailChangeCode} onChange={e => setEmailChangeCode(e.target.value)} placeholder="รหัส 6 หลัก" maxLength={6} data-testid="input-email-change-code" />
+                    <Button size="sm" onClick={handleConfirmEmailChange} disabled={saving || emailChangeCode.length !== 6} className="w-full" data-testid="btn-confirm-email-change">
+                      {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <Check className="h-3.5 w-3.5 mr-1" />} ยืนยันเปลี่ยน Email
+                    </Button>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* 2FA Method tabs */}
+          <div>
+            <p className="text-sm font-medium mb-2">เลือกวิธี 2FA</p>
+            <div className="grid grid-cols-3 gap-2 mb-4">
+              {(["line", "totp", "email"] as const).map(m => (
+                <button key={m} onClick={() => setTab(m)} data-testid={`tab-2fa-${m}`}
+                  className={`p-2.5 rounded-lg border text-xs font-medium transition-all flex flex-col items-center gap-1 ${tab === m ? "border-[#fb9678] bg-orange-50 text-[#fb9678]" : "border-gray-200 text-gray-600 hover:border-gray-300"}`}>
+                  {m === "line" && <><MessageCircle className="h-5 w-5" />LINE OTP</>}
+                  {m === "totp" && <><QrCode className="h-5 w-5" />QR Code</>}
+                  {m === "email" && <><Mail className="h-5 w-5" />Email OTP</>}
+                  {me.twoFactorMethod === m && <span className="text-[9px] text-green-600 font-normal">ใช้งานอยู่</span>}
+                </button>
+              ))}
+            </div>
+
+            {/* LINE tab */}
+            {tab === "line" && (
+              <div className="space-y-3">
+                {me.lineUserId ? (
+                  <>
+                    <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-sm flex items-center gap-2">
+                      <MessageCircle className="h-4 w-4 text-green-600 shrink-0" />
+                      <span>มี LINE User ID ในระบบแล้ว</span>
+                    </div>
+                    {me.twoFactorMethod !== "line" && (
+                      <Button onClick={handleSwitchLine} disabled={switchingLine} className="w-full bg-green-600 hover:bg-green-700 text-white" data-testid="btn-switch-to-line">
+                        {switchingLine ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <MessageCircle className="h-4 w-4 mr-1" />}
+                        เปลี่ยนมาใช้ LINE OTP
+                      </Button>
+                    )}
+                    {me.twoFactorMethod === "line" && <p className="text-xs text-gray-500 text-center">กำลังใช้ LINE OTP อยู่แล้ว หากต้องการเปลี่ยน LINE ไปแก้ใน Edit profile</p>}
+                  </>
+                ) : (
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm">
+                    <AlertTriangle className="h-4 w-4 text-amber-600 inline mr-1" />
+                    ยังไม่มี LINE User ID กรุณาให้ Master หรือแก้ไขใน Edit ก่อน
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* TOTP tab */}
+            {tab === "totp" && (
+              <div className="space-y-3">
+                <p className="text-xs text-gray-500">สแกน QR Code ด้วย Google Authenticator, Authy, หรือ app อื่นที่รองรับ TOTP</p>
+                {!totpUri && (
+                  <Button onClick={handleSetupTotp} disabled={totpLoading} className="w-full" variant="outline" data-testid="btn-gen-qr">
+                    {totpLoading ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <QrCode className="h-4 w-4 mr-1" />}
+                    สร้าง QR Code ใหม่
+                  </Button>
+                )}
+                {totpUri && (
+                  <>
+                    <div className="flex justify-center p-4 bg-white border rounded-lg" data-testid="qr-code-area">
+                      <img src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(totpUri)}`}
+                        alt="TOTP QR Code" className="w-48 h-48" />
+                    </div>
+                    <p className="text-[10px] text-gray-500 text-center">สแกนด้วย Authenticator App แล้วกรอกรหัส 6 หลัก</p>
+                    <Input value={totpCode} onChange={e => setTotpCode(e.target.value.replace(/\D/g, ""))} placeholder="รหัส 6 หลัก" maxLength={6} className="text-center text-lg font-mono tracking-widest" data-testid="input-totp-code" />
+                    <Button onClick={handleVerifyTotp} disabled={saving || totpCode.length !== 6} className="w-full bg-purple-600 hover:bg-purple-700 text-white" data-testid="btn-verify-totp">
+                      {saving ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <ShieldCheck className="h-4 w-4 mr-1" />}
+                      ยืนยันและเปิดใช้ QR Code 2FA
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={handleSetupTotp} disabled={totpLoading} className="w-full text-xs" data-testid="btn-regen-qr">
+                      <RotateCcw className="h-3 w-3 mr-1" /> สร้าง QR ใหม่
+                    </Button>
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* Email tab */}
+            {tab === "email" && (
+              <div className="space-y-3">
+                {!me.email ? (
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm">
+                    <AlertTriangle className="h-4 w-4 text-amber-600 inline mr-1" />
+                    ยังไม่มี email กรุณาเพิ่ม email ในส่วนด้านบนก่อน
+                  </div>
+                ) : (
+                  <>
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm">
+                      <Mail className="h-4 w-4 text-blue-600 inline mr-1" />
+                      ส่ง OTP ไปที่ <strong>{me.email}</strong>
+                      {me.emailVerified && <span className="ml-1 text-green-600 text-[10px]">✓ verified</span>}
+                    </div>
+                    {!emailOtpSent ? (
+                      <Button onClick={handleSendEmailVerif} disabled={emailOtpSending} className="w-full" data-testid="btn-send-email-otp">
+                        {emailOtpSending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Send className="h-4 w-4 mr-1" />}
+                        ส่งรหัสยืนยันไปที่ Email
+                      </Button>
+                    ) : (
+                      <>
+                        <Input value={emailOtpCode} onChange={e => setEmailOtpCode(e.target.value.replace(/\D/g, ""))} placeholder="รหัส 6 หลัก" maxLength={6} className="text-center text-lg font-mono tracking-widest" data-testid="input-email-otp-code" />
+                        <Button onClick={handleVerifyEmail} disabled={saving || emailOtpCode.length !== 6} className="w-full bg-blue-600 hover:bg-blue-700 text-white" data-testid="btn-verify-email-otp">
+                          {saving ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <ShieldCheck className="h-4 w-4 mr-1" />}
+                          ยืนยันและเปิดใช้ Email 2FA
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => { setEmailOtpSent(false); setEmailOtpCode(""); }} className="w-full text-xs">ส่งรหัสใหม่</Button>
+                      </>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="p-5 border-t flex justify-end">
+          <Button variant="outline" onClick={onClose} data-testid="btn-close-2fa-dialog">
+            <X className="h-4 w-4 mr-1" /> ปิด
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SmtpConfigDialog({ onClose }: { onClose: () => void }) {
+  const { toast } = useToast();
+  const [form, setForm] = useState({ host: "", port: 587, user: "", pass: "", from: "", secure: false });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [testEmail, setTestEmail] = useState("");
+  const [showPass, setShowPass] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/sysadmin/smtp-config", { credentials: "include" }).then(r => r.json()).then(d => {
+      setForm({ host: d.host || "", port: d.port || 587, user: d.user || "", pass: d.pass || "", from: d.from || "", secure: d.secure || false });
+      setLoading(false);
+    }).catch(() => setLoading(false));
+  }, []);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const res = await fetch("/api/sysadmin/smtp-config", {
+        method: "PUT", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message);
+      toast({ title: data.message });
+    } catch (e: any) { toast({ title: "เกิดข้อผิดพลาด", description: e.message, variant: "destructive" }); }
+    finally { setSaving(false); }
+  };
+
+  const handleTest = async () => {
+    setTesting(true);
+    try {
+      const res = await fetch("/api/sysadmin/smtp-config/test", {
+        method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ testEmail }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message);
+      toast({ title: data.message });
+    } catch (e: any) { toast({ title: "ส่ง email ล้มเหลว", description: e.message, variant: "destructive" }); }
+    finally { setTesting(false); }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" data-testid="dialog-smtp-config">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+        <div className="p-5 border-b">
+          <h2 className="text-lg font-bold flex items-center gap-2"><Wifi className="h-5 w-5 text-[#fb9678]" /> ตั้งค่า SMTP Email</h2>
+          <p className="text-xs text-gray-500 mt-1">สำหรับส่ง OTP ผ่าน Email 2FA</p>
+        </div>
+        {loading ? (
+          <div className="p-10 text-center"><Loader2 className="h-6 w-6 animate-spin mx-auto text-gray-400" /></div>
+        ) : (
+          <div className="p-5 space-y-4">
+            <div>
+              <Label className="text-sm">SMTP Host *</Label>
+              <Input value={form.host} onChange={e => setForm(f => ({ ...f, host: e.target.value }))} placeholder="smtp.gmail.com" data-testid="input-smtp-host" />
+              <p className="text-[10px] text-gray-400 mt-1">Gmail: smtp.gmail.com | Brevo: smtp-relay.brevo.com | Hostinger: smtp.hostinger.com</p>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-sm">Port</Label>
+                <Input type="number" value={form.port} onChange={e => setForm(f => ({ ...f, port: Number(e.target.value) }))} data-testid="input-smtp-port" />
+              </div>
+              <div className="flex items-end gap-2 pb-0.5">
+                <Switch checked={form.secure} onCheckedChange={v => setForm(f => ({ ...f, secure: v }))} data-testid="switch-smtp-secure" />
+                <Label className="text-sm">SSL/TLS</Label>
+              </div>
+            </div>
+            <div>
+              <Label className="text-sm">Username (Email) *</Label>
+              <Input value={form.user} onChange={e => setForm(f => ({ ...f, user: e.target.value }))} placeholder="yourmail@gmail.com" data-testid="input-smtp-user" />
+            </div>
+            <div>
+              <Label className="text-sm">Password / App Password</Label>
+              <div className="flex gap-2">
+                <Input type={showPass ? "text" : "password"} value={form.pass} onChange={e => setForm(f => ({ ...f, pass: e.target.value }))} placeholder="รหัสผ่านหรือ App Password" className="flex-1" data-testid="input-smtp-pass" />
+                <Button type="button" variant="outline" size="icon" onClick={() => setShowPass(!showPass)}>{showPass ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</Button>
+              </div>
+              <p className="text-[10px] text-gray-400 mt-1">Gmail ต้องใช้ App Password (myaccount.google.com/apppasswords) หรือใช้ Brevo ที่ไม่ต้องการ App Password</p>
+            </div>
+            <div>
+              <Label className="text-sm">From Email</Label>
+              <Input value={form.from} onChange={e => setForm(f => ({ ...f, from: e.target.value }))} placeholder="E-Tax Center &lt;noreply@example.com&gt;" data-testid="input-smtp-from" />
+            </div>
+            <div className="border-t pt-4">
+              <p className="text-xs font-medium mb-2">ทดสอบการส่ง Email</p>
+              <div className="flex gap-2">
+                <Input value={testEmail} onChange={e => setTestEmail(e.target.value)} placeholder="email ทดสอบ" className="flex-1" data-testid="input-test-email" />
+                <Button variant="outline" onClick={handleTest} disabled={testing || !testEmail} data-testid="btn-test-smtp">
+                  {testing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+        <div className="p-5 border-t flex justify-end gap-2">
+          <Button variant="outline" onClick={onClose} data-testid="btn-close-smtp">ปิด</Button>
+          <Button className="bg-[#fb9678] hover:bg-[#e8855a] text-white" onClick={handleSave} disabled={saving || !form.host || !form.user} data-testid="btn-save-smtp">
+            {saving ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Check className="h-4 w-4 mr-1" />} บันทึก
           </Button>
         </div>
       </div>
@@ -843,6 +1289,9 @@ export default function SysAdminManagement() {
   const [showPolicy, setShowPolicy] = useState(false);
   const [resetTarget, setResetTarget] = useState<SysAdminUser | null>(null);
   const [activeTab, setActiveTab] = useState<"users" | "audit">("users");
+  const [show2FA, setShow2FA] = useState(false);
+  const [showSmtp, setShowSmtp] = useState(false);
+  const [reset2FATarget, setReset2FATarget] = useState<SysAdminUser | null>(null);
 
   const { data: admins = [], isLoading } = useQuery<SysAdminUser[]>({
     queryKey: ["/api/sysadmin/users"],
@@ -927,6 +1376,20 @@ export default function SysAdminManagement() {
     onError: (err: any) => toast({ title: "เกิดข้อผิดพลาด", description: err.message, variant: "destructive" }),
   });
 
+  const reset2FAMut = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await fetch(`/api/sysadmin/users/${id}/reset-2fa`, { method: "POST", credentials: "include" });
+      if (!res.ok) throw new Error((await res.json()).message);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/sysadmin/users"] });
+      toast({ title: "รีเซ็ต 2FA สำเร็จ" });
+      setReset2FATarget(null);
+    },
+    onError: (err: any) => toast({ title: "เกิดข้อผิดพลาด", description: err.message, variant: "destructive" }),
+  });
+
   const isMasterCaller = meData?.isMaster;
 
   const getPasswordStatus = (admin: SysAdminUser) => {
@@ -969,6 +1432,16 @@ export default function SysAdminManagement() {
                 <Clock className="h-4 w-4 inline mr-1" /> Audit Log
               </button>
             </div>
+            {meData && (
+              <Button size="sm" variant="outline" onClick={() => setShow2FA(true)} className="h-9 border-[#fb9678] text-[#fb9678] hover:bg-orange-50" data-testid="btn-my-2fa">
+                <ShieldCheck className="h-4 w-4 mr-1" /> 2FA ของฉัน
+              </Button>
+            )}
+            {isMasterCaller && (
+              <Button size="sm" variant="outline" onClick={() => setShowSmtp(true)} className="h-9" data-testid="btn-smtp-config">
+                <Wifi className="h-4 w-4 mr-1" /> SMTP
+              </Button>
+            )}
             {isMasterCaller && (
               <Button size="sm" variant="outline" onClick={() => setShowPolicy(true)} className="h-9" data-testid="btn-open-policy">
                 <Settings className="h-4 w-4 mr-1" /> Password Policy
@@ -1051,13 +1524,33 @@ export default function SysAdminManagement() {
                         {admin.lastLoginIp && <span className="font-mono text-[10px]">IP: {admin.lastLoginIp}</span>}
                       </div>
 
-                      <div className="flex items-center gap-2 mt-2">
+                      <div className="flex items-center gap-2 mt-2 flex-wrap">
                         <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${pwStatus.color}`}>
                           <Key className="h-2.5 w-2.5 mr-0.5" /> {pwStatus.label}
                         </Badge>
                         {admin.failedLoginAttempts > 0 && (
                           <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-orange-300 text-orange-600">
                             ใส่ผิด {admin.failedLoginAttempts} ครั้ง
+                          </Badge>
+                        )}
+                        {admin.twoFactorMethod === "line" && (
+                          <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${admin.twoFactorVerified ? "border-green-400 text-green-700" : "border-amber-400 text-amber-700"}`}>
+                            <MessageCircle className="h-2.5 w-2.5 mr-0.5" /> LINE {admin.twoFactorVerified ? "✓" : "⏳"}
+                          </Badge>
+                        )}
+                        {admin.twoFactorMethod === "totp" && (
+                          <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-purple-400 text-purple-700">
+                            <Smartphone className="h-2.5 w-2.5 mr-0.5" /> TOTP ✓
+                          </Badge>
+                        )}
+                        {admin.twoFactorMethod === "email" && (
+                          <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${admin.emailVerified ? "border-blue-400 text-blue-700" : "border-amber-400 text-amber-700"}`}>
+                            <Mail className="h-2.5 w-2.5 mr-0.5" /> Email {admin.emailVerified ? "✓" : "⏳"}
+                          </Badge>
+                        )}
+                        {!admin.twoFactorMethod && (
+                          <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-red-300 text-red-500">
+                            <ShieldOff className="h-2.5 w-2.5 mr-0.5" /> ไม่มี 2FA
                           </Badge>
                         )}
                       </div>
@@ -1081,6 +1574,11 @@ export default function SysAdminManagement() {
                         {!admin.mustChangePassword && (
                           <Button size="sm" variant="outline" className="h-7 text-xs border-amber-400 text-amber-700" onClick={() => forceChangeMut.mutate(admin.id)} data-testid={`btn-force-change-${admin.id}`}>
                             <RefreshCw className="h-3 w-3 mr-1" /> บังคับเปลี่ยนรหัส
+                          </Button>
+                        )}
+                        {isMasterCaller && !admin.isMaster && (
+                          <Button size="sm" variant="outline" className="h-7 text-xs border-rose-300 text-rose-600" onClick={() => setReset2FATarget(admin)} data-testid={`btn-reset-2fa-${admin.id}`}>
+                            <ShieldOff className="h-3 w-3 mr-1" /> รีเซ็ต 2FA
                           </Button>
                         )}
                         {!admin.isMaster && (
@@ -1161,6 +1659,26 @@ export default function SysAdminManagement() {
       {editTarget && <EditSysAdminDialog admin={editTarget} onClose={() => setEditTarget(null)} />}
       {resetTarget && <ResetPasswordDialog admin={resetTarget} onClose={() => setResetTarget(null)} policy={policy || null} />}
       {showPolicy && policy && <PolicySettingsDialog policy={policy} onClose={() => setShowPolicy(false)} />}
+      {show2FA && meData && <My2FADialog me={meData as SysAdminUser} onClose={() => setShow2FA(false)} />}
+      {showSmtp && <SmtpConfigDialog onClose={() => setShowSmtp(false)} />}
+      {reset2FATarget && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" data-testid="dialog-confirm-reset-2fa">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6">
+            <h3 className="font-bold text-base flex items-center gap-2 mb-2">
+              <ShieldOff className="h-5 w-5 text-rose-500" /> ยืนยันรีเซ็ต 2FA
+            </h3>
+            <p className="text-sm text-gray-600 mb-4">
+              รีเซ็ต 2FA ของ <strong>{reset2FATarget.fullName}</strong> — user จะต้องตั้งค่า 2FA ใหม่เมื่อ login
+            </p>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setReset2FATarget(null)} data-testid="btn-cancel-reset-2fa">ยกเลิก</Button>
+              <Button className="bg-rose-600 hover:bg-rose-700 text-white" onClick={() => reset2FAMut.mutate(reset2FATarget.id)} disabled={reset2FAMut.isPending} data-testid="btn-confirm-reset-2fa">
+                {reset2FAMut.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <ShieldOff className="h-4 w-4 mr-1" />} ยืนยันรีเซ็ต
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </SysAdminLayout>
   );
 }

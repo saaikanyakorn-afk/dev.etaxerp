@@ -4,6 +4,7 @@ import { sysAdmins, sysAdminPasswordHistory, sysAdminPasswordPolicy, sysAdminAud
 import { eq, desc, sql, isNotNull, or, ilike, and } from "drizzle-orm";
 import { hashPassword, comparePasswords } from "../auth";
 import * as OTPAuth from "otpauth";
+import { sendSysAdminEmail, buildOtpEmail, getSmtpConfigForDisplay, saveSmtpConfig } from "../utils/sysadmin-email";
 
 function getClientIp(req: Request): string {
   return (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.socket.remoteAddress || "";
@@ -456,28 +457,39 @@ export function registerSysAdminRoutes(app: Express) {
       const [admin] = await db.select().from(sysAdmins).where(eq(sysAdmins.id, adminId)).limit(1);
       if (!admin) return res.status(404).json({ message: "ไม่พบ SysAdmin" });
 
-      if (admin.twoFactorMethod !== "line") {
-        return res.status(400).json({ message: "ไม่ต้องส่ง OTP (ใช้ Authenticator App)" });
+      if (admin.twoFactorMethod === "totp") {
+        return res.status(400).json({ message: "TOTP ไม่ต้องส่ง OTP ใช้ Authenticator App โดยตรง" });
       }
 
       const otp = String(Math.floor(100000 + Math.random() * 900000));
       session.login2faOtp = otp;
-      session.login2faExpiry = Date.now() + 5 * 60 * 1000;
+      session.login2faExpiry = Date.now() + 10 * 60 * 1000;
 
-      const token = process.env.LINE_CHANNEL_ACCESS_TOKEN;
-      if (!token) return res.status(500).json({ message: "LINE Channel Access Token ไม่ได้ตั้งค่า" });
-      const lineRes = await fetch("https://api.line.me/v2/bot/message/push", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({
-          to: admin.lineUserId,
-          messages: [{ type: "text", text: `[E-Tax Center SysAdmin]\nรหัส OTP เข้าสู่ระบบ: ${otp}\nหมดอายุใน 5 นาที` }],
-        }),
-      });
-      if (!lineRes.ok) return res.status(500).json({ message: "ส่ง OTP ไม่สำเร็จ" });
+      if (admin.twoFactorMethod === "line") {
+        const token = process.env.LINE_CHANNEL_ACCESS_TOKEN;
+        if (!token) return res.status(500).json({ message: "LINE Channel Access Token ไม่ได้ตั้งค่า" });
+        const lineRes = await fetch("https://api.line.me/v2/bot/message/push", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({
+            to: admin.lineUserId,
+            messages: [{ type: "text", text: `[E-Tax Center SysAdmin]\nรหัส OTP เข้าสู่ระบบ: ${otp}\nหมดอายุใน 10 นาที` }],
+          }),
+        });
+        if (!lineRes.ok) return res.status(500).json({ message: "ส่ง OTP ไม่สำเร็จ" });
+        await logAudit(req, "login_2fa_otp_sent", "sysadmin", admin.id, admin.username, "LINE OTP sent");
+        return res.json({ message: "ส่ง OTP ไป LINE แล้ว", method: "line" });
+      }
 
-      await logAudit(req, "login_2fa_otp_sent", "sysadmin", admin.id, admin.username, "LINE OTP sent");
-      res.json({ message: "ส่ง OTP ไป LINE แล้ว" });
+      if (admin.twoFactorMethod === "email") {
+        if (!admin.email) return res.status(400).json({ message: "ไม่มี email สำหรับส่ง OTP" });
+        await sendSysAdminEmail(admin.email, "รหัส OTP เข้าสู่ระบบ E-Tax Center SysAdmin", buildOtpEmail(otp, "เข้าสู่ระบบ"));
+        await logAudit(req, "login_2fa_otp_sent", "sysadmin", admin.id, admin.username, "Email OTP sent");
+        const masked = admin.email.replace(/(.{2})(.*)(@.*)/, (_, a, b, c) => a + "*".repeat(Math.max(1, b.length)) + c);
+        return res.json({ message: `ส่ง OTP ไปที่ ${masked} แล้ว`, method: "email" });
+      }
+
+      return res.status(400).json({ message: "2FA method ไม่รองรับ" });
     } catch (err: any) {
       res.status(500).json({ message: err.message });
     }
@@ -517,7 +529,7 @@ export function registerSysAdminRoutes(app: Express) {
         if (delta === null) {
           return res.status(400).json({ message: `รหัส OTP ไม่ถูกต้อง (${attempts + 1}/5)` });
         }
-      } else if (admin.twoFactorMethod === "line") {
+      } else if (admin.twoFactorMethod === "line" || admin.twoFactorMethod === "email") {
         if (!session.login2faOtp || !session.login2faExpiry) {
           return res.status(400).json({ message: "กรุณาส่ง OTP ก่อน" });
         }
@@ -1023,6 +1035,256 @@ export function registerSysAdminRoutes(app: Express) {
       res.json({ hasMaster: existing.length > 0 });
     } catch (err: any) {
       res.status(500).json({ message: err.message });
+    }
+  });
+
+  // ─── Reset 2FA (Master can reset anyone, others can reset themselves) ───────
+  app.post("/api/sysadmin/users/:id/reset-2fa", requireSysAdminAuth, async (req, res) => {
+    try {
+      const session = req.session as any;
+      const targetId = Number(req.params.id);
+      const [caller] = await db.select().from(sysAdmins).where(eq(sysAdmins.id, session.sysAdminId)).limit(1);
+      const [target] = await db.select().from(sysAdmins).where(eq(sysAdmins.id, targetId)).limit(1);
+      if (!target) return res.status(404).json({ message: "ไม่พบ SysAdmin" });
+      if (target.isMaster && caller?.id !== target.id) return res.status(403).json({ message: "ไม่สามารถ reset Master SysAdmin ได้" });
+      if (!caller?.isMaster && caller?.id !== targetId) return res.status(403).json({ message: "ไม่มีสิทธิ์" });
+      await db.update(sysAdmins).set({ twoFactorVerified: false }).where(eq(sysAdmins.id, targetId));
+      await logAudit(req, "reset_2fa", "sysadmin", targetId, target.username, `Reset by ${caller?.username}`);
+      res.json({ message: "รีเซ็ต 2FA สำเร็จ ผู้ใช้ต้องยืนยัน 2FA ใหม่ในครั้งถัดไป" });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // ─── TOTP Setup: generate QR ─────────────────────────────────────────────
+  app.post("/api/sysadmin/me/setup-totp", requireSysAdminAuth, async (req, res) => {
+    try {
+      const session = req.session as any;
+      const [admin] = await db.select().from(sysAdmins).where(eq(sysAdmins.id, session.sysAdminId)).limit(1);
+      if (!admin) return res.status(404).json({ message: "ไม่พบ SysAdmin" });
+
+      const secret = new OTPAuth.Secret({ size: 20 });
+      const base32 = secret.base32;
+      const totp = new OTPAuth.TOTP({
+        issuer: "E-Tax Center",
+        label: admin.username,
+        algorithm: "SHA1",
+        digits: 6,
+        period: 30,
+        secret,
+      });
+      const uri = totp.toString();
+      await db.update(sysAdmins).set({ totpSetupSecret: base32 }).where(eq(sysAdmins.id, admin.id));
+      res.json({ uri, secret: base32 });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // ─── TOTP Setup: verify & activate ─────────────────────────────────────────
+  app.post("/api/sysadmin/me/verify-totp-setup", requireSysAdminAuth, async (req, res) => {
+    try {
+      const session = req.session as any;
+      const [admin] = await db.select().from(sysAdmins).where(eq(sysAdmins.id, session.sysAdminId)).limit(1);
+      if (!admin) return res.status(404).json({ message: "ไม่พบ SysAdmin" });
+      if (!admin.totpSetupSecret) return res.status(400).json({ message: "กรุณาสร้าง QR code ก่อน" });
+
+      const { code } = req.body;
+      const secret = OTPAuth.Secret.fromBase32(admin.totpSetupSecret);
+      const totp = new OTPAuth.TOTP({ issuer: "E-Tax Center", label: admin.username, algorithm: "SHA1", digits: 6, period: 30, secret });
+      const delta = totp.validate({ token: String(code || "").trim(), window: 1 });
+      if (delta === null) return res.status(400).json({ message: "รหัสไม่ถูกต้อง กรุณาลองใหม่" });
+
+      await db.update(sysAdmins).set({
+        twoFactorMethod: "totp",
+        twoFactorSecret: admin.totpSetupSecret,
+        totpSetupSecret: null,
+        twoFactorVerified: true,
+      }).where(eq(sysAdmins.id, admin.id));
+      await logAudit(req, "switch_2fa_totp", "sysadmin", admin.id, admin.username);
+      res.json({ message: "เปิดใช้ TOTP/QR Code 2FA สำเร็จ" });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // ─── Switch 2FA to LINE ─────────────────────────────────────────────────────
+  app.post("/api/sysadmin/me/switch-to-line", requireSysAdminAuth, async (req, res) => {
+    try {
+      const session = req.session as any;
+      const [admin] = await db.select().from(sysAdmins).where(eq(sysAdmins.id, session.sysAdminId)).limit(1);
+      if (!admin) return res.status(404).json({ message: "ไม่พบ SysAdmin" });
+      if (!admin.lineUserId) return res.status(400).json({ message: "ยังไม่มี LINE User ID กรุณาตั้งค่าใน Edit ก่อน" });
+      await db.update(sysAdmins).set({ twoFactorMethod: "line", twoFactorVerified: false }).where(eq(sysAdmins.id, admin.id));
+      await logAudit(req, "switch_2fa_line", "sysadmin", admin.id, admin.username);
+      res.json({ message: "เปลี่ยนไปใช้ LINE OTP แล้ว ต้อง verify ใหม่ครั้งถัดไป login" });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // ─── Email: send verification code ─────────────────────────────────────────
+  app.post("/api/sysadmin/me/send-email-verification", requireSysAdminAuth, async (req, res) => {
+    try {
+      const session = req.session as any;
+      const [admin] = await db.select().from(sysAdmins).where(eq(sysAdmins.id, session.sysAdminId)).limit(1);
+      if (!admin) return res.status(404).json({ message: "ไม่พบ SysAdmin" });
+      if (!admin.email) return res.status(400).json({ message: "ยังไม่มี email กรุณาเพิ่ม email ใน Edit ก่อน" });
+
+      const otp = String(Math.floor(100000 + Math.random() * 900000));
+      session.emailVerifOtp = otp;
+      session.emailVerifExpiry = Date.now() + 10 * 60 * 1000;
+
+      await sendSysAdminEmail(admin.email, "ยืนยัน Email — E-Tax Center SysAdmin", buildOtpEmail(otp, "ยืนยัน Email"));
+      const masked = admin.email.replace(/(.{2})(.*)(@.*)/, (_, a, b, c) => a + "*".repeat(Math.max(1, b.length)) + c);
+      res.json({ message: `ส่งรหัสยืนยันไปที่ ${masked} แล้ว` });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // ─── Email: verify code and activate email 2FA ──────────────────────────────
+  app.post("/api/sysadmin/me/verify-email", requireSysAdminAuth, async (req, res) => {
+    try {
+      const session = req.session as any;
+      const { code } = req.body;
+      if (!session.emailVerifOtp || !session.emailVerifExpiry) return res.status(400).json({ message: "กรุณาขอรหัสยืนยันก่อน" });
+      if (Date.now() > session.emailVerifExpiry) return res.status(400).json({ message: "รหัสหมดอายุ กรุณาขอใหม่" });
+      if (String(code || "").trim() !== session.emailVerifOtp) return res.status(400).json({ message: "รหัสไม่ถูกต้อง" });
+
+      delete session.emailVerifOtp;
+      delete session.emailVerifExpiry;
+
+      const [admin] = await db.select().from(sysAdmins).where(eq(sysAdmins.id, session.sysAdminId)).limit(1);
+      if (!admin) return res.status(404).json({ message: "ไม่พบ SysAdmin" });
+
+      await db.update(sysAdmins).set({
+        emailVerified: true,
+        twoFactorMethod: "email",
+        twoFactorVerified: true,
+      }).where(eq(sysAdmins.id, admin.id));
+      await logAudit(req, "switch_2fa_email", "sysadmin", admin.id, admin.username);
+      res.json({ message: "ยืนยัน Email สำเร็จ เปิดใช้ Email 2FA แล้ว" });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // ─── Email change: request (send code to OLD email) ────────────────────────
+  app.post("/api/sysadmin/me/request-email-change", requireSysAdminAuth, async (req, res) => {
+    try {
+      const session = req.session as any;
+      const { newEmail } = req.body;
+      if (!newEmail || !/\S+@\S+\.\S+/.test(newEmail)) return res.status(400).json({ message: "Email ใหม่ไม่ถูกต้อง" });
+
+      const [admin] = await db.select().from(sysAdmins).where(eq(sysAdmins.id, session.sysAdminId)).limit(1);
+      if (!admin) return res.status(404).json({ message: "ไม่พบ SysAdmin" });
+
+      const otp = String(Math.floor(100000 + Math.random() * 900000));
+      await db.update(sysAdmins).set({ emailChangeCode: otp, emailChangePending: newEmail, emailChangeCodeExpiry: new Date(Date.now() + 10 * 60 * 1000) })
+        .where(eq(sysAdmins.id, admin.id));
+
+      if (admin.email) {
+        await sendSysAdminEmail(admin.email, "ยืนยันการเปลี่ยน Email — E-Tax Center SysAdmin", buildOtpEmail(otp, "เปลี่ยน Email"));
+        const masked = admin.email.replace(/(.{2})(.*)(@.*)/, (_, a, b, c) => a + "*".repeat(Math.max(1, b.length)) + c);
+        res.json({ message: `ส่งรหัสยืนยันไปที่ email เก่า (${masked}) แล้ว กรุณาตรวจสอบ` });
+      } else {
+        res.json({ message: "ยังไม่มี email เก่า บันทึก email ใหม่ได้ทันที", skipVerify: true });
+      }
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // ─── Email change: confirm with code ───────────────────────────────────────
+  app.post("/api/sysadmin/me/confirm-email-change", requireSysAdminAuth, async (req, res) => {
+    try {
+      const session = req.session as any;
+      const { code } = req.body;
+      const [admin] = await db.select().from(sysAdmins).where(eq(sysAdmins.id, session.sysAdminId)).limit(1);
+      if (!admin) return res.status(404).json({ message: "ไม่พบ SysAdmin" });
+      if (!admin.emailChangeCode || !admin.emailChangePending) return res.status(400).json({ message: "ไม่มีคำขอเปลี่ยน email" });
+      if (admin.emailChangeCodeExpiry && new Date(admin.emailChangeCodeExpiry) < new Date()) return res.status(400).json({ message: "รหัสหมดอายุ กรุณาขอใหม่" });
+      if (String(code || "").trim() !== admin.emailChangeCode) return res.status(400).json({ message: "รหัสไม่ถูกต้อง" });
+
+      const newEmail = admin.emailChangePending;
+      await db.update(sysAdmins).set({
+        email: newEmail,
+        emailVerified: false,
+        emailChangeCode: null,
+        emailChangePending: null,
+        emailChangeCodeExpiry: null,
+        twoFactorVerified: admin.twoFactorMethod === "email" ? false : admin.twoFactorVerified,
+      }).where(eq(sysAdmins.id, admin.id));
+      await logAudit(req, "change_email", "sysadmin", admin.id, admin.username, `New email set`);
+      res.json({ message: "เปลี่ยน email สำเร็จ", newEmail });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // ─── Master changes other admin's email directly (no old-email verify) ──────
+  app.post("/api/sysadmin/users/:id/set-email", requireSysAdminAuth, async (req, res) => {
+    try {
+      const session = req.session as any;
+      const targetId = Number(req.params.id);
+      const [caller] = await db.select().from(sysAdmins).where(eq(sysAdmins.id, session.sysAdminId)).limit(1);
+      if (!caller?.isMaster) return res.status(403).json({ message: "เฉพาะ Master SysAdmin เท่านั้น" });
+      const [target] = await db.select().from(sysAdmins).where(eq(sysAdmins.id, targetId)).limit(1);
+      if (!target) return res.status(404).json({ message: "ไม่พบ SysAdmin" });
+      const { email } = req.body;
+      if (email && !/\S+@\S+\.\S+/.test(email)) return res.status(400).json({ message: "Email ไม่ถูกต้อง" });
+      await db.update(sysAdmins).set({
+        email: email || null,
+        emailVerified: false,
+        twoFactorVerified: target.twoFactorMethod === "email" ? false : target.twoFactorVerified,
+      }).where(eq(sysAdmins.id, targetId));
+      await logAudit(req, "set_email_by_master", "sysadmin", targetId, target.username, `Set by Master`);
+      res.json({ message: "บันทึก email สำเร็จ" });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // ─── SMTP Config (Master only) ──────────────────────────────────────────────
+  app.get("/api/sysadmin/smtp-config", requireSysAdminAuth, async (req, res) => {
+    try {
+      const session = req.session as any;
+      const [caller] = await db.select().from(sysAdmins).where(eq(sysAdmins.id, session.sysAdminId)).limit(1);
+      if (!caller?.isMaster) return res.status(403).json({ message: "เฉพาะ Master SysAdmin เท่านั้น" });
+      res.json(await getSmtpConfigForDisplay());
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.put("/api/sysadmin/smtp-config", requireSysAdminAuth, async (req, res) => {
+    try {
+      const session = req.session as any;
+      const [caller] = await db.select().from(sysAdmins).where(eq(sysAdmins.id, session.sysAdminId)).limit(1);
+      if (!caller?.isMaster) return res.status(403).json({ message: "เฉพาะ Master SysAdmin เท่านั้น" });
+      const { host, port, user, pass, from, secure } = req.body;
+      if (!host || !user) return res.status(400).json({ message: "กรุณากรอก SMTP Host และ Username" });
+      await saveSmtpConfig({ host, port: Number(port) || 587, user, pass, from: from || user, secure: !!secure });
+      await logAudit(req, "update_smtp_config", "sysadmin", caller.id, caller.username);
+      res.json({ message: "บันทึก SMTP config สำเร็จ" });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/sysadmin/smtp-config/test", requireSysAdminAuth, async (req, res) => {
+    try {
+      const session = req.session as any;
+      const [caller] = await db.select().from(sysAdmins).where(eq(sysAdmins.id, session.sysAdminId)).limit(1);
+      if (!caller?.isMaster) return res.status(403).json({ message: "เฉพาะ Master SysAdmin เท่านั้น" });
+      const toEmail = req.body.testEmail || caller.email;
+      if (!toEmail) return res.status(400).json({ message: "กรุณากรอก email ทดสอบ" });
+      const testOtp = String(Math.floor(100000 + Math.random() * 900000));
+      await sendSysAdminEmail(toEmail, "ทดสอบ SMTP — E-Tax Center SysAdmin", buildOtpEmail(testOtp, "ทดสอบระบบ Email"));
+      res.json({ message: `ส่ง email ทดสอบไปที่ ${toEmail} สำเร็จ` });
+    } catch (err: any) {
+      res.status(500).json({ message: `ส่ง email ล้มเหลว: ${err.message}` });
     }
   });
 

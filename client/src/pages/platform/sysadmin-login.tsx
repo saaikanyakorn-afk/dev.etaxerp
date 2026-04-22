@@ -724,24 +724,26 @@ export default function SysAdminLogin() {
 
             <div className="text-center">
               <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-3 ${
-                login2faMethod === "totp" ? "bg-purple-600" : "bg-green-600"
+                login2faMethod === "totp" ? "bg-purple-600" : login2faMethod === "email" ? "bg-blue-600" : "bg-green-600"
               }`}>
-                {login2faMethod === "totp" ? <Smartphone className="h-7 w-7 text-white" /> : <MessageCircle className="h-7 w-7 text-white" />}
+                {login2faMethod === "totp" ? <Smartphone className="h-7 w-7 text-white" /> : login2faMethod === "email" ? <Mail className="h-7 w-7 text-white" /> : <MessageCircle className="h-7 w-7 text-white" />}
               </div>
               <p className="text-sm text-gray-300">
-                {login2faMethod === "totp" ? "กรอกรหัสจาก Authenticator App" : "ยืนยันตัวตนผ่าน LINE OTP"}
+                {login2faMethod === "totp" ? "กรอกรหัสจาก Authenticator App" : login2faMethod === "email" ? "ยืนยันตัวตนผ่าน Email OTP" : "ยืนยันตัวตนผ่าน LINE OTP"}
               </p>
             </div>
 
-            {login2faMethod === "line" && !loginOtpSent && (
+            {(login2faMethod === "line" || login2faMethod === "email") && !loginOtpSent && (
               <Button
                 onClick={handleLoginSendOtp}
                 disabled={loginOtpSending}
-                className="w-full bg-green-600 hover:bg-green-700 text-white"
+                className={`w-full text-white ${login2faMethod === "email" ? "bg-blue-600 hover:bg-blue-700" : "bg-green-600 hover:bg-green-700"}`}
                 data-testid="btn-login-send-otp"
               >
                 {loginOtpSending ? (
                   <span className="flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> กำลังส่ง...</span>
+                ) : login2faMethod === "email" ? (
+                  <span className="flex items-center gap-2"><Mail className="h-4 w-4" /> ส่ง OTP ไป Email</span>
                 ) : (
                   <span className="flex items-center gap-2"><MessageCircle className="h-4 w-4" /> ส่ง OTP ไป LINE</span>
                 )}
@@ -750,7 +752,13 @@ export default function SysAdminLogin() {
 
             {login2faMethod === "line" && loginOtpSent && (
               <div className="bg-green-900/20 border border-green-700/40 rounded-lg p-3 text-xs text-green-300 text-center">
-                <CheckCircle2 className="h-3.5 w-3.5 inline mr-1" /> ส่ง OTP แล้ว (หมดอายุ 5 นาที)
+                <CheckCircle2 className="h-3.5 w-3.5 inline mr-1" /> ส่ง OTP ไป LINE แล้ว (หมดอายุ 10 นาที)
+              </div>
+            )}
+
+            {login2faMethod === "email" && loginOtpSent && (
+              <div className="bg-blue-900/20 border border-blue-700/40 rounded-lg p-3 text-xs text-blue-300 text-center">
+                <CheckCircle2 className="h-3.5 w-3.5 inline mr-1" /> ส่ง OTP ไป Email แล้ว (หมดอายุ 10 นาที)
               </div>
             )}
 

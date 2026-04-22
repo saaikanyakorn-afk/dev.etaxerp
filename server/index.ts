@@ -222,7 +222,7 @@ export async function migrateChartOfAccountCodes() {
   }
 }
 
-const SCHEMA_VERSION = "97";
+const SCHEMA_VERSION = "100";
 
 async function autoSyncSchema() {
   try {

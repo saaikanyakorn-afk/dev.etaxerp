@@ -6319,6 +6319,11 @@ export const sysAdmins = pgTable("sys_admins", {
   twoFactorMethod: text("two_factor_method"),
   twoFactorSecret: text("two_factor_secret"),
   twoFactorVerified: boolean("two_factor_verified").notNull().default(false),
+  emailVerified: boolean("email_verified").notNull().default(false),
+  totpSetupSecret: text("totp_setup_secret"),
+  emailChangeCode: text("email_change_code"),
+  emailChangeCodeExpiry: timestamp("email_change_code_expiry"),
+  emailChangePending: text("email_change_pending"),
 });
 
 export const sysAdminPasswordHistory = pgTable("sys_admin_password_history", {
