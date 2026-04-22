@@ -1142,7 +1142,7 @@ function SmtpConfigDialog({ onClose }: { onClose: () => void }) {
         )}
         <div className="p-5 border-t flex justify-end gap-2">
           <Button variant="outline" onClick={onClose} data-testid="btn-close-smtp">ปิด</Button>
-          <Button className="bg-[#fb9678] hover:bg-[#e8855a] text-white" onClick={handleSave} disabled={saving || !form.host || !form.user} data-testid="btn-save-smtp">
+          <Button className="bg-[#fb9678] hover:bg-[#e8855a] text-white" onClick={handleSave} disabled={saving} data-testid="btn-save-smtp">
             {saving ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Check className="h-4 w-4 mr-1" />} บันทึก
           </Button>
         </div>
