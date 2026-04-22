@@ -1099,10 +1099,34 @@ function SmtpConfigDialog({ onClose }: { onClose: () => void }) {
               </div>
               <div>
                 <Label className="text-sm">{currentPreset?.passLabel || "Password"}</Label>
-                <div className="flex gap-2">
-                  <Input type={showPass ? "text" : "password"} value={form.pass} onChange={e => setForm(f => ({ ...f, pass: e.target.value }))} placeholder="••••••••" className="flex-1" data-testid="input-smtp-pass" />
-                  <Button type="button" variant="outline" size="icon" onClick={() => setShowPass(!showPass)}>{showPass ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</Button>
-                </div>
+                {form.pass.startsWith("••••") ? (
+                  <div className="flex items-center gap-2 mt-1">
+                    <div className="flex-1 border rounded-md px-3 py-2 bg-green-50 border-green-300 text-sm text-green-700 flex items-center gap-2">
+                      <ShieldCheck className="h-4 w-4 shrink-0" />
+                      <span>Key ถูกบันทึกในระบบแล้ว</span>
+                    </div>
+                    <Button type="button" variant="outline" size="sm" className="shrink-0 text-rose-600 border-rose-300 hover:bg-rose-50"
+                      onClick={() => setForm(f => ({ ...f, pass: "" }))} data-testid="btn-clear-smtp-pass">
+                      <RotateCcw className="h-3.5 w-3.5 mr-1" /> เปลี่ยน Key
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="flex gap-2 mt-1">
+                    <Input type={showPass ? "text" : "password"} value={form.pass}
+                      onChange={e => setForm(f => ({ ...f, pass: e.target.value }))}
+                      placeholder="วาง SMTP Key ที่นี่"
+                      className="flex-1 font-mono text-xs"
+                      data-testid="input-smtp-pass"
+                      autoComplete="off"
+                    />
+                    <Button type="button" variant="outline" size="icon" onClick={() => setShowPass(!showPass)}>
+                      {showPass ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </Button>
+                  </div>
+                )}
+                {!form.pass.startsWith("••••") && form.pass && (
+                  <p className="text-[10px] text-amber-600 mt-1">กรุณากด "บันทึก" ก่อนทดสอบ เพื่อให้ระบบใช้ Key ใหม่นี้</p>
+                )}
               </div>
               <div>
                 <Label className="text-sm">From Email</Label>
