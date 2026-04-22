@@ -147,7 +147,7 @@ export interface IStorage {
   updateOtStatus(id: number, status: string, approvedBy?: number): Promise<OtRecord | undefined>;
 
   getLeavesByEmployee(employeeId: number): Promise<LeaveRequest[]>;
-  getAllLeaves(tenantId?: number, companyId?: number): Promise<LeaveRequest[]>;
+  getAllLeaves(tenantId?: number): Promise<LeaveRequest[]>;
   createLeave(leave: InsertLeave): Promise<LeaveRequest>;
   updateLeaveStatus(id: number, status: string, approvedBy?: number): Promise<LeaveRequest | undefined>;
 
@@ -706,12 +706,7 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(leaveRequests.createdAt));
   }
 
-  async getAllLeaves(tenantId?: number, companyId?: number): Promise<LeaveRequest[]> {
-    if (companyId) {
-      return db.select().from(leaveRequests)
-        .where(inArray(leaveRequests.employeeId, db.select({ id: employees.id }).from(employees).where(eq(employees.companyId, companyId))))
-        .orderBy(desc(leaveRequests.createdAt));
-    }
+  async getAllLeaves(tenantId?: number): Promise<LeaveRequest[]> {
     if (tenantId) {
       return db.select().from(leaveRequests)
         .where(inArray(leaveRequests.employeeId, db.select({ id: employees.id }).from(employees).where(eq(employees.tenantId, tenantId))))

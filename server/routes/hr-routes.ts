@@ -2052,7 +2052,12 @@ export function registerHrRoutes(app: Express) {
       const myEmpRecord = await storage.getEmployeeByUserId(user.id);
       if (myEmpRecord?.companyId) scopedCompanyId = myEmpRecord.companyId;
     }
-    let records = await storage.getAllLeaves(tenantId, scopedCompanyId);
+    let records = await storage.getAllLeaves(tenantId);
+    if (scopedCompanyId) {
+      const companyEmps = await storage.getEmployees(undefined, scopedCompanyId);
+      const empIdSet = new Set(companyEmps.map((e: any) => e.id));
+      records = records.filter((r: any) => empIdSet.has(r.employeeId));
+    }
     if (user.role === "employee") {
       const myEmp = await storage.getEmployeeByUserId(user.id);
       if (myEmp) {
