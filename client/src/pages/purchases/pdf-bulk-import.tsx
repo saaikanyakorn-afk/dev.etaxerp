@@ -1866,7 +1866,7 @@ export default function PdfBulkImport() {
                   </Button>
                   <Button
                     onClick={() => createMutation.mutate()}
-                    disabled={selectedDocs.size === 0 || createMutation.isPending || (selectedFormulaIdx === "auto-detect" && (hasFormulaErrors || formulaPreviewLoading || formulaPreview === null))}
+                    disabled={selectedDocs.size === 0 || createMutation.isPending || (selectedFormulaIdx === "auto-detect" && (hasFormulaErrors || formulaPreviewLoading))}
                     className="bg-[#fb9678] hover:bg-[#e8856a] text-white"
                     data-testid="button-create-all"
                   >
