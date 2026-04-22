@@ -668,6 +668,13 @@ export default function PdfBulkImport() {
     other: { mixed: [] },
   };
 
+  const RESTAURANT_ONLY_BIZ_TYPES = new Set([
+    "restaurant_foodpanda_gp", "restaurant_grab_gp", "restaurant_lineman_gp",
+    "restaurant_robinhood_gp", "restaurant_shopeefood_gp", "shopeefood_fee",
+  ]);
+  const ECOMMERCE_ONLY_PLATFORMS = new Set(["shopee", "lazada", "tiktok"]);
+  const RESTAURANT_ONLY_PLATFORMS = new Set(["grab", "lineman", "foodpanda", "robinhood"]);
+
   const detectRelevantBizTypes = (docs: any[]): Set<string> => {
     const relevant = new Set<string>();
     for (const d of docs) {
@@ -680,15 +687,23 @@ export default function PdfBulkImport() {
     return relevant;
   };
 
+  const allExpEcommerce = normalDocsList.length > 0 && normalDocsList.every(d => ECOMMERCE_ONLY_PLATFORMS.has(d.platform || ""));
+  const allExpRestaurant = normalDocsList.length > 0 && normalDocsList.every(d => RESTAURANT_ONLY_PLATFORMS.has(d.platform || ""));
+
   const expRelevantBizTypes = detectRelevantBizTypes(normalDocsList);
-  const filteredExpFormulas = availableFormulas.filter((f: any) =>
-    f.source === "company" || expRelevantBizTypes.has(f.businessType)
-  );
+  const filteredExpFormulas = availableFormulas.filter((f: any) => {
+    if (allExpEcommerce && RESTAURANT_ONLY_BIZ_TYPES.has(f.businessType)) return false;
+    if (allExpRestaurant && !RESTAURANT_ONLY_BIZ_TYPES.has(f.businessType) && f.businessType !== "mixed" && f.source !== "company") return false;
+    return f.source === "company" || expRelevantBizTypes.has(f.businessType);
+  });
   const selectedFormula = selectedFormulaIdx === "auto-detect" ? null : (filteredExpFormulas[Number(selectedFormulaIdx)] || filteredExpFormulas[0] || null);
+
+  const allDnEcommerce = creditNoteDocsList.length > 0 && creditNoteDocsList.every(d => ECOMMERCE_ONLY_PLATFORMS.has(d.platform || ""));
   const dnRelevantBizTypes = detectRelevantBizTypes(creditNoteDocsList);
-  const filteredDnFormulas = dnFormulas.filter((f: any) =>
-    f.source === "company" || dnRelevantBizTypes.has(f.businessType)
-  );
+  const filteredDnFormulas = dnFormulas.filter((f: any) => {
+    if (allDnEcommerce && RESTAURANT_ONLY_BIZ_TYPES.has(f.businessType)) return false;
+    return f.source === "company" || dnRelevantBizTypes.has(f.businessType);
+  });
   const selectedDnFormula = filteredDnFormulas[Number(selectedDnFormulaIdx)] || filteredDnFormulas[0] || null;
   const whtRate = parseFloat(globalWhtRate) / 100;
   const totalSubtotal = normalDocsList.reduce((s, d) => s + d.subtotal, 0);
