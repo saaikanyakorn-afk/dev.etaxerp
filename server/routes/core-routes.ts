@@ -356,8 +356,12 @@ app.get("/api/my-role-modules", requireAuth, async (req, res) => {
       const modules = [...new Set(
         SUB_MODULES.filter(s => allowedSubKeys.has(s.key)).map(s => s.parentModule)
       )];
-      const subModules = [...allowedSubKeys];
-      return res.json({ modules, subModules });
+      // Only use personal sub-perms if they grant at least 1 module
+      // Otherwise fall through to role-based (prevents managers with stale/empty sub-perms getting 0 modules)
+      if (modules.length > 0) {
+        const subModules = [...allowedSubKeys];
+        return res.json({ modules, subModules });
+      }
     }
 
     let perms = await storage.getRolePermissionsByRole(user.role);
