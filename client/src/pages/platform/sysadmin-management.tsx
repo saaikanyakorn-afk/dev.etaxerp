@@ -921,6 +921,57 @@ function My2FADialog({ me, onClose }: { me: SysAdminUser; onClose: () => void })
   );
 }
 
+const SMTP_PRESETS = [
+  {
+    id: "brevo",
+    label: "Brevo",
+    badge: "แนะนำ · ฟรี 300/วัน",
+    badgeColor: "bg-blue-100 text-blue-700",
+    host: "smtp-relay.brevo.com",
+    port: 587,
+    secure: false,
+    passLabel: "SMTP Key (จาก Brevo dashboard)",
+    passHint: "เข้า app.brevo.com → SMTP & API → Generate SMTP Key",
+    signupUrl: "https://app.brevo.com",
+  },
+  {
+    id: "mailjet",
+    label: "Mailjet",
+    badge: "ฟรี 200/วัน",
+    badgeColor: "bg-sky-100 text-sky-700",
+    host: "in-v3.mailjet.com",
+    port: 587,
+    secure: false,
+    passLabel: "Secret Key (Mailjet dashboard)",
+    passHint: "เข้า app.mailjet.com → Account → API Keys → ใช้ API Key เป็น username, Secret Key เป็น password",
+    signupUrl: "https://app.mailjet.com",
+  },
+  {
+    id: "gmail",
+    label: "Gmail",
+    badge: "ต้องมี App Password",
+    badgeColor: "bg-red-100 text-red-700",
+    host: "smtp.gmail.com",
+    port: 587,
+    secure: false,
+    passLabel: "App Password (ไม่ใช่รหัส Google)",
+    passHint: "myaccount.google.com/apppasswords → สร้าง App Password",
+    signupUrl: "https://myaccount.google.com/apppasswords",
+  },
+  {
+    id: "hostinger",
+    label: "Hostinger",
+    badge: "สำหรับ hosting ลูกค้า",
+    badgeColor: "bg-purple-100 text-purple-700",
+    host: "smtp.hostinger.com",
+    port: 465,
+    secure: true,
+    passLabel: "รหัสผ่าน Email บน Hostinger",
+    passHint: "ใช้รหัสผ่าน Email ที่สร้างใน hPanel → Emails",
+    signupUrl: "https://hpanel.hostinger.com",
+  },
+];
+
 function SmtpConfigDialog({ onClose }: { onClose: () => void }) {
   const { toast } = useToast();
   const [form, setForm] = useState({ host: "", port: 587, user: "", pass: "", from: "", secure: false });
@@ -929,13 +980,22 @@ function SmtpConfigDialog({ onClose }: { onClose: () => void }) {
   const [testing, setTesting] = useState(false);
   const [testEmail, setTestEmail] = useState("");
   const [showPass, setShowPass] = useState(false);
+  const [activePreset, setActivePreset] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/sysadmin/smtp-config", { credentials: "include" }).then(r => r.json()).then(d => {
-      setForm({ host: d.host || "", port: d.port || 587, user: d.user || "", pass: d.pass || "", from: d.from || "", secure: d.secure || false });
+      const host = d.host || "";
+      setForm({ host, port: d.port || 587, user: d.user || "", pass: d.pass || "", from: d.from || "", secure: d.secure || false });
+      const matched = SMTP_PRESETS.find(p => p.host === host);
+      if (matched) setActivePreset(matched.id);
       setLoading(false);
     }).catch(() => setLoading(false));
   }, []);
+
+  const applyPreset = (preset: typeof SMTP_PRESETS[0]) => {
+    setActivePreset(preset.id);
+    setForm(f => ({ ...f, host: preset.host, port: preset.port, secure: preset.secure }));
+  };
 
   const handleSave = async () => {
     setSaving(true);
@@ -967,48 +1027,81 @@ function SmtpConfigDialog({ onClose }: { onClose: () => void }) {
     finally { setTesting(false); }
   };
 
+  const currentPreset = SMTP_PRESETS.find(p => p.id === activePreset);
+
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" data-testid="dialog-smtp-config">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
         <div className="p-5 border-b">
           <h2 className="text-lg font-bold flex items-center gap-2"><Wifi className="h-5 w-5 text-[#fb9678]" /> ตั้งค่า SMTP Email</h2>
-          <p className="text-xs text-gray-500 mt-1">สำหรับส่ง OTP ผ่าน Email 2FA</p>
+          <p className="text-xs text-gray-500 mt-1">สำหรับส่ง OTP ผ่าน Email 2FA — เปลี่ยน provider ได้ทุกเมื่อโดยไม่ต้องแก้โค้ด</p>
         </div>
         {loading ? (
           <div className="p-10 text-center"><Loader2 className="h-6 w-6 animate-spin mx-auto text-gray-400" /></div>
         ) : (
           <div className="p-5 space-y-4">
+            {/* Provider presets */}
             <div>
-              <Label className="text-sm">SMTP Host *</Label>
-              <Input value={form.host} onChange={e => setForm(f => ({ ...f, host: e.target.value }))} placeholder="smtp.gmail.com" data-testid="input-smtp-host" />
-              <p className="text-[10px] text-gray-400 mt-1">Gmail: smtp.gmail.com | Brevo: smtp-relay.brevo.com | Hostinger: smtp.hostinger.com</p>
+              <p className="text-xs font-medium text-gray-600 mb-2">เลือก Email Provider</p>
+              <div className="grid grid-cols-2 gap-2">
+                {SMTP_PRESETS.map(preset => (
+                  <button
+                    key={preset.id}
+                    onClick={() => applyPreset(preset)}
+                    data-testid={`btn-preset-${preset.id}`}
+                    className={`p-3 rounded-lg border text-left transition-all ${activePreset === preset.id ? "border-[#fb9678] bg-orange-50 ring-1 ring-[#fb9678]/30" : "border-gray-200 hover:border-gray-300 bg-white"}`}
+                  >
+                    <div className="font-semibold text-sm text-gray-800">{preset.label}</div>
+                    <div className={`text-[10px] px-1.5 py-0.5 rounded-full inline-block mt-0.5 font-medium ${preset.badgeColor}`}>{preset.badge}</div>
+                  </button>
+                ))}
+              </div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+
+            {/* Hint for selected preset */}
+            {currentPreset && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-800">
+                <p className="font-medium mb-1">{currentPreset.passLabel}</p>
+                <p className="text-blue-600">{currentPreset.passHint}</p>
+                <a href={currentPreset.signupUrl} target="_blank" rel="noopener noreferrer"
+                  className="mt-1.5 inline-flex items-center gap-1 text-blue-700 underline hover:text-blue-900">
+                  เปิด {currentPreset.label} →
+                </a>
+              </div>
+            )}
+
+            <div className="border-t pt-3 space-y-3">
               <div>
-                <Label className="text-sm">Port</Label>
-                <Input type="number" value={form.port} onChange={e => setForm(f => ({ ...f, port: Number(e.target.value) }))} data-testid="input-smtp-port" />
+                <Label className="text-sm">SMTP Host *</Label>
+                <Input value={form.host} onChange={e => { setForm(f => ({ ...f, host: e.target.value })); setActivePreset(SMTP_PRESETS.find(p => p.host === e.target.value)?.id || null); }} placeholder="smtp-relay.brevo.com" data-testid="input-smtp-host" />
               </div>
-              <div className="flex items-end gap-2 pb-0.5">
-                <Switch checked={form.secure} onCheckedChange={v => setForm(f => ({ ...f, secure: v }))} data-testid="switch-smtp-secure" />
-                <Label className="text-sm">SSL/TLS</Label>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label className="text-sm">Port</Label>
+                  <Input type="number" value={form.port} onChange={e => setForm(f => ({ ...f, port: Number(e.target.value) }))} data-testid="input-smtp-port" />
+                </div>
+                <div className="flex items-end gap-2 pb-0.5">
+                  <Switch checked={form.secure} onCheckedChange={v => setForm(f => ({ ...f, secure: v }))} data-testid="switch-smtp-secure" />
+                  <Label className="text-sm">SSL/TLS (port 465)</Label>
+                </div>
+              </div>
+              <div>
+                <Label className="text-sm">{currentPreset?.id === "mailjet" ? "API Key (Username) *" : "Username / Email *"}</Label>
+                <Input value={form.user} onChange={e => setForm(f => ({ ...f, user: e.target.value }))} placeholder={currentPreset?.id === "mailjet" ? "Mailjet API Key" : "yourmail@example.com"} data-testid="input-smtp-user" />
+              </div>
+              <div>
+                <Label className="text-sm">{currentPreset?.passLabel || "Password"}</Label>
+                <div className="flex gap-2">
+                  <Input type={showPass ? "text" : "password"} value={form.pass} onChange={e => setForm(f => ({ ...f, pass: e.target.value }))} placeholder="••••••••" className="flex-1" data-testid="input-smtp-pass" />
+                  <Button type="button" variant="outline" size="icon" onClick={() => setShowPass(!showPass)}>{showPass ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</Button>
+                </div>
+              </div>
+              <div>
+                <Label className="text-sm">From Email</Label>
+                <Input value={form.from} onChange={e => setForm(f => ({ ...f, from: e.target.value }))} placeholder="E-Tax Center &lt;noreply@example.com&gt;" data-testid="input-smtp-from" />
               </div>
             </div>
-            <div>
-              <Label className="text-sm">Username (Email) *</Label>
-              <Input value={form.user} onChange={e => setForm(f => ({ ...f, user: e.target.value }))} placeholder="yourmail@gmail.com" data-testid="input-smtp-user" />
-            </div>
-            <div>
-              <Label className="text-sm">Password / App Password</Label>
-              <div className="flex gap-2">
-                <Input type={showPass ? "text" : "password"} value={form.pass} onChange={e => setForm(f => ({ ...f, pass: e.target.value }))} placeholder="รหัสผ่านหรือ App Password" className="flex-1" data-testid="input-smtp-pass" />
-                <Button type="button" variant="outline" size="icon" onClick={() => setShowPass(!showPass)}>{showPass ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</Button>
-              </div>
-              <p className="text-[10px] text-gray-400 mt-1">Gmail ต้องใช้ App Password (myaccount.google.com/apppasswords) หรือใช้ Brevo ที่ไม่ต้องการ App Password</p>
-            </div>
-            <div>
-              <Label className="text-sm">From Email</Label>
-              <Input value={form.from} onChange={e => setForm(f => ({ ...f, from: e.target.value }))} placeholder="E-Tax Center &lt;noreply@example.com&gt;" data-testid="input-smtp-from" />
-            </div>
+
             <div className="border-t pt-4">
               <p className="text-xs font-medium mb-2">ทดสอบการส่ง Email</p>
               <div className="flex gap-2">
