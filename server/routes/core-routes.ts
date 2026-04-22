@@ -391,7 +391,10 @@ app.get("/api/permissions/me", requireAuth, async (req, res) => {
   let isPrimary = true;
   if (companyId) {
     const company = await storage.getCompany(companyId);
-    isPrimary = company?.isPrimary === true;
+    if (company && company.tenantId === user.tenantId) {
+      isPrimary = company.isPrimary === true;
+    }
+    // company null / wrong tenant → stays true (safe default: primary restrictions apply)
   }
 
   let tenantType = "general_business";
