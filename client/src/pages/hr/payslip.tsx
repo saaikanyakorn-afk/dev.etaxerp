@@ -92,13 +92,14 @@ export default function PayslipPage() {
   };
 
   const { data: allOtFlat = [] } = useQuery<any[]>({
-    queryKey: ["/api/ot"],
+    queryKey: ["/api/ot", companyId],
     queryFn: async () => {
-      const r = await fetch("/api/ot", { credentials: "include" });
+      const url = companyId ? `/api/ot?companyId=${companyId}` : "/api/ot";
+      const r = await fetch(url, { credentials: "include" });
       if (!r.ok) return [];
       return r.json();
     },
-    enabled: !!user && isAdmin,
+    enabled: !!user && isAdmin && !!companyId,
   });
 
   const { data: myOt = [] } = useQuery<any[]>({
