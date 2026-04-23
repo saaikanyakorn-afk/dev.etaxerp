@@ -115,12 +115,26 @@ If the SQL will **modify or delete existing data** (e.g. ALTER column type, bulk
   ```
 - Record backup table name in the history entry (Step 6).
 
-### Step 5 — Deploy, Run Once, Verify BY EYES
-1. Send the updated `schema-extra.ts` to etaxerp (cherry-pick)
-2. Restart etaxerp → migration runs on startup
-3. **STOP** — open DBeaver / psql on deep-main
-4. Verify the change actually happened with your own eyes
-5. Check system_config flag is set
+### Step 5 — Get พี่ทราย Approval, Stop pm2, Deploy, Verify BY EYES
+
+**⚠️ BEFORE TOUCHING etaxerp — MANDATORY:**
+- **Ask พี่ทราย first.** etaxerp has real customers who may be actively using the system. We cannot know if anyone is logged in at any moment.
+- **Give downtime estimation.** พี่ทราย needs to know how long the system will be down before she can approve. Provide a best-guess (e.g. "~5 minutes").
+- **Wait for พี่ทราย's confirmation** on when it is safe to proceed.
+
+**❌ Maintenance Mode UI = NOT available on production.**
+- `activateNow()` / `liftMaintenance()` / kick users — code exists in dev but is **NOT done and NOT tested** on etaxerp.
+- Maintenance mode also requires booking **at least 1 hour in advance** (tightly coupled with Clone Database feature).
+- Do NOT attempt to use maintenance mode UI on etaxerp.
+
+**✅ Real procedure used on etaxerp (past & present):**
+1. Ask พี่ทราย + give downtime estimate → wait for her confirmation
+2. `pm2 stop etax-center` on Windows Server
+3. Cherry-pick deploy files → migration runs on next startup
+4. `pm2 start etax-center` (or `pm2 restart etax-center`)
+5. **STOP** — open DBeaver / psql on deep-main
+6. Verify the change actually happened with your own eyes
+7. Check system_config flag is set
 
 ### Step 6 — Record History
 Update `shared/schema-extra.ts` history section AND the DB version table:
