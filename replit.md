@@ -34,6 +34,36 @@ Last verified build: **2026-04-21 (v98 cherry-pick — migration seedAccount5210
 | 2026-04-21 | v103 | expense-routes.ts (confirmed pull) | 7.4 MB | index-BsEaVt8S.js 360.46 kB | Confirmed expense-routes.ts was old on prod — pulled correct version. Build 43.75s, pm2 restart 7, 84.6mb |
 | 2026-04-21 | v104 | module-select.tsx | 7.4 MB | index-BSIVEiKF.js 344.49 kB | Fix: add inventory/sales/purchases cards to module-select. Employee with inventory perms was auto-redirected to /hr/attendance (hasMultipleModules=false). Build 43.94s, pm2 restart 10, 85.1mb |
 
+## 🔴 GOLDEN RULE — PULL-BEFORE-TOUCH (MANDATORY for any protected/sensitive file)
+
+**Applies to: Kai AND any request from พี่ทราย. พี่ช้าง is not always watching.**
+
+Before modifying ANY file on the protected/review-carefully lists — even small changes — you MUST:
+
+1. **Pull the production version** via GitHub API (not `git fetch` — it times out):
+   ```bash
+   PAT="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"
+   curl -s -H "Authorization: token $PAT" \
+     "https://api.github.com/repos/saaikanyakorn-afk/etaxcenter/contents/<FILE_PATH>" \
+     | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{const j=JSON.parse(d);console.log(Buffer.from(j.content,'base64').toString())})" \
+     > /tmp/prod-<filename>
+   ```
+2. **Save production version separately** in `/tmp/prod-<filename>`
+3. **Diff line by line**: `diff /tmp/prod-<filename> <dev-file>`
+4. **Document findings** — what differs, what is production-specific
+5. **THEN make your change** — preserving any production-specific code
+
+**Why:** Production (etaxerp) and dev may have diverged silently. The only safety net is the rule "don't push protected files" — but that doesn't mean dev is safe. Glitches may already exist.
+
+**Protected files (NEVER modify without pull-compare):**
+- `shared/schema.ts`, `server/index.ts`, `client/src/App.tsx` — NEVER push to production
+- `server/db.ts`, `server/ecom-db.ts`, `server/pos-db.ts`, `server/db-schema-sync.ts`
+- `server/route-middleware.ts`, `server/routes.ts`, `server/storage.ts`
+- `server/routes/pos-routes.ts`, `server/routes/line-routes.ts`
+- `client/src/pages/platform/*`, `client/src/main.tsx`
+
+---
+
 ## ⛔ PRE-PUSH CHECKLIST (MANDATORY — DO BEFORE EVERY GIT PUSH)
 1. **Insert schema_version record** in BOTH Replit DB AND Production DB — version, description, change_type, pushed_repos
 2. **Bump SCHEMA_VERSION** constant in server/index.ts
