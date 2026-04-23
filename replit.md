@@ -64,6 +64,27 @@ Before modifying ANY file on the protected/review-carefully lists — even small
 
 ---
 
+## 🔌 HOW TO CONNECT TO deep-main (ALWAYS AVAILABLE — NO EXCUSES)
+
+Credentials are stored in the **machines table** (id=2). Connect via Node pg directly:
+
+```javascript
+const { Pool } = require('pg');
+const pool = new Pool({
+  host: 'deep-main.hopto.org',
+  port: 20541,           // ← NOT 5432. Custom port.
+  user: 'etaxusr',
+  password: 'nJKsyhE4583Hz',
+  database: 'etax-production',  // ← NOT etax_center
+  connectionTimeoutMillis: 12000,
+  ssl: false
+});
+```
+
+**⚠️ NEVER say "I can't connect to deep-main."** The credentials are always in machines table id=2. Port 20541, db=etax-production. Kai has done this a million times.
+
+---
+
 ## 🗄️ PRODUCTION DATABASE CHANGE PROCEDURE (deep-main / etaxerp)
 
 **MANDATORY — every time a schema/data change is needed on production DB. No shortcuts.**
