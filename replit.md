@@ -177,10 +177,25 @@ In `schema-extra.ts`, wrap the migration function in a comment block:
 8. **New table definitions for production = shared/schema-extra.ts** — not schema.ts
 
 ## Daily Git Push Rule
-- **Every morning BEFORE making any code changes**, push to GitHub first: `git push origin replit-agent:main --force` (use orphan branch method if repo is large)
 - **GitHub PAT expiry check**: Current token expires **Jun 24, 2026**. If within 7 days of expiry, warn the first person in conversation that morning.
-- **GitHub remote**: `origin` → `https://github.com/saaikanyakorn-afk/etaxcenter.git`
-- **Push method**: Create orphan branch `deploy-temp`, add all files, commit, force push to `origin main`, then switch back to `replit-agent` and delete `deploy-temp`.
+- **GitHub remote**: `github-replit` → `https://github.com/saaikanyakorn-afk/replit.dev.git`, `github-production` → `https://github.com/saaikanyakorn-afk/etaxcenter.git`
+
+## ⚠️ PUSH ALSO CHERRY — CRITICAL RULE (confirmed by พี่ช้าง 2026-04-23)
+
+**Both push AND pull use cherry-pick. Never push an entire branch directly.**
+
+### Replit → GitHub push procedure:
+1. Identify the specific commits to push (those without protected files)
+2. **Cherry-pick** only those commits onto a clean branch that has no protected files
+3. Push that cherry-picked branch to the target remote
+4. Do NOT `git push github-replit main` directly — it will include protected files (schema.ts, index.ts, App.tsx) and be rejected
+
+### Windows server pull procedure (same pattern):
+1. `git fetch origin` on server
+2. `git cherry-pick <commit-hash>` specific commits only — never `git pull` entire branch
+3. Protected files (schema.ts, server/index.ts, App.tsx) are never cherry-picked to etaxerp
+
+**Rule:** `git push <remote> main` = always rejected if main contains protected files. Cherry-pick is the ONLY safe method.
 
 ## Cherry-Pick Tracking (Production Deploy Log)
 
