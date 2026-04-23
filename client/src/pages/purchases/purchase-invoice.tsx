@@ -50,6 +50,7 @@ interface APItemForm {
   vatType: string;
   accountCode: string;
   accountName: string;
+  warehouseId?: number;
 }
 
 function fmt(val: string | number | null | undefined): string {
@@ -149,6 +150,7 @@ const emptyItem = (): APItemForm => ({
   vatType: "vat7",
   accountCode: "",
   accountName: "",
+  warehouseId: undefined,
 });
 
 export default function PurchaseInvoice() {
@@ -252,6 +254,17 @@ export default function PurchaseInvoice() {
     queryFn: async () => {
       if (!companyId) return [];
       const res = await fetch(`/api/products?companyId=${companyId}`, { credentials: "include" });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!companyId,
+  });
+
+  const { data: warehouses = [] } = useQuery<any[]>({
+    queryKey: ["/api/warehouses", companyId],
+    queryFn: async () => {
+      if (!companyId) return [];
+      const res = await fetch(`/api/warehouses?companyId=${companyId}`, { credentials: "include" });
       if (!res.ok) return [];
       return res.json();
     },
@@ -434,6 +447,7 @@ export default function PurchaseInvoice() {
                 vatType: it.vatType || "vat7",
                 accountCode: it.accountCode || "",
                 accountName: it.accountName || "",
+                warehouseId: it.warehouseId || undefined,
               })));
             }
           }
@@ -499,6 +513,7 @@ export default function PurchaseInvoice() {
                 vatType: it.vatType || "vat7",
                 accountCode: it.accountCode || "",
                 accountName: it.accountName || "",
+                warehouseId: it.warehouseId || undefined,
               })));
             }
 
@@ -873,6 +888,7 @@ export default function PurchaseInvoice() {
         vatType: it.vatType,
         accountCode: it.accountCode || null,
         accountName: it.accountName || null,
+        warehouseId: it.warehouseId || null,
       })),
     };
   }
@@ -1304,6 +1320,7 @@ export default function PurchaseInvoice() {
                     </th>
                     <th className="text-center font-medium text-white text-xs py-2 px-1">ส่วนลด</th>
                     <th className="text-center font-medium text-white text-xs py-2 px-1">VAT</th>
+                    {warehouses.length > 1 && <th className="text-center font-medium text-white text-xs py-2 px-1">คลัง</th>}
                     <th className="text-right font-medium text-white text-xs py-2 px-1">มูลค่าก่อนภาษี</th>
                     <th></th>
                   </tr>
@@ -1389,6 +1406,21 @@ export default function PurchaseInvoice() {
                           </SelectContent>
                         </Select>
                       </td>
+                      {warehouses.length > 1 && (
+                        <td className="py-1 px-1">
+                          <select
+                            data-testid={`select-warehouse-${idx}`}
+                            value={item.warehouseId || ""}
+                            onChange={e => { const newItems = [...items]; newItems[idx] = { ...newItems[idx], warehouseId: e.target.value ? Number(e.target.value) : undefined }; setItems(newItems); }}
+                            className="h-7 text-xs border border-dashed rounded px-1 w-full min-w-[80px]"
+                          >
+                            <option value="">-</option>
+                            {warehouses.map((w: any) => (
+                              <option key={w.id} value={w.id}>{w.name}</option>
+                            ))}
+                          </select>
+                        </td>
+                      )}
                       <td className="py-1 px-1 text-right text-xs font-medium">{fmt(item.total)}</td>
                       <td className="py-1 px-1">
                         <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100">

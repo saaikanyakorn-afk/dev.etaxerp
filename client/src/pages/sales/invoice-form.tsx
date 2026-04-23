@@ -40,6 +40,7 @@ interface InvoiceItemForm {
   discount: string;
   total: string;
   vatType: string;
+  warehouseId?: number;
 }
 
 function fmt(val: string | number | null | undefined): string {
@@ -75,6 +76,7 @@ const emptyItem = (): InvoiceItemForm => ({
   discount: "0",
   total: "0",
   vatType: "vat7",
+  warehouseId: undefined,
 });
 
 export default function InvoiceForm() {
@@ -178,6 +180,17 @@ export default function InvoiceForm() {
     queryFn: async () => {
       if (!companyId) return [];
       const res = await fetch(`/api/products?companyId=${companyId}`, { credentials: "include" });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!companyId,
+  });
+
+  const { data: warehouses = [] } = useQuery<any[]>({
+    queryKey: ["/api/warehouses", companyId],
+    queryFn: async () => {
+      if (!companyId) return [];
+      const res = await fetch(`/api/warehouses?companyId=${companyId}`, { credentials: "include" });
       if (!res.ok) return [];
       return res.json();
     },
@@ -434,6 +447,7 @@ export default function InvoiceForm() {
                 discount: it.discountType === "percent" ? `${cleanDecimal(it.discount, "0")}%` : cleanDecimal(it.discount, "0"),
                 total: cleanDecimal(it.total, "0"),
                 vatType: it.vatType || "vat7",
+                warehouseId: it.warehouseId || undefined,
               })));
             }
             setSavedId(editingId);
@@ -717,6 +731,7 @@ export default function InvoiceForm() {
         discount: it.discount,
         total: it.total,
         vatType: it.vatType,
+        warehouseId: it.warehouseId || null,
       })),
       journalOverrideLines: journalOverrideLines || undefined,
     };
@@ -1068,6 +1083,7 @@ export default function InvoiceForm() {
                     </th>
                     <th className="text-center font-medium text-white text-xs py-2 px-1">ส่วนลด</th>
                     <th className="text-center font-medium text-white text-xs py-2 px-1">VAT</th>
+                    {warehouses.length > 1 && <th className="text-center font-medium text-white text-xs py-2 px-1">คลัง</th>}
                     <th className="text-right font-medium text-white text-xs py-2 px-1">มูลค่าก่อนภาษี</th>
                     <th className="py-2 px-0"></th>
                   </tr>
@@ -1200,6 +1216,21 @@ export default function InvoiceForm() {
                           {item.vatType === "vat7" ? "7%" : item.vatType === "zero_rated" ? "0%" : "-"}
                         </span>
                       </td>
+                      {warehouses.length > 1 && (
+                        <td className="px-1 pt-1.5">
+                          <select
+                            data-testid={`select-warehouse-${idx}`}
+                            value={item.warehouseId || ""}
+                            onChange={e => { const newItems = [...items]; newItems[idx] = { ...newItems[idx], warehouseId: e.target.value ? Number(e.target.value) : undefined }; setItems(newItems); }}
+                            className="h-7 text-xs border border-dashed rounded px-1 w-full min-w-[80px]"
+                          >
+                            <option value="">-</option>
+                            {warehouses.map((w: any) => (
+                              <option key={w.id} value={w.id}>{w.name}</option>
+                            ))}
+                          </select>
+                        </td>
+                      )}
                       <td className="text-right pt-3 px-1">
                         {priceMode === "included" && item.vatType === "vat7" ? (
                           <span className="text-sm font-normal text-slate-800">{fmt((parseFloat(item.total || "0") / 1.07).toFixed(2))}</span>
