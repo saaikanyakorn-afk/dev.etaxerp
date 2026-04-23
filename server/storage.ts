@@ -1701,7 +1701,7 @@ export class DatabaseStorage implements IStorage {
   async getProducts(companyId: number, category?: string): Promise<Product[]> {
     const conditions = [eq(products.companyId, companyId)];
     if (category) conditions.push(eq(products.category, category));
-    return db.select().from(products).where(and(...conditions)).orderBy(desc(products.createdAt));
+    return db.select().from(products).where(and(...conditions)).orderBy(asc(products.code), asc(products.name));
   }
 
   async getProduct(id: number): Promise<Product | undefined> {
