@@ -41,6 +41,11 @@ const geminiAi = process.env.AI_INTEGRATIONS_GEMINI_API_KEY
     })
   : null;
 
+async function fetchPurchaseInvoiceItems(purchaseInvoiceId: number): Promise<any[]> {
+  const r = await db.execute(sql`SELECT *, warehouse_id AS "warehouseId" FROM purchase_invoice_items WHERE purchase_invoice_id = ${purchaseInvoiceId} ORDER BY id`);
+  return r.rows as any[];
+}
+
 export function registerPurchaseRoutes(app: Express) {
   // ============ Purchase Requests ============
 
@@ -836,7 +841,7 @@ export function registerPurchaseRoutes(app: Express) {
       const [doc] = await db.select().from(purchaseInvoices).where(eq(purchaseInvoices.id, Number(req.params.id)));
       if (!doc) return res.status(404).json({ message: "ไม่พบใบแจ้งหนี้ซื้อ" });
       { const ac = await checkDocOwnership(doc.companyId, req.user); if (!ac.allowed) return res.status(403).json({ message: ac.message }); }
-      const items = await db.select().from(purchaseInvoiceItems).where(eq(purchaseInvoiceItems.purchaseInvoiceId, doc.id));
+      const items = await fetchPurchaseInvoiceItems(doc.id);
       let createdByName = "-";
       let updatedByName = "-";
       if (doc.createdBy) { const u = await storage.getUser(doc.createdBy); if (u) createdByName = u.fullName; }
@@ -958,7 +963,7 @@ export function registerPurchaseRoutes(app: Express) {
         }
         return doc;
       });
-      const savedItems = await db.select().from(purchaseInvoiceItems).where(eq(purchaseInvoiceItems.purchaseInvoiceId, result.id));
+      const savedItems = await fetchPurchaseInvoiceItems(result.id);
 
       console.log("[PI] saveToContacts check:", { saveToContacts: body.saveToContacts, vendorId: result.vendorId, vendorName: result.vendorName, vendorTaxId: result.vendorTaxId });
       if (body.saveToContacts && !result.vendorId && result.vendorName) {
@@ -1209,7 +1214,7 @@ export function registerPurchaseRoutes(app: Express) {
         }
       });
       const [updated] = await db.select().from(purchaseInvoices).where(eq(purchaseInvoices.id, existing.id));
-      const savedItems = await db.select().from(purchaseInvoiceItems).where(eq(purchaseInvoiceItems.purchaseInvoiceId, existing.id));
+      const savedItems = await fetchPurchaseInvoiceItems(existing.id);
 
       if (body.saveToContacts && !updated.vendorId && updated.vendorName) {
         try {
@@ -1424,7 +1429,7 @@ export function registerPurchaseRoutes(app: Express) {
       const [doc] = await db.select().from(purchaseInvoices).where(eq(purchaseInvoices.id, Number(req.params.id)));
       if (!doc) return res.status(404).json({ message: "ไม่พบเอกสารซื้อ" });
       { const ac = await checkDocOwnership(doc.companyId, req.user); if (!ac.allowed) return res.status(403).json({ message: ac.message }); }
-      const items = await db.select().from(purchaseInvoiceItems).where(eq(purchaseInvoiceItems.purchaseInvoiceId, doc.id));
+      const items = await fetchPurchaseInvoiceItems(doc.id);
       const prefix = doc.docPrefix || "AP";
       const apNo = await getNextDocNo(doc.companyId, prefix, purchaseInvoices, purchaseInvoices.apNo, purchaseInvoices.companyId, doc.apDate);
       const user = req.user as any;
@@ -3878,7 +3883,7 @@ export function registerPurchaseRoutes(app: Express) {
           if (autoJournal) {
             try {
               const pmAccCode = await resolvePaymentMethodAccountCode(result.companyId, result.paymentMethod);
-              const _jiItems = await db.select().from(purchaseInvoiceItems).where(eq(purchaseInvoiceItems.purchaseInvoiceId, result.id));
+              const _jiItems = await fetchPurchaseInvoiceItems(result.id);
               const _jiDescs = _jiItems.map((i: any) => i.description).filter(Boolean);
               const _jiAccounts = _jiItems
                 .filter((i: any) => i.accountCode)

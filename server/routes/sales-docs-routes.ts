@@ -12,6 +12,11 @@ import * as XLSX from "xlsx";
 import path from "path";
 import { parse as csvParse } from "csv-parse/sync";
 
+async function fetchInvoiceItems(invoiceId: number): Promise<any[]> {
+  const r = await db.execute(sql`SELECT *, warehouse_id AS "warehouseId" FROM invoice_items WHERE invoice_id = ${invoiceId} ORDER BY id`);
+  return r.rows as any[];
+}
+
 export function registerSalesDocsRoutes(app: Express) {
 // ========== Sales Orders ==========
 app.get("/api/sales-orders", requireAuth, requireAnyModule("sales", "ecommerce"), async (req, res) => {
@@ -751,7 +756,7 @@ app.get("/api/invoices/:id", requireAuth, requireAnyModule("sales", "ecommerce")
     const [doc] = await db.select().from(invoices).where(eq(invoices.id, Number(req.params.id)));
     if (!doc) return res.status(404).json({ message: "ไม่พบใบแจ้งหนี้" });
     { const ac = await checkDocOwnership(doc.companyId, req.user); if (!ac.allowed) return res.status(403).json({ message: ac.message }); }
-    const items = await db.select().from(invoiceItems).where(eq(invoiceItems.invoiceId, doc.id));
+    const items = await fetchInvoiceItems(doc.id);
     let createdByName = "-";
     let updatedByName = "-";
     if (doc.createdBy) { const u = await storage.getUser(doc.createdBy); if (u) createdByName = u.fullName; }
@@ -856,7 +861,7 @@ app.post("/api/invoices", requireAuth, requireAnyModule("sales", "ecommerce"), a
       return doc;
     });
     console.log(`[Invoice] t2 insert=${Date.now()-t0}ms`);
-    const savedItems = await db.select().from(invoiceItems).where(eq(invoiceItems.invoiceId, result.id));
+    const savedItems = await fetchInvoiceItems(result.id);
     console.log(`[Invoice] t3 items=${Date.now()-t0}ms`);
 
     let journalResult = null;
@@ -948,7 +953,7 @@ app.patch("/api/invoices/:id", requireAuth, requireAnyModule("sales", "ecommerce
     });
     const [[updated], savedItems] = await Promise.all([
       db.select().from(invoices).where(eq(invoices.id, existing.id)),
-      db.select().from(invoiceItems).where(eq(invoiceItems.invoiceId, existing.id)),
+      fetchInvoiceItems(existing.id),
     ]);
 
     let journalResult = null;
@@ -1084,7 +1089,7 @@ app.post("/api/invoices/:id/clone", requireAuth, requireAnyModule("sales", "ecom
     const [doc] = await db.select().from(invoices).where(eq(invoices.id, Number(req.params.id)));
     if (!doc) return res.status(404).json({ message: "ไม่พบใบแจ้งหนี้" });
     { const ac = await checkDocOwnership(doc.companyId, req.user); if (!ac.allowed) return res.status(403).json({ message: ac.message }); }
-    const items = await db.select().from(invoiceItems).where(eq(invoiceItems.invoiceId, doc.id));
+    const items = await fetchInvoiceItems(doc.id);
     const prefix = (doc as any).docPrefix || "IV";
     const invoiceNo = await getNextDocNo(doc.companyId, prefix, invoices, invoices.invoiceNo, invoices.companyId, doc.invoiceDate);
     const user = req.user as any;
@@ -1143,7 +1148,7 @@ app.get("/api/share/invoice/:token", async (req, res) => {
     const [doc] = await db.select().from(invoices).where(eq(invoices.shareToken, req.params.token));
     if (!doc) return res.status(404).json({ message: "ไม่พบเอกสาร" });
     { const ac = await checkDocOwnership(doc.companyId, req.user); if (!ac.allowed) return res.status(403).json({ message: ac.message }); }
-    const items = await db.select().from(invoiceItems).where(eq(invoiceItems.invoiceId, doc.id));
+    const items = await fetchInvoiceItems(doc.id);
     const [company] = await db.select().from(companies).where(eq(companies.id, doc.companyId));
     let docSetting = null;
     let userSignature = null;
