@@ -1,7 +1,7 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { db } from "../db";
 import { sysAdmins, sysAdminPasswordHistory, sysAdminPasswordPolicy, sysAdminAuditLog, customers, employees, lineRecipients } from "@shared/schema";
-import { eq, desc, sql, isNotNull, or, ilike, and } from "drizzle-orm";
+import { eq, desc, sql, isNotNull, or, ilike, and, inArray, gte, lte } from "drizzle-orm";
 import { hashPassword, comparePasswords } from "../auth";
 import * as OTPAuth from "otpauth";
 import { sendSysAdminEmail, buildOtpEmail, getSmtpConfigForDisplay, saveSmtpConfig } from "../utils/sysadmin-email";
@@ -1007,19 +1007,75 @@ export function registerSysAdminRoutes(app: Express) {
     }
   });
 
+  const AUDIT_CATEGORY_ACTIONS: Record<string, string[]> = {
+    auth: ["login_success", "login_failed", "login_blocked", "login_blocked_ip", "login_locked", "login_2fa_pending", "login_2fa_otp_sent", "login_2fa_verified", "logout", "account_locked"],
+    setup: ["bootstrap_master", "bootstrap_2fa_sent", "bootstrap_2fa_email_pending", "bootstrap_2fa_verified", "bootstrap_2fa_email_skipped"],
+    user_mgmt: ["create_sysadmin", "update_sysadmin", "delete_sysadmin"],
+    security: ["change_password", "reset_password", "force_change_password", "unlock_account", "update_password_policy", "reset_2fa", "delete_audit_logs"],
+  };
+
   app.get("/api/sysadmin/audit-log", requireSysAdminAuth, async (req, res) => {
     try {
-      const limit = Math.min(Number(req.query.limit) || 100, 500);
+      const limit = Math.min(Number(req.query.limit) || 50, 500);
       const offset = Number(req.query.offset) || 0;
+      const category = req.query.category as string | undefined;
+      const search = req.query.search as string | undefined;
+      const dateFrom = req.query.dateFrom as string | undefined;
+      const dateTo = req.query.dateTo as string | undefined;
+
+      const conditions: any[] = [];
+      if (category && AUDIT_CATEGORY_ACTIONS[category]) {
+        conditions.push(inArray(sysAdminAuditLog.action, AUDIT_CATEGORY_ACTIONS[category]));
+      }
+      if (search && search.trim()) {
+        const s = `%${search.trim()}%`;
+        conditions.push(or(
+          ilike(sysAdminAuditLog.sysAdminUsername, s),
+          ilike(sysAdminAuditLog.action, s),
+          ilike(sysAdminAuditLog.targetName, s),
+          ilike(sysAdminAuditLog.details, s),
+        ));
+      }
+      if (dateFrom) {
+        conditions.push(gte(sysAdminAuditLog.createdAt, new Date(dateFrom)));
+      }
+      if (dateTo) {
+        const to = new Date(dateTo);
+        to.setHours(23, 59, 59, 999);
+        conditions.push(lte(sysAdminAuditLog.createdAt, to));
+      }
+
+      const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
       const logs = await db.select().from(sysAdminAuditLog)
+        .where(whereClause)
         .orderBy(desc(sysAdminAuditLog.createdAt))
         .limit(limit)
         .offset(offset);
 
-      const [{ count: total }] = await db.select({ count: sql<number>`count(*)::int` }).from(sysAdminAuditLog);
+      const [{ count: total }] = await db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(sysAdminAuditLog)
+        .where(whereClause);
 
       res.json({ logs, total, limit, offset });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.delete("/api/sysadmin/audit-log/bulk", requireSysAdminAuth, async (req, res) => {
+    try {
+      const session = req.session as any;
+      const [admin] = await db.select().from(sysAdmins).where(eq(sysAdmins.id, session.sysAdminId)).limit(1);
+      if (!admin?.isMaster) return res.status(403).json({ message: "เฉพาะ Master SysAdmin เท่านั้นที่ลบ Audit Log ได้" });
+      const { ids } = req.body;
+      if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ message: "ไม่มีรายการที่เลือก" });
+      const validIds = ids.map(Number).filter(n => !isNaN(n) && n > 0);
+      if (validIds.length === 0) return res.status(400).json({ message: "ID ไม่ถูกต้อง" });
+      await db.delete(sysAdminAuditLog).where(inArray(sysAdminAuditLog.id, validIds));
+      await logAudit(req, "delete_audit_logs", "audit", undefined, undefined, `Deleted ${validIds.length} log(s): ids=[${validIds.join(",")}]`);
+      res.json({ message: `ลบ ${validIds.length} รายการสำเร็จ` });
     } catch (err: any) {
       res.status(500).json({ message: err.message });
     }

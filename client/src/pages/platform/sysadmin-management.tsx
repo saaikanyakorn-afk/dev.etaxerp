@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import SysAdminLayout from "@/components/sysadmin-layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,6 +14,8 @@ import {
   RefreshCw, Clock, Ban, CheckCircle2, Settings,
   Search, MessageCircle, Loader2, Mail, Smartphone,
   ShieldCheck, ShieldOff, QrCode, Wifi, Send, RotateCcw,
+  Filter, ChevronLeft, ChevronRight, Calendar, LogIn, LogOut,
+  UserPlus, UserMinus, UserPen, KeyRound, Wrench,
 } from "lucide-react";
 
 type ForestLineEntry = {
@@ -1427,6 +1429,68 @@ function formatDate(d: string | null) {
   return dt.toLocaleDateString("th-TH", { year: "numeric", month: "short", day: "numeric" }) + " " + dt.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
 }
 
+function formatAuditDateTime(d: string | null) {
+  if (!d) return "—";
+  const dt = new Date(d);
+  if (isNaN(dt.getTime())) return d;
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const date = `${pad(dt.getDate())}/${pad(dt.getMonth() + 1)}/${dt.getFullYear()}`;
+  const time = `${pad(dt.getHours())}:${pad(dt.getMinutes())}:${pad(dt.getSeconds())}`;
+  return (
+    <span>
+      <span className="text-gray-700">{date}</span>
+      {" "}
+      <span className="text-gray-400">{time}</span>
+    </span>
+  );
+}
+
+const AUDIT_CATEGORIES: Record<string, { label: string; style: string; icon: React.ReactNode; actions: string[] }> = {
+  auth: {
+    label: "Authentication",
+    style: "bg-blue-50 text-blue-700 border-blue-200",
+    icon: <LogIn className="h-3 w-3" />,
+    actions: ["login_success", "login_failed", "login_blocked", "login_blocked_ip", "login_locked", "login_2fa_pending", "login_2fa_otp_sent", "login_2fa_verified", "logout", "account_locked"],
+  },
+  user_mgmt: {
+    label: "User Mgmt",
+    style: "bg-green-50 text-green-700 border-green-200",
+    icon: <UserCog className="h-3 w-3" />,
+    actions: ["create_sysadmin", "update_sysadmin", "delete_sysadmin"],
+  },
+  security: {
+    label: "Security",
+    style: "bg-orange-50 text-orange-700 border-orange-200",
+    icon: <Shield className="h-3 w-3" />,
+    actions: ["change_password", "reset_password", "force_change_password", "unlock_account", "update_password_policy", "reset_2fa", "delete_audit_logs"],
+  },
+  setup: {
+    label: "Setup",
+    style: "bg-purple-50 text-purple-700 border-purple-200",
+    icon: <Wrench className="h-3 w-3" />,
+    actions: ["bootstrap_master", "bootstrap_2fa_sent", "bootstrap_2fa_email_pending", "bootstrap_2fa_verified", "bootstrap_2fa_email_skipped"],
+  },
+};
+
+function getAuditCategory(action: string) {
+  for (const [, cat] of Object.entries(AUDIT_CATEGORIES)) {
+    if (cat.actions.includes(action)) return cat;
+  }
+  return { label: "Other", style: "bg-gray-50 text-gray-600 border-gray-200", icon: <Clock className="h-3 w-3" />, actions: [] };
+}
+
+function getActionBadgeColor(action: string): string {
+  const red = ["login_failed", "login_blocked", "login_blocked_ip", "account_locked", "delete_sysadmin", "delete_audit_logs"];
+  const green = ["login_success", "login_2fa_verified", "create_sysadmin", "unlock_account", "bootstrap_2fa_verified"];
+  const amber = ["login_locked", "login_blocked", "force_change_password", "login_2fa_pending"];
+  const gray = ["logout", "login_2fa_otp_sent", "login_2fa_pending", "bootstrap_2fa_sent", "bootstrap_2fa_email_pending"];
+  if (red.includes(action)) return "border-rose-300 text-rose-700 bg-rose-50";
+  if (green.includes(action)) return "border-emerald-300 text-emerald-700 bg-emerald-50";
+  if (amber.includes(action)) return "border-amber-300 text-amber-700 bg-amber-50";
+  if (gray.includes(action)) return "border-gray-300 text-gray-500 bg-gray-50";
+  return "border-slate-300 text-slate-600 bg-slate-50";
+}
+
 export default function SysAdminManagement() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -1439,6 +1503,15 @@ export default function SysAdminManagement() {
   const [showSmtp, setShowSmtp] = useState(false);
   const [reset2FATarget, setReset2FATarget] = useState<SysAdminUser | null>(null);
 
+  const [auditSearch, setAuditSearch] = useState("");
+  const [auditCategory, setAuditCategory] = useState("");
+  const [auditDateFrom, setAuditDateFrom] = useState("");
+  const [auditDateTo, setAuditDateTo] = useState("");
+  const [auditPage, setAuditPage] = useState(0);
+  const AUDIT_PAGE_SIZE = 25;
+  const [selectedLogIds, setSelectedLogIds] = useState<Set<number>>(new Set());
+  const [showAuditDeleteConfirm, setShowAuditDeleteConfirm] = useState(false);
+
   const { data: admins = [], isLoading } = useQuery<SysAdminUser[]>({
     queryKey: ["/api/sysadmin/users"],
   });
@@ -1447,13 +1520,46 @@ export default function SysAdminManagement() {
     queryKey: ["/api/sysadmin/password-policy"],
   });
 
-  const { data: auditData } = useQuery<{ logs: AuditLogEntry[]; total: number }>({
-    queryKey: ["/api/sysadmin/audit-log"],
+  const auditParams = new URLSearchParams();
+  auditParams.set("limit", String(AUDIT_PAGE_SIZE));
+  auditParams.set("offset", String(auditPage * AUDIT_PAGE_SIZE));
+  if (auditSearch.trim()) auditParams.set("search", auditSearch.trim());
+  if (auditCategory) auditParams.set("category", auditCategory);
+  if (auditDateFrom) auditParams.set("dateFrom", auditDateFrom);
+  if (auditDateTo) auditParams.set("dateTo", auditDateTo);
+
+  const { data: auditData, refetch: refetchAudit } = useQuery<{ logs: AuditLogEntry[]; total: number }>({
+    queryKey: ["/api/sysadmin/audit-log", auditPage, auditSearch, auditCategory, auditDateFrom, auditDateTo],
+    queryFn: async () => {
+      const res = await fetch(`/api/sysadmin/audit-log?${auditParams.toString()}`, { credentials: "include" });
+      if (!res.ok) throw new Error((await res.json()).message);
+      return res.json();
+    },
     enabled: activeTab === "audit",
   });
 
   const { data: meData } = useQuery<SysAdminUser & { mustChangePassword: boolean }>({
     queryKey: ["/api/sysadmin/me"],
+  });
+
+  const deleteAuditBulkMut = useMutation({
+    mutationFn: async (ids: number[]) => {
+      const res = await fetch("/api/sysadmin/audit-log/bulk", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ ids }),
+      });
+      if (!res.ok) throw new Error((await res.json()).message);
+      return res.json();
+    },
+    onSuccess: (data) => {
+      setSelectedLogIds(new Set());
+      setShowAuditDeleteConfirm(false);
+      refetchAudit();
+      toast({ title: data.message, variant: "success" as any });
+    },
+    onError: (err: any) => toast({ title: "ลบไม่สำเร็จ", description: err.message, variant: "destructive" }),
   });
 
   const toggleActiveMut = useMutation({
@@ -1759,44 +1865,224 @@ export default function SysAdminManagement() {
         ))}
 
         {activeTab === "audit" && (
-          <div className="bg-white border rounded-xl overflow-hidden" data-testid="audit-log-section">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="bg-gray-50 border-b">
-                    <th className="text-left px-4 py-3 font-medium text-gray-600">เวลา</th>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600">ผู้ดำเนินการ</th>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600">การกระทำ</th>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600">เป้าหมาย</th>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600">รายละเอียด</th>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600">IP</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(!auditData?.logs || auditData.logs.length === 0) ? (
-                    <tr>
-                      <td colSpan={6} className="text-center py-12 text-gray-400">ยังไม่มี Audit Log</td>
-                    </tr>
-                  ) : auditData.logs.map(log => (
-                    <tr key={log.id} className="border-b hover:bg-gray-50" data-testid={`audit-row-${log.id}`}>
-                      <td className="px-4 py-2.5 text-xs text-gray-500 whitespace-nowrap">{formatDate(log.createdAt)}</td>
-                      <td className="px-4 py-2.5 font-mono text-xs">{log.sysAdminUsername}</td>
-                      <td className="px-4 py-2.5">
-                        <Badge variant="outline" className="text-[10px]">{log.action}</Badge>
-                      </td>
-                      <td className="px-4 py-2.5 text-xs">{log.targetName || "—"}</td>
-                      <td className="px-4 py-2.5 text-xs text-gray-500 max-w-[200px] truncate">{log.details || "—"}</td>
-                      <td className="px-4 py-2.5 font-mono text-[10px] text-gray-400">{log.ipAddress || "—"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+          <div className="space-y-3" data-testid="audit-log-section">
+            {/* Filter Bar */}
+            <div className="bg-white border rounded-xl p-3 flex flex-wrap gap-2 items-end">
+              <div className="flex-1 min-w-[180px]">
+                <label className="text-[11px] text-gray-500 mb-1 block">ค้นหา</label>
+                <div className="relative">
+                  <Search className="h-3.5 w-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <Input
+                    value={auditSearch}
+                    onChange={e => { setAuditSearch(e.target.value); setAuditPage(0); setSelectedLogIds(new Set()); }}
+                    placeholder="ผู้ใช้, action, เป้าหมาย, รายละเอียด..."
+                    className="pl-8 h-8 text-xs"
+                    data-testid="input-audit-search"
+                  />
+                </div>
+              </div>
+              <div className="min-w-[150px]">
+                <label className="text-[11px] text-gray-500 mb-1 block">ประเภทเหตุการณ์</label>
+                <select
+                  value={auditCategory}
+                  onChange={e => { setAuditCategory(e.target.value); setAuditPage(0); setSelectedLogIds(new Set()); }}
+                  className="w-full h-8 text-xs border rounded-md px-2 bg-white"
+                  data-testid="select-audit-category"
+                >
+                  <option value="">ทั้งหมด</option>
+                  <option value="auth">Authentication (เข้า/ออกระบบ)</option>
+                  <option value="user_mgmt">User Management (จัดการผู้ใช้)</option>
+                  <option value="security">Security (ความปลอดภัย)</option>
+                  <option value="setup">Setup (ตั้งค่าระบบ)</option>
+                </select>
+              </div>
+              <div className="min-w-[130px]">
+                <label className="text-[11px] text-gray-500 mb-1 block flex items-center gap-1"><Calendar className="h-3 w-3" /> จากวันที่</label>
+                <Input
+                  type="date"
+                  value={auditDateFrom}
+                  onChange={e => { setAuditDateFrom(e.target.value); setAuditPage(0); setSelectedLogIds(new Set()); }}
+                  className="h-8 text-xs"
+                  data-testid="input-audit-date-from"
+                />
+              </div>
+              <div className="min-w-[130px]">
+                <label className="text-[11px] text-gray-500 mb-1 block flex items-center gap-1"><Calendar className="h-3 w-3" /> ถึงวันที่</label>
+                <Input
+                  type="date"
+                  value={auditDateTo}
+                  onChange={e => { setAuditDateTo(e.target.value); setAuditPage(0); setSelectedLogIds(new Set()); }}
+                  className="h-8 text-xs"
+                  data-testid="input-audit-date-to"
+                />
+              </div>
+              {(auditSearch || auditCategory || auditDateFrom || auditDateTo) && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-8 text-xs text-gray-500 mt-4"
+                  onClick={() => { setAuditSearch(""); setAuditCategory(""); setAuditDateFrom(""); setAuditDateTo(""); setAuditPage(0); setSelectedLogIds(new Set()); }}
+                  data-testid="btn-audit-clear-filters"
+                >
+                  <X className="h-3.5 w-3.5 mr-1" /> ล้าง filter
+                </Button>
+              )}
             </div>
-            {auditData?.total && auditData.total > 0 && (
-              <div className="px-4 py-2 border-t bg-gray-50 text-xs text-gray-500">
-                แสดง {auditData.logs.length} จาก {auditData.total} รายการ
+
+            {/* Actions bar */}
+            {isMasterCaller && selectedLogIds.size > 0 && (
+              <div className="flex items-center gap-3 bg-rose-50 border border-rose-200 rounded-xl px-4 py-2">
+                <span className="text-sm text-rose-700 font-medium">เลือกแล้ว {selectedLogIds.size} รายการ</span>
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  className="h-7 text-xs"
+                  onClick={() => setShowAuditDeleteConfirm(true)}
+                  data-testid="btn-audit-delete-selected"
+                >
+                  <Trash2 className="h-3.5 w-3.5 mr-1" /> ลบที่เลือก
+                </Button>
+                <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setSelectedLogIds(new Set())}>
+                  <X className="h-3.5 w-3.5 mr-1" /> ยกเลิก
+                </Button>
               </div>
             )}
+
+            {/* Table */}
+            <div className="bg-white border rounded-xl overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-gray-50 border-b">
+                      {isMasterCaller && (
+                        <th className="px-3 py-3 w-10">
+                          <input
+                            type="checkbox"
+                            className="rounded"
+                            checked={!!auditData?.logs?.length && auditData.logs.every(l => selectedLogIds.has(l.id))}
+                            onChange={e => {
+                              if (e.target.checked) {
+                                setSelectedLogIds(prev => {
+                                  const next = new Set(prev);
+                                  auditData?.logs?.forEach(l => next.add(l.id));
+                                  return next;
+                                });
+                              } else {
+                                setSelectedLogIds(prev => {
+                                  const next = new Set(prev);
+                                  auditData?.logs?.forEach(l => next.delete(l.id));
+                                  return next;
+                                });
+                              }
+                            }}
+                            data-testid="checkbox-audit-select-all"
+                          />
+                        </th>
+                      )}
+                      <th className="text-left px-3 py-3 font-medium text-gray-600 text-xs whitespace-nowrap">วันที่ / เวลา</th>
+                      <th className="text-left px-3 py-3 font-medium text-gray-600 text-xs">ผู้ดำเนินการ</th>
+                      <th className="text-left px-3 py-3 font-medium text-gray-600 text-xs">ประเภท</th>
+                      <th className="text-left px-3 py-3 font-medium text-gray-600 text-xs">การกระทำ</th>
+                      <th className="text-left px-3 py-3 font-medium text-gray-600 text-xs">เป้าหมาย</th>
+                      <th className="text-left px-3 py-3 font-medium text-gray-600 text-xs">รายละเอียด</th>
+                      <th className="text-left px-3 py-3 font-medium text-gray-600 text-xs">IP</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(!auditData?.logs || auditData.logs.length === 0) ? (
+                      <tr>
+                        <td colSpan={isMasterCaller ? 8 : 7} className="text-center py-12 text-gray-400 text-sm">
+                          {(auditSearch || auditCategory || auditDateFrom || auditDateTo) ? "ไม่พบรายการที่ตรงกับ filter" : "ยังไม่มี Audit Log"}
+                        </td>
+                      </tr>
+                    ) : auditData.logs.map(log => {
+                      const cat = getAuditCategory(log.action);
+                      return (
+                        <tr
+                          key={log.id}
+                          className={`border-b hover:bg-gray-50 transition-colors ${selectedLogIds.has(log.id) ? "bg-rose-50" : ""}`}
+                          data-testid={`audit-row-${log.id}`}
+                        >
+                          {isMasterCaller && (
+                            <td className="px-3 py-2">
+                              <input
+                                type="checkbox"
+                                className="rounded"
+                                checked={selectedLogIds.has(log.id)}
+                                onChange={e => {
+                                  setSelectedLogIds(prev => {
+                                    const next = new Set(prev);
+                                    e.target.checked ? next.add(log.id) : next.delete(log.id);
+                                    return next;
+                                  });
+                                }}
+                                data-testid={`checkbox-audit-${log.id}`}
+                              />
+                            </td>
+                          )}
+                          <td className="px-3 py-2 text-xs text-gray-500 whitespace-nowrap font-mono">
+                            {formatAuditDateTime(log.createdAt)}
+                          </td>
+                          <td className="px-3 py-2 font-mono text-xs font-medium">{log.sysAdminUsername}</td>
+                          <td className="px-3 py-2">
+                            <span className={`inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full border ${cat.style}`}>
+                              {cat.icon}
+                              {cat.label}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2">
+                            <Badge variant="outline" className={`text-[10px] font-mono ${getActionBadgeColor(log.action)}`}>
+                              {log.action}
+                            </Badge>
+                          </td>
+                          <td className="px-3 py-2 text-xs">{log.targetName || <span className="text-gray-300">—</span>}</td>
+                          <td className="px-3 py-2 text-xs text-gray-500 max-w-[240px]">
+                            {log.details
+                              ? <span title={log.details} className="block truncate">{log.details}</span>
+                              : <span className="text-gray-300">—</span>
+                            }
+                          </td>
+                          <td className="px-3 py-2 font-mono text-[10px] text-gray-400 whitespace-nowrap">{log.ipAddress || <span className="text-gray-300">—</span>}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Pagination footer */}
+              <div className="px-4 py-2.5 border-t bg-gray-50 flex items-center justify-between">
+                <span className="text-xs text-gray-500">
+                  {auditData?.total
+                    ? `แสดง ${auditPage * AUDIT_PAGE_SIZE + 1}–${Math.min((auditPage + 1) * AUDIT_PAGE_SIZE, auditData.total)} จาก ${auditData.total} รายการ`
+                    : "ไม่มีข้อมูล"
+                  }
+                </span>
+                <div className="flex items-center gap-1">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 w-7 p-0"
+                    disabled={auditPage === 0}
+                    onClick={() => { setAuditPage(p => p - 1); setSelectedLogIds(new Set()); }}
+                    data-testid="btn-audit-prev"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <span className="text-xs text-gray-600 px-2">หน้า {auditPage + 1} / {Math.ceil((auditData?.total || 0) / AUDIT_PAGE_SIZE) || 1}</span>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 w-7 p-0"
+                    disabled={(auditPage + 1) * AUDIT_PAGE_SIZE >= (auditData?.total || 0)}
+                    onClick={() => { setAuditPage(p => p + 1); setSelectedLogIds(new Set()); }}
+                    data-testid="btn-audit-next"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            </div>
           </div>
         )}
       </div>
@@ -1807,6 +2093,32 @@ export default function SysAdminManagement() {
       {showPolicy && policy && <PolicySettingsDialog policy={policy} onClose={() => setShowPolicy(false)} />}
       {show2FA && meData && <My2FADialog me={meData as SysAdminUser} onClose={() => setShow2FA(false)} />}
       {showSmtp && <SmtpConfigDialog onClose={() => setShowSmtp(false)} />}
+
+      {showAuditDeleteConfirm && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" data-testid="dialog-confirm-audit-delete">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6">
+            <h3 className="font-bold text-base flex items-center gap-2 mb-2">
+              <Trash2 className="h-5 w-5 text-rose-500" /> ยืนยันการลบ Audit Log
+            </h3>
+            <p className="text-sm text-gray-600 mb-1">
+              คุณกำลังจะลบ <strong className="text-rose-600">{selectedLogIds.size} รายการ</strong> ออกจากระบบอย่างถาวร
+            </p>
+            <p className="text-xs text-gray-400 mb-5">การดำเนินการนี้ไม่สามารถย้อนกลับได้ และจะบันทึกเป็น audit log ใหม่</p>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setShowAuditDeleteConfirm(false)} data-testid="btn-cancel-audit-delete">ยกเลิก</Button>
+              <Button
+                variant="destructive"
+                onClick={() => deleteAuditBulkMut.mutate(Array.from(selectedLogIds))}
+                disabled={deleteAuditBulkMut.isPending}
+                data-testid="btn-confirm-audit-delete"
+              >
+                {deleteAuditBulkMut.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Trash2 className="h-4 w-4 mr-1" />}
+                ลบถาวร {selectedLogIds.size} รายการ
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
       {reset2FATarget && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" data-testid="dialog-confirm-reset-2fa">
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6">
