@@ -273,6 +273,26 @@ export default function WarehousePage(props: { Wrapper?: React.ComponentType<{ c
     },
   });
 
+  const syncStockMutation = useMutation({
+    mutationFn: async (companyId: number) => {
+      const res = await fetch("/api/product-stock/sync-from-warehouse", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ companyId }),
+      });
+      if (!res.ok) { const e = await res.json(); throw new Error(e.message || "sync ล้มเหลว"); }
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/product-stock"] });
+      toast({ title: `Sync สำเร็จ`, description: `อัปเดตยอดคงเหลือ ${data.synced} รายการ`, variant: "success" as any });
+    },
+    onError: (err: any) => {
+      toast({ title: "Sync ล้มเหลว", description: err.message, variant: "destructive" });
+    },
+  });
+
   const stockMap = new Map<number, ProductStock>();
   stockData.forEach(s => stockMap.set(s.productId, s));
 
@@ -410,6 +430,16 @@ export default function WarehousePage(props: { Wrapper?: React.ComponentType<{ c
               >
                 <Download className="h-4 w-4 mr-1" />
                 ส่งออก
+              </Button>
+              <Button
+                variant="outline"
+                className="bg-white/60 border-yellow-300 text-yellow-800 hover:bg-white h-9"
+                onClick={() => companyId && syncStockMutation.mutate(companyId)}
+                disabled={syncStockMutation.isPending}
+                data-testid="button-sync-stock"
+              >
+                <RefreshCw className={`h-4 w-4 mr-1 ${syncStockMutation.isPending ? "animate-spin" : ""}`} />
+                Sync ยอดคงเหลือ
               </Button>
             </div>
           </div>
