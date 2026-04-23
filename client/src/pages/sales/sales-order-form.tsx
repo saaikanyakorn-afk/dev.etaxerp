@@ -192,6 +192,19 @@ export default function SalesOrderForm() {
     enabled: !!companyId,
   });
 
+  const { data: productStockList = [] } = useQuery<any[]>({
+    queryKey: ["/api/product-stock", companyId],
+    queryFn: async () => {
+      if (!companyId) return [];
+      const res = await fetch(`/api/product-stock?companyId=${companyId}`, { credentials: "include" });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!companyId,
+  });
+  const stockMap = Object.fromEntries(productStockList.map((s: any) => [s.productId, parseFloat(s.quantity || "0")]));
+
+
   const { dateEra, dateFmt } = useDateSettings();
   const { data: docSettings } = useQuery<any>({
     queryKey: ["/api/document-settings", companyId],
@@ -1099,6 +1112,11 @@ export default function SalesOrderForm() {
                       </td>
                       <td className="px-1 pt-1.5">
                         <Input data-testid={`input-qty-${idx}`} inputMode="decimal" className="h-9 text-sm text-center border-dashed w-full min-w-0 px-1" value={item.qty} onChange={e => { const v = e.target.value; if (/^\d*\.?\d*$/.test(v)) updateItem(idx, "qty", v); }} />
+                        {item.productId && stockMap[item.productId] !== undefined && (
+                          <div className={`text-[10px] text-center mt-0.5 ${stockMap[item.productId] <= 0 ? "text-red-500" : "text-slate-400"}`}>
+                            Bal. {stockMap[item.productId].toLocaleString("th-TH", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
+                          </div>
+                        )}
                       </td>
                       <td className="px-1 pt-1.5">
                         <Input data-testid={`input-price-${idx}`} inputMode="decimal" className="h-9 text-sm text-right border-dashed w-full min-w-0 px-1" value={editingPriceIdx === idx ? item.unitPrice : (parseFloat(item.unitPrice || "0") > 0 ? fmt(item.unitPrice) : item.unitPrice)} onChange={e => { const v = e.target.value; if (/^\d*\.?\d*$/.test(v)) updateItem(idx, "unitPrice", v); }} onFocus={() => setEditingPriceIdx(idx)} onBlur={() => setEditingPriceIdx(null)} />
