@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Batch Summary — รอพุช</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: "Segoe UI", "Noto Sans Thai", sans-serif; background: #f8f9fb; color: #1a1a2e; font-size: 14px; line-height: 1.6; }
+
+  .sidebar { width: 220px; background: #1a1a2e; position: fixed; top: 0; left: 0; height: 100vh; padding: 20px 0; display: flex; flex-direction: column; }
+  .sidebar-logo { padding: 0 20px 20px; border-bottom: 1px solid #2d2d4e; }
+  .sidebar-logo .title { font-size: 13px; font-weight: 700; color: #fb9678; letter-spacing: 0.5px; }
+  .sidebar-logo .sub { font-size: 11px; color: #8888aa; margin-top: 2px; }
+  .sidebar-nav { padding: 16px 0; flex: 1; overflow-y: auto; }
+  .nav-item { display: flex; align-items: center; gap: 10px; padding: 9px 20px; cursor: pointer; color: #aaaacc; font-size: 12.5px; transition: all 0.15s; border-left: 3px solid transparent; }
+  .nav-item:hover { background: #2d2d4e; color: #fff; }
+  .nav-item.active { background: #2d2d4e; color: #fb9678; border-left-color: #fb9678; }
+  .nav-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+  .dot-green { background: #22c55e; }
+  .dot-yellow { background: #facc15; }
+  .dot-red { background: #ef4444; }
+  .dot-blue { background: #3b82f6; }
+  .badge-count { margin-left: auto; background: #fb9678; color: #fff; font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 10px; }
+
+  .main { margin-left: 220px; padding: 28px 32px; max-width: 960px; }
+
+  .page-header { margin-bottom: 28px; }
+  .page-header h1 { font-size: 22px; font-weight: 700; color: #1a1a2e; }
+  .page-header .meta { font-size: 12px; color: #888; margin-top: 6px; display: flex; gap: 20px; flex-wrap: wrap; }
+  .page-header .meta span { display: flex; align-items: center; gap: 4px; }
+
+  .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 28px; }
+  .stat-card { background: #fff; border-radius: 10px; padding: 16px; border: 1px solid #eee; }
+  .stat-card .label { font-size: 11px; color: #888; margin-bottom: 4px; }
+  .stat-card .value { font-size: 22px; font-weight: 700; }
+  .stat-card .value.orange { color: #fb9678; }
+  .stat-card .value.green { color: #22c55e; }
+  .stat-card .value.yellow { color: #f59e0b; }
+  .stat-card .value.blue { color: #3b82f6; }
+
+  .compliance { background: #fff; border-radius: 10px; padding: 20px; margin-bottom: 24px; border: 1px solid #eee; }
+  .compliance h3 { font-size: 14px; font-weight: 700; margin-bottom: 14px; color: #1a1a2e; }
+  .compliance-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+  .check-item { display: flex; align-items: center; gap: 8px; font-size: 12.5px; }
+  .check-item .icon { font-size: 14px; }
+
+  .section { background: #fff; border-radius: 10px; margin-bottom: 16px; border: 1px solid #eee; overflow: hidden; }
+  .section-header { padding: 14px 20px; border-bottom: 1px solid #f0f0f0; display: flex; align-items: center; justify-content: space-between; cursor: pointer; }
+  .section-header:hover { background: #fafafa; }
+  .section-header-left { display: flex; align-items: center; gap: 10px; }
+  .feature-num { width: 22px; height: 22px; border-radius: 50%; background: #fb9678; color: #fff; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .section-header h3 { font-size: 13.5px; font-weight: 700; color: #1a1a2e; }
+  .section-header .commit { font-size: 11px; color: #888; font-family: monospace; background: #f4f4f4; padding: 2px 7px; border-radius: 4px; }
+  .risk-badge { font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: 600; }
+  .risk-low { background: #dcfce7; color: #166534; }
+  .section-body { padding: 14px 20px; }
+  .section-desc { font-size: 12.5px; color: #444; margin-bottom: 12px; }
+  .file-list { display: flex; flex-direction: column; gap: 5px; }
+  .file-item { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+  .file-badge { background: #f0f4ff; color: #3b5bdb; font-family: monospace; padding: 3px 8px; border-radius: 5px; font-size: 11.5px; }
+  .file-note { color: #888; font-size: 11px; }
+
+  .sql-block { background: #1e1e2e; color: #a6e3a1; font-family: monospace; font-size: 11.5px; padding: 12px 16px; border-radius: 8px; margin-top: 8px; line-height: 1.8; }
+
+  .total-bar { background: #fff; border-radius: 10px; padding: 16px 20px; border: 1px solid #eee; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+  .total-bar .label { font-size: 12px; color: #888; }
+  .total-bar .value { font-size: 14px; font-weight: 700; color: #1a1a2e; }
+  .total-bar .files { display: flex; gap: 4px; flex-wrap: wrap; }
+  .file-pill { background: #f4f4f6; border-radius: 4px; font-family: monospace; font-size: 10.5px; color: #555; padding: 2px 6px; }
+
+  .chevron { transition: transform 0.2s; font-size: 12px; color: #aaa; }
+  .chevron.open { transform: rotate(180deg); }
+  .section-body.hidden { display: none; }
+
+  .tag { display: inline-flex; align-items: center; font-size: 11px; padding: 2px 7px; border-radius: 10px; font-weight: 500; }
+  .tag-migration { background: #fef9c3; color: #854d0e; }
+  .tag-frontend { background: #eff6ff; color: #1e40af; }
+  .tag-backend { background: #f0fdf4; color: #166534; }
+
+  .updated { font-size: 11px; color: #aaa; text-align: right; margin-top: 24px; }
+</style>
+</head>
+<body>
+
+<div class="sidebar">
+  <div class="sidebar-logo">
+    <div class="title">🚀 E-Tax Center</div>
+    <div class="sub">Batch Push Summary</div>
+  </div>
+  <nav class="sidebar-nav">
+    <div class="nav-item active" onclick="scrollTo(0,0)">
+      <span class="nav-dot dot-blue"></span> ภาพรวม
+      <span class="badge-count">8</span>
+    </div>
+    <div class="nav-item" onclick="document.getElementById('f1').scrollIntoView({behavior:'smooth'})">
+      <span class="nav-dot dot-green"></span> Warehouse Selector
+    </div>
+    <div class="nav-item" onclick="document.getElementById('f2').scrollIntoView({behavior:'smooth'})">
+      <span class="nav-dot dot-green"></span> Bal. สต๊อกใน SO
+    </div>
+    <div class="nav-item" onclick="document.getElementById('f3').scrollIntoView({behavior:'smooth'})">
+      <span class="nav-dot dot-green"></span> Sort สินค้าคงที่
+    </div>
+    <div class="nav-item" onclick="document.getElementById('f4').scrollIntoView({behavior:'smooth'})">
+      <span class="nav-dot dot-green"></span> เลข # ตารางสินค้า
+    </div>
+    <div class="nav-item" onclick="document.getElementById('f5').scrollIntoView({behavior:'smooth'})">
+      <span class="nav-dot dot-green"></span> LINE แจ้งเตือนภาษี
+    </div>
+    <div class="nav-item" onclick="document.getElementById('f6').scrollIntoView({behavior:'smooth'})">
+      <span class="nav-dot dot-green"></span> Dialog ส่ง LINE
+    </div>
+    <div class="nav-item" onclick="document.getElementById('f7').scrollIntoView({behavior:'smooth'})">
+      <span class="nav-dot dot-green"></span> Bulk LINE Send
+    </div>
+    <div class="nav-item" onclick="document.getElementById('f8').scrollIntoView({behavior:'smooth'})">
+      <span class="nav-dot dot-green"></span> นับกลุ่ม LINE
+    </div>
+  </nav>
+</div>
+
+<div class="main">
+  <div class="page-header">
+    <h1>📦 Batch รอพี่ช้างอนุมัติพุช</h1>
+    <div class="meta">
+      <span>📅 2026-04-23</span>
+      <span>🏠 etaxerp (dev → production)</span>
+      <span>🧪 ทดสอบโดย: พี่ทราย</span>
+      <span>🤖 เตรียมโดย: Kai</span>
+    </div>
+  </div>
+
+  <div class="stats-row">
+    <div class="stat-card">
+      <div class="label">Features</div>
+      <div class="value blue">8</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">ไฟล์ที่จะ push</div>
+      <div class="value orange">17</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">SQL บน prod DB</div>
+      <div class="value green">4</div>
+      <div style="font-size:10px;color:#888;margin-top:2px">idempotent</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Risk รวม</div>
+      <div class="value green">🟢</div>
+      <div style="font-size:10px;color:#888;margin-top:2px">ต่ำทั้งหมด</div>
+    </div>
+  </div>
+
+  <div class="compliance">
+    <h3>✅ Compliance Check</h3>
+    <div class="compliance-grid">
+      <div class="check-item"><span class="icon">✅</span> ไม่แก้ schema.ts</div>
+      <div class="check-item"><span class="icon">✅</span> ไม่แก้ App.tsx</div>
+      <div class="check-item"><span class="icon">✅</span> index.ts แก้เฉพาะ register migration</div>
+      <div class="check-item"><span class="icon">✅</span> Migration idempotent (IF NOT EXISTS)</div>
+      <div class="check-item"><span class="icon">✅</span> Frontend ใช้ fetch() ไม่ใช่ apiRequest()</div>
+      <div class="check-item"><span class="icon">✅</span> Defer 0 ไฟล์</div>
+    </div>
+  </div>
+
+  <!-- F1 -->
+  <div class="section" id="f1">
+    <div class="section-header" onclick="toggle('b1','c1')">
+      <div class="section-header-left">
+        <div class="feature-num">1</div>
+        <div>
+          <h3>Warehouse Selector ใน 4 เอกสารขาย/ส่งของ</h3>
+          <div style="display:flex;gap:6px;margin-top:4px;flex-wrap:wrap">
+            <span class="tag tag-migration">Migration v87</span>
+            <span class="tag tag-frontend">Frontend</span>
+            <span class="tag tag-backend">Backend</span>
+            <code class="commit">e07e3604</code>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span class="risk-badge risk-low">🟢 ต่ำ</span>
+        <span class="chevron" id="c1">▼</span>
+      </div>
+    </div>
+    <div class="section-body" id="b1">
+      <div class="section-desc">เพิ่มช่องเลือกคลังสินค้าต่อบรรทัดสินค้าใน TIV / SO / RC / DN</div>
+      <div class="sql-block">ALTER TABLE tax_invoice_items    ADD COLUMN IF NOT EXISTS warehouse_id INTEGER;<br>ALTER TABLE sales_order_items    ADD COLUMN IF NOT EXISTS warehouse_id INTEGER;<br>ALTER TABLE receipt_items        ADD COLUMN IF NOT EXISTS warehouse_id INTEGER;<br>ALTER TABLE delivery_note_items  ADD COLUMN IF NOT EXISTS warehouse_id INTEGER;</div>
+      <div class="file-list" style="margin-top:12px">
+        <div class="file-item"><span class="file-badge">server/index.ts</span><span class="file-note">register migration</span></div>
+        <div class="file-item"><span class="file-badge">server/one-time-schema-migration.ts</span></div>
+        <div class="file-item"><span class="file-badge">server/routes/sales-docs-routes.ts</span></div>
+        <div class="file-item"><span class="file-badge">server/routes/delivery-note-routes.ts</span></div>
+        <div class="file-item"><span class="file-badge">client/.../tax-invoice-form.tsx</span></div>
+        <div class="file-item"><span class="file-badge">client/.../sales-order-form.tsx</span></div>
+        <div class="file-item"><span class="file-badge">client/.../receipt-form.tsx</span></div>
+        <div class="file-item"><span class="file-badge">client/.../delivery-note-form.tsx</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- F2 -->
+  <div class="section" id="f2">
+    <div class="section-header" onclick="toggle('b2','c2')">
+      <div class="section-header-left">
+        <div class="feature-num">2</div>
+        <div>
+          <h3>แสดงสต๊อกคงเหลือ (Bal.) ในใบสั่งขาย</h3>
+          <div style="display:flex;gap:6px;margin-top:4px">
+            <span class="tag tag-frontend">Frontend</span>
+            <code class="commit">60b8766d</code>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span class="risk-badge risk-low">🟢 ต่ำ</span>
+        <span class="chevron" id="c2">▼</span>
+      </div>
+    </div>
+    <div class="section-body" id="b2">
+      <div class="section-desc">แสดง "Bal. XX" ใต้ช่องจำนวน สีแดงเมื่อสต๊อกติดลบ</div>
+      <div class="file-list">
+        <div class="file-item"><span class="file-badge">client/.../sales-order-form.tsx</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- F3 -->
+  <div class="section" id="f3">
+    <div class="section-header" onclick="toggle('b3','c3')">
+      <div class="section-header-left">
+        <div class="feature-num">3</div>
+        <div>
+          <h3>ลำดับสินค้าคงที่ (sort code → name)</h3>
+          <div style="display:flex;gap:6px;margin-top:4px">
+            <span class="tag tag-backend">Backend</span>
+            <code class="commit">029bbafe</code>
+            <code class="commit">a06122cb</code>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span class="risk-badge risk-low">🟢 ต่ำ</span>
+        <span class="chevron" id="c3">▼</span>
+      </div>
+    </div>
+    <div class="section-body" id="b3">
+      <div class="section-desc">เปลี่ยน ORDER BY created_at → code ASC, name ASC (แก้ 2 จุด)</div>
+      <div class="file-list">
+        <div class="file-item"><span class="file-badge">server/storage.ts</span></div>
+        <div class="file-item"><span class="file-badge">server/routes/products-routes.ts</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- F4 -->
+  <div class="section" id="f4">
+    <div class="section-header" onclick="toggle('b4','c4')">
+      <div class="section-header-left">
+        <div class="feature-num">4</div>
+        <div>
+          <h3>เลขลำดับ # ในตารางสินค้า</h3>
+          <div style="display:flex;gap:6px;margin-top:4px">
+            <span class="tag tag-frontend">Frontend</span>
+            <code class="commit">d10d523b</code>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span class="risk-badge risk-low">🟢 ต่ำ</span>
+        <span class="chevron" id="c4">▼</span>
+      </div>
+    </div>
+    <div class="section-body" id="b4">
+      <div class="section-desc">เพิ่มคอลัมน์ # แสดง 1, 2, 3... ในหน้าคลังสินค้า</div>
+      <div class="file-list">
+        <div class="file-item"><span class="file-badge">client/.../inventory-list.tsx</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- F5 -->
+  <div class="section" id="f5">
+    <div class="section-header" onclick="toggle('b5','c5')">
+      <div class="section-header-left">
+        <div class="feature-num">5</div>
+        <div>
+          <h3>แจ้งเตือนภาษี LINE ไม่โชว์กลุ่ม — Fix</h3>
+          <div style="display:flex;gap:6px;margin-top:4px">
+            <span class="tag tag-frontend">Frontend</span>
+            <code class="commit">8b53f1ad</code>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span class="risk-badge risk-low">🟢 ต่ำ</span>
+        <span class="chevron" id="c5">▼</span>
+      </div>
+    </div>
+    <div class="section-body" id="b5">
+      <div class="section-desc">เปลี่ยน endpoint จาก /api/line-groups → /api/line-documents/groups</div>
+      <div class="file-list">
+        <div class="file-item"><span class="file-badge">client/.../tax-reminder-settings.tsx</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- F6 -->
+  <div class="section" id="f6">
+    <div class="section-header" onclick="toggle('b6','c6')">
+      <div class="section-header-left">
+        <div class="feature-num">6</div>
+        <div>
+          <h3>Dialog ส่ง LINE แสดงกลุ่มจาก บริหารสำนักงาน อัตโนมัติ</h3>
+          <div style="display:flex;gap:6px;margin-top:4px">
+            <span class="tag tag-frontend">Frontend</span>
+            <code class="commit">5d591575</code>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span class="risk-badge risk-low">🟢 ต่ำ</span>
+        <span class="chevron" id="c6">▼</span>
+      </div>
+    </div>
+    <div class="section-body" id="b6">
+      <div class="section-desc">Merge lineGroupMappings + lineRecipients ใน dialog — กลุ่มที่ผูกใน บริหารสำนักงาน โชว์อัตโนมัติ</div>
+      <div class="file-list">
+        <div class="file-item"><span class="file-badge">client/.../line-send-dialog.tsx</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- F7 -->
+  <div class="section" id="f7">
+    <div class="section-header" onclick="toggle('b7','c7')">
+      <div class="section-header-left">
+        <div class="feature-num">7</div>
+        <div>
+          <h3>ส่งใบแจ้งหนี้ผ่าน LINE ทีเดียวทุกบริษัท (Bulk Send)</h3>
+          <div style="display:flex;gap:6px;margin-top:4px">
+            <span class="tag tag-frontend">Frontend</span>
+            <span class="tag tag-backend">Backend</span>
+            <code class="commit">9d09da09</code>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span class="risk-badge risk-low">🟢 ต่ำ</span>
+        <span class="chevron" id="c7">▼</span>
+      </div>
+    </div>
+    <div class="section-body" id="b7">
+      <div class="section-desc">ปุ่ม "ส่ง LINE (X ใบ)" ในหน้า สรุปค่างวด — กดครั้งเดียว ส่งทุกบริษัท แสดงผลรายบริษัท</div>
+      <div class="file-list">
+        <div class="file-item"><span class="file-badge">server/routes/billing-notes-routes.ts</span><span class="file-note">POST /api/firm-billing/batch-send-line</span></div>
+        <div class="file-item"><span class="file-badge">client/.../billing.tsx</span><span class="file-note">ปุ่ม + confirm + results dialogs</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- F8 -->
+  <div class="section" id="f8">
+    <div class="section-header" onclick="toggle('b8','c8')">
+      <div class="section-header-left">
+        <div class="feature-num">8</div>
+        <div>
+          <h3>แสดงจำนวนกลุ่มเชื่อมโยงในหน้าตั้งค่ากลุ่ม LINE</h3>
+          <div style="display:flex;gap:6px;margin-top:4px">
+            <span class="tag tag-frontend">Frontend</span>
+            <code class="commit">f83151f5</code>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span class="risk-badge risk-low">🟢 ต่ำ</span>
+        <span class="chevron" id="c8">▼</span>
+      </div>
+    </div>
+    <div class="section-body" id="b8">
+      <div class="section-desc">badge "X กลุ่มเชื่อมโยงแล้ว" ในหัวหน้า + pill "X กลุ่ม" ในหัวหมวด</div>
+      <div class="file-list">
+        <div class="file-item"><span class="file-badge">client/.../line-document-archive.tsx</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="total-bar">
+    <div>
+      <div class="label">ไฟล์ทั้งหมด (17 ไฟล์)</div>
+      <div class="files" style="margin-top:6px">
+        <span class="file-pill">server/index.ts</span>
+        <span class="file-pill">one-time-schema-migration.ts</span>
+        <span class="file-pill">billing-notes-routes.ts</span>
+        <span class="file-pill">delivery-note-routes.ts</span>
+        <span class="file-pill">products-routes.ts</span>
+        <span class="file-pill">sales-docs-routes.ts</span>
+        <span class="file-pill">storage.ts</span>
+        <span class="file-pill">line-send-dialog.tsx</span>
+        <span class="file-pill">delivery-note-form.tsx</span>
+        <span class="file-pill">billing.tsx</span>
+        <span class="file-pill">inventory-list.tsx</span>
+        <span class="file-pill">line-document-archive.tsx</span>
+        <span class="file-pill">receipt-form.tsx</span>
+        <span class="file-pill">sales-order-form.tsx</span>
+        <span class="file-pill">tax-invoice-form.tsx</span>
+        <span class="file-pill">tax-reminder-settings.tsx</span>
+        <span class="file-pill">opengraph.jpg</span>
+      </div>
+    </div>
+    <div style="text-align:right">
+      <div class="label">Status</div>
+      <div style="font-size:13px;font-weight:700;color:#22c55e;margin-top:2px">✅ รอพี่ช้าง Authorize</div>
+    </div>
+  </div>
+
+  <div class="updated">อัปเดตล่าสุด: 2026-04-23 · commit f83151f5</div>
+</div>
+
+<script>
+  function toggle(bodyId, chevronId) {
+    const body = document.getElementById(bodyId);
+    const chevron = document.getElementById(chevronId);
+    body.classList.toggle('hidden');
+    chevron.classList.toggle('open');
+  }
+</script>
+</body>
+</html>
