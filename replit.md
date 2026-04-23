@@ -64,6 +64,66 @@ Before modifying ANY file on the protected/review-carefully lists — even small
 
 ---
 
+## 🗄️ PRODUCTION DATABASE CHANGE PROCEDURE (deep-main / etaxerp)
+
+**MANDATORY — every time a schema/data change is needed on production DB. No shortcuts.**
+
+### Step 1 — Pull & Compare
+Pull `shared/schema.ts` (and any relevant file) from etaxerp via GitHub API → save to `/tmp/prod-schema.ts` → `diff` against dev version → document what differs.
+
+### Step 2 — Inspect deep-main BY EYES
+Open DBeaver / psql on deep-main. Look at the actual table structure with your own eyes. Confirm column names, types, existing indexes, constraints. Mark exactly what you need to add/change.
+
+### Step 3 — Plan schema-extra block
+Write the migration block inside `shared/schema-extra.ts`:
+- Use `db.execute(sql\`...\`)` with raw SQL
+- Use `system_config` flag to prevent re-run (idempotent):
+  ```ts
+  const flag = await db.execute(sql`SELECT config_value FROM system_config WHERE config_key = 'MIGRATION_KEY' LIMIT 1`);
+  if ((flag.rows||[]).length > 0) return;
+  // ... do work ...
+  await db.execute(sql`INSERT INTO system_config (config_key, config_value) VALUES ('MIGRATION_KEY', ${"done_"+new Date().toISOString()}) ON CONFLICT (config_key) DO NOTHING`);
+  ```
+- For `ADD COLUMN`: use `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`
+
+### Step 4 — Backup FIRST (if existing data is touched)
+If the SQL will **modify or delete existing data** (e.g. ALTER column type, bulk UPDATE, DELETE rows, DROP column):
+- Create a backup table on deep-main BEFORE running anything:
+  ```sql
+  CREATE TABLE backup_<tablename>_<YYYYMMDD> AS SELECT * FROM <tablename>;
+  ```
+- Record backup table name in the history entry (Step 6).
+
+### Step 5 — Deploy, Run Once, Verify BY EYES
+1. Send the updated `schema-extra.ts` to etaxerp (cherry-pick)
+2. Restart etaxerp → migration runs on startup
+3. **STOP** — open DBeaver / psql on deep-main
+4. Verify the change actually happened with your own eyes
+5. Check system_config flag is set
+
+### Step 6 — Record History
+Update `shared/schema-extra.ts` history section AND the DB version table:
+```sql
+INSERT INTO schema_versions (version, description, change_type, pushed_repos, changed_by, notes)
+VALUES ('vXXX', 'What changed', 'alter_column|add_column|data_migration', 'etaxerp', 'Kai/พี่ช้าง', 'backup: backup_<tablename>_<YYYYMMDD>');
+```
+
+### Step 7 — Comment Out the One-Time Block
+In `schema-extra.ts`, wrap the migration function in a comment block:
+```ts
+/* ── DONE <date>: <description> ──
+ * Verified: <what you saw in DB>
+ * Backup: backup_<tablename>_<YYYYMMDD> (if applicable)
+ * <original code here>
+ */
+```
+
+### Step 8 — Push Clean schema-extra + Rebuild
+1. Push the commented-out `schema-extra.ts` back to etaxerp
+2. Rebuild (`npm run build`) and/or `pm2 restart etax-center` as needed
+
+---
+
 ## ⛔ PRE-PUSH CHECKLIST (MANDATORY — DO BEFORE EVERY GIT PUSH)
 1. **Insert schema_version record** in BOTH Replit DB AND Production DB — version, description, change_type, pushed_repos
 2. **Bump SCHEMA_VERSION** constant in server/index.ts
