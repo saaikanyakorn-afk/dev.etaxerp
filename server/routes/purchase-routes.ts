@@ -929,7 +929,7 @@ export function registerPurchaseRoutes(app: Express) {
             const rawDiscount = String(item.discount || "0");
             const isPercent = rawDiscount.includes("%");
             const discountNum = parseFloat(rawDiscount.replace("%", "")) || 0;
-            await tx.insert(purchaseInvoiceItems).values({
+            const insertedPI = await tx.insert(purchaseInvoiceItems).values({
               purchaseInvoiceId: doc.id,
               productId: item.productId ? Number(item.productId) : null,
               productCode: item.productCode || null,
@@ -944,7 +944,11 @@ export function registerPurchaseRoutes(app: Express) {
               vatType: item.vatType || "vat7",
               accountCode: item.accountCode || null,
               accountName: item.accountName || null,
-            });
+            }).returning({ id: purchaseInvoiceItems.id });
+            // warehouse_id: column not in schema.ts, patch via raw SQL
+            if (item.warehouseId) {
+              await tx.execute(sql`UPDATE purchase_invoice_items SET warehouse_id = ${Number(item.warehouseId)} WHERE id = ${insertedPI[0].id}`);
+            }
           }
         }
         for (const item of (items || [])) {

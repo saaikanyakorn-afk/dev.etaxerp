@@ -845,7 +845,13 @@ app.post("/api/invoices", requireAuth, requireAnyModule("sales", "ecommerce"), a
             vatType: item.vatType || "vat7",
           };
         });
-        await tx.insert(invoiceItems).values(itemValues);
+        const insertedItems = await tx.insert(invoiceItems).values(itemValues).returning({ id: invoiceItems.id });
+        // warehouse_id: column not in schema.ts, patch via raw SQL
+        for (let i = 0; i < items.length; i++) {
+          if (items[i].warehouseId) {
+            await tx.execute(sql`UPDATE invoice_items SET warehouse_id = ${Number(items[i].warehouseId)} WHERE id = ${insertedItems[i].id}`);
+          }
+        }
       }
       return doc;
     });
