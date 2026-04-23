@@ -1,3 +1,9 @@
+/* Self-hosted Sarabun font — no external Google Fonts dependency at runtime */
+@import "@fontsource/sarabun/300.css";
+@import "@fontsource/sarabun/400.css";
+@import "@fontsource/sarabun/600.css";
+@import "@fontsource/sarabun/700.css";
+
 @import "tailwindcss";
 @import "tw-animate-css";
 
