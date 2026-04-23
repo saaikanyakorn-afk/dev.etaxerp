@@ -153,9 +153,15 @@ In `schema-extra.ts`, wrap the migration function in a comment block:
  */
 ```
 
-### Step 8 — Push Clean schema-extra + Rebuild
-1. Push the commented-out `schema-extra.ts` back to etaxerp
-2. Rebuild (`npm run build`) and/or `pm2 restart etax-center` as needed
+### Step 8 — Push Clean to GitHub + Cherry-Pick Clean to etaxerp
+1. Commit the commented-out migration file to dev → push to GitHub production remote
+2. **Cherry-pick the clean file to etaxerp** — GitHub has clean version, but etaxerp still has dirty version until you do this:
+   ```
+   cd C:\GitApp\etaxcenter
+   git fetch origin
+   git checkout origin/main -- <migration-file>
+   ```
+3. No `npm run build` or `pm2 restart` needed for migration-only files (flag already set, won't re-run)
 
 ---
 
