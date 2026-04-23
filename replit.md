@@ -33,6 +33,7 @@ Last verified build: **2026-04-21 (v98 cherry-pick — migration seedAccount5210
 | 2026-04-21 | v102 | expense-routes.ts (debug log removed) | 7.4 MB | index-BsEaVt8S.js 360.46 kB | Clean: remove debug log. Dev confirmed shouldJournal=true. Build 43.63s, pm2 restart 6, 84.5mb |
 | 2026-04-21 | v103 | expense-routes.ts (confirmed pull) | 7.4 MB | index-BsEaVt8S.js 360.46 kB | Confirmed expense-routes.ts was old on prod — pulled correct version. Build 43.75s, pm2 restart 7, 84.6mb |
 | 2026-04-21 | v104 | module-select.tsx | 7.4 MB | index-BSIVEiKF.js 344.49 kB | Fix: add inventory/sales/purchases cards to module-select. Employee with inventory perms was auto-redirected to /hr/attendance (hasMultipleModules=false). Build 43.94s, pm2 restart 10, 85.1mb |
+| 2026-04-23 | v105 | sales-docs-routes.ts, purchase-routes.ts, invoice-form.tsx, purchase-invoice.tsx, replit.md | 7.4 MB | index-BoOQHVbf.js 360.46 kB | Warehouse selector Parts 2+3+4: save + fetch + UI. Build 42.96s, pm2 83.0mb |
 
 ## 🔴 GOLDEN RULE — PULL-BEFORE-TOUCH (MANDATORY for any protected/sensitive file)
 
