@@ -1174,6 +1174,8 @@ Once Stage 3 begins, revisit the JOIN inventory below and add appropriate indexe
 - **Domain:** etaxerp.com (SSL certificate installed)
 - **SSL cert:** `D:\Server\Apache24\conf\ssl\etaxerp.com-chain.pem` / `etaxerp.com-key.pem`
 - **Apache config:** `httpd-vhosts.conf` (HTTP→HTTPS redirect), `httpd-ssl.conf` (SSL VirtualHost with reverse proxy to localhost:5000)
+- **Apache DocumentRoot:** `D:\Server\Websites\etaxerp` (static files served from here — separate from app path)
+- **maintenance.html:** Lives at `D:\Server\Websites\etaxerp\maintenance.html` — served automatically by Apache when pm2 is stopped (503 ErrorDocument). After cherry-picking from repo, must manually copy: `copy C:\GitApp\etaxcenter\maintenance.html D:\Server\Websites\etaxerp\maintenance.html`
 - **Deploy pipeline:** Replit → GitHub → git pull on server → `npm run build` → `pm2 restart all`
 - **Env vars:** `.env` file at project root must have `VITE_RECAPTCHA_SITE_KEY` set BEFORE `npm run build` (Vite bakes it at build time)
 - **TODO (deploy day):** `git pull` → `npm run build` → `pm2 restart all` (reCAPTCHA will work after rebuild with .env in place)
