@@ -799,6 +799,13 @@ async function runMigrationsInBackground() {
     } catch (e: any) {
       console.error("[OneTimeMigration] import/run error:", e.message);
     }
+    // ONE-TIME MIGRATION: schema v87 — warehouse_id to sales/delivery items
+    try {
+      const { runOneTimeSchemaV87Migration } = await import("./one-time-schema-migration");
+      await runOneTimeSchemaV87Migration();
+    } catch (e: any) {
+      console.error("[OneTimeMigration v87] import/run error:", e.message);
+    }
     migrationReady = true;
     log("Core schema ready - API enabled");
     try {
