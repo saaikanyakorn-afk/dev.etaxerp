@@ -1,7 +1,7 @@
 import type { Express, Request, Response } from "express";
 import { db } from "../db";
 import { storage } from "../storage";
-import { eq, desc, and, or, ilike, inArray, count, sum , sql } from "drizzle-orm";
+import { eq, desc, asc, and, or, ilike, inArray, count, sum , sql } from "drizzle-orm";
 import { products, productBundles, documentImportBatches, stockMovements, promotions, companies, productLots, goodsRequisitions, goodsRequisitionItems, journalEntries, journalLines, stockTransfers, stockTransferItems, warehouses, warehouseStockLevels, branches } from "@shared/schema";
 import { requireAuth, requireModule, requireAnyModule, checkDocOwnership } from "../route-middleware";
 import { getNextJournalEntryNo, logActivity, deleteStockMovementsForDoc, deductStockBundleAware } from "../route-helpers";
@@ -580,7 +580,7 @@ app.get("/api/products", requireAuth, requireModule("inventory"), async (req, re
     if (category) conditions.push(eq(products.category, category));
     const whereClause = and(...conditions);
     const [{ total }] = await db.select({ total: count() }).from(products).where(whereClause);
-    let query = db.select().from(products).where(whereClause).orderBy(desc(products.createdAt));
+    let query = db.select().from(products).where(whereClause).orderBy(asc(products.code), asc(products.name));
     const list = usePagination
       ? await query.limit(pageSize).offset(offset)
       : await query;
