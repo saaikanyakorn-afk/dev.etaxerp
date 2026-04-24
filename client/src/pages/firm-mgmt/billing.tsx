@@ -810,6 +810,11 @@ export default function FirmBilling() {
                 <strong>Error:</strong> {lineDebugError}
               </div>
             )}
+            <button className="text-xs text-blue-500 underline" onClick={async () => {
+              const r = await fetch("/api/firm-billing/ping", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ test: 1 }) });
+              const txt = await r.text();
+              setLineDebugError(`PING ${r.status}: ${txt.slice(0, 200)}`);
+            }}>test server connection</button>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setLineSendConfirmOpen(false)}>ยกเลิก</Button>

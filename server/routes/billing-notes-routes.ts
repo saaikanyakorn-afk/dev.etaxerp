@@ -394,6 +394,10 @@ app.get("/api/firm-billing/status", requireAuth, requireModule("firm-mgmt"), asy
   } catch (err: any) { res.status(500).json({ message: err.message }); }
 });
 
+app.post("/api/firm-billing/ping", (req, res) => {
+  res.json({ ok: true, receivedBody: req.body });
+});
+
 app.post("/api/firm-billing/batch-generate", requireAuth, requireModule("firm-mgmt"), async (req, res) => {
   try {
     const { companyId, firmClientIds, month, year, invoiceDate, creditDays } = req.body;
