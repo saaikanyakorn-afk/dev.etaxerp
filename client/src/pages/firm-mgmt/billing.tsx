@@ -230,7 +230,7 @@ export default function FirmBilling() {
   const batchSendLine = useMutation({
     mutationFn: async (clientIds?: number[]) => {
       const ids = clientIds ?? selectedGeneratedClients.map((c: any) => c.id);
-      const r = await fetch("/api/firm-billing/batch-send-line", {
+      const r = await fetch("/api/firm-billing/line-push-invoices", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
