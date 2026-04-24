@@ -218,6 +218,11 @@ export default function HRLayout({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!user || !myModulesNoCompany) return;
     const sessionKey = `hr-module-redirected-${user.id}`;
+    // Already in HR — mark as handled, never redirect away
+    if (window.location.pathname.startsWith("/hr")) {
+      sessionStorage.setItem(sessionKey, "1");
+      return;
+    }
     if (sessionStorage.getItem(sessionKey)) return;
     const otherModules = (myModulesNoCompany.modules || []).filter(m => m !== "hr");
     if (otherModules.length > 0) {
