@@ -574,7 +574,7 @@ app.post("/api/firm-billing/linesend", requireAuth, requireModule("firm-mgmt"), 
       if (m) invMap.set(Number(m[1]), inv);
     }
 
-    const proto = req.get("x-forwarded-proto") || req.protocol;
+    const proto = process.env.NODE_ENV === "production" ? "https" : (req.get("x-forwarded-proto") || req.protocol);
     const host = req.get("x-forwarded-host") || req.get("host") || "";
     const baseUrl = `${proto}://${host}`;
     const { randomBytes } = await import("crypto");
