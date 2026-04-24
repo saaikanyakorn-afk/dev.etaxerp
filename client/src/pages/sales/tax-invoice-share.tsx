@@ -111,7 +111,7 @@ export default function TaxInvoiceShare() {
         </div>
       </div>
 
-      <div className="max-w-3xl mx-auto py-6 px-4 print:!py-0 print:!px-0 print:!max-w-none print:!m-0">
+      <div className="max-w-3xl mx-auto py-6 px-4 print:!py-0 print:!px-0 print:!max-w-none print:!m-0 overflow-x-auto">
         <DocumentRenderer
           settings={docSettings}
           company={data.company}

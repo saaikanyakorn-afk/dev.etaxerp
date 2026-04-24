@@ -314,7 +314,7 @@ export default function DocumentRenderer({
 
   return (
     <div
-      className="bg-white border rounded-lg shadow-sm overflow-hidden print:!border-0 print:!shadow-none print:!rounded-none"
+      className="bg-white border rounded-lg shadow-sm overflow-hidden print:!border-0 print:!shadow-none print:!rounded-none min-w-[640px]"
       style={{ fontSize: "11px", lineHeight: 1.5, fontFamily: "'Sarabun', 'Inter', sans-serif" }}
       data-testid="document-renderer"
     >
