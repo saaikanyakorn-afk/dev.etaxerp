@@ -123,6 +123,36 @@ If the SQL will **modify or delete existing data** (e.g. ALTER column type, bulk
 
 ### Step 5 — Get พี่ทราย Approval, Deploy, Verify BY EYES
 
+**⚠️ DEPLOYMENT CHECKLIST — create this BEFORE every batch push, track it throughout:**
+
+When a batch is started, Kai must write and maintain a checklist. If interrupted (bug fix, side-road), return to this list to know what's left. Never consider a batch "done" until every box is ticked.
+
+```
+BATCH: <name> — <date>
+Files to pull (<N> total):
+  [ ] client/src/...
+  [ ] client/src/...
+  [ ] server/routes/...
+  [ ] server/one-time-schema-migration.ts  ← if migration batch
+
+STEPS:
+  [ ] 1. All files pushed to push-batch branch on github-production
+  [ ] 2. พี่ทราย approval obtained (if migration → 2 restarts)
+  [ ] 3. พี่ช้าง: git fetch + git checkout ALL files above + npm run build
+  [ ] 4. Restart #1 — pm2 restart etax-center
+  [ ] 5. Kai: verify migration ran (flag + columns) — print console output
+  [ ] 6. If migration silent fail → run SQL directly on deep-main, print output
+  [ ] 7. Kai: comment out migration block → push clean file
+  [ ] 8. พี่ช้าง: pull clean migration file + npm run build
+  [ ] 9. Restart #2 — pm2 restart etax-center (clean build)
+  [ ] 10. พี่ทราย: verify ALL features work (not just migration)
+  [ ] 11. Loop closed ✅
+```
+
+**RULE: If interrupted mid-checklist, note which step you're on. Resume from that step — do NOT assume earlier steps are complete unless explicitly verified.**
+
+---
+
 **WHAT BRINGS THE SERVER DOWN — know this exactly:**
 - `git fetch origin` → zero downtime
 - `git checkout origin/<branch> -- <files>` → zero downtime
