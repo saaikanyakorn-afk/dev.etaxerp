@@ -5,6 +5,7 @@ import { z } from "zod";
 import { eq, and, asc, desc, sql, inArray, between, gte, lte, ne } from "drizzle-orm";
 import ExcelJS from "exceljs";
 import { employees, departments, branches, companies, holidays, workSchedules, workLocations, otSettings, payrollRecords, attendanceRecords, otRecords, accounts, journalEntries, insertEmployeeSchema, insertOtSchema, insertLeaveSchema, insertWorkLocationSchema, commissionRules, commissionRecords, taxInvoices, invoices, firmClients, firmClientTeam, workStatusRows, leaveRequests, evaluationResults, taskAssignees, users, shifts, employeeShiftAssignments, leavePolicies, leaveBalances, insertLeavePolicySchema, notifications, scannerEmployeeMappings, scannerImportLogs, autoOtConfig } from "@shared/schema";
+import { employeeHourSettings } from "@shared/schema-extra";
 import { requireAuth, requireModule, requireRole, checkDocOwnership } from "../route-middleware";
 import { haversineDistance, getNextJournalEntryNo, isViewingOwnCompany, isPrivilegedRole, isFullAccessRole, logActivity, withDbRetry, isDbConnectionError, verifyCompanyAccess } from "../route-helpers";
 import multer from "multer";
@@ -856,7 +857,10 @@ export function registerHrRoutes(app: Express) {
 
       let isLate = false;
       const [empData] = await db.select({ exemptFromCheckin: employees.exemptFromCheckin }).from(employees).where(eq(employees.id, employeeId));
-      if (!empData?.exemptFromCheckin) {
+      const [hourSettings] = await db.select().from(employeeHourSettings).where(eq(employeeHourSettings.employeeId, employeeId));
+      const empAttendanceType = hourSettings?.attendanceType || "time_based";
+
+      if (!empData?.exemptFromCheckin && empAttendanceType !== "flexible_hours") {
         const [shiftAssignment] = await db.select().from(employeeShiftAssignments)
           .where(and(eq(employeeShiftAssignments.employeeId, employeeId), eq(employeeShiftAssignments.date, today)));
         if (shiftAssignment) {
@@ -902,6 +906,33 @@ export function registerHrRoutes(app: Express) {
       const isDbError = err.message?.includes("connect") || err.message?.includes("timeout") || err.message?.includes("ECONNRE");
       res.status(isDbError ? 503 : 400).json({ message: isDbError ? "ระบบฐานข้อมูลขัดข้อง กรุณาลองใหม่" : err.message });
     }
+  });
+
+  app.get("/api/hr/attendance-settings/:employeeId", requireAuth, requireModule("hr"), async (req, res) => {
+    try {
+      const employeeId = parseInt(req.params.employeeId);
+      if (isNaN(employeeId)) return res.status(400).json({ message: "invalid employeeId" });
+      const [settings] = await db.select().from(employeeHourSettings).where(eq(employeeHourSettings.employeeId, employeeId));
+      if (!settings) return res.json({ attendanceType: "time_based", requiredHoursPerDay: "9" });
+      res.json({ attendanceType: settings.attendanceType, requiredHoursPerDay: settings.defaultHoursPerDay || "9" });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.patch("/api/hr/attendance-settings/:employeeId", requireAuth, requireModule("hr"), async (req, res) => {
+    try {
+      const employeeId = parseInt(req.params.employeeId);
+      if (isNaN(employeeId)) return res.status(400).json({ message: "invalid employeeId" });
+      const { attendanceType, requiredHoursPerDay } = req.body;
+      const type = attendanceType || "time_based";
+      const hours = requiredHoursPerDay || "9";
+      const [existing] = await db.select().from(employeeHourSettings).where(eq(employeeHourSettings.employeeId, employeeId));
+      if (existing) {
+        await db.update(employeeHourSettings).set({ attendanceType: type, defaultHoursPerDay: hours }).where(eq(employeeHourSettings.employeeId, employeeId));
+      } else {
+        await db.insert(employeeHourSettings).values({ employeeId, attendanceType: type, defaultHoursPerDay: hours });
+      }
+      res.json({ success: true, attendanceType: type, requiredHoursPerDay: hours });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
   app.post("/api/attendance/check-out", requireAuth, requireModule("hr"), async (req, res) => {
