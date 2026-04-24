@@ -138,7 +138,7 @@
     </div>
     <div class="stat-card">
       <div class="label">ไฟล์ที่จะ push</div>
-      <div class="value orange">17</div>
+      <div class="value orange">16</div>
     </div>
     <div class="stat-card">
       <div class="label">SQL บน prod DB</div>
@@ -157,7 +157,7 @@
     <div class="compliance-grid">
       <div class="check-item"><span class="icon">✅</span> ไม่แก้ schema.ts</div>
       <div class="check-item"><span class="icon">✅</span> ไม่แก้ App.tsx</div>
-      <div class="check-item"><span class="icon">✅</span> index.ts แก้เฉพาะ register migration</div>
+      <div class="check-item"><span class="icon">✅</span> ไม่แก้ index.ts (protected file)</div>
       <div class="check-item"><span class="icon">✅</span> Migration idempotent (IF NOT EXISTS)</div>
       <div class="check-item"><span class="icon">✅</span> Frontend ใช้ fetch() ไม่ใช่ apiRequest()</div>
       <div class="check-item"><span class="icon">✅</span> Defer 0 ไฟล์</div>
@@ -188,8 +188,7 @@
       <div class="section-desc">เพิ่มช่องเลือกคลังสินค้าต่อบรรทัดสินค้าใน TIV / SO / RC / DN</div>
       <div class="sql-block">ALTER TABLE tax_invoice_items    ADD COLUMN IF NOT EXISTS warehouse_id INTEGER;<br>ALTER TABLE sales_order_items    ADD COLUMN IF NOT EXISTS warehouse_id INTEGER;<br>ALTER TABLE receipt_items        ADD COLUMN IF NOT EXISTS warehouse_id INTEGER;<br>ALTER TABLE delivery_note_items  ADD COLUMN IF NOT EXISTS warehouse_id INTEGER;</div>
       <div class="file-list" style="margin-top:12px">
-        <div class="file-item"><span class="file-badge">server/index.ts</span><span class="file-note">register migration</span></div>
-        <div class="file-item"><span class="file-badge">server/one-time-schema-migration.ts</span></div>
+        <div class="file-item"><span class="file-badge">server/one-time-schema-migration.ts</span><span class="file-note">chain v85→v87</span></div>
         <div class="file-item"><span class="file-badge">server/routes/sales-docs-routes.ts</span></div>
         <div class="file-item"><span class="file-badge">server/routes/delivery-note-routes.ts</span></div>
         <div class="file-item"><span class="file-badge">client/.../tax-invoice-form.tsx</span></div>
@@ -388,9 +387,8 @@
 
   <div class="total-bar">
     <div>
-      <div class="label">ไฟล์ทั้งหมด (17 ไฟล์)</div>
+      <div class="label">ไฟล์ทั้งหมด (16 ไฟล์)</div>
       <div class="files" style="margin-top:6px">
-        <span class="file-pill">server/index.ts</span>
         <span class="file-pill">one-time-schema-migration.ts</span>
         <span class="file-pill">billing-notes-routes.ts</span>
         <span class="file-pill">delivery-note-routes.ts</span>
