@@ -609,21 +609,21 @@ app.post("/api/firm-billing/batch-send-line", requireAuth, requireModule("firm-m
             to: groupMapping.lineGroupId,
             messages: [{
               type: "flex",
-              altText: `ใบแจ้งหนี้ ${inv.invoiceNo} จาก ${senderName}`,
+              altText: `ใบแจ้งหนี้ค่าบริการทำบัญชี ${inv.invoiceNo} จาก ${senderName}`,
               contents: {
                 type: "bubble",
                 header: {
                   type: "box", layout: "vertical", backgroundColor: "#fb9678", paddingAll: "16px",
                   contents: [
                     { type: "text", text: senderName, size: "xs", color: "#ffffff", weight: "bold" },
-                    { type: "text", text: "ใบแจ้งหนี้", size: "lg", color: "#ffffff", weight: "bold" },
+                    { type: "text", text: "ใบแจ้งหนี้ค่าบริการทำบัญชี", size: "lg", color: "#ffffff", weight: "bold" },
                   ],
                 },
                 body: {
                   type: "box", layout: "vertical", spacing: "sm", paddingAll: "16px",
                   contents: [
                     { type: "text", text: inv.invoiceNo || "-", size: "md", weight: "bold", color: "#333333" },
-                    { type: "text", text: `ประจำเดือน ${monthLabel}`, size: "sm", color: "#888888" },
+                    { type: "text", text: `ค่าบริการทำบัญชีประจำเดือน ${monthLabel}`, size: "sm", color: "#888888" },
                     { type: "separator", margin: "md" },
                     {
                       type: "box", layout: "horizontal", margin: "md",
