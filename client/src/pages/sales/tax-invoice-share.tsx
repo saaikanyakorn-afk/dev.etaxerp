@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams } from "wouter";
 import { Button } from "@/components/ui/button";
-import { Printer, FileText } from "lucide-react";
+import { Printer, Download, FileText } from "lucide-react";
 import DocumentRenderer from "@/components/document-renderer";
 
 type PrintType = "tax_invoice" | "tax_invoice_receipt" | "invoice" | "delivery_note" | "receipt";
@@ -77,6 +77,16 @@ export default function TaxInvoiceShare() {
             <Printer className="h-4 w-4" />
             <span className="hidden sm:inline">พิมพ์</span>
           </Button>
+          <a
+            href={printType !== "tax_invoice" ? `/api/share/tax-invoice/${token}/pdf?printType=${printType}` : `/api/share/tax-invoice/${token}/pdf`}
+            download={`${data?.taxInvoiceNo || "tax-invoice"}.pdf`}
+            className="inline-flex items-center gap-1.5 h-8 px-3 text-xs rounded-md bg-[var(--theme-primary)] hover:bg-[#e8856a] text-white"
+            data-testid="link-download-pdf"
+          >
+            <Download className="h-4 w-4" />
+            <span className="hidden sm:inline">ดาวน์โหลด PDF</span>
+            <span className="sm:hidden">PDF</span>
+          </a>
         </div>
       </div>
 
