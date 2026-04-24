@@ -4,7 +4,7 @@ import { quotations, invoices, taxInvoices, receipts, salesOrders, companies, wh
 import { eq } from "drizzle-orm";
 import sharp from "sharp";
 
-const BOT_RE = /bot|crawler|spider|preview|line|facebook|twitter|telegram|slack|whatsapp|discord|linkedin|pinterest|facebookexternalhit|twitterbot|slackbot/i;
+const BOT_RE = /bot|crawler|spider|preview|facebookexternalhit|twitterbot|slackbot|facebook|twitter|telegram|slack|whatsapp|discord|linkedin|pinterest/i;
 
 const escHtml = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 const escXml = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&apos;");
