@@ -3,7 +3,7 @@ import { useParams } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle2, XCircle, Edit3, Download, Printer, Loader2, FileText } from "lucide-react";
+import { CheckCircle2, XCircle, Edit3, Printer, FileText } from "lucide-react";
 import DocumentRenderer from "@/components/document-renderer";
 
 export default function QuotationShare() {
@@ -16,7 +16,6 @@ export default function QuotationShare() {
   const [responseType, setResponseType] = useState("");
   const [note, setNote] = useState("");
   const [showNoteFor, setShowNoteFor] = useState<string | null>(null);
-  const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -50,22 +49,6 @@ export default function QuotationShare() {
     setResponding(false);
   }
 
-  const handleDownloadPdf = async () => {
-    setDownloading(true);
-    try {
-      const res = await fetch(`/api/share/quotation/${token}/pdf`);
-      if (!res.ok) throw new Error("ไม่สามารถสร้าง PDF ได้");
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `${data?.quotationNo || "quotation"}.pdf`;
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch {}
-    setDownloading(false);
-  };
-
   if (loading) return <div className="flex items-center justify-center min-h-screen text-slate-500">กำลังโหลด...</div>;
   if (error) return <div className="flex items-center justify-center min-h-screen text-red-500">{error}</div>;
   if (!data) return null;
@@ -90,17 +73,6 @@ export default function QuotationShare() {
           >
             <Printer className="h-4 w-4" />
             <span className="hidden sm:inline">พิมพ์</span>
-          </Button>
-          <Button
-            size="sm"
-            onClick={handleDownloadPdf}
-            disabled={downloading}
-            className="bg-[var(--theme-primary)] hover:bg-[#e8856a] text-white gap-1.5 h-8 text-xs"
-            data-testid="button-download-pdf"
-          >
-            {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-            <span className="hidden sm:inline">{downloading ? "กำลังสร้าง PDF..." : "ดาวน์โหลด PDF"}</span>
-            <span className="sm:hidden">{downloading ? "..." : "PDF"}</span>
           </Button>
         </div>
       </div>
