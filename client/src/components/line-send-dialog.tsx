@@ -126,10 +126,20 @@ export default function LineSendDialog({ open, onOpenChange, shareUrl, docType, 
     }
     setSending(true);
     try {
-      const res = await apiRequest("POST", "/api/line/send", {
-        to: to.trim(),
-        message: message.trim() || defaultMessage,
-      });
+      let res: Response;
+      if (shareUrl) {
+        res = await apiRequest("POST", "/api/line/send-doc", {
+          to: to.trim(),
+          companyId,
+          docType: docType === "ใบแจ้งหนี้" ? "invoice" : docType === "ใบกำกับภาษี" ? "tax-invoice" : docType === "ใบเสร็จรับเงิน" ? "receipt" : docType === "ใบเสนอราคา" ? "quotation" : docType === "ใบสั่งขาย" ? "sales-order" : docType,
+          shareUrl: resolvedUrl,
+        });
+      } else {
+        res = await apiRequest("POST", "/api/line/send", {
+          to: to.trim(),
+          message: message.trim() || defaultMessage,
+        });
+      }
       const data = await res.json();
       if (data.success) {
         toast({ title: "ส่งข้อความ LINE สำเร็จ" });

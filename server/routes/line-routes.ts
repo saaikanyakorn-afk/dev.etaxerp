@@ -3,7 +3,7 @@ import { db } from "../db";
 import { ecomDb } from "../ecom-db";
 import { storage } from "../storage";
 import { eq, desc, and, isNull, isNotNull, asc, inArray, count , sql } from "drizzle-orm";
-import { companies, employees, firmClients, users, tenants, platformChatThreads, otRecords, lineRecipients, lineDocuments, lineGroupMappings, lineDocClassifyRules } from "@shared/schema";
+import { companies, employees, firmClients, users, tenants, platformChatThreads, otRecords, lineRecipients, lineDocuments, lineGroupMappings, lineDocClassifyRules, invoices, taxInvoices, receipts, quotations } from "@shared/schema";
 import { requireAuth, requireSuperAdmin, checkDocOwnership } from "../route-middleware";
 import path from "path";
 import fs from "fs";
@@ -140,6 +140,109 @@ app.post("/api/line/send", requireAuth, async (req, res) => {
       method: "POST",
       headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
       body: JSON.stringify({ to, messages: [{ type: "text", text: message }] }),
+    });
+    if (!lineRes.ok) {
+      const err = await lineRes.json().catch(() => ({}));
+      return res.status(lineRes.status).json({ message: (err as any).message || "ส่งข้อความ LINE ไม่สำเร็จ", detail: err });
+    }
+    res.json({ success: true, message: "ส่งข้อความ LINE สำเร็จ" });
+  } catch (err: any) { res.status(500).json({ message: err.message }); }
+});
+
+app.post("/api/line/send-doc", requireAuth, async (req, res) => {
+  try {
+    const { to, companyId, docType, shareUrl } = req.body;
+    if (!to || !shareUrl) return res.status(400).json({ message: "กรุณาระบุผู้รับและลิงก์เอกสาร" });
+
+    const token = await getLineTokenForCompany(companyId ? Number(companyId) : null) || "";
+    if (!token) return res.status(400).json({ message: "ยังไม่ได้ตั้งค่า LINE Channel Access Token" });
+
+    const DOC_LABELS: Record<string, string> = {
+      invoice: "ใบแจ้งหนี้", "tax-invoice": "ใบกำกับภาษี", receipt: "ใบเสร็จรับเงิน",
+      quotation: "ใบเสนอราคา", "sales-order": "ใบสั่งขาย",
+      "tax_invoice": "ใบกำกับภาษี", "sales_order": "ใบสั่งขาย",
+    };
+    const labelTh = DOC_LABELS[docType] || "เอกสาร";
+
+    let docNo = "", customerName = "", amountStr = "", companyName = "";
+    try {
+      const tokenMatch = shareUrl.match(/\/share\/[^/]+\/([a-f0-9]+)/);
+      const shareToken = tokenMatch ? tokenMatch[1] : "";
+      if (shareToken) {
+        let cid = 0;
+        if (docType === "invoice") {
+          const [r] = await db.select().from(invoices).where(eq(invoices.shareToken, shareToken));
+          cid = r?.companyId || 0;
+          amountStr = r?.totalAmount ? parseFloat(String(r.totalAmount)).toLocaleString("th-TH", { minimumFractionDigits: 2 }) : "";
+          docNo = r?.invoiceNo || ""; customerName = r?.customerName || "";
+        } else if (docType === "tax-invoice" || docType === "tax_invoice") {
+          const [r] = await db.select().from(taxInvoices).where(eq(taxInvoices.shareToken, shareToken));
+          cid = r?.companyId || 0;
+          amountStr = r?.totalAmount ? parseFloat(String(r.totalAmount)).toLocaleString("th-TH", { minimumFractionDigits: 2 }) : "";
+          docNo = r?.taxInvoiceNo || ""; customerName = r?.customerName || "";
+        } else if (docType === "receipt") {
+          const [r] = await db.select().from(receipts).where(eq(receipts.shareToken, shareToken));
+          cid = r?.companyId || 0;
+          amountStr = r?.totalAmount ? parseFloat(String(r.totalAmount)).toLocaleString("th-TH", { minimumFractionDigits: 2 }) : "";
+          docNo = r?.receiptNo || ""; customerName = r?.customerName || "";
+        } else if (docType === "quotation") {
+          const [r] = await db.select().from(quotations).where(eq(quotations.shareToken, shareToken));
+          cid = r?.companyId || 0;
+          amountStr = r?.totalAmount ? parseFloat(String(r.totalAmount)).toLocaleString("th-TH", { minimumFractionDigits: 2 }) : "";
+          docNo = r?.quotationNo || ""; customerName = r?.customerName || "";
+        }
+        if (cid) {
+          const [co] = await db.select().from(companies).where(eq(companies.id, cid));
+          companyName = co?.name || "";
+        }
+      }
+    } catch {}
+
+    const altText = `${labelTh}${docNo ? ` ${docNo}` : ""}${companyName ? ` จาก ${companyName}` : ""}`;
+    const flexMessage = {
+      type: "flex",
+      altText,
+      contents: {
+        type: "bubble",
+        header: {
+          type: "box", layout: "vertical", backgroundColor: "#fb9678", paddingAll: "16px",
+          contents: [
+            ...(companyName ? [{ type: "text", text: companyName, size: "xs", color: "#ffffff", weight: "bold" }] : []),
+            { type: "text", text: labelTh, size: "lg", color: "#ffffff", weight: "bold" },
+          ],
+        },
+        body: {
+          type: "box", layout: "vertical", spacing: "sm", paddingAll: "16px",
+          contents: [
+            ...(docNo ? [{ type: "text", text: docNo, size: "md", weight: "bold", color: "#333333" }] : []),
+            ...(customerName ? [{ type: "text", text: customerName, size: "sm", color: "#888888", wrap: true }] : []),
+            ...(amountStr ? [
+              { type: "separator", margin: "md" },
+              {
+                type: "box", layout: "horizontal", margin: "md",
+                contents: [
+                  { type: "text", text: "ยอดชำระ", size: "sm", color: "#888888", flex: 1 },
+                  { type: "text", text: `฿${amountStr}`, size: "sm", weight: "bold", color: "#fb9678", align: "end" },
+                ],
+              },
+            ] : []),
+          ],
+        },
+        footer: {
+          type: "box", layout: "vertical", paddingAll: "16px",
+          contents: [{
+            type: "button",
+            action: { type: "uri", label: `ดู${labelTh}`, uri: shareUrl },
+            style: "primary", color: "#fb9678",
+          }],
+        },
+      },
+    };
+
+    const lineRes = await fetch("https://api.line.me/v2/bot/message/push", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+      body: JSON.stringify({ to, messages: [flexMessage] }),
     });
     if (!lineRes.ok) {
       const err = await lineRes.json().catch(() => ({}));
