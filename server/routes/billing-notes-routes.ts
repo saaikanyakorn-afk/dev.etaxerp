@@ -549,10 +549,11 @@ app.post("/api/firm-billing/linesend", requireAuth, requireModule("firm-mgmt"), 
     const user = req.user as any;
     if (!(await verifyCompanyAccess(user, companyId))) return res.status(403).json({ message: "ไม่มีสิทธิ์" });
 
-    const tokenRows = await db.execute(sql`SELECT config_value FROM system_config WHERE config_key = 'LINE_CHANNEL_ACCESS_TOKEN' LIMIT 1`);
-    const lineToken = process.env.LINE_CHANNEL_ACCESS_TOKEN || (tokenRows.rows?.[0] as any)?.config_value || "";
+    const [companyRow] = await db.select({ name: companies.name, lineChannelAccessToken: companies.lineChannelAccessToken }).from(companies).where(eq(companies.id, companyId));
+    const senderName = companyRow?.name || "สำนักงานบัญชี";
+    const lineToken = process.env.LINE_CHANNEL_ACCESS_TOKEN || companyRow?.lineChannelAccessToken || "";
     console.log("[batch-send-line] lineToken present:", !!lineToken);
-    if (!lineToken) return res.status(400).json({ message: "ยังไม่ได้ตั้งค่า LINE Channel Access Token" });
+    if (!lineToken) return res.status(400).json({ message: "ยังไม่ได้ตั้งค่า LINE Channel Access Token กรุณาตั้งค่าในหน้าตั้งค่ากลุ่ม LINE" });
 
     const periodKey = `${year}${String(month).padStart(2, "0")}`;
     const startDate = `${year}-${String(month).padStart(2, "0")}-01`;
@@ -572,9 +573,6 @@ app.post("/api/firm-billing/linesend", requireAuth, requireModule("firm-mgmt"), 
       const m = (inv.refDoc || "").match(/FIRM_BILLING_(\d+)/);
       if (m) invMap.set(Number(m[1]), inv);
     }
-
-    const [companyRow] = await db.select({ name: companies.name }).from(companies).where(eq(companies.id, companyId));
-    const senderName = companyRow?.name || "สำนักงานบัญชี";
 
     const baseUrl = `${req.protocol}://${req.get("host")}`;
     const { randomBytes } = await import("crypto");
