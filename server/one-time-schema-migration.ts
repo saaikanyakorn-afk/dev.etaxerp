@@ -151,6 +151,31 @@ if (process.argv[1]?.includes("one-time-schema-migration")) {
   runOneTimeSchemaV85Migration().then(() => process.exit(0)).catch(() => process.exit(1));
 }
 
+const MIGRATION_KEY_V88 = "CREATE_EMPLOYEE_HOUR_SETTINGS_2026-04-24";
+
+export async function runOneTimeSchemaV88Migration() {
+  try {
+    const flagRows = await db.execute(sql`SELECT config_value FROM system_config WHERE config_key = ${MIGRATION_KEY_V88} LIMIT 1`);
+    if ((flagRows.rows || []).length > 0) { return; }
+    console.log("[OneTimeMigration] Starting schema v88 — employee_hour_settings table...");
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS employee_hour_settings (
+        id SERIAL PRIMARY KEY,
+        employee_id INTEGER NOT NULL UNIQUE REFERENCES employees(id) ON DELETE CASCADE,
+        attendance_type TEXT NOT NULL DEFAULT 'time_based',
+        default_hours_per_day NUMERIC(4,1) DEFAULT 8.0
+      )
+    `);
+    console.log("[OneTimeMigration] ✓ employee_hour_settings");
+    await db.execute(sql`
+      INSERT INTO system_config (config_key, config_value, description)
+      VALUES (${MIGRATION_KEY_V88}, ${"done_" + new Date().toISOString()}, 'Create employee_hour_settings table for flexible attendance types')
+      ON CONFLICT (config_key) DO NOTHING
+    `);
+    console.log("[OneTimeMigration] ✅ Schema v88 complete");
+  } catch (err: any) { console.error("[OneTimeMigration] ❌ Error v88:", err.message); }
+}
+
 /* ── DONE 2026-04-24: Add warehouse_id to tax_invoice_items, sales_order_items, receipt_items, delivery_note_items ──
  * Ran directly on deep-main via etaxusr (DB_PROD_URL) — chain via pm2 restart did not fire.
  * Verified on deep-main: all 4 tables have warehouse_id (integer, nullable) ✓
