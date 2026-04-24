@@ -538,7 +538,7 @@ app.post("/api/firm-billing/batch-generate", requireAuth, requireModule("firm-mg
   } catch (err: any) { res.status(500).json({ message: err.message }); }
 });
 
-app.post("/api/firm-billing/line-push-invoices", requireAuth, requireModule("firm-mgmt"), async (req, res) => {
+app.post("/api/firm-billing/linesend", requireAuth, requireModule("firm-mgmt"), async (req, res) => {
   try {
     console.log("[batch-send-line] hit — body:", JSON.stringify(req.body));
     const { companyId, firmClientIds, month, year } = req.body;
