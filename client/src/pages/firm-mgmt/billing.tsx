@@ -140,12 +140,13 @@ export default function FirmBilling() {
     return list;
   }, [clients, search]);
 
-  const allSelected = activeClients.length > 0 && activeClients.every((c: any) => selected.has(c.id));
+  const pendingClients = useMemo(() => activeClients.filter((c: any) => !generatedSet.has(c.id)), [activeClients, generatedSet]);
+  const allSelected = pendingClients.length > 0 && pendingClients.every((c: any) => selected.has(c.id));
   const toggleAll = () => {
     if (allSelected) {
       setSelected(new Set());
     } else {
-      setSelected(new Set(activeClients.map((c: any) => c.id)));
+      setSelected(new Set(pendingClients.map((c: any) => c.id)));
     }
   };
   const toggle = (id: number) => {
@@ -164,7 +165,7 @@ export default function FirmBilling() {
     }
   };
 
-  const selectedClients = activeClients.filter((c: any) => selected.has(c.id));
+  const selectedClients = activeClients.filter((c: any) => selected.has(c.id) && !generatedSet.has(c.id));
   const totalFee = selectedClients.reduce((s: number, c: any) => {
     const fee = parseFloat(c.serviceFee || "0");
     const vi = c.feeVatIncluded === true;
