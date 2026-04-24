@@ -855,31 +855,34 @@ export function registerHrRoutes(app: Express) {
       }
 
       let isLate = false;
-      const [shiftAssignment] = await db.select().from(employeeShiftAssignments)
-        .where(and(eq(employeeShiftAssignments.employeeId, employeeId), eq(employeeShiftAssignments.date, today)));
-      if (shiftAssignment) {
-        const [shift] = await db.select().from(shifts).where(eq(shifts.id, shiftAssignment.shiftId));
-        if (shift) {
-          const [sh, sm] = shift.startTime.split(":").map(Number);
-          const shiftStartMin = sh * 60 + (sm || 0);
-          const threshold = shift.lateThresholdMinutes || 0;
+      const [empData] = await db.select({ exemptFromCheckin: employees.exemptFromCheckin }).from(employees).where(eq(employees.id, employeeId));
+      if (!empData?.exemptFromCheckin) {
+        const [shiftAssignment] = await db.select().from(employeeShiftAssignments)
+          .where(and(eq(employeeShiftAssignments.employeeId, employeeId), eq(employeeShiftAssignments.date, today)));
+        if (shiftAssignment) {
+          const [shift] = await db.select().from(shifts).where(eq(shifts.id, shiftAssignment.shiftId));
+          if (shift) {
+            const [sh, sm] = shift.startTime.split(":").map(Number);
+            const shiftStartMin = sh * 60 + (sm || 0);
+            const threshold = shift.lateThresholdMinutes || 0;
+            const inMin = thai.hours * 60 + thai.minutes;
+            isLate = inMin > shiftStartMin + threshold;
+          }
+        } else {
+          let schedule: any = null;
+          if (companyId) {
+            const schedules = await db.select().from(workSchedules)
+              .where(and(eq(workSchedules.companyId, companyId), eq(workSchedules.active, true)))
+              .orderBy(desc(workSchedules.isDefault));
+            schedule = schedules[0] || null;
+          }
+          const startTime = schedule?.startTime || "09:00";
+          const [sh, sm] = startTime.split(":").map(Number);
+          const startMin = sh * 60 + (sm || 0);
+          const threshold = schedule?.lateThresholdMinutes || 0;
           const inMin = thai.hours * 60 + thai.minutes;
-          isLate = inMin > shiftStartMin + threshold;
+          isLate = inMin > startMin + threshold;
         }
-      } else {
-        let schedule: any = null;
-        if (companyId) {
-          const schedules = await db.select().from(workSchedules)
-            .where(and(eq(workSchedules.companyId, companyId), eq(workSchedules.active, true)))
-            .orderBy(desc(workSchedules.isDefault));
-          schedule = schedules[0] || null;
-        }
-        const startTime = schedule?.startTime || "09:00";
-        const [sh, sm] = startTime.split(":").map(Number);
-        const startMin = sh * 60 + (sm || 0);
-        const threshold = schedule?.lateThresholdMinutes || 0;
-        const inMin = thai.hours * 60 + thai.minutes;
-        isLate = inMin > startMin + threshold;
       }
 
       const record = await storage.createAttendance({

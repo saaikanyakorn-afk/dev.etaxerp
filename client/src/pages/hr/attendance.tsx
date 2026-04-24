@@ -4,8 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Clock, MapPin, Play, Square, Coffee, History, CalendarDays, CheckCircle, XCircle, Loader2, Fingerprint, Upload, Timer, PlusCircle } from "lucide-react";
-import { Input } from "@/components/ui/input";
+import { Clock, MapPin, Play, Square, Coffee, History, CalendarDays, CheckCircle, XCircle, Loader2, Fingerprint, Upload } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/lib/auth";
@@ -169,42 +168,6 @@ export default function HRAttendance() {
   const currentStatus = yesterdayOpenRecord ? "clocked_in" : todayRecord?.checkOut ? "checked_out" : todayRecord?.checkIn ? "clocked_in" : "idle";
 
   const [retryInfo, setRetryInfo] = useState<{ attempt: number; action: string } | null>(null);
-  const [hoursInput, setHoursInput] = useState("");
-  const [noteInput, setNoteInput] = useState("");
-
-  const { data: hourSettings } = useQuery<any>({
-    queryKey: ["/api/hr/hour-settings", employeeId],
-    queryFn: async () => {
-      if (!employeeId) return null;
-      const r = await fetch(`/api/hr/hour-settings/${employeeId}`, { credentials: "include" });
-      if (!r.ok) return null;
-      return r.json();
-    },
-    enabled: !!employeeId,
-  });
-
-  const isHourBased = hourSettings?.attendanceType === "hour_based";
-  const todayHourRecord = attendanceRecords.find((r: any) => r.date === todayStr && r.source === "hour_based");
-
-  const logHoursMutation = useMutation({
-    mutationFn: async ({ hours, note }: { hours: number; note?: string }) => {
-      const r = await fetch("/api/attendance/log-hours", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ employeeId, hours, note, date: todayStr }),
-      });
-      if (!r.ok) { const e = await r.json(); throw new Error(e.message || "เกิดข้อผิดพลาด"); }
-      return r.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/attendance", employeeId] });
-      toast({ title: "บันทึกชั่วโมงทำงานสำเร็จ", variant: "success" as any });
-      setHoursInput("");
-      setNoteInput("");
-    },
-    onError: (err: any) => toast({ title: "ไม่สำเร็จ", description: err.message, variant: "destructive" }),
-  });
 
   const fetchWithRetry = async (url: string, options: RequestInit, actionLabel: string) => {
     const MAX_ATTEMPTS = 5;
@@ -353,7 +316,7 @@ export default function HRAttendance() {
         <div className="grid gap-6 md:grid-cols-12">
           <Card className="md:col-span-4 border-none shadow-lg text-white overflow-hidden relative" style={{ background: "#03c9d7" }}>
             <CardHeader className="text-center pb-2">
-              <CardTitle className="text-lg font-medium opacity-80 uppercase tracking-widest">{isHourBased ? "บันทึกชั่วโมงทำงาน" : "Digital Check-in"}</CardTitle>
+              <CardTitle className="text-lg font-medium opacity-80 uppercase tracking-widest">Digital Check-in</CardTitle>
             </CardHeader>
             <CardContent className="flex flex-col items-center py-6">
               <div className="text-5xl font-black mb-2 tracking-tighter" data-testid="text-clock">
@@ -371,54 +334,7 @@ export default function HRAttendance() {
               )}
 
               <div className="grid grid-cols-2 gap-4 w-full">
-                {isHourBased ? (
-                  todayHourRecord ? (
-                    <div className="col-span-2 text-center py-4 bg-white/10 rounded-2xl">
-                      <CheckCircle className="h-8 w-8 mx-auto mb-2 text-emerald-300" />
-                      <p className="text-white font-bold text-lg">{todayHourRecord.totalHours} ชม.</p>
-                      <p className="text-white/70 text-xs mt-1">บันทึกชั่วโมงทำงานแล้ววันนี้</p>
-                      {todayHourRecord.note && <p className="text-white/60 text-xs mt-1 italic">"{todayHourRecord.note}"</p>}
-                    </div>
-                  ) : (
-                    <div className="col-span-2 space-y-3" data-testid="section-hour-based">
-                      <div className="bg-white/10 rounded-xl p-3">
-                        <p className="text-white/70 text-xs mb-2 text-center">ชั่วโมงทำงานวันนี้</p>
-                        <div className="flex items-center gap-2">
-                          <Timer className="h-5 w-5 text-white/70 flex-shrink-0" />
-                          <Input
-                            type="number"
-                            min="0.5"
-                            max="24"
-                            step="0.5"
-                            value={hoursInput}
-                            onChange={e => setHoursInput(e.target.value)}
-                            placeholder="เช่น 7.5"
-                            className="bg-white/20 border-white/30 text-white placeholder:text-white/40 h-10 text-center text-lg font-bold"
-                            data-testid="input-hours-worked"
-                          />
-                          <span className="text-white font-medium text-sm flex-shrink-0">ชม.</span>
-                        </div>
-                        <Input
-                          value={noteInput}
-                          onChange={e => setNoteInput(e.target.value)}
-                          placeholder="หมายเหตุ (ไม่บังคับ)"
-                          className="bg-white/10 border-white/20 text-white placeholder:text-white/40 h-8 text-xs mt-2"
-                          data-testid="input-hours-note"
-                        />
-                      </div>
-                      <Button
-                        onClick={() => { const h = parseFloat(hoursInput); if (!h || h <= 0) { toast({ title: "กรุณากรอกชั่วโมงทำงาน", variant: "destructive" }); return; } logHoursMutation.mutate({ hours: h, note: noteInput || undefined }); }}
-                        disabled={logHoursMutation.isPending || !hoursInput || !employeeId}
-                        className="col-span-2 w-full bg-white hover:bg-gray-50 h-12 font-bold rounded-2xl shadow-xl"
-                        style={{ color: "#03c9d7" }}
-                        data-testid="button-log-hours"
-                      >
-                        <PlusCircle className="mr-2 h-5 w-5" />
-                        {logHoursMutation.isPending ? "กำลังบันทึก..." : "บันทึกชั่วโมงทำงาน"}
-                      </Button>
-                    </div>
-                  )
-                ) : currentStatus === "idle" ? (
+                {currentStatus === "idle" ? (
                   <Button 
                     onClick={() => checkInMutation.mutate()}
                     disabled={checkInMutation.isPending || !employeeId || (isGpsRequired && gpsStatus !== "success")}
