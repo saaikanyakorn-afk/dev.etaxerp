@@ -145,6 +145,8 @@ export async function runOneTimeSchemaV85Migration() {
   } catch (err: any) {
     console.error("[OneTimeMigration] ❌ Error:", err.message);
   }
+  // chain → next migration
+  await runOneTimeSchemaV87Migration();
 }
 
 if (process.argv[1]?.includes("one-time-schema-migration")) {
