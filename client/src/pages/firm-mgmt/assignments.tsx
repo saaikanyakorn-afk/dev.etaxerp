@@ -9,6 +9,7 @@ import { useState, useMemo } from "react";
 import { Search, UserCircle, Users, Building2, Filter, ArrowLeft } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
+import { useCompany } from "@/lib/company-context";
 
 export default function AssignmentsPage() {
   const queryClient = useQueryClient();
@@ -16,6 +17,8 @@ export default function AssignmentsPage() {
   const [, navigate] = useLocation();
   const [search, setSearch] = useState("");
   const [filterEmployee, setFilterEmployee] = useState("all");
+  const { primaryCompanyId, selectedCompanyId } = useCompany();
+  const firmCompanyId = primaryCompanyId || selectedCompanyId;
 
   const { data: clientsData } = useQuery<any[]>({
     queryKey: ["/api/firm-clients"],
@@ -28,12 +31,14 @@ export default function AssignmentsPage() {
   const allClients = Array.isArray(clientsData) ? clientsData : [];
 
   const { data: employeesData } = useQuery<any[]>({
-    queryKey: ["/api/employees"],
+    queryKey: ["/api/employees", firmCompanyId],
     queryFn: async () => {
-      const r = await fetch("/api/employees", { credentials: "include" });
+      const url = firmCompanyId ? `/api/employees?companyId=${firmCompanyId}` : "/api/employees";
+      const r = await fetch(url, { credentials: "include" });
       if (!r.ok) return [];
       return r.json();
     },
+    enabled: !!firmCompanyId,
   });
   const employees = Array.isArray(employeesData) ? employeesData.filter((e: any) => e.active) : [];
 
