@@ -10,7 +10,7 @@ import { Users, UserPlus, Building2, UserCheck, UserX, Pencil, Trash2, Upload, D
 import ThaiDateInput from "@/components/thai-date-input";
 import { useDateSettings } from "@/hooks/use-date-settings";
 import { Textarea } from "@/components/ui/textarea";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useShowMore } from "@/hooks/use-show-more";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/lib/auth";
@@ -83,6 +83,19 @@ export default function EmployeeList() {
   const [resignTarget, setResignTarget] = useState<any>(null);
   const [resignForm, setResignForm] = useState({ resignDate: "", resignReason: "" });
   const [empSearch, setEmpSearch] = useState("");
+  const [attendanceType, setAttendanceType] = useState("time_based");
+  const [requiredHoursPerDay, setRequiredHoursPerDay] = useState("9");
+
+  const { data: attendanceSettings } = useQuery<any>({
+    queryKey: ["/api/hr/attendance-settings", editId],
+    queryFn: async () => {
+      if (!editId) return null;
+      const r = await fetch(`/api/hr/attendance-settings/${editId}`, { credentials: "include" });
+      if (!r.ok) return null;
+      return r.json();
+    },
+    enabled: !!editId,
+  });
   const isAdmin = user?.role === "admin" || user?.role === "super_admin" || user?.role === "owner" || user?.role === "manager";
 
   const { data: employees = [] } = useQuery<any[]>({
@@ -293,6 +306,29 @@ export default function EmployeeList() {
     },
   });
 
+  const saveAttendanceSettingsMutation = useMutation({
+    mutationFn: async ({ employeeId, type, hours }: { employeeId: number; type: string; hours: string }) => {
+      const r = await fetch(`/api/hr/attendance-settings/${employeeId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ attendanceType: type, requiredHoursPerDay: hours }),
+        credentials: "include",
+      });
+      if (!r.ok) { const d = await r.json(); throw new Error(d.message); }
+      return r.json();
+    },
+  });
+
+  useEffect(() => {
+    if (attendanceSettings) {
+      setAttendanceType(attendanceSettings.attendanceType || "time_based");
+      setRequiredHoursPerDay(attendanceSettings.requiredHoursPerDay || "9");
+    } else if (editId && !attendanceSettings) {
+      setAttendanceType("time_based");
+      setRequiredHoursPerDay("9");
+    }
+  }, [attendanceSettings, editId]);
+
   const resignMutation = useMutation({
     mutationFn: async ({ id, data }: { id: number; data: any }) => {
       const r = await fetch(`/api/employees/${id}`, {
@@ -429,6 +465,7 @@ export default function EmployeeList() {
     };
     if (editId) {
       updateMutation.mutate({ id: editId, data: payload });
+      saveAttendanceSettingsMutation.mutate({ employeeId: editId, type: attendanceType, hours: requiredHoursPerDay });
     } else {
       createMutation.mutate(payload);
     }
@@ -461,12 +498,16 @@ export default function EmployeeList() {
       bankName: emp.bankName || "",
       bankAccountNumber: emp.bankAccountNumber || "",
     });
+    setAttendanceType("time_based");
+    setRequiredHoursPerDay("9");
     setDialogOpen(true);
   };
 
   const openAdd = () => {
     setEditId(null);
     setForm(emptyForm);
+    setAttendanceType("time_based");
+    setRequiredHoursPerDay("9");
     setDialogOpen(true);
   };
 
@@ -657,7 +698,12 @@ export default function EmployeeList() {
                           )}
                           {emp.exemptFromCheckin && !isResigned && (
                             <Badge variant="outline" className="bg-amber-50 text-amber-600 border-amber-200 text-[10px]" data-testid={`badge-exempt-${emp.id}`}>
-                              ไม่บังคับเวลา
+                              ไม่บังคับ
+                            </Badge>
+                          )}
+                          {!emp.exemptFromCheckin && emp.attendanceType === "flexible_hours" && !isResigned && (
+                            <Badge variant="outline" className="bg-blue-50 text-blue-600 border-blue-200 text-[10px]" data-testid={`badge-flexible-${emp.id}`}>
+                              ยืดหยุ่น
                             </Badge>
                           )}
                         </div>
@@ -940,16 +986,50 @@ export default function EmployeeList() {
                   </div>
                 )}
               </div>
-              <div className="flex items-center gap-2 pt-1">
-                <input
-                  type="checkbox"
-                  checked={form.exemptFromCheckin}
-                  onChange={e => setForm(f => ({ ...f, exemptFromCheckin: e.target.checked }))}
-                  id="exemptFromCheckin"
-                  className="h-4 w-4 rounded border-gray-300"
-                  data-testid="checkbox-exempt-checkin"
-                />
-                <label htmlFor="exemptFromCheckin" className="text-sm text-muted-foreground cursor-pointer">ไม่บังคับเวลา — เช็คอิน/เช็คเอ้าได้ แต่ไม่นับสายและไม่นับขาด (เช่น ผู้บริหาร, งาน Field)</label>
+              <div className="pt-1 space-y-2">
+                <label className="text-xs font-medium text-muted-foreground">รูปแบบการเช็คอิน</label>
+                <div className="grid grid-cols-1 gap-2" data-testid="attendance-type-selector">
+                  {[
+                    { value: "time_based", label: "ปกติ", desc: "มีเวลาเข้างาน นับสาย นับขาดถ้าไม่มา" },
+                    { value: "flexible_hours", label: "ยืดหยุ่น", desc: "เข้าเวลาไหนก็ได้ ไม่นับสาย แต่ต้องครบชั่วโมงที่กำหนด" },
+                    { value: "no_checkin_required", label: "ไม่บังคับ", desc: "ไม่ต้องเช็คอินเลย ไม่นับขาด เช่น ผู้บริหาร" },
+                  ].map(opt => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => {
+                        setAttendanceType(opt.value);
+                        setForm(f => ({ ...f, exemptFromCheckin: opt.value === "no_checkin_required" }));
+                      }}
+                      className={`flex items-start gap-3 p-3 rounded-lg border-2 text-left transition-all ${attendanceType === opt.value ? "border-[#03c9d7] bg-cyan-50" : "border-gray-200 hover:border-gray-300"}`}
+                      data-testid={`attendance-type-${opt.value}`}
+                    >
+                      <div className={`mt-0.5 h-4 w-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${attendanceType === opt.value ? "border-[#03c9d7]" : "border-gray-300"}`}>
+                        {attendanceType === opt.value && <div className="h-2 w-2 rounded-full bg-[#03c9d7]" />}
+                      </div>
+                      <div>
+                        <p className={`text-sm font-medium ${attendanceType === opt.value ? "text-[#03c9d7]" : "text-gray-700"}`}>{opt.label}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">{opt.desc}</p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+                {attendanceType === "flexible_hours" && (
+                  <div className="flex items-center gap-2 mt-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                    <label className="text-sm text-amber-700 font-medium whitespace-nowrap">ชั่วโมงทำงานต่อวัน</label>
+                    <Input
+                      type="number"
+                      min="1"
+                      max="24"
+                      step="0.5"
+                      value={requiredHoursPerDay}
+                      onChange={e => setRequiredHoursPerDay(e.target.value)}
+                      className="w-24 h-8 text-center font-bold text-amber-800 border-amber-300"
+                      data-testid="input-required-hours"
+                    />
+                    <span className="text-sm text-amber-700">ชม./วัน</span>
+                  </div>
+                )}
               </div>
               {workLocationsList.length > 0 && (
                 <div>
