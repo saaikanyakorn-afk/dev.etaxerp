@@ -722,23 +722,6 @@ export default function FirmBilling() {
                 </table>
               </div>
 
-              {selected.size > 0 && (
-                <div className="p-4 bg-[#539BFF]/10 border-t flex items-center justify-between">
-                  <div className="text-sm text-foreground">
-                    เลือกแล้ว <span className="font-bold">{selected.size}</span> ราย
-                    | ค่าบริการ <span className="font-bold" style={{ color: "#fb9678" }}>฿{fmt(totalFee)}</span>
-                    | WHT <span className="font-bold text-red-600">฿{fmt(totalWht)}</span>
-                  </div>
-                  <Button
-                    style={{ background: "#fb9678" }}
-                    onClick={() => setConfirmOpen(true)}
-                    data-testid="button-batch-generate"
-                  >
-                    <Receipt className="h-4 w-4 mr-1" />
-                    ออกใบแจ้งหนี้ {selected.size} ใบ
-                  </Button>
-                </div>
-              )}
             </>
           )}
         </CardContent>
@@ -1182,6 +1165,42 @@ export default function FirmBilling() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+
+    {/* Floating action bar */}
+    <div
+      className={`fixed bottom-6 left-1/2 z-50 transition-all duration-300 ${
+        selected.size > 0
+          ? "translate-x-[-50%] opacity-100 pointer-events-auto"
+          : "translate-x-[-50%] translate-y-6 opacity-0 pointer-events-none"
+      }`}
+      data-testid="floating-billing-bar"
+    >
+      <div className="flex items-center gap-4 bg-gray-900 text-white rounded-2xl shadow-2xl px-6 py-3">
+        <div className="flex items-center gap-1.5 text-sm">
+          <span className="bg-white text-gray-900 font-bold rounded-full w-7 h-7 flex items-center justify-center text-xs">
+            {selected.size}
+          </span>
+          <span className="text-gray-300">ราย</span>
+        </div>
+        <div className="w-px h-5 bg-gray-600" />
+        <div className="text-sm text-gray-300">
+          ค่าบริการ <span className="font-semibold text-[#fb9678]">฿{fmt(totalFee)}</span>
+        </div>
+        <div className="text-sm text-gray-300">
+          WHT <span className="font-semibold text-red-400">฿{fmt(totalWht)}</span>
+        </div>
+        <div className="w-px h-5 bg-gray-600" />
+        <Button
+          size="sm"
+          className="bg-[#fb9678] hover:bg-[#e8856a] text-white rounded-xl font-medium"
+          onClick={() => setConfirmOpen(true)}
+          data-testid="button-batch-generate"
+        >
+          <Receipt className="h-4 w-4 mr-1.5" />
+          ออกใบแจ้งหนี้ {selected.size} ใบ
+        </Button>
+      </div>
     </div>
     </Layout>
   );
