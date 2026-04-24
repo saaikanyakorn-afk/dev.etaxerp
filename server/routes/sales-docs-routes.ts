@@ -1169,7 +1169,6 @@ app.get("/api/share/invoice/:token", async (req, res) => {
   try {
     const [doc] = await db.select().from(invoices).where(eq(invoices.shareToken, req.params.token));
     if (!doc) return res.status(404).json({ message: "ไม่พบเอกสาร" });
-    { const ac = await checkDocOwnership(doc.companyId, req.user); if (!ac.allowed) return res.status(403).json({ message: ac.message }); }
     const items = await fetchInvoiceItems(doc.id);
     const [company] = await db.select().from(companies).where(eq(companies.id, doc.companyId));
     let docSetting = null;
@@ -2243,7 +2242,6 @@ app.get("/api/share/tax-invoice/:token", async (req, res) => {
   try {
     const [doc] = await db.select().from(taxInvoices).where(eq(taxInvoices.shareToken, req.params.token));
     if (!doc) return res.status(404).json({ message: "ไม่พบเอกสาร" });
-    { const ac = await checkDocOwnership(doc.companyId, req.user); if (!ac.allowed) return res.status(403).json({ message: ac.message }); }
     const items = await db.select().from(taxInvoiceItems).where(eq(taxInvoiceItems.taxInvoiceId, doc.id));
     const [company] = await db.select().from(companies).where(eq(companies.id, doc.companyId));
     let docSetting = null;
