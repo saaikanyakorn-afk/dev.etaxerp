@@ -82,7 +82,12 @@ const pool = new Pool({
 });
 ```
 
-**⚠️ NEVER say "I can't connect to deep-main."** The credentials are always in machines table id=2. Port 20541, db=etax-production. Kai has done this a million times.
+**⚠️ NEVER say "I can't connect to deep-main."** Use the **DB_PROD_URL** from `system_config` table (in the dev/Replit DB) — NOT machines table id=2.
+```
+SELECT config_value FROM system_config WHERE config_key = 'DB_PROD_URL';
+→ postgresql://etaxusr:nJKsyhE4583Hz@deep-main.hopto.org:20541/etax-production
+```
+machines table id=2 may have different user/password — do NOT use it for production schema work.
 
 ---
 
@@ -149,6 +154,13 @@ If the SQL will **modify or delete existing data** (e.g. ALTER column type, bulk
 3. พี่ช้าง: `npm run build` (zero downtime)
 4. พี่ช้าง: `pm2 restart etax-center` → **Downtime starts** → migration runs → server back up → **Downtime ends**
 5. Kai: verify migration flag set in system_config → confirm to พี่ช้าง
+
+**🔑 If migration did NOT fire via pm2 restart (chain silent fail):**
+- Run the SQL directly on deep-main using DB_PROD_URL credentials — do NOT restart again
+- Example: `ALTER TABLE <table> ADD COLUMN IF NOT EXISTS warehouse_id INTEGER REFERENCES warehouses(id);`
+- Then set the flag manually: `INSERT INTO system_config (config_key, config_value) VALUES ('MIGRATION_KEY', 'done_<ISO>') ON CONFLICT DO NOTHING;`
+- This is always safe because migration code uses `IF NOT EXISTS` + flag guard — direct SQL is idempotent
+- After manual run: flag is set → future restarts skip automatically → **NO second restart needed**
 6. Kai: comment out migration block → push clean file to GitHub
 7. พี่ช้าง: `git fetch origin` + `git checkout origin/<branch> -- <migration-file>` (zero downtime)
 8. พี่ช้าง: `npm run build` + `pm2 restart etax-center` → **Downtime starts** → clean build → server back up → **Downtime ends**
