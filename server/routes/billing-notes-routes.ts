@@ -536,8 +536,10 @@ app.post("/api/firm-billing/batch-generate", requireAuth, requireModule("firm-mg
 
 app.post("/api/firm-billing/batch-send-line", requireAuth, requireModule("firm-mgmt"), async (req, res) => {
   try {
+    console.log("[batch-send-line] hit — body:", JSON.stringify(req.body));
     const { companyId, firmClientIds, month, year } = req.body;
     if (!companyId || !firmClientIds?.length || !month || !year) {
+      console.log("[batch-send-line] missing params");
       return res.status(400).json({ message: "companyId, firmClientIds, month, year required" });
     }
     const user = req.user as any;
@@ -545,6 +547,7 @@ app.post("/api/firm-billing/batch-send-line", requireAuth, requireModule("firm-m
 
     const tokenRows = await db.execute(sql`SELECT config_value FROM system_config WHERE config_key = 'LINE_CHANNEL_ACCESS_TOKEN' LIMIT 1`);
     const lineToken = process.env.LINE_CHANNEL_ACCESS_TOKEN || (tokenRows.rows?.[0] as any)?.config_value || "";
+    console.log("[batch-send-line] lineToken present:", !!lineToken);
     if (!lineToken) return res.status(400).json({ message: "ยังไม่ได้ตั้งค่า LINE Channel Access Token" });
 
     const periodKey = `${year}${String(month).padStart(2, "0")}`;
@@ -602,6 +605,7 @@ app.post("/api/firm-billing/batch-send-line", requireAuth, requireModule("firm-m
       const amountStr = amount.toLocaleString("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
       try {
+        console.log("[batch-send-line] sending to groupId:", groupMapping.lineGroupId, "shareUrl:", shareUrl);
         const lineRes = await fetch("https://api.line.me/v2/bot/message/push", {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${lineToken}` },
@@ -646,13 +650,17 @@ app.post("/api/firm-billing/batch-send-line", requireAuth, requireModule("firm-m
             }],
           }),
         });
+        console.log("[batch-send-line] LINE API status:", lineRes.status);
         if (!lineRes.ok) {
-          const errBody = await lineRes.json().catch(() => ({}));
+          const errText = await lineRes.text();
+          console.log("[batch-send-line] LINE API error body:", errText);
+          const errBody = (() => { try { return JSON.parse(errText); } catch { return {}; } })();
           results.push({ firmClientId, clientName, success: false, invoiceNo: inv.invoiceNo, error: (errBody as any).message || "ส่ง LINE ไม่สำเร็จ" });
         } else {
           results.push({ firmClientId, clientName, success: true, invoiceNo: inv.invoiceNo });
         }
       } catch (e: any) {
+        console.log("[batch-send-line] fetch error:", e.message);
         results.push({ firmClientId, clientName, success: false, invoiceNo: inv.invoiceNo, error: e.message });
       }
     }
