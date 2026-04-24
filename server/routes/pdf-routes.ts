@@ -6,6 +6,7 @@ import { requireAuth, checkDocOwnership } from "../route-middleware";
 import { buildPdfDataById, buildPdfDataByToken } from "../pdf-data-fetcher";
 import { renderDocumentHtml } from "../pdf-html-renderer";
 import { pdfService } from "../pdf-puppeteer-service";
+import { generatePdfMake } from "../pdf-pdfmake-generator";
 
 export function registerPdfRoutes(app: Express) {
 
@@ -243,15 +244,13 @@ app.get("/api/share/:docType/:token/pdf", async (req, res) => {
     const validPrintTypes = ["tax_invoice", "tax_invoice_receipt", "receipt", "invoice", "delivery_note"];
     const pt = printType && validPrintTypes.includes(printType) ? printType : undefined;
 
-    let pdfOpts = await buildPdfDataByToken(docType, token, pt);
+    const pdfOpts = await buildPdfDataByToken(docType, token, pt);
     const docNo = pdfOpts.document.docNo || "document";
-    const html = renderDocumentHtml(pdfOpts);
-    const pdfBuffer = await pdfService.generatePdf(html, { format: "A4", printBackground: true, margin: { top: "0mm", right: "0mm", bottom: "0mm", left: "0mm" } });
-    pdfOpts = null as any;
+    const pdfBuffer = await generatePdfMake(pdfOpts);
     const filename = encodeURIComponent(`${docNo}.pdf`);
     res.set({
       "Content-Type": "application/pdf",
-      "Content-Disposition": `inline; filename="${filename}"; filename*=UTF-8''${filename}`,
+      "Content-Disposition": `attachment; filename="${filename}"; filename*=UTF-8''${filename}`,
       "Content-Length": pdfBuffer.length.toString(),
     });
     res.send(pdfBuffer);
