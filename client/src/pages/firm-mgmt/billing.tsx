@@ -165,7 +165,9 @@ export default function FirmBilling() {
     }
   };
 
-  const selectedClients = activeClients.filter((c: any) => selected.has(c.id) && !generatedSet.has(c.id));
+  const selectedClients = activeClients.filter((c: any) => selected.has(c.id));
+  const selectedPendingClients = selectedClients.filter((c: any) => !generatedSet.has(c.id));
+  const selectedGeneratedClients = selectedClients.filter((c: any) => generatedSet.has(c.id));
   const totalFee = selectedClients.reduce((s: number, c: any) => {
     const fee = parseFloat(c.serviceFee || "0");
     const vi = c.feeVatIncluded === true;
@@ -183,7 +185,7 @@ export default function FirmBilling() {
     mutationFn: async () => {
       const r = await apiRequest("POST", "/api/firm-billing/batch-generate", {
         companyId,
-        firmClientIds: Array.from(selected),
+        firmClientIds: selectedPendingClients.map((c: any) => c.id),
         month: billingMonth,
         year: billingYear,
         invoiceDate,
@@ -225,13 +227,13 @@ export default function FirmBilling() {
   });
 
   const batchSendLine = useMutation({
-    mutationFn: async () => {
-      const allGeneratedClientIds = (generated?.generated || []).map((g: any) => g.firmClientId);
+    mutationFn: async (clientIds?: number[]) => {
+      const ids = clientIds ?? selectedGeneratedClients.map((c: any) => c.id);
       const r = await fetch("/api/firm-billing/batch-send-line", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ companyId, firmClientIds: allGeneratedClientIds, month: billingMonth, year: billingYear }),
+        body: JSON.stringify({ companyId, firmClientIds: ids, month: billingMonth, year: billingYear }),
       });
       if (!r.ok) { const d = await r.json(); throw new Error(d.message); }
       return r.json();
@@ -539,17 +541,6 @@ export default function FirmBilling() {
                   <Button
                     size="sm"
                     variant="outline"
-                    className="h-9 gap-1.5 border-[#06C755] text-[#06C755] hover:bg-[#06C755]/10"
-                    onClick={() => setLineSendConfirmOpen(true)}
-                    disabled={batchSendLine.isPending}
-                    data-testid="button-batch-send-line"
-                  >
-                    {batchSendLine.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <LINE_ICON className="h-3.5 w-3.5" />}
-                    ส่ง LINE ({generatedSet.size} ใบ)
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
                     className="h-9 gap-1"
                     style={{ borderColor: "var(--theme-primary)", color: "var(--theme-primary)" }}
                     onClick={() => backfillJournals.mutate()}
@@ -610,7 +601,6 @@ export default function FirmBilling() {
                           <td className="px-4 py-3">
                             <Checkbox
                               checked={selected.has(c.id)}
-                              disabled={isGenerated}
                               onCheckedChange={() => toggle(c.id)}
                               data-testid={`checkbox-client-${c.id}`}
                             />
@@ -804,7 +794,7 @@ export default function FirmBilling() {
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">ส่งให้</span>
-                <span className="font-medium">{generatedSet.size} บริษัท</span>
+                <span className="font-medium">{selectedGeneratedClients.length} บริษัท</span>
               </div>
             </div>
             <p className="text-muted-foreground text-xs">ระบบจะส่งใบแจ้งหนี้ผ่าน LINE ไปยังกลุ่มที่เชื่อมไว้ใน บริหารสำนักงาน → ตั้งค่ากลุ่ม LINE โดยอัตโนมัติ บริษัทที่ยังไม่มีกลุ่ม LINE จะไม่ถูกส่ง</p>
@@ -1177,30 +1167,49 @@ export default function FirmBilling() {
       }`}
       data-testid="floating-billing-bar"
     >
-      <div className="flex items-center gap-4 bg-gray-900 text-white rounded-2xl shadow-2xl px-6 py-3">
+      <div className="flex items-center gap-3 bg-gray-900 text-white rounded-2xl shadow-2xl px-5 py-3">
         <div className="flex items-center gap-1.5 text-sm">
           <span className="bg-white text-gray-900 font-bold rounded-full w-7 h-7 flex items-center justify-center text-xs">
             {selected.size}
           </span>
           <span className="text-gray-300">ราย</span>
         </div>
-        <div className="w-px h-5 bg-gray-600" />
-        <div className="text-sm text-gray-300">
-          ค่าบริการ <span className="font-semibold text-[#fb9678]">฿{fmt(totalFee)}</span>
-        </div>
-        <div className="text-sm text-gray-300">
-          WHT <span className="font-semibold text-red-400">฿{fmt(totalWht)}</span>
-        </div>
-        <div className="w-px h-5 bg-gray-600" />
-        <Button
-          size="sm"
-          className="bg-[#fb9678] hover:bg-[#e8856a] text-white rounded-xl font-medium"
-          onClick={() => setConfirmOpen(true)}
-          data-testid="button-batch-generate"
-        >
-          <Receipt className="h-4 w-4 mr-1.5" />
-          ออกใบแจ้งหนี้ {selected.size} ใบ
-        </Button>
+        {selectedPendingClients.length > 0 && (
+          <>
+            <div className="w-px h-5 bg-gray-600" />
+            <div className="text-sm text-gray-300">
+              ค่าบริการ <span className="font-semibold text-[#fb9678]">฿{fmt(totalFee)}</span>
+            </div>
+            <div className="text-sm text-gray-300">
+              WHT <span className="font-semibold text-red-400">฿{fmt(totalWht)}</span>
+            </div>
+            <div className="w-px h-5 bg-gray-600" />
+            <Button
+              size="sm"
+              className="bg-[#fb9678] hover:bg-[#e8856a] text-white rounded-xl font-medium"
+              onClick={() => setConfirmOpen(true)}
+              data-testid="button-batch-generate"
+            >
+              <Receipt className="h-4 w-4 mr-1.5" />
+              ออกใบแจ้งหนี้ {selectedPendingClients.length} ใบ
+            </Button>
+          </>
+        )}
+        {selectedGeneratedClients.length > 0 && (
+          <>
+            <div className="w-px h-5 bg-gray-600" />
+            <Button
+              size="sm"
+              className="bg-[#06C755] hover:bg-[#05a847] text-white rounded-xl font-medium"
+              onClick={() => setLineSendConfirmOpen(true)}
+              disabled={batchSendLine.isPending}
+              data-testid="button-batch-send-line"
+            >
+              {batchSendLine.isPending ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <LINE_ICON className="h-4 w-4 mr-1.5" />}
+              ส่ง LINE {selectedGeneratedClients.length} ใบ
+            </Button>
+          </>
+        )}
       </div>
     </div>
     </Layout>
