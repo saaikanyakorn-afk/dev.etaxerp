@@ -535,11 +535,14 @@ Every block of code that calls an external AI API MUST be marked with a `⚠️ 
 - **DESTRUCTIVE SQL SAFETY RULES (ABSOLUTE — พี่ช้าง rule 2026-04-16):**
   - **DELETE RULE:** DELETE on production (deep-main) is IRREVERSIBLE. No tool, no history, no person can bring deleted data back. This is REAL customer data.
   - **ALTER TABLE RULE (EVEN MORE DANGEROUS):** ALTER TABLE on a table that already has data is MORE dangerous than DELETE. DELETE destroys data but the structure remains — data can potentially be restored from backups. ALTER destroys BOTH the data AND the "home" of the data — column drops lose data permanently, type changes can corrupt/truncate data silently, and the application code that depends on the old structure breaks system-wide. Even with backups, if the structure no longer matches, restoration becomes extremely difficult or impossible.
-  - **MANDATORY BACKUP — every single time, no exception:**
-    - Before ANY DELETE or ALTER on a table with data, the one-time migration code MUST first create a backup:
-      `CREATE TABLE backup_{tablename}_{yyyymmdd} AS SELECT * FROM {tablename};`
-    - This applies to EVERY table, no matter how small or large.
-    - Do NOT rely on พี่ช้าง or anyone else as the safety net — that is shifting blame, not prevention. The backup in the database IS the real safety net.
+  - **MANDATORY BACKUP — apply the spirit, not the keyword:**
+    - The question to ask is: *"If this operation goes wrong, can the original data be recovered without a backup?"* If the answer is NO — backup is required, regardless of what SQL keyword is used.
+    - DELETE, UPDATE, DROP COLUMN, ALTER COLUMN type/size — examples where original data would be permanently lost. Backup required.
+    - ADD COLUMN (nullable, no default that changes existing rows) — existing data is untouched, revert = DROP COLUMN. Backup NOT required.
+    - When in doubt, apply the spirit: if existing data could be changed or lost in any way → backup first.
+    - The backup must be inside the one-time migration code itself — never ask พี่ช้าง, พี่ทราย, or anyone else to run it manually:
+      `CREATE TABLE IF NOT EXISTS backup_{tablename}_{yyyymmdd} AS SELECT * FROM {tablename};`
+    - Do NOT rely on anyone else as the safety net — that is shifting blame, not prevention. The backup in the database IS the real safety net.
     - After the operation, verify the data is correct. If something went wrong → restore from the backup table immediately.
   - **Mandatory safety loop for DELETE or ALTER on tables with data:**
     1. Write the one-time code (WITH backup step first) → push → pull + build + run
