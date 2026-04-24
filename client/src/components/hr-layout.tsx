@@ -496,23 +496,6 @@ export default function HRLayout({ children }: { children: React.ReactNode }) {
           })}
         </nav>
 
-        {(() => {
-          const otherMods = OTHER_MODULE_LINKS.filter(m => myRoleModules?.modules?.includes(m.key));
-          if (otherMods.length === 0) return null;
-          return (
-            <div className="px-3 pb-2 shrink-0 border-t border-sidebar-border pt-2">
-              <p className="text-xs text-sidebar-foreground/40 px-2 pb-1 font-medium uppercase tracking-wide">โมดูลอื่น</p>
-              {otherMods.map(mod => (
-                <Link key={mod.key} href={mod.href}>
-                  <span className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium cursor-pointer transition-all hover:bg-sidebar-accent" style={{ color: mod.color }} data-testid={`hr-link-module-${mod.key}`}>
-                    <mod.icon className="h-4 w-4 shrink-0" />
-                    {mod.label}
-                  </span>
-                </Link>
-              ))}
-            </div>
-          );
-        })()}
 
         <div className="px-3 pb-3 shrink-0">
           <Link href="/">

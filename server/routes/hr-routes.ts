@@ -2269,7 +2269,7 @@ export function registerHrRoutes(app: Express) {
       const today = `${nowLocal.getFullYear()}-${String(nowLocal.getMonth()+1).padStart(2,"0")}-${String(nowLocal.getDate()).padStart(2,"0")}`;
       const currentYear = new Date().getFullYear();
       const currentMonth = new Date().getMonth() + 1;
-      const allLeaves = await storage.getAllLeaves();
+      const allLeaves = await storage.getAllLeaves(user.tenantId);
       const pendingLeaves = allLeaves.filter((l: any) => l.status === "approved" && l.startDate <= today && l.endDate >= today);
       const holidays = await storage.getHolidays(dashCompanyId, currentYear);
 
