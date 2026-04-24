@@ -131,8 +131,10 @@ app.get("/api/version", (_req, res) => {
 
 app.get("/api/share-base-url", (req, res) => {
   const host = req.get("host") || "";
-  if (host.includes(".replit.app") || process.env.NODE_ENV === "production") {
-    res.json({ url: `${req.protocol}://${host}` });
+  if (process.env.NODE_ENV === "production") {
+    res.json({ url: `https://${host}` });
+  } else if (host.includes(".replit.app")) {
+    res.json({ url: `https://${host}` });
   } else {
     const replId = process.env.REPL_ID;
     if (replId) {
