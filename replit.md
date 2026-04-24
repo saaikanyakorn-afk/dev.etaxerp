@@ -157,7 +157,7 @@ If the SQL will **modify or delete existing data** (e.g. ALTER column type, bulk
 
 **🔑 If migration did NOT fire via pm2 restart (chain silent fail):**
 1. Run the SQL directly on deep-main using DB_PROD_URL credentials
-2. **⚠️ ALWAYS print console output** — show every step result so พี่ช้าง can see what ran (e.g. `[v87] ✓ tax_invoice_items.warehouse_id`)
+2. **⚠️ ALWAYS print console output** — this is MAINLY for Kai to verify what the code actually did in real life. Console is the only feedback Kai has when running against production. Never skip this — guessing is not acceptable.
 3. Set the flag manually in system_config with `ON CONFLICT DO NOTHING`
 4. **IMMEDIATELY comment out the migration block + push clean file to GitHub** — this MUST happen before Restart #2
 5. ONLY THEN tell พี่ช้าง to pull clean file + `pm2 restart` (Restart #2 — clean build)
