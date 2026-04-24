@@ -226,6 +226,7 @@ export default function FirmBilling() {
     },
   });
 
+  const [lineDebugError, setLineDebugError] = useState<string | null>(null);
   const batchSendLine = useMutation({
     mutationFn: async (clientIds?: number[]) => {
       const ids = clientIds ?? selectedGeneratedClients.map((c: any) => c.id);
@@ -235,16 +236,22 @@ export default function FirmBilling() {
         credentials: "include",
         body: JSON.stringify({ companyId, firmClientIds: ids, month: billingMonth, year: billingYear }),
       });
-      if (!r.ok) { const d = await r.json(); throw new Error(d.message); }
-      return r.json();
+      const rawText = await r.text();
+      if (!r.ok) {
+        const msg = `HTTP ${r.status} — ${rawText.slice(0, 300)}`;
+        throw new Error(msg);
+      }
+      try { return JSON.parse(rawText); }
+      catch { throw new Error(`Response not JSON (HTTP ${r.status}): ${rawText.slice(0, 300)}`); }
     },
     onSuccess: (data) => {
+      setLineDebugError(null);
       setLineSendResults(data.results || []);
       setLineSendConfirmOpen(false);
       setLineSendResultsOpen(true);
     },
     onError: (err: any) => {
-      toast({ title: "ส่ง LINE ไม่สำเร็จ", description: err.message, variant: "destructive" });
+      setLineDebugError(err.message);
     },
   });
 
@@ -798,6 +805,11 @@ export default function FirmBilling() {
               </div>
             </div>
             <p className="text-muted-foreground text-xs">ระบบจะส่งใบแจ้งหนี้ผ่าน LINE ไปยังกลุ่มที่เชื่อมไว้ใน บริหารสำนักงาน → ตั้งค่ากลุ่ม LINE โดยอัตโนมัติ บริษัทที่ยังไม่มีกลุ่ม LINE จะไม่ถูกส่ง</p>
+            {lineDebugError && (
+              <div className="bg-red-50 border border-red-200 rounded p-2 text-xs text-red-700 break-all select-all">
+                <strong>Error:</strong> {lineDebugError}
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setLineSendConfirmOpen(false)}>ยกเลิก</Button>
