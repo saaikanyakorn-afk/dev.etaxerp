@@ -116,26 +116,43 @@ If the SQL will **modify or delete existing data** (e.g. ALTER column type, bulk
   ```
 - Record backup table name in the history entry (Step 6).
 
-### Step 5 — Get พี่ทราย Approval, Stop pm2, Deploy, Verify BY EYES
+### Step 5 — Get พี่ทราย Approval, Deploy, Verify BY EYES
 
-**⚠️ BEFORE TOUCHING etaxerp — MANDATORY:**
-- **Ask พี่ทราย first.** etaxerp has real customers who may be actively using the system. We cannot know if anyone is logged in at any moment.
-- **Give downtime estimation.** พี่ทราย needs to know how long the system will be down before she can approve. Provide a best-guess (e.g. "~5 minutes").
-- **Wait for พี่ทราย's confirmation** on when it is safe to proceed.
+**WHAT BRINGS THE SERVER DOWN — know this exactly:**
+- `git fetch origin` → zero downtime
+- `git checkout origin/<branch> -- <files>` → zero downtime
+- `npm run build` → zero downtime
+- **`pm2 restart etax-center` → THIS is the only step that causes downtime (~1-3 min)**
+- Apache automatically serves `D:\Server\Websites\etaxerp\maintenance.html` (503 ErrorDocument) the moment pm2 stops — no manual action needed. Users see maintenance page instantly.
+
+**WHY พี่ทราย approval is needed — before `pm2 restart` only:**
+- etaxerp has real employees and real customers actively using the system at any moment
+- Batches with one-time migration require **TWO restarts** (not one):
+  - Restart 1: migration code active → runs on startup → sets flag → server back up
+  - Kai comments out migration → pushes clean file → พี่ช้าง pulls clean file
+  - Restart 2: clean build → server back up
+- The loop between Restart 1 and Restart 2 requires พี่ช้าง to be fully available. If พี่ช้าง steps away (call, bathroom, emergency), the loop stalls. พี่ทราย must know this is happening and approve the window so both restarts can complete without interruption.
+- พี่ทราย is NOT IT — she does not run any commands. She only approves the timing window.
 
 **❌ Maintenance Mode UI = NOT available on production.**
 - `activateNow()` / `liftMaintenance()` / kick users — code exists in dev but is **NOT done and NOT tested** on etaxerp.
-- Maintenance mode also requires booking **at least 1 hour in advance** (tightly coupled with Clone Database feature).
 - Do NOT attempt to use maintenance mode UI on etaxerp.
 
-**✅ Real procedure used on etaxerp (past & present):**
-1. Ask พี่ทราย + give downtime estimate → wait for her confirmation
-2. `pm2 stop etax-center` on Windows Server
-3. Cherry-pick deploy files → migration runs on next startup
-4. `pm2 start etax-center` (or `pm2 restart etax-center`)
-5. **STOP** — open DBeaver / psql on deep-main
-6. Verify the change actually happened with your own eyes
-7. Check system_config flag is set
+**Template wording to request พี่ทราย approval:**
+> "พี่ทราย ขอนัดช่วงที่ระบบไม่ค่อยมีคนใช้งานหน่อยนะคะ วันนี้มี deploy ฟีเจอร์ใหม่ [X] อย่าง จะต้อง restart server [1 หรือ 2] ครั้งติดกัน ครั้งละประมาณ 1-3 นาที ระหว่างนั้น Apache จะแสดงหน้า 'ปิดปรับปรุงชั่วคราว' อัตโนมัติ ขอให้แจ้งเวลาที่สะดวกด้วยนะคะ"
+- Use 1 restart: feature-only batch (no one-time migration)
+- Use 2 restarts: batch that includes one-time migration code
+
+**✅ Full procedure for batches WITH one-time migration:**
+1. Kai posts template → wait for พี่ทราย to confirm timing window
+2. พี่ช้าง: `git fetch origin` + `git checkout origin/<branch> -- <files>` (zero downtime)
+3. พี่ช้าง: `npm run build` (zero downtime)
+4. พี่ช้าง: `pm2 restart etax-center` → **Downtime starts** → migration runs → server back up → **Downtime ends**
+5. Kai: verify migration flag set in system_config → confirm to พี่ช้าง
+6. Kai: comment out migration block → push clean file to GitHub
+7. พี่ช้าง: `git fetch origin` + `git checkout origin/<branch> -- <migration-file>` (zero downtime)
+8. พี่ช้าง: `npm run build` + `pm2 restart etax-center` → **Downtime starts** → clean build → server back up → **Downtime ends**
+9. Kai: verify server running clean — loop closed
 
 ### Step 6 — Record History
 Update `shared/schema-extra.ts` history section AND the DB version table:
