@@ -13,20 +13,29 @@ import path from "path";
 import { parse as csvParse } from "csv-parse/sync";
 
 async function fetchInvoiceItems(invoiceId: number): Promise<any[]> {
-  const r = await db.execute(sql`SELECT *, warehouse_id AS "warehouseId" FROM invoice_items WHERE invoice_id = ${invoiceId} ORDER BY id`);
-  return r.rows as any[];
+  const rows = await db.select().from(invoiceItems).where(eq(invoiceItems.invoiceId, invoiceId)).orderBy(invoiceItems.id);
+  const extras = await db.execute(sql`SELECT id, warehouse_id AS "warehouseId" FROM invoice_items WHERE invoice_id = ${invoiceId} ORDER BY id`);
+  const warehouseMap: Record<number, number | null> = {};
+  for (const r of extras.rows as any[]) warehouseMap[r.id] = r.warehouseId ?? null;
+  return rows.map(r => ({ ...r, warehouseId: warehouseMap[r.id] ?? null }));
 }
 async function fetchTaxInvoiceItems(taxInvoiceId: number): Promise<any[]> {
-  const r = await db.execute(sql`SELECT *, warehouse_id AS "warehouseId" FROM tax_invoice_items WHERE tax_invoice_id = ${taxInvoiceId} ORDER BY id`);
-  return r.rows as any[];
+  const rows = await db.select().from(taxInvoiceItems).where(eq(taxInvoiceItems.taxInvoiceId, taxInvoiceId)).orderBy(taxInvoiceItems.id);
+  const extras = await db.execute(sql`SELECT id, warehouse_id AS "warehouseId" FROM tax_invoice_items WHERE tax_invoice_id = ${taxInvoiceId} ORDER BY id`);
+  const warehouseMap: Record<number, number | null> = {};
+  for (const r of extras.rows as any[]) warehouseMap[r.id] = r.warehouseId ?? null;
+  return rows.map(r => ({ ...r, warehouseId: warehouseMap[r.id] ?? null }));
 }
 async function fetchSalesOrderItems(salesOrderId: number): Promise<any[]> {
   const r = await db.execute(sql`SELECT *, warehouse_id AS "warehouseId" FROM sales_order_items WHERE sales_order_id = ${salesOrderId} ORDER BY id`);
   return r.rows as any[];
 }
 async function fetchReceiptItems(receiptId: number): Promise<any[]> {
-  const r = await db.execute(sql`SELECT *, warehouse_id AS "warehouseId" FROM receipt_items WHERE receipt_id = ${receiptId} ORDER BY id`);
-  return r.rows as any[];
+  const rows = await db.select().from(receiptItems).where(eq(receiptItems.receiptId, receiptId)).orderBy(receiptItems.id);
+  const extras = await db.execute(sql`SELECT id, warehouse_id AS "warehouseId" FROM receipt_items WHERE receipt_id = ${receiptId} ORDER BY id`);
+  const warehouseMap: Record<number, number | null> = {};
+  for (const r of extras.rows as any[]) warehouseMap[r.id] = r.warehouseId ?? null;
+  return rows.map(r => ({ ...r, warehouseId: warehouseMap[r.id] ?? null }));
 }
 
 export function registerSalesDocsRoutes(app: Express) {
