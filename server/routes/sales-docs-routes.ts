@@ -2650,7 +2650,6 @@ app.get("/api/share/receipt/:token", async (req, res) => {
   try {
     const [doc] = await db.select().from(receipts).where(eq(receipts.shareToken, req.params.token));
     if (!doc) return res.status(404).json({ message: "ไม่พบเอกสาร" });
-    { const ac = await checkDocOwnership(doc.companyId, req.user); if (!ac.allowed) return res.status(403).json({ message: ac.message }); }
     const items = await db.select().from(receiptItems).where(eq(receiptItems.receiptId, doc.id));
     const [company] = await db.select().from(companies).where(eq(companies.id, doc.companyId));
     let docSetting = null;
