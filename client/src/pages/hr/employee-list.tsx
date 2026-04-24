@@ -657,7 +657,7 @@ export default function EmployeeList() {
                           )}
                           {emp.exemptFromCheckin && !isResigned && (
                             <Badge variant="outline" className="bg-amber-50 text-amber-600 border-amber-200 text-[10px]" data-testid={`badge-exempt-${emp.id}`}>
-                              ไม่ต้องเช็คอิน
+                              ไม่บังคับเวลา
                             </Badge>
                           )}
                         </div>
@@ -949,7 +949,7 @@ export default function EmployeeList() {
                   className="h-4 w-4 rounded border-gray-300"
                   data-testid="checkbox-exempt-checkin"
                 />
-                <label htmlFor="exemptFromCheckin" className="text-sm text-muted-foreground cursor-pointer">ยกเว้นการเช็คอิน (ไม่ต้องลงเวลา เช่น ผู้บริหาร)</label>
+                <label htmlFor="exemptFromCheckin" className="text-sm text-muted-foreground cursor-pointer">ไม่บังคับเวลา — เช็คอิน/เช็คเอ้าได้ แต่ไม่นับสายและไม่นับขาด (เช่น ผู้บริหาร, งาน Field)</label>
               </div>
               {workLocationsList.length > 0 && (
                 <div>
