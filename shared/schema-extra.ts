@@ -2,7 +2,18 @@ import { pgTable, serial, integer, text, varchar, decimal, date, timestamp, bool
 import { createInsertSchema } from "drizzle-zod";
 import { sql } from "drizzle-orm";
 import { z } from "zod";
-import { companies, users, tenants, subscriptionPlans } from "./schema";
+import { companies, users, tenants, subscriptionPlans, employees } from "./schema";
+
+export const employeeHourSettings = pgTable("employee_hour_settings", {
+  id: serial("id").primaryKey(),
+  employeeId: integer("employee_id").references(() => employees.id, { onDelete: "cascade" }).notNull().unique(),
+  attendanceType: text("attendance_type").notNull().default("time_based"),
+  defaultHoursPerDay: decimal("default_hours_per_day", { precision: 4, scale: 1 }).default("8.0"),
+});
+
+export const insertEmployeeHourSettingsSchema = createInsertSchema(employeeHourSettings).omit({ id: true });
+export type InsertEmployeeHourSettings = z.infer<typeof insertEmployeeHourSettingsSchema>;
+export type EmployeeHourSettings = typeof employeeHourSettings.$inferSelect;
 
 export const employeeCounters = pgTable("employee_counters", {
   id: serial("id").primaryKey(),
