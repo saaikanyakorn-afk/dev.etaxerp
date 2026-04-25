@@ -22,10 +22,10 @@ const PdfPrinter = _require("pdfmake/src/printer");
 const fontsDir = path.join(process.cwd(), "server/fonts");
 const printer = new PdfPrinter({
   Sarabun: {
-    normal: path.join(fontsDir, "Sarabun-Regular.ttf"),
-    bold: path.join(fontsDir, "Sarabun-Bold.ttf"),
-    italics: path.join(fontsDir, "Sarabun-Italic.ttf"),
-    bolditalics: path.join(fontsDir, "Sarabun-Bold.ttf"),
+    normal: path.join(fontsDir, "Niramit-Regular.ttf"),
+    bold: path.join(fontsDir, "Niramit-Bold.ttf"),
+    italics: path.join(fontsDir, "Niramit-Italic.ttf"),
+    bolditalics: path.join(fontsDir, "Niramit-BoldItalic.ttf"),
   },
 });
 
