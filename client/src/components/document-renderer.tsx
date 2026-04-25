@@ -320,8 +320,6 @@ export default function DocumentRenderer({
       style={{ fontSize: "11px", lineHeight: 1.5, fontFamily: "'Sarabun', 'Inter', sans-serif" }}
       data-testid="document-renderer"
     >
-      <div className="h-1.5" style={{ background: primary }} />
-
       <div className="py-5 px-8 flex flex-col" style={{ minHeight: "calc(297mm - 1.5px - 25mm)" }}>
         <div className="flex items-start justify-between mb-4">
           <div className="flex items-start gap-3">
