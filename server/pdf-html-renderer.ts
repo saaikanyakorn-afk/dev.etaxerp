@@ -382,7 +382,6 @@ export function renderDocumentHtml(opts: GeneratePdfOptions): string {
 </head>
 <body>
   <div class="page">
-    <div style="height:6px;width:100%;background-color:${primary};-webkit-print-color-adjust:exact;print-color-adjust:exact;"></div>
     <div class="content">
 
       <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:16px">
