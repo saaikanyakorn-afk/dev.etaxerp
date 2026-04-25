@@ -206,6 +206,7 @@ function buildDocDefinition(opts: GeneratePdfOptions): TDocumentDefinitions {
   const docInfoStack: Content[] = [];
   docInfoStack.push({
     table: {
+      widths: ["*"],
       body: [[{
         stack: [
           { text: docInfo.label, fontSize: 18, bold: true, color: "white", alignment: "center" },
