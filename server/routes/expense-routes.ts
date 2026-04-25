@@ -136,42 +136,27 @@ export function registerExpenseRoutes(app: Express) {
     try {
       const companyId = Number(req.query.companyId);
       if (!companyId) return res.status(400).json({ message: "companyId required" });
-      const { page, pageSize, offset } = parsePagination(req, { pageSize: 50 });
       const whereClause = eq(expenses.companyId, companyId);
-      const [{ total }] = await db.select({ total: count() }).from(expenses).where(whereClause);
-      const rows = await db.select().from(expenses).where(whereClause).orderBy(desc(expenses.expDate), desc(expenses.id)).limit(pageSize).offset(offset);
-      const userIds = Array.from(new Set(rows.map(r => r.createdBy).concat(rows.map(r => r.updatedBy)).filter(Boolean))) as number[];
-      const userMap: Record<number, string> = {};
-      for (const uid of userIds) {
-        const u = await storage.getUser(uid);
-        if (u) userMap[uid] = u.username;
-      }
-      const allItems = rows.length > 0
-        ? await db.select().from(expenseItems).where(
-            sql`${expenseItems.expenseId} IN (${sql.join(rows.map(r => sql`${r.id}`), sql`, `)})`
-          )
-        : [];
-      const itemsByExpense: Record<number, typeof allItems> = {};
-      for (const item of allItems) {
-        if (!itemsByExpense[item.expenseId]) itemsByExpense[item.expenseId] = [];
-        itemsByExpense[item.expenseId].push(item);
-      }
-      const result = rows.map(r => {
-        const expItems = itemsByExpense[r.id] || [];
-        const firstDesc = expItems.find(it => it.description)?.description || null;
-        const firstAccName = expItems.find(it => it.accountName)?.accountName || null;
-        return {
-          ...r,
-          firstItemDescription: firstDesc || firstAccName,
-          createdByName: r.createdBy ? userMap[r.createdBy] || "-" : "-",
-          updatedByName: r.updatedBy ? userMap[r.updatedBy] || "-" : "-",
-        };
-      });
+      const buildResult = async (rows: any[]) => {
+        const userIds = Array.from(new Set(rows.map((r: any) => r.createdBy).concat(rows.map((r: any) => r.updatedBy)).filter(Boolean))) as number[];
+        const userMap: Record<number, string> = {};
+        for (const uid of userIds) { const u = await storage.getUser(uid); if (u) userMap[uid] = u.username; }
+        const allItems = rows.length > 0 ? await db.select().from(expenseItems).where(sql`${expenseItems.expenseId} IN (${sql.join(rows.map((r: any) => sql`${r.id}`), sql`, `)})`) : [];
+        const itemsByExpense: Record<number, any[]> = {};
+        for (const item of allItems) { if (!itemsByExpense[item.expenseId]) itemsByExpense[item.expenseId] = []; itemsByExpense[item.expenseId].push(item); }
+        return rows.map((r: any) => {
+          const expItems = itemsByExpense[r.id] || [];
+          return { ...r, firstItemDescription: expItems.find((it: any) => it.description)?.description || expItems.find((it: any) => it.accountName)?.accountName || null, createdByName: r.createdBy ? userMap[r.createdBy] || "-" : "-", updatedByName: r.updatedBy ? userMap[r.updatedBy] || "-" : "-" };
+        });
+      };
       if (req.query.page) {
-        res.json(paginatedResponse(result, Number(total), { page, pageSize, offset }));
-      } else {
-        res.json(result);
+        const { page, pageSize, offset } = parsePagination(req, { pageSize: 50 });
+        const [{ total }] = await db.select({ total: count() }).from(expenses).where(whereClause);
+        const rows = await db.select().from(expenses).where(whereClause).orderBy(desc(expenses.expDate), desc(expenses.id)).limit(pageSize).offset(offset);
+        return res.json(paginatedResponse(await buildResult(rows), Number(total), { page, pageSize, offset }));
       }
+      const rows = await db.select().from(expenses).where(whereClause).orderBy(desc(expenses.expDate), desc(expenses.id));
+      res.json(await buildResult(rows));
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 

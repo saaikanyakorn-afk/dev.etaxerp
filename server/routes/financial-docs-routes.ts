@@ -35,35 +35,22 @@ app.get("/api/deposit-receipts", requireAuth, requireAnyModule("sales", "ecommer
   try {
     const companyId = Number(req.query.companyId);
     if (!companyId) return res.status(400).json({ message: "companyId required" });
-    const { page, pageSize, offset } = parsePagination(req, { pageSize: 50 });
     const whereClause = eq(depositReceipts.companyId, companyId);
-    const [{ total }] = await db.select({ total: count() }).from(depositReceipts).where(whereClause);
-    const rows = await db.select({
-      deposit: depositReceipts,
-      contactName: contacts.name,
-      contactCode: contacts.code,
-    }).from(depositReceipts)
-      .leftJoin(contacts, eq(depositReceipts.customerId, contacts.id))
-      .where(whereClause)
-      .orderBy(desc(depositReceipts.depositDate), desc(depositReceipts.id))
-      .limit(pageSize).offset(offset);
-    const userIds = Array.from(new Set(rows.map(r => r.deposit.createdBy).concat(rows.map(r => r.deposit.updatedBy)).filter(Boolean))) as number[];
-    const userMap: Record<number, string> = {};
-    if (userIds.length > 0) { const uu = await db.select({ id: users.id, fullName: users.fullName }).from(users).where(inArray(users.id, userIds)); for (const u of uu) userMap[u.id] = u.fullName; }
-    if (false) { const u: any = null; if (u) userMap[0] = u.fullName;
-    }
-    const result = rows.map(r => ({
-      ...r.deposit,
-      contactName: r.contactName || r.deposit.customerName,
-      contactCode: r.contactCode || r.deposit.customerCode,
-      createdByName: r.deposit.createdBy ? userMap[r.deposit.createdBy] || "-" : "-",
-      updatedByName: r.deposit.updatedBy ? userMap[r.deposit.updatedBy] || "-" : "-",
-    }));
+    const buildResult = async (rows: any[]) => {
+      const userIds = Array.from(new Set(rows.map((r: any) => r.deposit.createdBy).concat(rows.map((r: any) => r.deposit.updatedBy)).filter(Boolean))) as number[];
+      const userMap: Record<number, string> = {};
+      if (userIds.length > 0) { const uu = await db.select({ id: users.id, fullName: users.fullName }).from(users).where(inArray(users.id, userIds)); for (const u of uu) userMap[u.id] = u.fullName; }
+      return rows.map((r: any) => ({ ...r.deposit, contactName: r.contactName || r.deposit.customerName, contactCode: r.contactCode || r.deposit.customerCode, createdByName: r.deposit.createdBy ? userMap[r.deposit.createdBy] || "-" : "-", updatedByName: r.deposit.updatedBy ? userMap[r.deposit.updatedBy] || "-" : "-" }));
+    };
+    const query = db.select({ deposit: depositReceipts, contactName: contacts.name, contactCode: contacts.code }).from(depositReceipts).leftJoin(contacts, eq(depositReceipts.customerId, contacts.id)).where(whereClause).orderBy(desc(depositReceipts.depositDate), desc(depositReceipts.id));
     if (req.query.page) {
-      res.json(paginatedResponse(result, Number(total), { page, pageSize, offset }));
-    } else {
-      res.json(result);
+      const { page, pageSize, offset } = parsePagination(req, { pageSize: 50 });
+      const [{ total }] = await db.select({ total: count() }).from(depositReceipts).where(whereClause);
+      const rows = await query.limit(pageSize).offset(offset);
+      return res.json(paginatedResponse(await buildResult(rows), Number(total), { page, pageSize, offset }));
     }
+    const rows = await query;
+    res.json(await buildResult(rows));
   } catch (err: any) { res.status(500).json({ message: err.message }); }
 });
 
@@ -412,35 +399,22 @@ app.get("/api/purchase-deposits", requireAuth, requireModule("purchases"), async
   try {
     const companyId = Number(req.query.companyId);
     if (!companyId) return res.status(400).json({ message: "companyId required" });
-    const { page, pageSize, offset } = parsePagination(req, { pageSize: 50 });
     const whereClause = eq(purchaseDeposits.companyId, companyId);
-    const [{ total }] = await db.select({ total: count() }).from(purchaseDeposits).where(whereClause);
-    const rows = await db.select({
-      deposit: purchaseDeposits,
-      contactName: contacts.name,
-      contactCode: contacts.code,
-    }).from(purchaseDeposits)
-      .leftJoin(contacts, eq(purchaseDeposits.vendorId, contacts.id))
-      .where(whereClause)
-      .orderBy(desc(purchaseDeposits.depositDate), desc(purchaseDeposits.id))
-      .limit(pageSize).offset(offset);
-    const userIds = Array.from(new Set(rows.map(r => r.deposit.createdBy).concat(rows.map(r => r.deposit.updatedBy)).filter(Boolean))) as number[];
-    const userMap: Record<number, string> = {};
-    if (userIds.length > 0) { const uu = await db.select({ id: users.id, fullName: users.fullName }).from(users).where(inArray(users.id, userIds)); for (const u of uu) userMap[u.id] = u.fullName; }
-    if (false) { const u: any = null; if (u) userMap[0] = u.fullName;
-    }
-    const result = rows.map(r => ({
-      ...r.deposit,
-      contactName: r.contactName || r.deposit.vendorName,
-      contactCode: r.contactCode || r.deposit.vendorCode,
-      createdByName: r.deposit.createdBy ? userMap[r.deposit.createdBy] || "-" : "-",
-      updatedByName: r.deposit.updatedBy ? userMap[r.deposit.updatedBy] || "-" : "-",
-    }));
+    const buildResult = async (rows: any[]) => {
+      const userIds = Array.from(new Set(rows.map((r: any) => r.deposit.createdBy).concat(rows.map((r: any) => r.deposit.updatedBy)).filter(Boolean))) as number[];
+      const userMap: Record<number, string> = {};
+      if (userIds.length > 0) { const uu = await db.select({ id: users.id, fullName: users.fullName }).from(users).where(inArray(users.id, userIds)); for (const u of uu) userMap[u.id] = u.fullName; }
+      return rows.map((r: any) => ({ ...r.deposit, contactName: r.contactName || r.deposit.vendorName, contactCode: r.contactCode || r.deposit.vendorCode, createdByName: r.deposit.createdBy ? userMap[r.deposit.createdBy] || "-" : "-", updatedByName: r.deposit.updatedBy ? userMap[r.deposit.updatedBy] || "-" : "-" }));
+    };
+    const query = db.select({ deposit: purchaseDeposits, contactName: contacts.name, contactCode: contacts.code }).from(purchaseDeposits).leftJoin(contacts, eq(purchaseDeposits.vendorId, contacts.id)).where(whereClause).orderBy(desc(purchaseDeposits.depositDate), desc(purchaseDeposits.id));
     if (req.query.page) {
-      res.json(paginatedResponse(result, Number(total), { page, pageSize, offset }));
-    } else {
-      res.json(result);
+      const { page, pageSize, offset } = parsePagination(req, { pageSize: 50 });
+      const [{ total }] = await db.select({ total: count() }).from(purchaseDeposits).where(whereClause);
+      const rows = await query.limit(pageSize).offset(offset);
+      return res.json(paginatedResponse(await buildResult(rows), Number(total), { page, pageSize, offset }));
     }
+    const rows = await query;
+    res.json(await buildResult(rows));
   } catch (err: any) { res.status(500).json({ message: err.message }); }
 });
 

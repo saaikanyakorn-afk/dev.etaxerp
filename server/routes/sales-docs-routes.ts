@@ -44,7 +44,6 @@ app.get("/api/sales-orders", requireAuth, requireAnyModule("sales", "ecommerce")
   try {
     const companyId = Number(req.query.companyId);
     if (!companyId) return res.status(400).json({ message: "companyId required" });
-    const { page, pageSize, offset } = parsePagination(req, { pageSize: 50 });
     const conditions: any[] = [eq(salesOrders.companyId, companyId)];
     if (req.query.status) conditions.push(eq(salesOrders.status, String(req.query.status)));
     if (req.query.paymentStatus) conditions.push(eq(salesOrders.paymentStatus, String(req.query.paymentStatus)));
@@ -54,9 +53,24 @@ app.get("/api/sales-orders", requireAuth, requireAnyModule("sales", "ecommerce")
       conditions.push(sql`(${salesOrders.orderNo} ILIKE ${s} OR ${salesOrders.customerName} ILIKE ${s} OR ${salesOrders.channelOrderNo} ILIKE ${s})`);
     }
     const whereClause = and(...conditions);
-    const [{ total }] = await db.select({ total: count() }).from(salesOrders).where(whereClause);
-    const orders = await db.select().from(salesOrders).where(whereClause).orderBy(desc(salesOrders.orderDate), desc(salesOrders.id)).limit(pageSize).offset(offset);
-    const soIds = orders.map(o => o.id);
+    let orders: any[];
+    if (req.query.page) {
+      const { page, pageSize, offset } = parsePagination(req, { pageSize: 50 });
+      const [{ total }] = await db.select({ total: count() }).from(salesOrders).where(whereClause);
+      orders = await db.select().from(salesOrders).where(whereClause).orderBy(desc(salesOrders.orderDate), desc(salesOrders.id)).limit(pageSize).offset(offset);
+      const soIds = orders.map((o: any) => o.id);
+      let convertedMap: Record<number, number> = {};
+      try {
+        if (soIds.length > 0) {
+          const invoiceRows = await db.select({ soid: invoices.salesOrderId, total: sql<string>`COALESCE(SUM(${invoices.totalAmount}::numeric), 0)` }).from(invoices).where(and(inArray(invoices.salesOrderId, soIds as number[]), eq(invoices.companyId, companyId))).groupBy(invoices.salesOrderId);
+          for (const r of invoiceRows) { if (r.soid) convertedMap[r.soid] = parseFloat(r.total || "0"); }
+        }
+      } catch (e) { console.error("[sales-orders] convertedAmount calc error:", e); }
+      const enriched = orders.map((o: any) => ({ ...o, convertedAmount: convertedMap[o.id] || 0 }));
+      return res.json(paginatedResponse(enriched, Number(total), { page, pageSize, offset }));
+    }
+    orders = await db.select().from(salesOrders).where(whereClause).orderBy(desc(salesOrders.orderDate), desc(salesOrders.id));
+    const soIds = orders.map((o: any) => o.id);
     let convertedMap: Record<number, number> = {};
     try {
       if (soIds.length > 0) {
@@ -64,15 +78,7 @@ app.get("/api/sales-orders", requireAuth, requireAnyModule("sales", "ecommerce")
         for (const r of invoiceRows) { if (r.soid) convertedMap[r.soid] = parseFloat(r.total || "0"); }
       }
     } catch (e) { console.error("[sales-orders] convertedAmount calc error:", e); }
-    const enriched = orders.map(o => ({
-      ...o,
-      convertedAmount: convertedMap[o.id] || 0,
-    }));
-    if (req.query.page) {
-      res.json(paginatedResponse(enriched, Number(total), { page, pageSize, offset }));
-    } else {
-      res.json(enriched);
-    }
+    res.json(orders.map((o: any) => ({ ...o, convertedAmount: convertedMap[o.id] || 0 })));
   } catch (err: any) { res.status(500).json({ message: err.message }); }
 });
 
@@ -1671,29 +1677,21 @@ app.get("/api/tax-invoices", requireAuth, requireAnyModule("sales", "ecommerce")
   try {
     const companyId = Number(req.query.companyId);
     if (!companyId) return res.status(400).json({ message: "companyId required" });
-    const { page, pageSize, offset } = parsePagination(req, { pageSize: 50 });
-    const whereClause = and(
-      eq(taxInvoices.companyId, companyId),
-      isNull(taxInvoices.summaryTaxInvoiceId),
-    );
-    const [{ total }] = await db.select({ total: count() }).from(taxInvoices).where(whereClause);
-    const rows = await db.select().from(taxInvoices).where(whereClause).orderBy(desc(taxInvoices.taxInvoiceDate), desc(taxInvoices.id)).limit(pageSize).offset(offset);
-    const userIds = Array.from(new Set(rows.map(r => r.createdBy).concat(rows.map(r => r.updatedBy)).filter(Boolean))) as number[];
-    const userMap: Record<number, string> = {};
-    if (userIds.length > 0) {
-      const userRows = await db.select({ id: users.id, fullName: users.fullName }).from(users).where(inArray(users.id, userIds));
-      for (const u of userRows) userMap[u.id] = u.fullName;
-    }
-    const result = rows.map(r => ({
-      ...r,
-      createdByName: r.createdBy ? userMap[r.createdBy] || "-" : "-",
-      updatedByName: r.updatedBy ? userMap[r.updatedBy] || "-" : "-",
-    }));
+    const whereClause = and(eq(taxInvoices.companyId, companyId), isNull(taxInvoices.summaryTaxInvoiceId));
+    const buildResult = async (rows: any[]) => {
+      const userIds = Array.from(new Set(rows.map((r: any) => r.createdBy).concat(rows.map((r: any) => r.updatedBy)).filter(Boolean))) as number[];
+      const userMap: Record<number, string> = {};
+      if (userIds.length > 0) { const uu = await db.select({ id: users.id, fullName: users.fullName }).from(users).where(inArray(users.id, userIds)); for (const u of uu) userMap[u.id] = u.fullName; }
+      return rows.map((r: any) => ({ ...r, createdByName: r.createdBy ? userMap[r.createdBy] || "-" : "-", updatedByName: r.updatedBy ? userMap[r.updatedBy] || "-" : "-" }));
+    };
     if (req.query.page) {
-      res.json(paginatedResponse(result, Number(total), { page, pageSize, offset }));
-    } else {
-      res.json(result);
+      const { page, pageSize, offset } = parsePagination(req, { pageSize: 50 });
+      const [{ total }] = await db.select({ total: count() }).from(taxInvoices).where(whereClause);
+      const rows = await db.select().from(taxInvoices).where(whereClause).orderBy(desc(taxInvoices.taxInvoiceDate), desc(taxInvoices.id)).limit(pageSize).offset(offset);
+      return res.json(paginatedResponse(await buildResult(rows), Number(total), { page, pageSize, offset }));
     }
+    const rows = await db.select().from(taxInvoices).where(whereClause).orderBy(desc(taxInvoices.taxInvoiceDate), desc(taxInvoices.id));
+    res.json(await buildResult(rows));
   } catch (err: any) { console.error("[tax-invoices] list error:", err); res.status(500).json({ message: err.message }); }
 });
 
@@ -2274,25 +2272,21 @@ app.get("/api/receipts", requireAuth, requireAnyModule("sales", "ecommerce"), as
   try {
     const companyId = Number(req.query.companyId);
     if (!companyId) return res.status(400).json({ message: "companyId required" });
-    const { page, pageSize, offset } = parsePagination(req, { pageSize: 50 });
     const whereClause = eq(receipts.companyId, companyId);
-    const [{ total }] = await db.select({ total: count() }).from(receipts).where(whereClause);
-    const rows = await db.select().from(receipts).where(whereClause).orderBy(desc(receipts.receiptDate), desc(receipts.id)).limit(pageSize).offset(offset);
-    const userIds = Array.from(new Set(rows.map(r => r.createdBy).concat(rows.map(r => r.updatedBy)).filter(Boolean))) as number[];
-    const userMap: Record<number, string> = {};
-    for (const uid of userIds) {
-      try { const u = await storage.getUser(uid); if (u) userMap[uid] = u.username; } catch {}
-    }
-    const result = rows.map(r => ({
-      ...r,
-      createdByName: r.createdBy ? userMap[r.createdBy] || "-" : "-",
-      updatedByName: r.updatedBy ? userMap[r.updatedBy] || "-" : "-",
-    }));
+    const buildResult = async (rows: any[]) => {
+      const userIds = Array.from(new Set(rows.map((r: any) => r.createdBy).concat(rows.map((r: any) => r.updatedBy)).filter(Boolean))) as number[];
+      const userMap: Record<number, string> = {};
+      for (const uid of userIds) { try { const u = await storage.getUser(uid); if (u) userMap[uid] = u.username; } catch {} }
+      return rows.map((r: any) => ({ ...r, createdByName: r.createdBy ? userMap[r.createdBy] || "-" : "-", updatedByName: r.updatedBy ? userMap[r.updatedBy] || "-" : "-" }));
+    };
     if (req.query.page) {
-      res.json(paginatedResponse(result, Number(total), { page, pageSize, offset }));
-    } else {
-      res.json(result);
+      const { page, pageSize, offset } = parsePagination(req, { pageSize: 50 });
+      const [{ total }] = await db.select({ total: count() }).from(receipts).where(whereClause);
+      const rows = await db.select().from(receipts).where(whereClause).orderBy(desc(receipts.receiptDate), desc(receipts.id)).limit(pageSize).offset(offset);
+      return res.json(paginatedResponse(await buildResult(rows), Number(total), { page, pageSize, offset }));
     }
+    const rows = await db.select().from(receipts).where(whereClause).orderBy(desc(receipts.receiptDate), desc(receipts.id));
+    res.json(await buildResult(rows));
   } catch (err: any) { console.error("[receipts] list error:", err); res.status(500).json({ message: err.message }); }
 });
 

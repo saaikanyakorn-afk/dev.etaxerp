@@ -492,26 +492,21 @@ export function registerPurchaseRoutes(app: Express) {
     try {
       const companyId = Number(req.query.companyId);
       if (!companyId) return res.status(400).json({ message: "companyId required" });
-      const { page, pageSize, offset } = parsePagination(req, { pageSize: 50 });
       const whereClause = eq(purchaseOrders.companyId, companyId);
-      const [{ total }] = await db.select({ total: count() }).from(purchaseOrders).where(whereClause);
-      const rows = await db.select().from(purchaseOrders).where(whereClause).orderBy(desc(purchaseOrders.poDate), desc(purchaseOrders.id)).limit(pageSize).offset(offset);
-      const userIds = Array.from(new Set(rows.map(r => r.createdBy).concat(rows.map(r => r.updatedBy)).filter(Boolean))) as number[];
-      const userMap: Record<number, string> = {};
-      for (const uid of userIds) {
-        const u = await storage.getUser(uid);
-        if (u) userMap[uid] = u.username;
-      }
-      const result = rows.map(r => ({
-        ...r,
-        createdByName: r.createdBy ? userMap[r.createdBy] || "-" : "-",
-        updatedByName: r.updatedBy ? userMap[r.updatedBy] || "-" : "-",
-      }));
+      const buildResult = async (rows: any[]) => {
+        const userIds = Array.from(new Set(rows.map((r: any) => r.createdBy).concat(rows.map((r: any) => r.updatedBy)).filter(Boolean))) as number[];
+        const userMap: Record<number, string> = {};
+        for (const uid of userIds) { const u = await storage.getUser(uid); if (u) userMap[uid] = u.username; }
+        return rows.map((r: any) => ({ ...r, createdByName: r.createdBy ? userMap[r.createdBy] || "-" : "-", updatedByName: r.updatedBy ? userMap[r.updatedBy] || "-" : "-" }));
+      };
       if (req.query.page) {
-        res.json(paginatedResponse(result, Number(total), { page, pageSize, offset }));
-      } else {
-        res.json(result);
+        const { page, pageSize, offset } = parsePagination(req, { pageSize: 50 });
+        const [{ total }] = await db.select({ total: count() }).from(purchaseOrders).where(whereClause);
+        const rows = await db.select().from(purchaseOrders).where(whereClause).orderBy(desc(purchaseOrders.poDate), desc(purchaseOrders.id)).limit(pageSize).offset(offset);
+        return res.json(paginatedResponse(await buildResult(rows), Number(total), { page, pageSize, offset }));
       }
+      const rows = await db.select().from(purchaseOrders).where(whereClause).orderBy(desc(purchaseOrders.poDate), desc(purchaseOrders.id));
+      res.json(await buildResult(rows));
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
@@ -803,26 +798,21 @@ export function registerPurchaseRoutes(app: Express) {
     try {
       const companyId = Number(req.query.companyId);
       if (!companyId) return res.status(400).json({ message: "companyId required" });
-      const { page, pageSize, offset } = parsePagination(req, { pageSize: 50 });
       const whereClause = eq(purchaseInvoices.companyId, companyId);
-      const [{ total }] = await db.select({ total: count() }).from(purchaseInvoices).where(whereClause);
-      const rows = await db.select().from(purchaseInvoices).where(whereClause).orderBy(desc(purchaseInvoices.apDate), desc(purchaseInvoices.id)).limit(pageSize).offset(offset);
-      const userIds = Array.from(new Set(rows.map(r => r.createdBy).concat(rows.map(r => r.updatedBy)).filter(Boolean))) as number[];
-      const userMap: Record<number, string> = {};
-      for (const uid of userIds) {
-        const u = await storage.getUser(uid);
-        if (u) userMap[uid] = u.username;
-      }
-      const result = rows.map(r => ({
-        ...r,
-        createdByName: r.createdBy ? userMap[r.createdBy] || "-" : "-",
-        updatedByName: r.updatedBy ? userMap[r.updatedBy] || "-" : "-",
-      }));
+      const buildResult = async (rows: any[]) => {
+        const userIds = Array.from(new Set(rows.map((r: any) => r.createdBy).concat(rows.map((r: any) => r.updatedBy)).filter(Boolean))) as number[];
+        const userMap: Record<number, string> = {};
+        for (const uid of userIds) { const u = await storage.getUser(uid); if (u) userMap[uid] = u.username; }
+        return rows.map((r: any) => ({ ...r, createdByName: r.createdBy ? userMap[r.createdBy] || "-" : "-", updatedByName: r.updatedBy ? userMap[r.updatedBy] || "-" : "-" }));
+      };
       if (req.query.page) {
-        res.json(paginatedResponse(result, Number(total), { page, pageSize, offset }));
-      } else {
-        res.json(result);
+        const { page, pageSize, offset } = parsePagination(req, { pageSize: 50 });
+        const [{ total }] = await db.select({ total: count() }).from(purchaseInvoices).where(whereClause);
+        const rows = await db.select().from(purchaseInvoices).where(whereClause).orderBy(desc(purchaseInvoices.apDate), desc(purchaseInvoices.id)).limit(pageSize).offset(offset);
+        return res.json(paginatedResponse(await buildResult(rows), Number(total), { page, pageSize, offset }));
       }
+      const rows = await db.select().from(purchaseInvoices).where(whereClause).orderBy(desc(purchaseInvoices.apDate), desc(purchaseInvoices.id));
+      res.json(await buildResult(rows));
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
