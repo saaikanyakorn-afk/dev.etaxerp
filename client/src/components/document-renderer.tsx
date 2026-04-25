@@ -317,7 +317,7 @@ export default function DocumentRenderer({
   return (
     <div
       className="bg-white border rounded-lg shadow-sm overflow-hidden print:!border-0 print:!shadow-none print:!rounded-none min-w-[640px]"
-      style={{ fontSize: "11px", lineHeight: 1.5, fontFamily: "'Sarabun', 'Inter', sans-serif" }}
+      style={{ fontSize: "11px", lineHeight: 1.5, fontFamily: "'Niramit', 'Sarabun', sans-serif" }}
       data-testid="document-renderer"
     >
       <div className="py-5 px-8 flex flex-col" style={{ minHeight: "calc(297mm - 1.5px - 25mm)" }}>
@@ -434,7 +434,7 @@ export default function DocumentRenderer({
           )}
         </div>
 
-        <table className="w-full border-collapse mb-4" style={{ fontFamily: "'Sarabun', 'Inter', sans-serif", fontVariantNumeric: "tabular-nums" }}>
+        <table className="w-full border-collapse mb-4" style={{ fontFamily: "'Niramit', 'Sarabun', sans-serif", fontVariantNumeric: "tabular-nums" }}>
           <thead>
             <tr style={{ backgroundColor: theme.bg }}>
               <th className="text-center py-1.5 px-1 text-[10px] font-semibold border-b w-8" style={{ color: accent, borderColor: theme.light }}>
@@ -663,6 +663,7 @@ export default function DocumentRenderer({
           )}
         </div>
         <style>{`
+          @import url('https://fonts.googleapis.com/css2?family=Niramit:ital,wght@0,300;0,400;0,600;0,700;1,400&display=swap');
           @media print {
             @page {
               @bottom-right {
