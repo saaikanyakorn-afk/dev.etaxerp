@@ -2,22 +2,7 @@ import puppeteer, { type Browser, type Page } from "puppeteer-core";
 import path from "path";
 import fs from "fs";
 
-function resolveChromiumPath(): string {
-  if (process.env.CHROME_PATH && fs.existsSync(process.env.CHROME_PATH)) return process.env.CHROME_PATH;
-  const candidates = [
-    "/nix/store/zi4f80l169xlmivz8vja8wlphq74qqk0-chromium-125.0.6422.141/bin/chromium",
-    "/usr/bin/chromium-browser",
-    "/usr/bin/chromium",
-    "/usr/bin/google-chrome",
-    "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
-    "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
-    "C:\\Program Files\\Chromium\\Application\\chrome.exe",
-  ];
-  for (const p of candidates) {
-    try { if (fs.existsSync(p)) return p; } catch {}
-  }
-  throw new Error("ไม่พบ Chrome/Chromium — กรุณาตั้งค่า environment variable CHROME_PATH ให้ชี้ไปที่ chrome.exe");
-}
+const CHROMIUM_PATH = "/nix/store/zi4f80l169xlmivz8vja8wlphq74qqk0-chromium-125.0.6422.141/bin/chromium";
 const MAX_CONCURRENT = 3;
 const MAX_QUEUE_LENGTH = 50;
 const IDLE_TIMEOUT_MS = 30_000;
@@ -95,7 +80,7 @@ class PuppeteerPdfService {
       console.log("[PDF Service] Launching Chromium...");
       const t0 = Date.now();
       this.browser = await puppeteer.launch({
-        executablePath: resolveChromiumPath(),
+        executablePath: CHROMIUM_PATH,
         headless: true,
         args: [
           "--no-sandbox",
