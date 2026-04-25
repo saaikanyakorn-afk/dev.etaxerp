@@ -269,7 +269,7 @@ export default function DocumentRenderer({
     : (quotation.totalAmount || 0);
 
   const withholdingTax = parseFloat(String(quotation.withholdingTax || "0"));
-  const qrAmount = Math.max(0, totalAmount - withholdingTax);
+  const qrAmount = totalAmount;
 
   const [promptpayQrUrl, setPromptpayQrUrl] = useState<string | null>(null);
   useEffect(() => {
