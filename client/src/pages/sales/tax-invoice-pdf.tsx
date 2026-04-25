@@ -1,10 +1,8 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Printer, FileText, Receipt, FlaskConical, Loader2, CheckCircle2, AlertCircle, Activity, WifiOff, RefreshCw } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import { ArrowLeft, FileText, Receipt, Loader2, WifiOff, RefreshCw } from "lucide-react";
 import Layout from "@/components/layout";
-import DocumentRenderer from "@/components/document-renderer";
 import EDocumentActions from "@/components/e-document-actions";
 
 type PrintType = "tax_invoice" | "tax_invoice_receipt" | "invoice" | "delivery_note" | "abbreviated_tax_invoice";
@@ -167,11 +165,7 @@ function ServerErrorScreen({ onRetry, onGoBack }: { onRetry: () => void; onGoBac
     const timer = setInterval(() => setCountdown(c => { if (c <= 1) { clearInterval(timer); return 0; } return c - 1; }), 1000);
     try {
       const resp = await fetch("/api/auth/me", { credentials: "include" });
-      if (resp.ok) {
-        clearInterval(timer);
-        onRetry();
-        return;
-      }
+      if (resp.ok) { clearInterval(timer); onRetry(); return; }
     } catch {}
     await new Promise(r => setTimeout(r, 5000));
     setRetrying(false);
@@ -191,37 +185,18 @@ function ServerErrorScreen({ onRetry, onGoBack }: { onRetry: () => void; onGoBac
           <h1 className="text-2xl font-bold text-gray-900 mb-3">ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้</h1>
           <p className="text-gray-600 mb-2">ระบบไม่สามารถติดต่อเซิร์ฟเวอร์ได้ในขณะนี้</p>
           <p className="text-gray-500 text-sm mb-8">อาจเกิดจากการขาดการเชื่อมต่ออินเทอร์เน็ต หรือเซิร์ฟเวอร์กำลังรีสตาร์ท กรุณารอสักครู่แล้วลองใหม่</p>
-          
           <div className="space-y-3">
-            <Button
-              onClick={handleRetry}
-              disabled={retrying}
-              className="w-full bg-[#fb9678] hover:bg-[#e8856a] text-white h-12 text-base"
-              data-testid="btn-retry-connection"
-            >
+            <Button onClick={handleRetry} disabled={retrying} className="w-full bg-[#fb9678] hover:bg-[#e8856a] text-white h-12 text-base" data-testid="btn-retry-connection">
               {retrying ? (
-                <>
-                  <Loader2 className="h-5 w-5 animate-spin mr-2" />
-                  กำลังเชื่อมต่อใหม่... {countdown > 0 && `(${countdown})`}
-                </>
+                <><Loader2 className="h-5 w-5 animate-spin mr-2" />กำลังเชื่อมต่อใหม่... {countdown > 0 && `(${countdown})`}</>
               ) : (
-                <>
-                  <RefreshCw className="h-5 w-5 mr-2" />
-                  ลองเชื่อมต่อใหม่
-                </>
+                <><RefreshCw className="h-5 w-5 mr-2" />ลองเชื่อมต่อใหม่</>
               )}
             </Button>
-            <Button
-              variant="outline"
-              onClick={onGoBack}
-              className="w-full h-12 text-base"
-              data-testid="btn-go-back"
-            >
-              <ArrowLeft className="h-5 w-5 mr-2" />
-              กลับหน้าหลัก
+            <Button variant="outline" onClick={onGoBack} className="w-full h-12 text-base" data-testid="btn-go-back">
+              <ArrowLeft className="h-5 w-5 mr-2" /> กลับหน้าหลัก
             </Button>
           </div>
-
           <div className="mt-8 p-4 bg-amber-50 border border-amber-200 rounded-lg text-left">
             <p className="text-sm font-semibold text-amber-800 mb-2">สิ่งที่ควรตรวจสอบ:</p>
             <ul className="text-sm text-amber-700 space-y-1 list-disc list-inside">
@@ -241,42 +216,9 @@ export default function TaxInvoicePdf() {
   const [, navigate] = useLocation();
   const [data, setData] = useState<any>(null);
   const [company, setCompany] = useState<any>(null);
-  const [docSettings, setDocSettings] = useState<any>({});
-  const [userSig, setUserSig] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [printType, setPrintType] = useState<PrintType>("tax_invoice");
   const [serverError, setServerError] = useState(false);
-
-  const [demoRunning, setDemoRunning] = useState(false);
-  const [demoResult, setDemoResult] = useState<any>(null);
-  const [demoElapsed, setDemoElapsed] = useState(0);
-
-  const runDemo = useCallback(async () => {
-    setDemoRunning(true);
-    setDemoResult(null);
-    setDemoElapsed(0);
-    const t0 = Date.now();
-    const timer = setInterval(() => setDemoElapsed(Math.floor((Date.now() - t0) / 1000)), 500);
-    try {
-      const resp = await fetch("/api/pdf/demo-generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-      });
-      clearInterval(timer);
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-      const result = await resp.json();
-      setDemoResult(result);
-    } catch (err: any) {
-      clearInterval(timer);
-      if (err.message === "Failed to fetch" || err.message?.includes("NetworkError")) {
-        setServerError(true);
-      }
-      setDemoResult({ success: false, message: err.message || "เชื่อมต่อเซิร์ฟเวอร์ไม่ได้" });
-    } finally {
-      setDemoRunning(false);
-    }
-  }, []);
 
   useEffect(() => {
     (async () => {
@@ -286,81 +228,44 @@ export default function TaxInvoicePdf() {
           fetch(`/api/auth/me`, { credentials: "include" }),
         ]);
 
-        if (meRes.ok) {
-          const me = await meRes.json();
-          setUserSig({
-            signatureUrl: me.signatureUrl || null,
-            signatureName: me.signatureName || me.fullName,
-            signatureTitle: me.signatureTitle || null,
-          });
-        }
-
         if (docRes.ok) {
           const d = await docRes.json();
           setData(d);
-
-          const [cRes, dsRes] = await Promise.all([
+          const [cRes] = await Promise.all([
             fetch(`/api/companies`, { credentials: "include" }),
-            fetch(`/api/document-settings/${d.companyId}`, { credentials: "include" }),
           ]);
-
           if (cRes.ok) {
             const companies = await cRes.json();
             setCompany(companies.find((co: any) => co.id === d.companyId) || null);
           }
-          if (dsRes.ok) {
-            setDocSettings(await dsRes.json());
-          }
         }
-      } catch {}
+      } catch (err: any) {
+        if (err.message === "Failed to fetch" || err.message?.includes("NetworkError")) {
+          setServerError(true);
+        }
+      }
       setLoading(false);
     })();
   }, [id]);
 
   if (serverError) {
-    return (
-      <ServerErrorScreen
-        onRetry={() => { setServerError(false); window.location.reload(); }}
-        onGoBack={() => navigate("/sales/tax-invoice")}
-      />
-    );
+    return <ServerErrorScreen onRetry={() => { setServerError(false); window.location.reload(); }} onGoBack={() => navigate("/sales/tax-invoice")} />;
   }
-
   if (loading) return <Layout><div className="text-center py-12 text-slate-500">กำลังโหลด...</div></Layout>;
   if (!data) return <Layout><div className="text-center py-12 text-red-500">ไม่พบเอกสาร</div></Layout>;
 
   const isThermal = printType === "abbreviated_tax_invoice";
-
-  const renderData = { ...data };
-  if (printType === "invoice") {
-    renderData.invoiceNo = data.taxInvoiceNo;
-    renderData.invoiceDate = data.taxInvoiceDate;
-  } else if (printType === "tax_invoice_receipt") {
-    renderData.receiptNo = data.taxInvoiceNo;
-    renderData.receiptDate = data.taxInvoiceDate;
-  } else if (printType === "delivery_note") {
-    renderData.orderNo = data.taxInvoiceNo;
-    renderData.orderDate = data.taxInvoiceDate;
-  }
+  const pdfUrl = `/api/documents/tax_invoice/${id}/pdf?view=1&printType=${printType}`;
 
   return (
     <Layout>
       {isThermal && (
         <style>{`
           @media print {
-            @page {
-              size: 80mm auto;
-              margin: 2mm;
-            }
+            @page { size: 80mm auto; margin: 2mm; }
             body { margin: 0; padding: 0; }
             .no-print, nav, aside, header, [data-sidebar], [class*="sidebar"] { display: none !important; }
-            .receipt-container { 
-              width: 76mm !important; 
-              margin: 0 !important; 
-              padding: 0 !important;
-              box-shadow: none !important;
-              border: none !important;
-            }
+            .receipt-container { width: 76mm !important; margin: 0 !important; padding: 0 !important; box-shadow: none !important; border: none !important; }
             main { padding: 0 !important; margin: 0 !important; }
           }
         `}</style>
@@ -370,17 +275,15 @@ export default function TaxInvoicePdf() {
           <Button variant="ghost" size="sm" className="gap-1.5" onClick={() => navigate("/sales/tax-invoice")}>
             <ArrowLeft className="h-4 w-4" /> กลับ
           </Button>
-          <div className="flex items-center gap-2">
-            <EDocumentActions
-              documentType="tax_invoice"
-              documentId={Number(id)}
-              docNo={data.taxInvoiceNo}
-              customerEmail={data.contactEmail}
-              customerName={data.customerName}
-              compact
-              showFormTypeSelector
-            />
-          </div>
+          <EDocumentActions
+            documentType="tax_invoice"
+            documentId={Number(id)}
+            docNo={data.taxInvoiceNo}
+            customerEmail={data.contactEmail}
+            customerName={data.customerName}
+            compact
+            showFormTypeSelector
+          />
         </div>
 
         <div className="flex items-center gap-2 justify-center flex-wrap print:!hidden no-print">
@@ -403,67 +306,15 @@ export default function TaxInvoicePdf() {
           ))}
         </div>
 
-        <div className="bg-amber-50 border border-amber-300 rounded-lg p-3 max-w-3xl mx-auto print:!hidden no-print" data-testid="demo-pdf-panel">
-          <div className="flex items-center justify-between flex-wrap gap-2">
-            <div className="flex items-center gap-2">
-              <FlaskConical className="h-4 w-4 text-amber-600" />
-              <span className="text-sm font-semibold text-amber-800">ทดสอบ Demo PDF</span>
-              <Badge className="bg-amber-200 text-amber-800 border-amber-300 text-[10px]">สร้าง PDF จริง 50 รายการ</Badge>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button
-                onClick={runDemo}
-                disabled={demoRunning}
-                size="sm"
-                className="bg-amber-600 hover:bg-amber-700 text-white"
-                data-testid="btn-demo-pdf"
-              >
-                {demoRunning ? (
-                  <>
-                    <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
-                    กำลังสร้าง PDF... ({demoElapsed} วินาที)
-                  </>
-                ) : (
-                  <>
-                    <FlaskConical className="h-3.5 w-3.5 mr-1.5" />
-                    เริ่มทดสอบ
-                  </>
-                )}
-              </Button>
-              {demoResult && (
-                <div className="flex items-center gap-1.5">
-                  {demoResult.success ? (
-                    <Badge className="bg-green-100 text-green-700 border-green-200 text-xs">
-                      <CheckCircle2 className="h-3 w-3 mr-1" /> สำเร็จ {demoResult.stats?.elapsedSec}s
-                    </Badge>
-                  ) : (
-                    <Badge className="bg-red-100 text-red-700 border-red-200 text-xs">
-                      <AlertCircle className="h-3 w-3 mr-1" /> ล้มเหลว
-                    </Badge>
-                  )}
-                  {demoResult.stats && (
-                    <span className="text-[10px] text-gray-400 flex items-center gap-0.5">
-                      <Activity className="h-3 w-3" />
-                      {demoResult.stats.pdfSizeKB}KB | RAM {demoResult.stats.memoryBeforeMB}→{demoResult.stats.memoryAfterMB}MB
-                    </span>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
         {isThermal ? (
           <AbbreviatedTaxInvoice data={data} company={company} />
         ) : (
-          <div className="max-w-3xl mx-auto print:!max-w-none print:!m-0">
-            <DocumentRenderer
-              settings={docSettings}
-              company={company}
-              quotation={renderData}
-              documentType={printType}
-              userSignature={userSig}
-              etaxEnabled={false}
+          <div className="max-w-3xl mx-auto rounded overflow-hidden border border-slate-200">
+            <iframe
+              key={pdfUrl}
+              src={pdfUrl}
+              style={{ width: "100%", height: "1050px", border: "none", display: "block" }}
+              title={data.taxInvoiceNo || "Tax Invoice PDF"}
             />
           </div>
         )}

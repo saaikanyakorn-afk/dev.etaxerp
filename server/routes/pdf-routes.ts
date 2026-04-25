@@ -205,8 +205,7 @@ app.get("/api/documents/:docType/:id/pdf", requireAuth, async (req, res) => {
     }
 
     const docNo = pdfOpts.document.docNo || "document";
-    const html = renderDocumentHtml(pdfOpts);
-    const pdfBuffer = await pdfService.generatePdf(html, { format: "A4", printBackground: true, margin: { top: "0mm", right: "0mm", bottom: "0mm", left: "0mm" } });
+    const pdfBuffer = await generatePdfMake(pdfOpts);
     pdfOpts = null as any;
 
     if (companyId) {
@@ -221,10 +220,13 @@ app.get("/api/documents/:docType/:id/pdf", requireAuth, async (req, res) => {
       });
     }
 
+    const isView = req.query.view === "1";
     const filename = encodeURIComponent(`${docNo}.pdf`);
     res.set({
       "Content-Type": "application/pdf",
-      "Content-Disposition": `attachment; filename="${filename}"; filename*=UTF-8''${filename}`,
+      "Content-Disposition": isView
+        ? `inline; filename="${filename}"`
+        : `attachment; filename="${filename}"; filename*=UTF-8''${filename}`,
       "Content-Length": pdfBuffer.length.toString(),
     });
     res.send(pdfBuffer);
@@ -247,13 +249,16 @@ app.get("/api/share/:docType/:token/pdf", async (req, res) => {
 
     const pdfOpts = await buildPdfDataByToken(docType, token, pt);
     const docNo = pdfOpts.document.docNo || "document";
-    console.log(`[SharePDF] generating DocRaptor PDF for docType=${docType} docNo=${docNo}`);
-    const pdfBuffer = await generatePdfDocRaptor(pdfOpts);
+    console.log(`[SharePDF] generating pdfmake for docType=${docType} docNo=${docNo}`);
+    const pdfBuffer = await generatePdfMake(pdfOpts);
     console.log(`[SharePDF] done bufferSize=${pdfBuffer.length}`);
+    const isView = req.query.view === "1";
     const filename = encodeURIComponent(`${docNo}.pdf`);
     res.set({
       "Content-Type": "application/pdf",
-      "Content-Disposition": `attachment; filename="${filename}"; filename*=UTF-8''${filename}`,
+      "Content-Disposition": isView
+        ? `inline; filename="${filename}"`
+        : `attachment; filename="${filename}"; filename*=UTF-8''${filename}`,
       "Content-Length": pdfBuffer.length.toString(),
     });
     res.send(pdfBuffer);
