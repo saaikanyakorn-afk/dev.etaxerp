@@ -380,6 +380,7 @@ app.get("/api/firm-billing/status", requireAuth, requireModule("firm-mgmt"), asy
       customerName: invoices.customerName,
       totalAmount: invoices.totalAmount,
       refDoc: invoices.refDoc,
+      lineSentAt: invoices.lineSentAt,
     }).from(invoices).where(and(
       eq(invoices.companyId, companyId),
       sql`(${invoices.refDoc} LIKE ${'FIRM_BILLING_%_' + periodKey} OR (${invoices.refDoc} LIKE 'FIRM_BILLING_%' AND ${invoices.invoiceDate} >= ${startDate} AND ${invoices.invoiceDate} <= ${endDate}))`
@@ -606,7 +607,13 @@ app.post("/api/firm-billing/linesend", requireAuth, requireModule("firm-mgmt"), 
       }
 
       const shareUrl = `${baseUrl}/share/invoice/${shareToken}`;
-      const amount = parseFloat(inv.totalAmount || "0");
+      const _subtotal = parseFloat(inv.subtotal || "0");
+      const _discount = parseFloat(inv.discountAmount || "0");
+      const _vat = parseFloat(inv.vatAmount || "0");
+      const _wht = parseFloat(inv.withholdingTax || "0");
+      const _priceMode = inv.priceMode || "excluded";
+      const _valueBeforeVat = _priceMode === "included" ? (_subtotal - _discount - _vat) : (_subtotal - _discount);
+      const amount = _valueBeforeVat + _vat - _wht;
       const amountStr = amount.toLocaleString("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
       try {
@@ -662,6 +669,7 @@ app.post("/api/firm-billing/linesend", requireAuth, requireModule("firm-mgmt"), 
           const errBody = (() => { try { return JSON.parse(errText); } catch { return {}; } })();
           results.push({ firmClientId, clientName, success: false, invoiceNo: inv.invoiceNo, error: (errBody as any).message || "ส่ง LINE ไม่สำเร็จ" });
         } else {
+          await db.update(invoices).set({ lineSentAt: new Date() }).where(eq(invoices.id, inv.id));
           results.push({ firmClientId, clientName, success: true, invoiceNo: inv.invoiceNo });
         }
       } catch (e: any) {

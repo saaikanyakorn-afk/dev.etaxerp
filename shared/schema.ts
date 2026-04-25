@@ -1673,6 +1673,7 @@ export const invoices = pgTable("invoices", {
   currencyCode: text("currency_code").default("THB"),
   exchangeRate: decimal("exchange_rate", { precision: 15, scale: 6 }).default("1"),
   shareToken: text("share_token"),
+  lineSentAt: timestamp("line_sent_at"),
   notes: text("notes"),
   internalNotes: text("internal_notes"),
   createdBy: integer("created_by").references(() => users.id),
