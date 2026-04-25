@@ -251,10 +251,27 @@ function buildDocDefinition(opts: GeneratePdfOptions): TDocumentDefinitions {
     },
   ]];
 
+  const boxLayout = {
+    hLineWidth: () => 0.5,
+    vLineWidth: () => 0.5,
+    hLineColor: () => headerBgLight,
+    vLineColor: () => headerBgLight,
+    paddingLeft: () => 7,
+    paddingRight: () => 7,
+    paddingTop: () => 7,
+    paddingBottom: () => 7,
+    fillColor: () => headerBgLight,
+  };
+
+  const custBox: Content = {
+    table: { widths: ["*"], body: custBody },
+    layout: boxLayout,
+  };
+
   if (hasBank) {
     const bankContent: Content[] = [];
     if (qrSrc) {
-      try { bankContent.push({ image: qrSrc, width: 56, height: 56, alignment: "center", margin: [0, 0, 0, 4] }); } catch {}
+      try { bankContent.push({ image: qrSrc, width: 60, height: 60, alignment: "center", margin: [0, 0, 0, 4] }); } catch {}
     }
     bankContent.push({ text: "ข้อมูลชำระเงิน", fontSize: 7.5, bold: true, color: primary, alignment: "center", margin: [0, 0, 0, 2] });
     if (settings.promptpayQrBase64 && !settings.qrCodeBase64) {
@@ -265,45 +282,21 @@ function buildDocDefinition(opts: GeneratePdfOptions): TDocumentDefinitions {
     if (settings.bankAccountName) bankContent.push({ text: `ชื่อบัญชี: ${settings.bankAccountName}`, fontSize: 7, color: "#4b5563", alignment: "center", margin: [0, 1, 0, 0] });
     if (totalAmount > 0) bankContent.push({ text: `จำนวนเงิน: ${fmtNum(totalAmount)} บาท`, fontSize: 7.5, bold: true, color: primary, alignment: "center", margin: [0, 3, 0, 0] });
 
-    custBody[0].push({ stack: bankContent });
+    const bankBox: Content = {
+      table: { widths: ["*"], body: [[{ stack: bankContent }]] },
+      layout: boxLayout,
+    };
 
     content.push({
-      table: {
-        widths: ["*", 130],
-        body: custBody,
-      },
-      layout: {
-        hLineWidth: () => 0.5,
-        vLineWidth: () => 0.5,
-        hLineColor: () => headerBgLight,
-        vLineColor: () => headerBgLight,
-        paddingLeft: () => 7,
-        paddingRight: () => 7,
-        paddingTop: () => 7,
-        paddingBottom: () => 7,
-        fillColor: () => headerBgLight,
-      },
+      columns: [
+        { stack: [custBox], width: "*" },
+        { stack: [bankBox], width: 140 },
+      ],
+      columnGap: 8,
       margin: [0, 0, 0, 8],
     });
   } else {
-    content.push({
-      table: {
-        widths: ["*"],
-        body: custBody,
-      },
-      layout: {
-        hLineWidth: () => 0.5,
-        vLineWidth: () => 0.5,
-        hLineColor: () => headerBgLight,
-        vLineColor: () => headerBgLight,
-        paddingLeft: () => 7,
-        paddingRight: () => 7,
-        paddingTop: () => 7,
-        paddingBottom: () => 7,
-        fillColor: () => headerBgLight,
-      },
-      margin: [0, 0, 0, 8],
-    });
+    content.push({ ...custBox, margin: [0, 0, 0, 8] });
   }
 
   const tableHeaders: TableCell[] = [
