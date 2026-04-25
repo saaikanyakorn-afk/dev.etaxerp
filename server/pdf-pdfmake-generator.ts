@@ -473,15 +473,16 @@ function buildDocDefinition(opts: GeneratePdfOptions): TDocumentDefinitions {
     const sigRightSub = documentType === "quotation" ? "Salesperson" : documentType === "receipt" ? "Cashier" : "Authorized";
 
     const SIG_W = 150;
-    const SIG_IMG_H = 55;
+    const SIG_IMG_MAX_H = 55;
+    const SIG_LEFT_SPACER = 45;
     const sigRight: Content[] = [];
     const sigImg = ensureBase64DataUri(signature?.signatureBase64);
     if (sigImg) {
       try {
-        sigRight.push({ image: sigImg, fit: [130, SIG_IMG_H], alignment: "center", margin: [0, 0, 0, 2] });
+        sigRight.push({ image: sigImg, fit: [130, SIG_IMG_MAX_H], alignment: "center", margin: [0, 0, 0, 2] });
       } catch {}
     } else {
-      sigRight.push({ canvas: [{ type: "rect", x: 0, y: 0, w: 1, h: SIG_IMG_H + 2, color: "white" }] });
+      sigRight.push({ canvas: [{ type: "rect", x: 0, y: 0, w: 1, h: SIG_LEFT_SPACER, color: "white" }] });
     }
     sigRight.push({ canvas: [{ type: "line", x1: 0, y1: 0, x2: SIG_W, y2: 0, lineWidth: 0.5, lineColor: "#9ca3af" }] });
     if (signature?.signatureName) sigRight.push({ text: signature.signatureName, fontSize: 7.5, bold: true, alignment: "center", margin: [0, 3, 0, 0] });
@@ -489,7 +490,7 @@ function buildDocDefinition(opts: GeneratePdfOptions): TDocumentDefinitions {
     sigRight.push({ text: sigRightSub, fontSize: 7, color: "#6b7280", alignment: "center" });
 
     const sigLeft: Content[] = [
-      { canvas: [{ type: "rect", x: 0, y: 0, w: 1, h: SIG_IMG_H + 2, color: "white" }] },
+      { canvas: [{ type: "rect", x: 0, y: 0, w: 1, h: SIG_LEFT_SPACER, color: "white" }] },
       { canvas: [{ type: "line", x1: 0, y1: 0, x2: SIG_W, y2: 0, lineWidth: 0.5, lineColor: "#9ca3af" }] },
       { text: sigLeftLabel, fontSize: 7.5, bold: true, alignment: "center", margin: [0, 3, 0, 0] },
       { text: sigLeftSub, fontSize: 7, color: "#6b7280", alignment: "center" },
