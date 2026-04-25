@@ -214,7 +214,7 @@ function buildDocDefinition(opts: GeneratePdfOptions): TDocumentDefinitions {
         ],
       }]],
     },
-    layout: { hLineWidth: () => 0, vLineWidth: () => 0, fillColor: () => primary, paddingLeft: () => 14, paddingRight: () => 14, paddingTop: () => 6, paddingBottom: () => 6 },
+    layout: { hLineWidth: () => 0, vLineWidth: () => 0, fillColor: () => accent, paddingLeft: () => 14, paddingRight: () => 14, paddingTop: () => 6, paddingBottom: () => 6 },
     margin: [0, 0, 0, 6],
   });
   docInfoStack.push({ text: [{ text: "เลขที่: ", fontSize: 8.5 }, { text: doc.docNo, fontSize: 8.5, bold: true, color: accent }], alignment: "right", margin: [0, 2, 0, 0] });
