@@ -630,7 +630,7 @@ export default function DocumentRenderer({
         <div className="flex-grow" />
 
         <div style={{ breakInside: "avoid", pageBreakInside: "avoid" }}>
-          <div className="mt-4 pt-2 border-t-2 flex items-center justify-between" style={{ borderColor: primary }} data-print-section="footer">
+          <div className="mt-4 pt-2 border-t-2 flex items-center justify-between -mx-8 px-8" style={{ borderColor: primary }} data-print-section="footer">
             <div className="flex items-center gap-1.5">
               <div
                 className="w-4 h-4 rounded flex items-center justify-center text-white font-bold"
