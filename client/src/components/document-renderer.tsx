@@ -360,13 +360,13 @@ export default function DocumentRenderer({
           <div className="text-right">
             <div className="flex justify-end w-full mb-0.5">
               <div
-                className="font-bold text-base"
-                style={{ color: primary }}
+                className="px-3 py-1 rounded-md text-right"
+                style={{ backgroundColor: theme.bg }}
               >
-                {docInfo.label}
+                <div className="font-bold text-base" style={{ color: primary }}>{docInfo.label}</div>
+                <div className="text-[10px] text-gray-500">{docInfo.labelEn.toUpperCase()}</div>
               </div>
             </div>
-            <div className="text-[10px] text-gray-500 mt-0.5">{docInfo.labelEn.toUpperCase()}</div>
             <div className="mt-2 text-[10px]">
               <div>เลขที่: <span className="font-semibold" style={{ color: accent }}>{docNo}</span></div>
               <div>วันที่: {fmtDate(docDate, era, settings.dateFormat)}</div>
