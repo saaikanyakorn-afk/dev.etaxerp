@@ -575,7 +575,7 @@ function buildDocDefinition(opts: GeneratePdfOptions): TDocumentDefinitions {
     content,
     footer: (currentPage: number, pageCount: number) => ({
       stack: [
-        { canvas: [{ type: "line", x1: 28, y1: 0, x2: 567, y2: 0, lineWidth: 0.6, lineColor: primary }] },
+        { canvas: [{ type: "line", x1: 0, y1: 0, x2: 595, y2: 0, lineWidth: 0.6, lineColor: primary }] },
         {
           columns: [
             {
