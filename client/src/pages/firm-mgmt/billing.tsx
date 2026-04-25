@@ -249,6 +249,7 @@ export default function FirmBilling() {
       setLineSendResults(data.results || []);
       setLineSendConfirmOpen(false);
       setLineSendResultsOpen(true);
+      setSelected(new Set());
     },
     onError: (err: any) => {
       setLineDebugError(err.message);
@@ -1186,6 +1187,15 @@ export default function FirmBilling() {
       data-testid="floating-billing-bar"
     >
       <div className="flex items-center gap-3 bg-gray-900 text-white rounded-2xl shadow-2xl px-5 py-3">
+        <button
+          className="text-gray-400 hover:text-white transition-colors"
+          onClick={() => setSelected(new Set())}
+          data-testid="button-clear-selection"
+          title="ยกเลิกการเลือก"
+        >
+          <X className="h-4 w-4" />
+        </button>
+        <div className="w-px h-5 bg-gray-600" />
         <div className="flex items-center gap-1.5 text-sm">
           <span className="bg-white text-gray-900 font-bold rounded-full w-7 h-7 flex items-center justify-center text-xs">
             {selected.size}
