@@ -39,7 +39,6 @@ interface EDocumentActionsProps {
   customerName?: string;
   compact?: boolean;
   showFormTypeSelector?: boolean;
-  printType?: string;
 }
 
 const DOC_LABELS: Record<string, string> = {
@@ -90,7 +89,6 @@ export default function EDocumentActions({
   customerName,
   compact = false,
   showFormTypeSelector = false,
-  printType,
 }: EDocumentActionsProps) {
   const { toast } = useToast();
   const [downloading, setDownloading] = useState(false);
@@ -115,33 +113,12 @@ export default function EDocumentActions({
     };
   }, []);
 
-  const handleDownloadPdf = useCallback(async () => {
-    setDownloading(true);
-    setPdfError(null);
-    abortRef.current = new AbortController();
-    timerRef.current = setInterval(() => setElapsedSec(s => s + 1), 1000);
-    try {
-      const qs = printType ? `?printType=${printType}` : "";
-      const url = `/api/documents/${documentType}/${documentId}/pdf${qs}`;
-      const res = await fetch(url, { credentials: "include", signal: abortRef.current.signal });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const blob = await res.blob();
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(blob);
-      a.download = `${docNo || "document"}.pdf`;
-      a.click();
-      URL.revokeObjectURL(a.href);
-    } catch (err: any) {
-      if (err.name !== "AbortError") {
-        setPdfError(classifyError(err, false));
-      }
-    } finally {
-      if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
-      abortRef.current = null;
-      setDownloading(false);
-      setElapsedSec(0);
-    }
-  }, [documentType, documentId, docNo, printType]);
+  const handleDownloadPdf = useCallback(() => {
+    const originalTitle = document.title;
+    document.title = docNo || originalTitle;
+    window.print();
+    document.title = originalTitle;
+  }, [docNo]);
 
   const handleCancelDownload = useCallback(() => {
     if (abortRef.current) {
@@ -335,17 +312,10 @@ export default function EDocumentActions({
       size={size}
       className={`gap-1.5 ${compact ? "text-sm" : ""}`}
       onClick={handleDownloadPdf}
-      disabled={downloading}
       data-testid="btn-download-pdf"
     >
-      {downloading
-        ? <Loader2 className={`${compact ? "h-3.5 w-3.5" : "h-4 w-4"} animate-spin`} />
-        : <Download className={`${compact ? "h-3.5 w-3.5" : "h-4 w-4"} ${compact ? "" : "text-[#05b187]"}`} />
-      }
-      {compact
-        ? (downloading ? `${elapsedSec}s...` : "PDF")
-        : (downloading ? `กำลังสร้าง PDF... (${elapsedSec}s)` : "ดาวน์โหลด PDF")
-      }
+      <Download className={`${compact ? "h-3.5 w-3.5" : "h-4 w-4"} ${compact ? "" : "text-[#05b187]"}`} />
+      {compact ? "PDF" : "บันทึก PDF / พิมพ์"}
     </Button>
   );
 
