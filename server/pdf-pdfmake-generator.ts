@@ -476,12 +476,13 @@ function buildDocDefinition(opts: GeneratePdfOptions): TDocumentDefinitions {
     const sigImg = ensureBase64DataUri(signature?.signatureBase64);
     if (sigImg) {
       try {
-        sigRight.push({ image: sigImg, width: 60, height: 30, alignment: "center", margin: [0, 0, 0, 3] });
+        sigRight.push({ image: sigImg, fit: [90, 36], alignment: "center", margin: [0, 0, 0, 2] });
       } catch {}
     } else {
       sigRight.push({ text: " ", margin: [0, 30, 0, 0] });
     }
-    if (signature?.signatureName) sigRight.push({ text: signature.signatureName, fontSize: 7.5, bold: true, alignment: "center" });
+    sigRight.push({ canvas: [{ type: "line", x1: 0, y1: 0, x2: 115, y2: 0, lineWidth: 0.5, lineColor: "#9ca3af" }] });
+    if (signature?.signatureName) sigRight.push({ text: signature.signatureName, fontSize: 7.5, bold: true, alignment: "center", margin: [0, 3, 0, 0] });
     sigRight.push({ text: sigRightLabel, fontSize: 7.5, bold: true, color: "#6b7280", alignment: "center" });
     sigRight.push({ text: sigRightSub, fontSize: 7, color: "#6b7280", alignment: "center" });
 
@@ -500,10 +501,7 @@ function buildDocDefinition(opts: GeneratePdfOptions): TDocumentDefinitions {
         },
         { text: "", width: "*" },
         {
-          stack: [
-            ...sigRight,
-            { canvas: [{ type: "line", x1: 0, y1: 0, x2: 115, y2: 0, lineWidth: 0.5, lineColor: "#9ca3af" }], margin: [0, 0, 0, 3] },
-          ],
+          stack: sigRight,
           width: 115,
           alignment: "center",
         },
