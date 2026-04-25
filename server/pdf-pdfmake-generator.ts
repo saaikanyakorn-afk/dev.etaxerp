@@ -282,27 +282,32 @@ function buildDocDefinition(opts: GeneratePdfOptions): TDocumentDefinitions {
     if (settings.bankAccountName) bankContent.push({ text: `ชื่อบัญชี: ${settings.bankAccountName}`, fontSize: 7, color: "#4b5563", alignment: "center", margin: [0, 1, 0, 0] });
     if (totalAmount > 0) bankContent.push({ text: `จำนวนเงิน: ${fmtNum(totalAmount)} บาท`, fontSize: 7.5, bold: true, color: primary, alignment: "center", margin: [0, 3, 0, 0] });
 
-    const bankBox: Content = {
-      table: { widths: ["*"], body: [[{ stack: bankContent }]] },
-      layout: boxLayout,
-    };
-
     const fixedHeight = 174;
     const customerBox: Content = {
       table: { widths: ["*"], body: custBody },
       layout: boxLayout,
-      heights: () => fixedHeight,
     };
-    const alignedBankBox: Content = {
-      table: { widths: ["*"], body: [[{ stack: bankContent }]] },
+    const bankBox: Content = {
+      table: {
+        widths: ["*"],
+        body: [[{ stack: bankContent }]],
+        heights: [fixedHeight],
+      },
       layout: boxLayout,
-      heights: () => fixedHeight,
+    };
+    const alignedCustomerBox: Content = {
+      table: {
+        widths: ["*"],
+        body: [[{ stack: [customerBox] }]],
+        heights: [fixedHeight],
+      },
+      layout: boxLayout,
     };
 
     content.push({
       columns: [
-        { stack: [customerBox], width: "*" },
-        { stack: [alignedBankBox], width: 140 },
+        { stack: [alignedCustomerBox], width: "*" },
+        { stack: [bankBox], width: 140 },
       ],
       columnGap: 8,
       margin: [0, 0, 0, 8],
