@@ -282,7 +282,6 @@ function buildDocDefinition(opts: GeneratePdfOptions): TDocumentDefinitions {
     if (settings.bankAccountName) bankContent.push({ text: `ชื่อบัญชี: ${settings.bankAccountName}`, fontSize: 7, color: "#4b5563", alignment: "center", margin: [0, 1, 0, 0] });
     if (totalAmount > 0) bankContent.push({ text: `จำนวนเงิน: ${fmtNum(totalAmount)} บาท`, fontSize: 7.5, bold: true, color: primary, alignment: "center", margin: [0, 3, 0, 0] });
 
-    const fixedHeight = 174;
     const customerBox: Content = {
       table: { widths: ["*"], body: custBody },
       layout: boxLayout,
@@ -291,22 +290,13 @@ function buildDocDefinition(opts: GeneratePdfOptions): TDocumentDefinitions {
       table: {
         widths: ["*"],
         body: [[{ stack: bankContent }]],
-        heights: [fixedHeight],
-      },
-      layout: boxLayout,
-    };
-    const alignedCustomerBox: Content = {
-      table: {
-        widths: ["*"],
-        body: [[{ stack: [customerBox] }]],
-        heights: [fixedHeight],
       },
       layout: boxLayout,
     };
 
     content.push({
       columns: [
-        { stack: [alignedCustomerBox], width: "*" },
+        { stack: [customerBox], width: "*" },
         { stack: [bankBox], width: 140 },
       ],
       columnGap: 8,
