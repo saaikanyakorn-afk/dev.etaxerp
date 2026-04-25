@@ -269,27 +269,6 @@ export default function DocumentRenderer({
     : (quotation.totalAmount || 0);
 
   const withholdingTax = parseFloat(String(quotation.withholdingTax || "0"));
-  const qrAmount = totalAmount;
-
-  const [promptpayQrUrl, setPromptpayQrUrl] = useState<string | null>(null);
-  useEffect(() => {
-    if (settings.qrCodeUrl || !settings.promptpayEnabled || !settings.promptpayId) {
-      setPromptpayQrUrl(null);
-      return;
-    }
-    const id = settings.promptpayId.replace(/[-\s]/g, "");
-    try {
-      const payload = generatePayload(id, { amount: qrAmount > 0 ? qrAmount : undefined });
-      QRCode.toDataURL(payload, {
-        width: 200,
-        margin: 1,
-        color: { dark: "#000000", light: "#ffffff" },
-      }).then((url: string) => setPromptpayQrUrl(url))
-        .catch(() => setPromptpayQrUrl(null));
-    } catch {
-      setPromptpayQrUrl(null);
-    }
-  }, [settings.promptpayEnabled, settings.promptpayId, settings.qrCodeUrl, qrAmount]);
 
   const items = quotation.items || [];
   const subtotal = parseFloat(String(quotation.subtotal || "0"));
@@ -299,6 +278,27 @@ export default function DocumentRenderer({
   const valueBeforeVat = priceMode === "included"
     ? (subtotal - discountAmount - vatAmount)
     : (subtotal - discountAmount);
+  const netTotal = valueBeforeVat + vatAmount - withholdingTax;
+
+  const [promptpayQrUrl, setPromptpayQrUrl] = useState<string | null>(null);
+  useEffect(() => {
+    if (settings.qrCodeUrl || !settings.promptpayEnabled || !settings.promptpayId) {
+      setPromptpayQrUrl(null);
+      return;
+    }
+    const id = settings.promptpayId.replace(/[-\s]/g, "");
+    try {
+      const payload = generatePayload(id, { amount: netTotal > 0 ? netTotal : undefined });
+      QRCode.toDataURL(payload, {
+        width: 200,
+        margin: 1,
+        color: { dark: "#000000", light: "#ffffff" },
+      }).then((url: string) => setPromptpayQrUrl(url))
+        .catch(() => setPromptpayQrUrl(null));
+    } catch {
+      setPromptpayQrUrl(null);
+    }
+  }, [settings.promptpayEnabled, settings.promptpayId, settings.qrCodeUrl, netTotal]);
 
   const minRows = 5;
   const emptyRows = Math.max(0, minRows - items.length);
@@ -426,8 +426,8 @@ export default function DocumentRenderer({
                 {settings.bankAccountNumber && <div>เลขที่บัญชี: {settings.bankAccountNumber}</div>}
                 {settings.bankAccountName && <div>ชื่อบัญชี: {settings.bankAccountName}</div>}
 
-                {qrAmount > 0 && (
-                  <div className="font-semibold text-[10px] mt-1" style={{ color: primary }}>จำนวนเงิน: {formatNumber(qrAmount)} บาท</div>
+                {netTotal > 0 && (
+                  <div className="font-semibold text-[10px] mt-1" style={{ color: primary }}>จำนวนเงิน: {formatNumber(netTotal)} บาท</div>
                 )}
               </div>
             </div>
@@ -521,8 +521,8 @@ export default function DocumentRenderer({
             <div className="border rounded p-2.5 mb-3" style={{ borderColor: theme.light, backgroundColor: theme.bg }}>
               <div className="text-[10px] font-semibold text-center text-gray-700">
                 {isForeignCurrency
-                  ? `${formatNumber(totalAmount)} ${currencyCode}`
-                  : numberToThaiText(totalAmount)}
+                  ? `${formatNumber(netTotal)} ${currencyCode}`
+                  : numberToThaiText(netTotal)}
               </div>
             </div>
             {quotation.notes && (
@@ -586,7 +586,7 @@ export default function DocumentRenderer({
                 <div>ยอดเงินสุทธิ {isForeignCurrency ? `(${currencyCode})` : ""}</div>
                 <div className="text-[8px] font-normal opacity-80">Grand Total</div>
               </div>
-              <span className="self-center">{formatNumber(totalAmount)}</span>
+              <span className="self-center">{formatNumber(netTotal)}</span>
             </div>
           </div>
         </div>
