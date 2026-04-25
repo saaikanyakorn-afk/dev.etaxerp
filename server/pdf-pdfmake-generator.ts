@@ -283,7 +283,7 @@ function buildDocDefinition(opts: GeneratePdfOptions): TDocumentDefinitions {
     if (totalAmount > 0) bankContent.push({ text: `จำนวนเงิน: ${fmtNum(totalAmount)} บาท`, fontSize: 7.5, bold: true, color: primary, alignment: "center", margin: [0, 3, 0, 0] });
 
     const customerBox: Content = {
-      table: { widths: ["*"], body: custBody },
+      table: { widths: ["*"], heights: [150], body: custBody },
       layout: boxLayout,
     };
     const bankBox: Content = {
