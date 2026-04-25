@@ -283,6 +283,7 @@ export default function TaxInvoicePdf() {
             customerName={data.customerName}
             compact
             showFormTypeSelector
+            printType={isThermal ? undefined : printType}
           />
         </div>
 
