@@ -3,7 +3,8 @@ import { useParams } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Printer, Download, Loader2, FileText } from "lucide-react";
 import DocumentRenderer from "@/components/document-renderer";
-import { downloadPdfFromElement } from "@/lib/download-pdf";
+import { downloadSharePdf } from "@/lib/download-pdf";
+import { useToast } from "@/hooks/use-toast";
 
 type PrintType = "tax_invoice" | "tax_invoice_receipt" | "invoice" | "delivery_note" | "receipt";
 
@@ -13,6 +14,7 @@ export default function TaxInvoiceShare() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [downloading, setDownloading] = useState(false);
+  const { toast } = useToast();
 
   const params = new URLSearchParams(window.location.search);
   const printType = (params.get("printType") || "tax_invoice") as PrintType;
@@ -33,8 +35,10 @@ export default function TaxInvoiceShare() {
   const handleDownload = async () => {
     setDownloading(true);
     try {
-      await downloadPdfFromElement("doc-print-area", `${data?.taxInvoiceNo || "tax-invoice"}.pdf`);
-    } catch {}
+      await downloadSharePdf("tax-invoice", token!, `${data?.taxInvoiceNo || "tax-invoice"}.pdf`, printType ? `printType=${printType}` : undefined);
+    } catch (err: any) {
+      toast({ title: "ดาวน์โหลดไม่สำเร็จ", description: err.message, variant: "destructive" });
+    }
     setDownloading(false);
   };
 

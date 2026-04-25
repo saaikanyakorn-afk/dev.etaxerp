@@ -1,6 +1,22 @@
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 
+export async function downloadSharePdf(docType: string, token: string, filename: string, query?: string): Promise<void> {
+  const res = await fetch(`/api/share/${docType}/${token}/pdf${query ? `?${query}` : ""}`);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.message || "สร้าง PDF ไม่สำเร็จ");
+  }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 1000);
+}
+
 export async function downloadPdfFromElement(elementId: string, filename: string): Promise<void> {
   const el = document.getElementById(elementId);
   if (!el) throw new Error("ไม่พบ element สำหรับสร้าง PDF");

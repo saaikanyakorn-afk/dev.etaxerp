@@ -3,7 +3,8 @@ import { useParams } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Printer, Download, Loader2, FileText } from "lucide-react";
 import DocumentRenderer from "@/components/document-renderer";
-import { downloadPdfFromElement } from "@/lib/download-pdf";
+import { downloadSharePdf } from "@/lib/download-pdf";
+import { useToast } from "@/hooks/use-toast";
 
 export default function SalesOrderShare() {
   const { token } = useParams<{ token: string }>();
@@ -11,6 +12,7 @@ export default function SalesOrderShare() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [downloading, setDownloading] = useState(false);
+  const { toast } = useToast();
 
   useEffect(() => {
     (async () => {
@@ -28,8 +30,10 @@ export default function SalesOrderShare() {
   const handleDownload = async () => {
     setDownloading(true);
     try {
-      await downloadPdfFromElement("doc-print-area", `${data?.orderNo || "sales-order"}.pdf`);
-    } catch {}
+      await downloadSharePdf("sales-order", token!, `${data?.orderNo || "sales-order"}.pdf`);
+    } catch (err: any) {
+      toast({ title: "ดาวน์โหลดไม่สำเร็จ", description: err.message, variant: "destructive" });
+    }
     setDownloading(false);
   };
 

@@ -5,7 +5,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { CheckCircle2, XCircle, Edit3, Printer, Download, Loader2, FileText } from "lucide-react";
 import DocumentRenderer from "@/components/document-renderer";
-import { downloadPdfFromElement } from "@/lib/download-pdf";
+import { downloadSharePdf } from "@/lib/download-pdf";
+import { useToast } from "@/hooks/use-toast";
 
 export default function QuotationShare() {
   const { token } = useParams<{ token: string }>();
@@ -18,6 +19,7 @@ export default function QuotationShare() {
   const [note, setNote] = useState("");
   const [showNoteFor, setShowNoteFor] = useState<string | null>(null);
   const [downloading, setDownloading] = useState(false);
+  const { toast } = useToast();
 
   useEffect(() => {
     (async () => {
@@ -54,8 +56,10 @@ export default function QuotationShare() {
   const handleDownload = async () => {
     setDownloading(true);
     try {
-      await downloadPdfFromElement("doc-print-area", `${data?.quotationNo || "quotation"}.pdf`);
-    } catch {}
+      await downloadSharePdf("quotation", token!, `${data?.quotationNo || "quotation"}.pdf`);
+    } catch (err: any) {
+      toast({ title: "ดาวน์โหลดไม่สำเร็จ", description: err.message, variant: "destructive" });
+    }
     setDownloading(false);
   };
 
