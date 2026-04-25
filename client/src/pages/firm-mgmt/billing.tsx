@@ -258,6 +258,7 @@ export default function FirmBilling() {
       setLineSendConfirmOpen(false);
       setLineSendResultsOpen(true);
       setSelected(new Set());
+      queryClient.invalidateQueries({ queryKey: ["/api/firm-billing/status"] });
     },
     onError: (err: any) => {
       setLineDebugError(err.message);
