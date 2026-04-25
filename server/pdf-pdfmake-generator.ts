@@ -463,7 +463,7 @@ function buildDocDefinition(opts: GeneratePdfOptions): TDocumentDefinitions {
         width: 180,
       },
     ],
-    margin: [0, 0, 0, 8],
+    margin: [0, 0, 0, 20],
   });
 
   if (settings.showSignature !== false) {
