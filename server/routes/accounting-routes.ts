@@ -358,17 +358,18 @@ app.get("/api/journal-entries", requireAuth, requireAnyModule("accounting", "inv
   if (endDate) conditions.push(lte(journalEntries.entryDate, endDate));
   if (journalBook) conditions.push(eq(journalEntries.journalBook, journalBook));
   const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
-  const [{ total }] = await db.select({ total: count() }).from(journalEntries).where(whereClause);
-  const entries = await db.select().from(journalEntries).where(whereClause).orderBy(desc(journalEntries.entryDate), asc(journalEntries.id)).limit(pageSize).offset(offset);
-  const allUsers = await db.select({ id: users.id, fullName: users.fullName }).from(users);
-  const userMap = new Map(allUsers.map(u => [u.id, u.fullName]));
-  const enriched = entries.map(e => ({
-    ...e,
-    createdByName: e.createdBy ? userMap.get(e.createdBy) || "ระบบ" : "ระบบ",
-  }));
   if (req.query.page) {
+    const [{ total }] = await db.select({ total: count() }).from(journalEntries).where(whereClause);
+    const entries = await db.select().from(journalEntries).where(whereClause).orderBy(desc(journalEntries.entryDate), asc(journalEntries.id)).limit(pageSize).offset(offset);
+    const allUsers = await db.select({ id: users.id, fullName: users.fullName }).from(users);
+    const userMap = new Map(allUsers.map(u => [u.id, u.fullName]));
+    const enriched = entries.map(e => ({ ...e, createdByName: e.createdBy ? userMap.get(e.createdBy) || "ระบบ" : "ระบบ" }));
     res.json(paginatedResponse(enriched, Number(total), { page, pageSize, offset }));
   } else {
+    const entries = await db.select().from(journalEntries).where(whereClause).orderBy(desc(journalEntries.entryDate), asc(journalEntries.id));
+    const allUsers = await db.select({ id: users.id, fullName: users.fullName }).from(users);
+    const userMap = new Map(allUsers.map(u => [u.id, u.fullName]));
+    const enriched = entries.map(e => ({ ...e, createdByName: e.createdBy ? userMap.get(e.createdBy) || "ระบบ" : "ระบบ" }));
     res.json(enriched);
   }
 });
