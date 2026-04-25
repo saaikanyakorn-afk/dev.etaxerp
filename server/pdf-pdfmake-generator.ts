@@ -360,8 +360,8 @@ function buildDocDefinition(opts: GeneratePdfOptions): TDocumentDefinitions {
   }
 
   const colWidths = showCode
-    ? ["5%", "10%", "*", "8%", "7%", "14%", "12%", "14%"]
-    : ["5%", "*", "8%", "7%", "14%", "12%", "14%"];
+    ? [58, 60, "*", 48, 42, 83, 71, 111]
+    : [58, "*", 48, 42, 83, 71, 111];
 
   content.push({
     table: {
