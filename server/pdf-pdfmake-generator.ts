@@ -251,59 +251,63 @@ function buildDocDefinition(opts: GeneratePdfOptions): TDocumentDefinitions {
     },
   ]];
 
-  if (hasBank) {
-    const bankContent: Content[] = [];
-    if (qrSrc) {
-      try { bankContent.push({ image: qrSrc, width: 56, height: 56, alignment: "center", margin: [0, 0, 0, 4] }); } catch {}
-    }
-    bankContent.push({ text: "ข้อมูลชำระเงิน", fontSize: 7.5, bold: true, color: primary, alignment: "center", margin: [0, 0, 0, 2] });
-    if (settings.promptpayQrBase64 && !settings.qrCodeBase64) {
-      bankContent.push({ text: "พร้อมเพย์ (PromptPay)", fontSize: 7, color: "#03c9d7", bold: true, alignment: "center", margin: [0, 1, 0, 0] });
-    }
-    if (settings.bankName) bankContent.push({ text: `ธนาคาร: ${settings.bankName}`, fontSize: 7, color: "#4b5563", alignment: "center", margin: [0, 1, 0, 0] });
-    if (settings.bankAccountNumber) bankContent.push({ text: `เลขที่บัญชี: ${settings.bankAccountNumber}`, fontSize: 7, color: "#4b5563", alignment: "center", margin: [0, 1, 0, 0] });
-    if (settings.bankAccountName) bankContent.push({ text: `ชื่อบัญชี: ${settings.bankAccountName}`, fontSize: 7, color: "#4b5563", alignment: "center", margin: [0, 1, 0, 0] });
-    if (totalAmount > 0) bankContent.push({ text: `จำนวนเงิน: ${fmtNum(totalAmount)} บาท`, fontSize: 7.5, bold: true, color: primary, alignment: "center", margin: [0, 3, 0, 0] });
+  const boxLayout = (color: string) => ({
+    hLineWidth: (i: number, node: any) => (i === 0 || i === node.table.body.length) ? 1 : 0,
+    vLineWidth: (i: number, node: any) => (i === 0 || i === node.table.widths.length) ? 1 : 0,
+    hLineColor: () => color,
+    vLineColor: () => color,
+    paddingLeft: () => 8,
+    paddingRight: () => 8,
+    paddingTop: () => 8,
+    paddingBottom: () => 8,
+    fillColor: () => headerBgLight,
+  });
 
-    custBody[0].push({ stack: bankContent });
+  const customerBox: Content = {
+    table: { widths: ["*"], body: [custBody[0].slice(0, 1)] },
+    layout: boxLayout(primary),
+  };
+
+  if (hasBank) {
+    const qrItems: Content[] = [];
+    if (qrSrc) {
+      try { qrItems.push({ image: qrSrc, width: 56, height: 56, alignment: "center", margin: [0, 0, 0, 4] }); } catch {}
+    }
+    qrItems.push({ text: "ข้อมูลชำระเงิน", fontSize: 7.5, bold: true, color: primary, alignment: "center", margin: [0, 0, 0, 2] });
+    if (settings.promptpayQrBase64 && !settings.qrCodeBase64) {
+      qrItems.push({ text: "พร้อมเพย์ (PromptPay)", fontSize: 7, color: "#03c9d7", bold: true, alignment: "center", margin: [0, 1, 0, 0] });
+    }
+    if (totalAmount > 0) qrItems.push({ text: `จำนวนเงิน: ${fmtNum(totalAmount)} บาท`, fontSize: 7.5, bold: true, color: primary, alignment: "center", margin: [0, 3, 0, 0] });
+
+    const qrBox: Content = {
+      table: { widths: ["*"], body: [[{ stack: qrItems }]] },
+      layout: boxLayout(primary),
+    };
+
+    const hasBankDetails = settings.bankName || settings.bankAccountNumber || settings.bankAccountName;
+    const bankDetailItems: Content[] = [];
+    if (settings.bankName) bankDetailItems.push({ text: `ธนาคาร: ${settings.bankName}`, fontSize: 7, color: "#4b5563", margin: [0, 0, 0, 1] });
+    if (settings.bankAccountNumber) bankDetailItems.push({ text: `เลขที่บัญชี: ${settings.bankAccountNumber}`, fontSize: 7, color: "#4b5563", margin: [0, 0, 0, 1] });
+    if (settings.bankAccountName) bankDetailItems.push({ text: `ชื่อบัญชี: ${settings.bankAccountName}`, fontSize: 7, color: "#4b5563" });
+
+    const rightStack: Content[] = [qrBox];
+    if (hasBankDetails) {
+      rightStack.push({
+        table: { widths: ["*"], body: [[{ stack: bankDetailItems }]] },
+        layout: boxLayout(primary),
+        margin: [0, 4, 0, 0],
+      });
+    }
 
     content.push({
-      table: {
-        widths: ["*", 130],
-        body: custBody,
-      },
-      layout: {
-        hLineWidth: (i: number, node: any) => (i === 0 || i === node.table.body.length) ? 1 : 0,
-        vLineWidth: (i: number, node: any) => (i === 0 || i === node.table.widths.length) ? 1 : (i === 1 ? 1 : 0),
-        hLineColor: () => primary,
-        vLineColor: () => primary,
-        paddingLeft: () => 8,
-        paddingRight: () => 8,
-        paddingTop: () => 8,
-        paddingBottom: () => 8,
-        fillColor: () => headerBgLight,
-      },
+      columns: [
+        { stack: [customerBox], width: "*" },
+        { stack: rightStack, width: 130 },
+      ],
       margin: [0, 0, 0, 8],
     });
   } else {
-    content.push({
-      table: {
-        widths: ["*"],
-        body: custBody,
-      },
-      layout: {
-        hLineWidth: (i: number, node: any) => (i === 0 || i === node.table.body.length) ? 1 : 0,
-        vLineWidth: (i: number, node: any) => (i === 0 || i === node.table.widths.length) ? 1 : 0,
-        hLineColor: () => primary,
-        vLineColor: () => primary,
-        paddingLeft: () => 8,
-        paddingRight: () => 8,
-        paddingTop: () => 8,
-        paddingBottom: () => 8,
-        fillColor: () => headerBgLight,
-      },
-      margin: [0, 0, 0, 8],
-    });
+    content.push({ ...customerBox, margin: [0, 0, 0, 8] });
   }
 
   const tableHeaders: TableCell[] = [
