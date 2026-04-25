@@ -574,11 +574,30 @@ function buildDocDefinition(opts: GeneratePdfOptions): TDocumentDefinitions {
     },
     content,
     footer: (currentPage: number, pageCount: number) => ({
-      columns: [
-        { text: [{ text: "Powered by ", color: "#9ca3af" }, { text: "E-Tax Center", bold: true, color: primary }], fontSize: 6, margin: [0, 4, 0, 0] },
-        { text: doc.docNo, fontSize: 6, color: "#d1d5db", alignment: "right", margin: [0, 4, 0, 0] },
+      stack: [
+        { canvas: [{ type: "line", x1: 28, y1: 0, x2: 567, y2: 0, lineWidth: 0.6, lineColor: primary }] },
+        {
+          columns: [
+            {
+              columns: [
+                {
+                  table: {
+                    widths: [13],
+                    heights: [9],
+                    body: [[{ text: "ET", color: "white", fontSize: 6, bold: true, alignment: "center", border: [false, false, false, false], fillColor: primary }]],
+                  },
+                  layout: { defaultBorder: false, paddingLeft: () => 0, paddingRight: () => 0, paddingTop: () => 1, paddingBottom: () => 1 },
+                  width: 13,
+                },
+                { text: [{ text: "  Powered by ", color: "#9ca3af" }, { text: "E-Tax Center", bold: true, color: primary }], fontSize: 6, margin: [0, 3, 0, 0], width: "*" },
+              ],
+              width: "*",
+            },
+            { text: doc.docNo, fontSize: 6, color: "#d1d5db", alignment: "right", margin: [0, 3, 0, 0], width: "auto" },
+          ],
+          margin: [28, 6, 28, 0],
+        },
       ],
-      margin: [28, 0, 28, 0],
     }),
   };
 }
