@@ -178,10 +178,6 @@ function buildDocDefinition(opts: GeneratePdfOptions): TDocumentDefinitions {
 
   const content: Content[] = [];
 
-  content.push({
-    canvas: [{ type: "rect", x: 0, y: 0, w: 515, h: 4, color: primary }],
-    margin: [0, 0, 0, 8],
-  });
 
   const companyInfoStack: Content[] = [];
   companyInfoStack.push({ text: companyName, fontSize: 10, bold: true, color: "#1f2937" });
