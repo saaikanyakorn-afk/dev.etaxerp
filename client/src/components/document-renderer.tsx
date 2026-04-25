@@ -645,7 +645,7 @@ export default function DocumentRenderer({
             <span className="text-[8px] text-gray-300">{docNo}</span>
           </div>
 
-          {etaxEnabled && (documentType === "tax_invoice" || documentType === "receipt" || documentType === "tax_invoice_receipt") && (
+          {etaxEnabled && quotation.etaxSentAt && (documentType === "tax_invoice" || documentType === "receipt" || documentType === "tax_invoice_receipt") && (
             <div className="mt-2 flex justify-end" data-print-section="etax-stamp">
               <div className="flex items-center gap-2.5 px-3 py-1.5">
                 <img
