@@ -147,10 +147,10 @@ export function renderDocumentHtml(opts: GeneratePdfOptions): string {
 
   const docTitleHtml = `
     <div style="text-align:right">
-      <div style="display:inline-block;font-weight:bold;font-size:16px;padding:4px 12px;border-radius:6px;color:${primary};background:${theme.bg}">
-        ${esc(docInfo.label)}
+      <div style="display:inline-block;padding:4px 12px;border-radius:6px;background:${theme.bg};text-align:right">
+        <div style="font-weight:bold;font-size:16px;color:${primary}">${esc(docInfo.label)}</div>
+        <div style="font-size:10px;color:#6b7280;margin-top:1px">${esc(docInfo.labelEn?.toUpperCase())}</div>
       </div>
-      <div style="font-size:10px;color:#6b7280;margin-top:2px">${esc(docInfo.labelEn?.toUpperCase())}</div>
       <div style="margin-top:8px;font-size:10px">
         <div>เลขที่: <span style="font-weight:600;color:${accent}">${esc(doc.docNo)}</span></div>
         <div>วันที่: ${fmtDate(doc.docDate, era, settings.dateFormat)}</div>
