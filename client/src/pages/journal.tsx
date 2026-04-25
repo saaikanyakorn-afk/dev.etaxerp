@@ -76,8 +76,6 @@ export default function Journal() {
   const todayStr = toLocalDateStr(now);
   const [dateFrom, setDateFrom] = useState(yearStart);
   const [dateTo, setDateTo] = useState(todayStr);
-  const [currentPage, setCurrentPage] = useState(1);
-  const pageSize = 100;
   const [expandedIds, setExpandedIds] = useState<Set<number>>(new Set());
   const [deleteTarget, setDeleteTarget] = useState<any>(null);
   const { toast } = useToast();
@@ -95,22 +93,21 @@ export default function Journal() {
     enabled: !!companyId,
   });
   const { data: entriesData, isLoading } = useQuery<any>({
-    queryKey: ["/api/journal-entries", companyId, dateFrom, dateTo, bookFilter, currentPage],
+    queryKey: ["/api/journal-entries", companyId, dateFrom, dateTo, bookFilter],
     queryFn: async () => {
-      if (!companyId) return { data: [], total: 0 };
-      const params = new URLSearchParams({ companyId: String(companyId), page: String(currentPage), pageSize: String(pageSize) });
+      if (!companyId) return [];
+      const params = new URLSearchParams({ companyId: String(companyId) });
       if (dateFrom) params.set("startDate", dateFrom);
       if (dateTo) params.set("endDate", dateTo);
       if (bookFilter !== "all") params.set("journalBook", bookFilter);
       const res = await fetch(`/api/journal-entries?${params}`, { credentials: "include" });
-      if (!res.ok) return { data: [], total: 0 };
+      if (!res.ok) return [];
       return res.json();
     },
     enabled: !!companyId,
   });
-  const entries: any[] = entriesData?.data || (Array.isArray(entriesData) ? entriesData : []);
-  const totalEntries: number = entriesData?.pagination?.total ?? entriesData?.total ?? entries.length;
-  const totalPages = Math.ceil(totalEntries / pageSize) || 1;
+  const entries: any[] = Array.isArray(entriesData) ? entriesData : (entriesData?.data || []);
+  const totalEntries: number = entries.length;
 
   const [linesCache, setLinesCache] = useState<Record<number, any[]>>({});
   const [linesLoading, setLinesLoading] = useState<Set<number>>(new Set());
@@ -237,7 +234,7 @@ export default function Journal() {
               <span className="text-xs text-muted-foreground whitespace-nowrap">จาก</span>
               <ThaiDateInput
                 value={dateFrom}
-                onChange={(v: string) => { setDateFrom(v); setCurrentPage(1); }}
+                onChange={(v: string) => setDateFrom(v)}
                 dateEra={dateEra}
                 dateFmt={dateFmt}
                 className="w-[160px]"
@@ -246,7 +243,7 @@ export default function Journal() {
               <span className="text-xs text-muted-foreground whitespace-nowrap">ถึง</span>
               <ThaiDateInput
                 value={dateTo}
-                onChange={(v: string) => { setDateTo(v); setCurrentPage(1); }}
+                onChange={(v: string) => setDateTo(v)}
                 dateEra={dateEra}
                 dateFmt={dateFmt}
                 className="w-[160px]"
@@ -257,7 +254,7 @@ export default function Journal() {
                   variant="ghost"
                   size="sm"
                   className="h-8 px-2 text-xs text-muted-foreground"
-                  onClick={() => { setDateFrom(""); setDateTo(""); setCurrentPage(1); }}
+                  onClick={() => { setDateFrom(""); setDateTo(""); }}
                   data-testid="button-clear-date"
                 >
                   ล้าง
@@ -295,7 +292,7 @@ export default function Journal() {
                   <TableHead className="text-sm font-bold text-white">รายละเอียด</TableHead>
                   <TableHead className="text-sm font-bold text-white w-[100px]">ประเภท</TableHead>
                   <TableHead className="text-sm font-bold text-white w-[140px]">
-                    <Select value={bookFilter} onValueChange={(v) => { setBookFilter(v); setCurrentPage(1); }}>
+                    <Select value={bookFilter} onValueChange={(v) => setBookFilter(v)}>
                       <SelectTrigger className="h-7 w-full border-white/30 text-white text-xs bg-transparent [&>svg]:text-white" data-testid="select-journal-book-filter">
                         <SelectValue placeholder="สมุดบัญชี" />
                       </SelectTrigger>
@@ -493,36 +490,9 @@ export default function Journal() {
             </Table>
           </div>
 
-          {totalPages > 1 && (
-            <div className="p-3 border-t flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">
-                แสดง {((currentPage - 1) * pageSize) + 1}-{Math.min(currentPage * pageSize, totalEntries)} จาก {totalEntries.toLocaleString()} รายการ
-              </span>
-              <div className="flex items-center gap-1">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-8 px-3 text-xs"
-                  disabled={currentPage <= 1}
-                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                  data-testid="button-prev-page"
-                >
-                  ก่อนหน้า
-                </Button>
-                <span className="px-3 text-muted-foreground">
-                  หน้า {currentPage}/{totalPages}
-                </span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-8 px-3 text-xs"
-                  disabled={currentPage >= totalPages}
-                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                  data-testid="button-next-page"
-                >
-                  ถัดไป
-                </Button>
-              </div>
+          {totalEntries > 0 && (
+            <div className="p-3 border-t text-sm text-muted-foreground">
+              แสดงทั้งหมด {totalEntries.toLocaleString()} รายการ
             </div>
           )}
         </div>
