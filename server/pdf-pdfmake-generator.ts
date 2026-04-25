@@ -204,18 +204,22 @@ function buildDocDefinition(opts: GeneratePdfOptions): TDocumentDefinitions {
 
   const logoData = ensureBase64DataUri(settings.logoBase64);
   const leftCol: Content = settings.showLogo !== false && logoData
-    ? { columns: [{ image: logoData, width: 56, height: 56, margin: [0, 0, 8, 0] }, { stack: companyInfoStack, width: "*" }] }
+    ? { columns: [{ image: logoData, width: 72, height: 72, margin: [0, 0, 10, 0] }, { stack: companyInfoStack, width: "*" }] }
     : { stack: companyInfoStack };
 
   const docInfoStack: Content[] = [];
   docInfoStack.push({
     table: {
-      body: [[{ text: docInfo.label, fontSize: 16, bold: true, color: primary, alignment: "center" }]],
+      body: [[{
+        stack: [
+          { text: docInfo.label, fontSize: 18, bold: true, color: "white", alignment: "center" },
+          { text: docInfo.labelEn.toUpperCase(), fontSize: 9, color: "white", alignment: "center", margin: [0, 1, 0, 0] },
+        ],
+      }]],
     },
-    layout: { hLineWidth: () => 0, vLineWidth: () => 0, fillColor: () => headerBgLight, paddingLeft: () => 10, paddingRight: () => 10, paddingTop: () => 4, paddingBottom: () => 4 },
-    margin: [0, 0, 0, 2],
+    layout: { hLineWidth: () => 0, vLineWidth: () => 0, fillColor: () => primary, paddingLeft: () => 14, paddingRight: () => 14, paddingTop: () => 6, paddingBottom: () => 6 },
+    margin: [0, 0, 0, 6],
   });
-  docInfoStack.push({ text: docInfo.labelEn.toUpperCase(), fontSize: 9, color: "#6b7280", alignment: "right", margin: [0, 0, 0, 6] });
   docInfoStack.push({ text: [{ text: "เลขที่: ", fontSize: 8.5 }, { text: doc.docNo, fontSize: 8.5, bold: true, color: accent }], alignment: "right", margin: [0, 2, 0, 0] });
   docInfoStack.push({ text: `วันที่: ${fmtDate(doc.docDate, era, settings.dateFormat)}`, fontSize: 8.5, alignment: "right", margin: [0, 2, 0, 0] });
   if (doc.validUntil) docInfoStack.push({ text: `กำหนดส่ง: ${fmtDate(doc.validUntil, era, settings.dateFormat)}`, fontSize: 8.5, alignment: "right", margin: [0, 2, 0, 0] });
