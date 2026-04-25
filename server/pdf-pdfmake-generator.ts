@@ -486,26 +486,30 @@ function buildDocDefinition(opts: GeneratePdfOptions): TDocumentDefinitions {
     sigRight.push({ text: sigRightLabel, fontSize: 7.5, bold: true, color: "#6b7280", alignment: "center" });
     sigRight.push({ text: sigRightSub, fontSize: 7, color: "#6b7280", alignment: "center" });
 
+    const sigLeft: Content[] = [
+      { text: " ", margin: [0, 18, 0, 0] },
+      { canvas: [{ type: "line", x1: 0, y1: 0, x2: 115, y2: 0, lineWidth: 0.5, lineColor: "#9ca3af" }] },
+      { text: sigLeftLabel, fontSize: 7.5, bold: true, alignment: "center", margin: [0, 3, 0, 0] },
+      { text: sigLeftSub, fontSize: 7, color: "#6b7280", alignment: "center" },
+      { text: "วันที่ ____/____/____", fontSize: 7, color: "#6b7280", alignment: "center" },
+    ];
+
     content.push({
-      columns: [
-        {
-          stack: [
-            { text: " ", margin: [0, 40, 0, 0] },
-            { canvas: [{ type: "line", x1: 0, y1: 0, x2: 115, y2: 0, lineWidth: 0.5, lineColor: "#9ca3af" }] },
-            { text: sigLeftLabel, fontSize: 7.5, bold: true, alignment: "center", margin: [0, 3, 0, 0] },
-            { text: sigLeftSub, fontSize: 7, color: "#6b7280", alignment: "center" },
-            { text: "วันที่ ____/____/____", fontSize: 7, color: "#6b7280", alignment: "center" },
-          ],
-          width: 115,
-          alignment: "center",
-        },
-        { text: "", width: "*" },
-        {
-          stack: sigRight,
-          width: 180,
-          alignment: "center",
-        },
-      ],
+      table: {
+        widths: [115, "*", 180],
+        body: [[
+          { stack: sigLeft, alignment: "center", border: [false, false, false, false] },
+          { text: "", border: [false, false, false, false] },
+          { stack: sigRight, alignment: "center", border: [false, false, false, false] },
+        ]],
+      },
+      layout: {
+        defaultBorder: false,
+        paddingLeft: () => 0,
+        paddingRight: () => 0,
+        paddingTop: () => 0,
+        paddingBottom: () => 0,
+      },
       margin: [0, 12, 0, 0],
     });
   }
