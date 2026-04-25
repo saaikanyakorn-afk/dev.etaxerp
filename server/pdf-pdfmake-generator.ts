@@ -288,11 +288,13 @@ function buildDocDefinition(opts: GeneratePdfOptions): TDocumentDefinitions {
     };
 
     content.push({ ...custBox, margin: [0, 0, 0, 4] });
+    content.push({ text: "", margin: [0, 0, 0, 2] });
     content.push({
-      columns: [
-        { text: "", width: "*" },
-        { stack: [bankBox], width: 140 },
-      ],
+      table: {
+        widths: ["*", 140],
+        body: [[{ text: "" }, { stack: [bankBox] }]],
+      },
+      layout: { hLineWidth: () => 0, vLineWidth: () => 0, paddingLeft: () => 0, paddingRight: () => 0, paddingTop: () => 0, paddingBottom: () => 0 },
       margin: [0, 0, 0, 8],
     });
   } else {
