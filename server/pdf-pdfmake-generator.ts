@@ -571,6 +571,7 @@ function buildDocDefinition(opts: GeneratePdfOptions): TDocumentDefinitions {
     defaultStyle: {
       font: "Sarabun",
       fontSize: 8,
+      lineHeight: 1.25,
     },
     content,
     footer: (currentPage: number, pageCount: number) => ({
