@@ -448,7 +448,7 @@ function buildDocDefinition(opts: GeneratePdfOptions): TDocumentDefinitions {
       { stack: notesStack, width: "*", margin: [0, 0, 10, 0] },
       {
         table: {
-          widths: ["*", 60],
+          widths: ["*", 88],
           body: summaryBody,
         },
         layout: {
@@ -456,11 +456,12 @@ function buildDocDefinition(opts: GeneratePdfOptions): TDocumentDefinitions {
           vLineWidth: () => 0,
           hLineColor: () => "#f3f4f6",
           paddingLeft: () => 3,
-          paddingRight: () => 3,
+          paddingRight: (i: number) => i === 1 ? 31 : 3,
           paddingTop: () => 2.5,
           paddingBottom: () => 2.5,
         },
-        width: 180,
+        width: 208,
+        margin: [0, 0, -28, 0],
       },
     ],
     margin: [0, 0, 0, 20],
@@ -567,12 +568,12 @@ function buildDocDefinition(opts: GeneratePdfOptions): TDocumentDefinitions {
 
   return {
     pageSize: "A4",
-    pageMargins: [28, 28, 28, 40],
+    pageMargins: [28, 28, 0, 40],
     defaultStyle: {
       font: "Sarabun",
       fontSize: 8,
     },
-    content,
+    content: { stack: content, margin: [0, 0, 28, 0] },
     footer: (currentPage: number, pageCount: number) => ({
       stack: [
         { canvas: [{ type: "line", x1: 0, y1: 0, x2: 595, y2: 0, lineWidth: 0.6, lineColor: primary }] },
