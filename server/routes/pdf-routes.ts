@@ -3,11 +3,8 @@ import { db } from "../db";
 import { eq, desc, and } from "drizzle-orm";
 import { invoices, taxInvoices, receipts, quotations, salesOrders, purchaseInvoices, expenses, companies, purchaseRequests, purchaseOrders, documentDeliveryLogs } from "@shared/schema";
 import { requireAuth, checkDocOwnership } from "../route-middleware";
-import { buildPdfDataById, buildPdfDataByToken } from "../pdf-data-fetcher";
-import { renderDocumentHtml } from "../pdf-html-renderer";
-import { pdfService } from "../pdf-puppeteer-service";
+import { buildPdfDataById, buildPdfDataByToken, buildBillingNotePdfData } from "../pdf-data-fetcher";
 import { generatePdfMake } from "../pdf-pdfmake-generator";
-import { generatePdfDocRaptor } from "../pdf-docraptor-service";
 
 export function registerPdfRoutes(app: Express) {
 
@@ -64,8 +61,7 @@ app.post("/api/pdf/demo-generate", requireAuth, async (req, res) => {
       documentType: "tax_invoice",
     };
 
-    const html = renderDocumentHtml(fakePdfOpts as any);
-    const pdfBuffer = await pdfService.generatePdf(html, { format: "A4", printBackground: true, margin: { top: "0mm", right: "0mm", bottom: "0mm", left: "0mm" } });
+    const pdfBuffer = await generatePdfMake(fakePdfOpts as any);
     const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
     const endMem = process.memoryUsage();
     console.log(`[Demo PDF] Complete in ${elapsed}s — RSS: ${Math.round(startMem.rss / 1024 / 1024)}MB → ${Math.round(endMem.rss / 1024 / 1024)}MB, PDF size: ${pdfBuffer.length} bytes`);
@@ -198,15 +194,16 @@ app.get("/api/documents/:docType/:id/pdf", requireAuth, async (req, res) => {
     const validPrintTypes = ["tax_invoice", "tax_invoice_receipt", "receipt", "invoice", "delivery_note"];
     const pt = printType && validPrintTypes.includes(printType) ? printType : undefined;
 
-    let pdfOpts = await buildPdfDataById(docType, docId, pt);
+    let pdfOpts = docType === "billing_note"
+      ? await buildBillingNotePdfData(docId)
+      : await buildPdfDataById(docType, docId, pt);
 
     if (companyId && pdfOpts.company && Number(pdfOpts.company.id) !== Number(companyId)) {
       return res.status(403).json({ error: "ไม่มีสิทธิ์เข้าถึงเอกสารนี้" });
     }
 
     const docNo = pdfOpts.document.docNo || "document";
-    const html = renderDocumentHtml(pdfOpts);
-    const pdfBuffer = await pdfService.generatePdf(html, { format: "A4", printBackground: true, margin: { top: "0mm", right: "0mm", bottom: "0mm", left: "0mm" } });
+    const pdfBuffer = await generatePdfMake(pdfOpts);
     pdfOpts = null as any;
 
     if (companyId) {
@@ -247,8 +244,8 @@ app.get("/api/share/:docType/:token/pdf", async (req, res) => {
 
     const pdfOpts = await buildPdfDataByToken(docType, token, pt);
     const docNo = pdfOpts.document.docNo || "document";
-    console.log(`[SharePDF] generating DocRaptor PDF for docType=${docType} docNo=${docNo}`);
-    const pdfBuffer = await generatePdfDocRaptor(pdfOpts);
+    console.log(`[SharePDF] generating PDFMake for docType=${docType} docNo=${docNo}`);
+    const pdfBuffer = await generatePdfMake(pdfOpts);
     console.log(`[SharePDF] done bufferSize=${pdfBuffer.length}`);
     const filename = encodeURIComponent(`${docNo}.pdf`);
     res.set({
@@ -422,8 +419,7 @@ app.get("/api/test/pdf-concurrent", requireAuth, async (req, res) => {
       const t0 = Date.now();
       try {
         const pdfOpts = await buildPdfDataById(docType, docId);
-        const h = renderDocumentHtml(pdfOpts);
-        const buf = await pdfService.generatePdf(h, { format: "A4", margin: { top: "0mm", right: "0mm", bottom: "0mm", left: "0mm" } });
+        const buf = await generatePdfMake(pdfOpts);
         return { index: i, success: true, ms: Date.now() - t0, bytes: buf.length };
       } catch (err: any) {
         return { index: i, success: false, ms: Date.now() - t0, error: err.message };
@@ -482,8 +478,7 @@ app.post("/api/documents/batch-pdf", requireAuth, async (req, res) => {
           continue;
         }
         const docNo = pdfOpts.document.docNo || "document";
-        const h2 = renderDocumentHtml(pdfOpts);
-        const buf = await pdfService.generatePdf(h2, { format: "A4", margin: { top: "0mm", right: "0mm", bottom: "0mm", left: "0mm" } });
+        const buf = await generatePdfMake(pdfOpts);
         pdfBuffers.push({ filename: `${docNo}.pdf`, buffer: buf });
         results.push({ docType, docId, docNo, success: true });
       } catch (err: any) {

@@ -6,6 +6,7 @@ import {
   receipts, receiptItems, purchaseInvoices, purchaseInvoiceItems,
   expenses, expenseItems, documentSettings, contacts,
   purchaseRequests, purchaseRequestItems, purchaseOrders, purchaseOrderItems,
+  billingNotes, billingNoteLinkedDocs,
 } from "@shared/schema";
 import { storage } from "./storage";
 import type { GeneratePdfOptions, PdfCompany, PdfSettings, PdfDocumentData, PdfLineItem, PdfSignature } from "./pdf-react-generator";
@@ -350,5 +351,121 @@ async function buildPdfDataFromDoc(
     signature: userSig,
     etaxEnabled,
     etaxStampBase64: etaxEnabled ? getEtaxStamp() : null,
+  };
+}
+
+export async function buildBillingNotePdfData(billingNoteId: number): Promise<GeneratePdfOptions> {
+  const [bn] = await db.select().from(billingNotes).where(eq(billingNotes.id, billingNoteId));
+  if (!bn) throw new Error("ไม่พบใบวางบิล");
+
+  const [company] = await db.select().from(companies).where(eq(companies.id, bn.companyId));
+  if (!company) throw new Error("ไม่พบบริษัท");
+
+  const linkedDocs = await db.select().from(billingNoteLinkedDocs).where(eq(billingNoteLinkedDocs.billingNoteId, billingNoteId));
+
+  const items: PdfLineItem[] = linkedDocs.map((doc: any) => ({
+    productCode: "",
+    productName: doc.docType === "IV" ? "ใบแจ้งหนี้" : doc.docType === "TIV" ? "ใบกำกับภาษี" : (doc.docType || ""),
+    description: `เลขที่ ${doc.docNo || "-"}${doc.docDate ? ` ลงวันที่ ${doc.docDate}` : ""}`,
+    qty: 1,
+    unit: "รายการ",
+    unitPrice: parseFloat(String(doc.amount || "0")),
+    discount: 0,
+    discountType: "amount" as const,
+    total: parseFloat(String(doc.amount || "0")),
+    vatType: "no_vat" as const,
+  }));
+
+  const totalAmount = parseFloat(String(bn.totalAmount || "0"));
+
+  let docSetting: any = null;
+  try {
+    const [ds] = await db.select().from(documentSettings).where(eq(documentSettings.companyId, bn.companyId));
+    docSetting = ds || null;
+  } catch {}
+
+  let userSig: PdfSignature | null = null;
+  if (bn.createdBy) {
+    try {
+      const u = await storage.getUser(bn.createdBy);
+      if (u) {
+        const sigBase64 = await fetchImageAsBase64(u.signatureUrl ? await resolveObjectStorageUrl(u.signatureUrl) : null);
+        userSig = {
+          name: u.signatureName || u.fullName || "",
+          title: u.signatureTitle || "",
+          imageBase64: sigBase64,
+        };
+      }
+    } catch {}
+  }
+
+  const logoBase64 = await fetchImageAsBase64(company.logoUrl ? await resolveObjectStorageUrl(company.logoUrl) : null);
+  const qrBase64 = await fetchImageAsBase64(docSetting?.qrCode ? await resolveObjectStorageUrl(docSetting.qrCode) : null);
+
+  const pdfCompany: PdfCompany = {
+    id: company.id,
+    name: company.name || "",
+    nameEn: (company as any).nameEn || "",
+    address: company.address || "",
+    taxId: company.taxId || "",
+    phone: company.phone || "",
+    email: (company as any).email || "",
+    website: (company as any).website || "",
+    logoBase64: logoBase64 || "",
+    logoUrl: company.logoUrl || "",
+    branchName: "",
+    branchCode: "",
+  };
+
+  const pdfSettings: PdfSettings = {
+    themeColor: docSetting?.themeColor || "#fb9678",
+    showLogo: docSetting?.showLogo !== false,
+    showSignature: docSetting?.showSignature !== false,
+    showStamp: docSetting?.showStamp !== false,
+    showTaxId: docSetting?.showTaxId !== false,
+    showNote: docSetting?.showNote !== false,
+    showQrCode: !!(docSetting?.qrCode && docSetting?.promptpayEnabled),
+    qrCodeBase64: qrBase64,
+    showWatermark: false,
+    watermarkText: "",
+    docTypeColors: docSetting?.docTypeColors || null,
+    showDocumentBorder: docSetting?.showDocumentBorder !== false,
+    documentBorderColor: docSetting?.documentBorderColor || "",
+    borderRadius: docSetting?.borderRadius ?? 8,
+    showHeaderBackground: docSetting?.showHeaderBackground !== false,
+    showTable: docSetting?.showTable !== false,
+    tableStyle: docSetting?.tableStyle || "bordered",
+    showItemCode: docSetting?.showItemCode !== false,
+    showDiscount: docSetting?.showDiscount !== false,
+    vatRate: docSetting?.vatRate ?? 7,
+  };
+
+  const pdfDocument: PdfDocumentData = {
+    docNo: bn.billingNo,
+    docDate: bn.billingDate,
+    dueDate: bn.dueDate || "",
+    customerName: bn.customerName || "",
+    customerAddress: bn.customerAddress || "",
+    customerTaxId: bn.customerTaxId || "",
+    customerBranch: "",
+    sellerBranchName: "",
+    sellerBranchAddress: "",
+    subtotal: totalAmount,
+    vatAmount: 0,
+    totalAmount,
+    withholdingTax: 0,
+    discountAmount: 0,
+    notes: bn.notes || "",
+    items,
+  };
+
+  return {
+    company: pdfCompany,
+    settings: pdfSettings,
+    document: pdfDocument,
+    documentType: "billing_note",
+    signature: userSig,
+    etaxEnabled: false,
+    etaxStampBase64: null,
   };
 }
