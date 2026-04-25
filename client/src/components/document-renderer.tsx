@@ -358,11 +358,13 @@ export default function DocumentRenderer({
             </div>
           </div>
           <div className="text-right">
-            <div
-              className="font-bold text-base px-3 py-1 rounded-md inline-block"
-              style={{ color: primary, backgroundColor: theme.bg }}
-            >
-              {docInfo.label}
+            <div className="flex justify-end mb-0.5">
+              <div
+                className="font-bold text-base px-3 py-1 rounded-md"
+                style={{ color: primary, backgroundColor: theme.bg }}
+              >
+                {docInfo.label}
+              </div>
             </div>
             <div className="text-[10px] text-gray-500 mt-0.5">{docInfo.labelEn.toUpperCase()}</div>
             <div className="mt-2 text-[10px]">
