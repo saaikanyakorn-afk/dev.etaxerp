@@ -313,7 +313,7 @@ export function renderDocumentHtml(opts: GeneratePdfOptions): string {
       <div style="display:flex;justify-content:space-between;margin-top:16px;padding-top:16px">
         <div style="text-align:center;width:160px">
           <div style="height:40px;margin-bottom:4px"></div>
-          <div style="border-top:1px solid #9ca3af;padding-top:4px">
+          <div style="border-top:2px solid #9ca3af;padding-top:4px">
             <div style="font-size:10px;font-weight:500">ผู้อนุมัติ / ลูกค้า</div>
             <div style="font-size:9px;color:#6b7280">Approved by</div>
             <div style="font-size:9px;color:#6b7280">วันที่ ____/____/____</div>
@@ -321,7 +321,7 @@ export function renderDocumentHtml(opts: GeneratePdfOptions): string {
         </div>
         <div style="text-align:center;width:160px">
           ${sigImg}
-          <div style="border-top:1px solid #9ca3af;padding-top:4px">
+          <div style="border-top:2px solid #9ca3af;padding-top:4px">
             ${signature?.signatureName ? `<div style="font-size:10px;font-weight:500">${esc(signature.signatureName)}</div>` : ""}
             <div style="font-size:10px;font-weight:500;color:#6b7280">${rightLabel}</div>
             <div style="font-size:9px;color:#6b7280">${rightLabelEn}</div>
