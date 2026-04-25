@@ -473,13 +473,13 @@ function buildDocDefinition(opts: GeneratePdfOptions): TDocumentDefinitions {
     const sigRightSub = documentType === "quotation" ? "Salesperson" : documentType === "receipt" ? "Cashier" : "Authorized";
 
     const SIG_W = 150;
-    const SIG_IMG_MAX_H = 55;
-    const SIG_LEFT_SPACER = 60;
+    const SIG_IMG_H = 50;
+    const SIG_LEFT_SPACER = SIG_IMG_H + 2;
     const sigRight: Content[] = [];
     const sigImg = ensureBase64DataUri(signature?.signatureBase64);
     if (sigImg) {
       try {
-        sigRight.push({ image: sigImg, fit: [130, SIG_IMG_MAX_H], alignment: "center", margin: [0, 0, 0, 2] });
+        sigRight.push({ image: sigImg, fit: [400, SIG_IMG_H], alignment: "center", margin: [0, 0, 0, 2] });
       } catch {}
     } else {
       sigRight.push({ canvas: [{ type: "rect", x: 0, y: 0, w: 1, h: SIG_LEFT_SPACER, color: "white" }] });
