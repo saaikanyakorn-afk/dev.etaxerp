@@ -282,13 +282,15 @@ function buildDocDefinition(opts: GeneratePdfOptions): TDocumentDefinitions {
     if (settings.bankAccountName) bankContent.push({ text: `ชื่อบัญชี: ${settings.bankAccountName}`, fontSize: 7, color: "#4b5563", alignment: "center", margin: [0, 1, 0, 0] });
     if (totalAmount > 0) bankContent.push({ text: `จำนวนเงิน: ${fmtNum(totalAmount)} บาท`, fontSize: 7.5, bold: true, color: primary, alignment: "center", margin: [0, 3, 0, 0] });
 
+    const boxHeight = 150;
     const customerBox: Content = {
-      table: { widths: ["*"], heights: [150], body: custBody },
+      table: { widths: ["*"], heights: [boxHeight], body: custBody },
       layout: boxLayout,
     };
     const bankBox: Content = {
       table: {
         widths: ["*"],
+        heights: [boxHeight],
         body: [[{ stack: bankContent }]],
       },
       layout: boxLayout,
