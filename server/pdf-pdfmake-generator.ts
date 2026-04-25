@@ -285,6 +285,7 @@ function buildDocDefinition(opts: GeneratePdfOptions): TDocumentDefinitions {
     const bankBox: Content = {
       table: { widths: ["*"], body: [[{ stack: bankContent }]] },
       layout: boxLayout,
+      minHeight: 174,
     };
 
     const customerBox: Content = {
