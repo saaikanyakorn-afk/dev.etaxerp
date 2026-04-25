@@ -373,16 +373,13 @@ function buildDocDefinition(opts: GeneratePdfOptions): TDocumentDefinitions {
       hLineWidth: (i: number, node: any) => i === 1 ? 0.5 : 0.3,
       vLineWidth: () => 0,
       hLineColor: (i: number, node: any) => i === 1 ? (theme.light || "#e5e7eb") : "#f3f4f6",
-      paddingLeft: (i: number) => i === 0 ? 31 : 3,
-      paddingRight: (i: number, node: any) => {
-        const lastCol = (node.table.widths?.length ?? 1) - 1;
-        return i === lastCol ? 31 : 3;
-      },
+      paddingLeft: () => 3,
+      paddingRight: () => 3,
       paddingTop: () => 3.5,
       paddingBottom: () => 3.5,
       fillColor: (rowIndex: number) => rowIndex === 0 ? headerBgLight : null,
     },
-    margin: [-28, 0, -28, 8],
+    margin: [0, 0, 0, 8],
   });
 
   const thaiAmountText = isForeignCurrency ? `${fmtNum(totalAmount)} ${currencyCode}` : numberToThaiText(totalAmount);
@@ -570,12 +567,12 @@ function buildDocDefinition(opts: GeneratePdfOptions): TDocumentDefinitions {
 
   return {
     pageSize: "A4",
-    pageMargins: [0, 28, 0, 40],
+    pageMargins: [28, 28, 28, 40],
     defaultStyle: {
       font: "Sarabun",
       fontSize: 8,
     },
-    content: { stack: content, margin: [28, 0, 28, 0] },
+    content,
     footer: (currentPage: number, pageCount: number) => ({
       stack: [
         { canvas: [{ type: "line", x1: 28, y1: 0, x2: 567, y2: 0, lineWidth: 0.6, lineColor: primary }] },
