@@ -374,12 +374,15 @@ function buildDocDefinition(opts: GeneratePdfOptions): TDocumentDefinitions {
       vLineWidth: () => 0,
       hLineColor: (i: number, node: any) => i === 1 ? (theme.light || "#e5e7eb") : "#f3f4f6",
       paddingLeft: () => 3,
-      paddingRight: () => 3,
+      paddingRight: (i: number, node: any) => {
+        const lastCol = (node.table.widths?.length ?? 1) - 1;
+        return i === lastCol ? 31 : 3;
+      },
       paddingTop: () => 3.5,
       paddingBottom: () => 3.5,
       fillColor: (rowIndex: number) => rowIndex === 0 ? headerBgLight : null,
     },
-    margin: [0, 0, 0, 8],
+    margin: [0, 0, -28, 8],
   });
 
   const thaiAmountText = isForeignCurrency ? `${fmtNum(totalAmount)} ${currencyCode}` : numberToThaiText(totalAmount);
