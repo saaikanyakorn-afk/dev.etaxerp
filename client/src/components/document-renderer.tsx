@@ -358,7 +358,7 @@ export default function DocumentRenderer({
             </div>
           </div>
           <div className="text-right">
-            <div className="flex justify-end mb-0.5">
+            <div className="flex justify-end w-full mb-0.5">
               <div
                 className="font-bold text-base px-3 py-1 rounded-md"
                 style={{ color: primary, backgroundColor: theme.bg }}
