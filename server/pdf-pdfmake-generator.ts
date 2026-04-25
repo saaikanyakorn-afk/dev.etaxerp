@@ -285,19 +285,24 @@ function buildDocDefinition(opts: GeneratePdfOptions): TDocumentDefinitions {
     const bankBox: Content = {
       table: { widths: ["*"], body: [[{ stack: bankContent }]] },
       layout: boxLayout,
-      minHeight: 174,
     };
 
+    const fixedHeight = 174;
     const customerBox: Content = {
       table: { widths: ["*"], body: custBody },
       layout: boxLayout,
-      minHeight: 174,
+      heights: () => fixedHeight,
+    };
+    const alignedBankBox: Content = {
+      table: { widths: ["*"], body: [[{ stack: bankContent }]] },
+      layout: boxLayout,
+      heights: () => fixedHeight,
     };
 
     content.push({
       columns: [
         { stack: [customerBox], width: "*" },
-        { stack: [bankBox], width: 140 },
+        { stack: [alignedBankBox], width: 140 },
       ],
       columnGap: 8,
       margin: [0, 0, 0, 8],
