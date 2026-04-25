@@ -200,7 +200,7 @@ function buildDocDefinition(opts: GeneratePdfOptions): TDocumentDefinitions {
 
   const logoData = ensureBase64DataUri(settings.logoBase64);
   const leftCol: Content = settings.showLogo !== false && logoData
-    ? { columns: [{ image: logoData, width: 72, height: 72, margin: [0, 0, 16, 0] }, { stack: companyInfoStack, width: "*" }] }
+    ? { columns: [{ image: logoData, width: 72, height: 72 }, { stack: companyInfoStack, width: "*" }], columnGap: 16 }
     : { stack: companyInfoStack };
 
   const docInfoStack: Content[] = [];
