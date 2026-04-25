@@ -22,7 +22,7 @@ interface ParsedInvoice {
   notes: string;
   refInvoiceNo?: string;
   rawText: string;
-  platform?: "shopee" | "tiktok" | "lazada" | "grab" | "other";
+  platform?: "shopee" | "tiktok" | "lazada" | "grab" | "myorder" | "other";
   docSubType?: "platform_fee" | "shipping" | "commission" | "ads" | "service_fee" | "mixed";
   invoicePrefix?: string;
 }
@@ -1300,9 +1300,9 @@ function parseMyOrderInvoice(rows: TextItem[][], fullText: string): ParsedInvoic
     withholdingTax: Math.round(withholdingTax * 100) / 100,
     notes: "",
     rawText: fullText.substring(0, 3000),
-    platform: "other",
-    docSubType: "shipping",
-    invoicePrefix: "MT",
+    platform: "myorder",
+    docSubType: "mixed",
+    invoicePrefix: invoiceNo.startsWith("MOR-") ? "MOR" : "MT",
   };
 }
 

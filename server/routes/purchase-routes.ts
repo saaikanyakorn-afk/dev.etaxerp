@@ -4053,10 +4053,10 @@ export function registerPurchaseRoutes(app: Express) {
             }
           }
 
-          documents.push({
-            key: `${file.originalname}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-            fileName: decodeMulterFilename(file.originalname),
-            invoiceNo: parsed.invoiceNo || "",
+          const baseKey = `${file.originalname}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+          const decodedFileName = decodeMulterFilename(file.originalname);
+          const baseDoc = {
+            fileName: decodedFileName,
             date: docDate || new Date().toISOString().split("T")[0],
             vendorName: parsed.vendorName || "",
             vendorTaxId: parsed.vendorTaxId || "",
@@ -4064,25 +4064,6 @@ export function registerPurchaseRoutes(app: Express) {
             vendorBranch: parsed.vendorBranch || "",
             vendorId,
             vendorMatchName,
-            isDuplicate,
-            subtotal,
-            vatAmount,
-            totalAmount: subtotal + vatAmount - wht,
-            withholdingTax: wht,
-            items: parsed.items.map((it, idx) => ({
-              rowNum: idx + 1,
-              description: it.description || "",
-              productName: it.description || "",
-              qty: it.qty || 1,
-              unit: it.unit || "ครั้ง",
-              unitPrice: it.unitPrice || it.amount || 0,
-              discount: 0,
-              total: it.amount || 0,
-              amount: it.amount || 0,
-              vatType: it.vatType || "non_vat",
-              accountCode: "",
-              accountName: "",
-            })),
             isTikTok: parsed.invoiceNo?.startsWith("TTSTHAC") || false,
             isPlatformFee: /Shopee|SPX\s*Express/i.test(parsed.vendorName || "") || parsed.invoiceNo?.startsWith("TRSPEMKP") || parsed.invoiceNo?.startsWith("RCSPXSP") || false,
             platform: parsed.platform || "other",
@@ -4092,7 +4073,79 @@ export function registerPurchaseRoutes(app: Express) {
             folderPath: folderPaths[fi] || "",
             hasErrors: docErrors.length > 0,
             errors: docErrors,
+          };
+
+          const mapItem = (it: any, idx: number) => ({
+            rowNum: idx + 1,
+            description: it.description || "",
+            productName: it.description || "",
+            qty: it.qty || 1,
+            unit: it.unit || "ครั้ง",
+            unitPrice: it.unitPrice || it.amount || 0,
+            discount: 0,
+            total: it.amount || 0,
+            amount: it.amount || 0,
+            vatType: it.vatType || "non_vat",
+            accountCode: "",
+            accountName: "",
           });
+
+          const round2 = (n: number) => Math.round(n * 100) / 100;
+
+          if (parsed.platform === "myorder") {
+            const shipItems = parsed.items.filter((it: any) => /ขนส่ง/.test(it.description || ""));
+            const codItems = parsed.items.filter((it: any) => /COD|ปลายทาง|เรียกเก็บเงิน/.test(it.description || ""));
+
+            const groups: Array<{ suffix: string; subType: string; items: any[]; whtRate: number }> = [];
+            if (shipItems.length > 0) groups.push({ suffix: "-S", subType: "shipping", items: shipItems, whtRate: 0.01 });
+            if (codItems.length > 0) groups.push({ suffix: "-C", subType: "service_fee", items: codItems, whtRate: 0.03 });
+
+            for (const g of groups) {
+              const gSubtotal = round2(g.items.reduce((s, it) => s + (it.amount || 0), 0));
+              const gVat = round2(g.items.reduce((s, it) => s + (it.vatType === "vat7" ? (it.amount || 0) * 0.07 : 0), 0));
+              const gWht = round2(gSubtotal * g.whtRate);
+              const gInvoiceNo = (parsed.invoiceNo || "") + g.suffix;
+              const gIsDup = parsed.invoiceNo ? usedNos.has(gInvoiceNo) : false;
+              documents.push({
+                ...baseDoc,
+                key: baseKey + g.suffix,
+                invoiceNo: gInvoiceNo,
+                isDuplicate: gIsDup,
+                subtotal: gSubtotal,
+                vatAmount: gVat,
+                totalAmount: round2(gSubtotal + gVat - gWht),
+                withholdingTax: gWht,
+                items: g.items.map(mapItem),
+                docSubType: g.subType,
+              });
+            }
+
+            if (groups.length === 0) {
+              documents.push({
+                ...baseDoc,
+                key: baseKey,
+                invoiceNo: parsed.invoiceNo || "",
+                isDuplicate,
+                subtotal,
+                vatAmount,
+                totalAmount: subtotal + vatAmount - wht,
+                withholdingTax: wht,
+                items: parsed.items.map(mapItem),
+              });
+            }
+          } else {
+            documents.push({
+              ...baseDoc,
+              key: baseKey,
+              invoiceNo: parsed.invoiceNo || "",
+              isDuplicate,
+              subtotal,
+              vatAmount,
+              totalAmount: subtotal + vatAmount - wht,
+              withholdingTax: wht,
+              items: parsed.items.map(mapItem),
+            });
+          }
         } catch (err: any) {
           errors.push({ fileName: decodeMulterFilename(file.originalname), error: err.message });
         }
