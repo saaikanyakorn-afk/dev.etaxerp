@@ -749,26 +749,30 @@ app.get("/api/invoices", requireAuth, requireAnyModule("sales", "ecommerce"), as
   try {
     const companyId = Number(req.query.companyId);
     if (!companyId) return res.status(400).json({ message: "companyId required" });
-    const { page, pageSize, offset } = parsePagination(req, { pageSize: 50 });
     const whereClause = eq(invoices.companyId, companyId);
-    const [{ total }] = await db.select({ total: count() }).from(invoices).where(whereClause);
-    const rows = await db.select().from(invoices).where(whereClause).orderBy(desc(invoices.invoiceDate), desc(invoices.id)).limit(pageSize).offset(offset);
-    const userIds = Array.from(new Set(rows.map(r => r.createdBy).concat(rows.map(r => r.updatedBy)).filter(Boolean))) as number[];
+    let rows: any[];
+    if (req.query.page) {
+      const { page, pageSize, offset } = parsePagination(req, { pageSize: 50 });
+      const [{ total }] = await db.select({ total: count() }).from(invoices).where(whereClause);
+      rows = await db.select().from(invoices).where(whereClause).orderBy(desc(invoices.invoiceDate), desc(invoices.id)).limit(pageSize).offset(offset);
+      const userIds = Array.from(new Set(rows.map((r: any) => r.createdBy).concat(rows.map((r: any) => r.updatedBy)).filter(Boolean))) as number[];
+      const userMap: Record<number, string> = {};
+      if (userIds.length > 0) {
+        const userRows = await db.select({ id: users.id, fullName: users.fullName }).from(users).where(inArray(users.id, userIds));
+        for (const u of userRows) userMap[u.id] = u.fullName;
+      }
+      const result = rows.map((r: any) => ({ ...r, createdByName: r.createdBy ? userMap[r.createdBy] || "-" : "-", updatedByName: r.updatedBy ? userMap[r.updatedBy] || "-" : "-" }));
+      return res.json(paginatedResponse(result, Number(total), { page, pageSize, offset }));
+    }
+    rows = await db.select().from(invoices).where(whereClause).orderBy(desc(invoices.invoiceDate), desc(invoices.id));
+    const userIds = Array.from(new Set(rows.map((r: any) => r.createdBy).concat(rows.map((r: any) => r.updatedBy)).filter(Boolean))) as number[];
     const userMap: Record<number, string> = {};
     if (userIds.length > 0) {
       const userRows = await db.select({ id: users.id, fullName: users.fullName }).from(users).where(inArray(users.id, userIds));
       for (const u of userRows) userMap[u.id] = u.fullName;
     }
-    const result = rows.map(r => ({
-      ...r,
-      createdByName: r.createdBy ? userMap[r.createdBy] || "-" : "-",
-      updatedByName: r.updatedBy ? userMap[r.updatedBy] || "-" : "-",
-    }));
-    if (req.query.page) {
-      res.json(paginatedResponse(result, Number(total), { page, pageSize, offset }));
-    } else {
-      res.json(result);
-    }
+    const result = rows.map((r: any) => ({ ...r, createdByName: r.createdBy ? userMap[r.createdBy] || "-" : "-", updatedByName: r.updatedBy ? userMap[r.updatedBy] || "-" : "-" }));
+    res.json(result);
   } catch (err: any) { console.error("[invoices] list error:", err); res.status(500).json({ message: err.message }); }
 });
 
