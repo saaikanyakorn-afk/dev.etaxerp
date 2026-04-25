@@ -440,9 +440,81 @@ function buildDocDefinition(opts: GeneratePdfOptions): TDocumentDefinitions {
     },
     margin: [0, 0, 0, 4],
   });
+  const showPaymentCheckboxes = ["receipt", "tax_invoice_receipt", "tax_invoice", "payment_voucher", "receipt_voucher", "deposit"].includes(documentType);
+  const showInvoicePaymentTerms = documentType === "invoice";
+
+  if (showPaymentCheckboxes) {
+    const checkbox = (): Content => ({
+      table: { widths: [6], heights: [6], body: [[{ text: " ", fontSize: 1, border: [true, true, true, true] }]] },
+      layout: { hLineWidth: () => 0.5, vLineWidth: () => 0.5, hLineColor: () => "#9ca3af", vLineColor: () => "#9ca3af", paddingLeft: () => 0, paddingRight: () => 0, paddingTop: () => 0, paddingBottom: () => 0 },
+    });
+    const cbRow = (label: string): Content => ({
+      columns: [
+        { width: 6, ...checkbox() } as any,
+        { text: label, fontSize: 7.5, color: "#4b5563", margin: [4, -1, 0, 0], width: "*" },
+      ],
+      columnGap: 0,
+    });
+    const paymentDisclaimer = ["receipt", "tax_invoice_receipt", "deposit"].includes(documentType)
+      ? "ใบเสร็จรับเงินจะสมบูรณ์เมื่อผู้รับเงินได้ลงนามรับเงินแล้ว, หากจ่ายด้วยเช็คหรือบัตรเครดิต\nใบเสร็จรับเงินจะสมบูรณ์เมื่อเรียกเก็บเงินได้แล้ว"
+      : null;
+    notesStack.push({
+      table: {
+        widths: ["*"],
+        body: [[{
+          stack: [
+            { text: "ชำระเงินโดย :", fontSize: 7.5, bold: true, color: "#374151", margin: [0, 0, 0, 4] },
+            {
+              columns: [
+                { width: "auto", stack: [cbRow("เงินสด")] },
+                { width: "auto", stack: [cbRow("เงินโอน")] },
+                { text: "", width: "*" },
+              ],
+              columnGap: 24,
+              margin: [0, 0, 0, 3],
+            },
+            { ...cbRow("เช็คธนาคาร / เลขที่ / ลงวันที่ / มูลค่าก่อนภาษี"), margin: [0, 0, 0, 3] },
+            cbRow("อื่นๆ _______________"),
+            ...(paymentDisclaimer ? [
+              { canvas: [{ type: "line", x1: 0, y1: 4, x2: 240, y2: 4, lineWidth: 0.3, lineColor: boxBorder }] } as Content,
+              { text: paymentDisclaimer, fontSize: 6.5, color: "#9ca3af", margin: [0, 4, 0, 0], lineHeight: 1.15 } as Content,
+            ] : []),
+          ],
+        }]],
+      },
+      layout: {
+        hLineWidth: () => 0.5,
+        vLineWidth: () => 0.5,
+        hLineColor: () => boxBorder,
+        vLineColor: () => boxBorder,
+        paddingLeft: () => 7,
+        paddingRight: () => 7,
+        paddingTop: () => 6,
+        paddingBottom: () => 6,
+      },
+      margin: [0, 4, 0, 0],
+    });
+  } else if (showInvoicePaymentTerms) {
+    const bankParts: string[] = [];
+    if (settings.bankName) bankParts.push(`ธนาคาร ${settings.bankName}`);
+    if (settings.bankAccountName) bankParts.push(`ชื่อบัญชี ${settings.bankAccountName}`);
+    if (settings.bankAccountNumber) bankParts.push(`เลขบัญชี ${settings.bankAccountNumber}`);
+    const bankLine = bankParts.length ? `เงื่อนไขการชำระเงิน: โอนเงินเข้าบัญชี ${bankParts.join(" ")}` : "";
+    const invStack: Content[] = [];
+    if (bankLine) invStack.push({ text: [{ text: "■ ", color: primary }, { text: bankLine, fontSize: 7.5, color: "#4b5563" }] });
+    if (doc.refDoc) invStack.push({ text: [{ text: "■ ", color: primary }, { text: `เลขที่ใบสั่งขาย: ${doc.refDoc}`, fontSize: 7.5, color: "#4b5563" }], margin: [0, 2, 0, 0] });
+    if (invStack.length) {
+      notesStack.push({
+        table: { widths: ["*"], body: [[{ stack: invStack }]] },
+        layout: { hLineWidth: () => 0.5, vLineWidth: () => 0.5, hLineColor: () => boxBorder, vLineColor: () => boxBorder, paddingLeft: () => 7, paddingRight: () => 7, paddingTop: () => 6, paddingBottom: () => 6 },
+        margin: [0, 4, 0, 0],
+      });
+    }
+  }
+
   if (doc.notes) notesStack.push({ text: doc.notes, fontSize: 7.5, color: "#6b7280", margin: [0, 4, 0, 0] });
   if (doc.paymentTerms) notesStack.push({ text: [{ text: "เงื่อนไขการชำระ: ", bold: true }, doc.paymentTerms], fontSize: 7.5, color: "#6b7280", margin: [0, 2, 0, 0] });
-  if (settings.footerNote) notesStack.push({ text: settings.footerNote, fontSize: 7.5, color: "#6b7280" });
+  if (settings.footerNote) notesStack.push({ text: settings.footerNote, fontSize: 7.5, color: "#6b7280", margin: [0, 4, 0, 0] });
 
   content.push({
     columns: [
