@@ -287,12 +287,12 @@ function buildDocDefinition(opts: GeneratePdfOptions): TDocumentDefinitions {
       layout: boxLayout,
     };
 
+    content.push({ ...custBox, margin: [0, 0, 0, 4] });
     content.push({
       columns: [
-        { stack: [custBox], width: "*" },
+        { text: "", width: "*" },
         { stack: [bankBox], width: 140 },
       ],
-      columnGap: 8,
       margin: [0, 0, 0, 8],
     });
   } else {
