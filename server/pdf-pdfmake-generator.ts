@@ -210,18 +210,18 @@ function buildDocDefinition(opts: GeneratePdfOptions): TDocumentDefinitions {
   const docInfoStack: Content[] = [];
   docInfoStack.push({
     table: {
-      body: [[{ text: docInfo.label, fontSize: 12, bold: true, color: primary, alignment: "center" }]],
+      body: [[{ text: docInfo.label, fontSize: 16, bold: true, color: primary, alignment: "center" }]],
     },
-    layout: { hLineWidth: () => 0, vLineWidth: () => 0, fillColor: () => headerBgLight, paddingLeft: () => 8, paddingRight: () => 8, paddingTop: () => 3, paddingBottom: () => 3 },
-    margin: [0, 0, 0, 1],
+    layout: { hLineWidth: () => 0, vLineWidth: () => 0, fillColor: () => headerBgLight, paddingLeft: () => 10, paddingRight: () => 10, paddingTop: () => 4, paddingBottom: () => 4 },
+    margin: [0, 0, 0, 2],
   });
-  docInfoStack.push({ text: docInfo.labelEn.toUpperCase(), fontSize: 7.5, color: "#6b7280", alignment: "right", margin: [0, 0, 0, 5] });
-  docInfoStack.push({ text: [{ text: "เลขที่: ", fontSize: 7.5 }, { text: doc.docNo, fontSize: 7.5, bold: true, color: accent }], alignment: "right", margin: [0, 1.5, 0, 0] });
-  docInfoStack.push({ text: `วันที่: ${fmtDate(doc.docDate, era, settings.dateFormat)}`, fontSize: 7.5, alignment: "right", margin: [0, 1.5, 0, 0] });
-  if (doc.validUntil) docInfoStack.push({ text: `กำหนดส่ง: ${fmtDate(doc.validUntil, era, settings.dateFormat)}`, fontSize: 7.5, alignment: "right", margin: [0, 1.5, 0, 0] });
-  if (doc.creditDays != null && Number(doc.creditDays) > 0) docInfoStack.push({ text: `เครดิต: ${doc.creditDays} วัน`, fontSize: 7.5, alignment: "right", margin: [0, 1.5, 0, 0] });
-  if (isForeignCurrency) docInfoStack.push({ text: `สกุลเงิน: ${currencyCode}`, fontSize: 7, bold: true, color: accent, alignment: "right", margin: [0, 1.5, 0, 0] });
-  if (doc.refDoc) docInfoStack.push({ text: `อ้างอิง: ${doc.refDoc}`, fontSize: 7, color: primary, alignment: "right", margin: [0, 1.5, 0, 0] });
+  docInfoStack.push({ text: docInfo.labelEn.toUpperCase(), fontSize: 9, color: "#6b7280", alignment: "right", margin: [0, 0, 0, 6] });
+  docInfoStack.push({ text: [{ text: "เลขที่: ", fontSize: 8.5 }, { text: doc.docNo, fontSize: 8.5, bold: true, color: accent }], alignment: "right", margin: [0, 2, 0, 0] });
+  docInfoStack.push({ text: `วันที่: ${fmtDate(doc.docDate, era, settings.dateFormat)}`, fontSize: 8.5, alignment: "right", margin: [0, 2, 0, 0] });
+  if (doc.validUntil) docInfoStack.push({ text: `กำหนดส่ง: ${fmtDate(doc.validUntil, era, settings.dateFormat)}`, fontSize: 8.5, alignment: "right", margin: [0, 2, 0, 0] });
+  if (doc.creditDays != null && Number(doc.creditDays) > 0) docInfoStack.push({ text: `เครดิต: ${doc.creditDays} วัน`, fontSize: 8.5, alignment: "right", margin: [0, 2, 0, 0] });
+  if (isForeignCurrency) docInfoStack.push({ text: `สกุลเงิน: ${currencyCode}`, fontSize: 8, bold: true, color: accent, alignment: "right", margin: [0, 2, 0, 0] });
+  if (doc.refDoc) docInfoStack.push({ text: `อ้างอิง: ${doc.refDoc}`, fontSize: 8, color: primary, alignment: "right", margin: [0, 2, 0, 0] });
 
   content.push({
     columns: [
