@@ -1187,6 +1187,125 @@ function extractInvoiceNoFromRows(rows: TextItem[][], fullText: string): string 
   return "";
 }
 
+function isMyOrderInvoice(fullText: string): boolean {
+  return /มายออเดอร์\s*อินเทลลิเจนซ์/.test(fullText)
+    || /MyOrder/i.test(fullText)
+    || /\bMT\s*69\d{7,}\b/.test(fullText)
+    || /acc\.myorder@gmail\.com/i.test(fullText);
+}
+
+function parseMyOrderInvoice(rows: TextItem[][], fullText: string): ParsedInvoice {
+  let invoiceNo = "";
+  const invMatch = fullText.match(/เลขที.{0,3}ใบก.{0,3}กับภาษี\s*[:：]\s*(MT\s*\d{6,})/);
+  if (invMatch) invoiceNo = invMatch[1].replace(/\s+/g, "");
+  if (!invoiceNo) {
+    const fallback = fullText.match(/\b(MT\s*\d{6,})\b/);
+    if (fallback) invoiceNo = fallback[1].replace(/\s+/g, "");
+  }
+
+  let date = "";
+  const dateMatches = Array.from(fullText.matchAll(/(\d{1,2}\/\d{1,2}\/(?:25|20)\d{2})/g));
+  if (dateMatches.length > 0) {
+    date = parseDate(dateMatches[dateMatches.length - 1][1]);
+  }
+
+  const vendorName = "บริษัท มายออเดอร์ อินเทลลิเจนซ์ จำกัด";
+  const vendorBranch = "สำนักงานใหญ่";
+  const vendorAddress = "69/429 หมู่ที่ 5 ตำบลวิชิต อำเภอเมืองภูเก็ต จังหวัดภูเก็ต 83000";
+
+  let vendorTaxId = "";
+  const taxIds = Array.from(fullText.matchAll(/(\d{13})/g)).map(m => m[1]);
+  for (const tid of taxIds) {
+    if (tid === "0835563010999") { vendorTaxId = tid; break; }
+  }
+  if (!vendorTaxId && taxIds.length > 0) vendorTaxId = taxIds[0];
+
+  const NUM = `[\\d,\\s]*\\d`;
+  const NUM_DEC = `[\\d,\\s]*\\d\\.\\d{2}`;
+  const items: ParsedLineItem[] = [];
+  const itemRegex = new RegExp(
+    `([12])\\s+(ค่าขนส่งภายในประเทศ|ค่าบริการเรียกเก็บเงินปลายทาง)\\s+(\\d+)\\s+(${NUM_DEC})\\s+(\\d+(?:\\.\\d{1,2})?)\\s+(${NUM_DEC})`,
+    "g"
+  );
+  let im: RegExpExecArray | null;
+  while ((im = itemRegex.exec(fullText)) !== null) {
+    const desc = im[2];
+    const qty = parseInt(im[3]);
+    const preVatTotal = cleanNumber(im[4]);
+    const itemVat = cleanNumber(im[5]);
+    if (preVatTotal <= 0) continue;
+    const isShipping = /ขนส่ง/.test(desc);
+    items.push({
+      description: desc,
+      qty: qty || 1,
+      unit: "ครั้ง",
+      unitPrice: qty > 0 ? preVatTotal / qty : preVatTotal,
+      amount: preVatTotal,
+      vatType: isShipping && itemVat === 0 ? "non_vat" : "vat7",
+    });
+  }
+
+  let totalAmount = 0;
+  const totalMatch = fullText.match(new RegExp(`จ.{0,3}นวนเงินรวมทั.{0,3}งสิ.{0,3}น\\s+(${NUM_DEC})`));
+  if (totalMatch) totalAmount = cleanNumber(totalMatch[1]);
+  if (!totalAmount) {
+    const paidMatch = fullText.match(new RegExp(`จ.{0,3}นวนเงินที.{0,3}\\s*ช.{0,3}ระ\\s*[:：]\\s*(${NUM_DEC})`));
+    if (paidMatch) totalAmount = cleanNumber(paidMatch[1]);
+  }
+
+  let vatAmount = 0;
+  const vatMatch = fullText.match(new RegExp(`จ.{0,3}นวนภาษีมูลค่าเพิ.{0,3}\\s*ม\\s+\\S+\\s*%\\s+(${NUM_DEC})`));
+  if (vatMatch) vatAmount = cleanNumber(vatMatch[1]);
+
+  let withholdingTax = 0;
+  const whtShip = fullText.match(new RegExp(`ขนส่ง\\s+\\S+\\s*%\\s+(${NUM_DEC})\\s*บาท`));
+  const whtCod = fullText.match(new RegExp(`(?:บริการ\\s+)?COD\\s*3\\s*%\\s+(${NUM_DEC})\\s*บาท`));
+  if (whtShip) withholdingTax += cleanNumber(whtShip[1]);
+  if (whtCod) withholdingTax += cleanNumber(whtCod[1]);
+
+  let subtotal = 0;
+  if (items.length > 0) {
+    subtotal = items.reduce((s, it) => s + it.amount, 0);
+  } else if (totalAmount > 0) {
+    subtotal = totalAmount - vatAmount;
+  }
+
+  if (!invoiceNo && date) {
+    invoiceNo = `MOR-${date.replace(/-/g, "")}`;
+  }
+
+  if (items.length === 0 && totalAmount > 0) {
+    items.push({
+      description: "ค่าขนส่ง / COD MyOrder",
+      qty: 1,
+      unit: "ครั้ง",
+      unitPrice: subtotal || totalAmount,
+      amount: subtotal || totalAmount,
+      vatType: vatAmount > 0 ? "vat7" : "non_vat",
+    });
+  }
+
+  return {
+    invoiceNo,
+    date,
+    dueDate: "",
+    vendorName,
+    vendorTaxId,
+    vendorAddress,
+    vendorBranch,
+    items,
+    subtotal: Math.round(subtotal * 100) / 100,
+    vatAmount: Math.round(vatAmount * 100) / 100,
+    totalAmount: Math.round(totalAmount * 100) / 100,
+    withholdingTax: Math.round(withholdingTax * 100) / 100,
+    notes: "",
+    rawText: fullText.substring(0, 3000),
+    platform: "other",
+    docSubType: "shipping",
+    invoicePrefix: "MT",
+  };
+}
+
 function parseGenericInvoice(rows: TextItem[][], fullText: string): ParsedInvoice {
   const invoiceNo = extractInvoiceNoFromRows(rows, fullText);
   const dateRaw = findPattern(fullText, DATE_PATTERNS);
@@ -1327,6 +1446,10 @@ export async function parsePdfInvoice(pdfBuffer: Buffer, templates?: import("./p
 
   if (isLazadaInvoice(fullText)) {
     return parseLazadaInvoice(rows, fullText);
+  }
+
+  if (isMyOrderInvoice(fullText)) {
+    return parseMyOrderInvoice(rows, fullText);
   }
 
   if (isGrabInvoice(fullText)) {
