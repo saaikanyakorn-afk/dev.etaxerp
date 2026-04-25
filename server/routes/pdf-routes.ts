@@ -246,8 +246,9 @@ app.get("/api/share/:docType/:token/pdf", async (req, res) => {
 
     const pdfOpts = await buildPdfDataByToken(docType, token, pt);
     const docNo = pdfOpts.document.docNo || "document";
-    console.log(`[SharePDF] generating pdfmake for docType=${docType} docNo=${docNo} items=${pdfOpts.document.items?.length}`);
-    const pdfBuffer = await generatePdfMake(pdfOpts);
+    console.log(`[SharePDF] generating puppeteer PDF for docType=${docType} docNo=${docNo}`);
+    const html = renderDocumentHtml(pdfOpts);
+    const pdfBuffer = await pdfService.generatePdf(html, { format: "A4", printBackground: true, margin: { top: "0mm", right: "0mm", bottom: "0mm", left: "0mm" } });
     console.log(`[SharePDF] done bufferSize=${pdfBuffer.length}`);
     const filename = encodeURIComponent(`${docNo}.pdf`);
     res.set({
