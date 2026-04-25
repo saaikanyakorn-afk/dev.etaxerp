@@ -1,7 +1,7 @@
 import type { Express, Request, Response } from "express";
 import { db } from "../db";
 import { storage } from "../storage";
-import { eq, desc, and, or, gte, lte, count , sql } from "drizzle-orm";
+import { eq, desc, asc, and, or, gte, lte, count , sql } from "drizzle-orm";
 import { accounts, companies, accountingFormulas, accountingFormulaLines, journalEntries, users, journalLines, pettyCashFunds, pettyCashTransactions, invoices, taxInvoices, receipts, expenses, expenseItems, withholdingTaxCerts, paymentMethods } from "@shared/schema";
 import { requireAuth, requireAdmin, requireRole, requireModule, requireAnyModule, checkDocOwnership } from "../route-middleware";
 import { getNextJournalEntryNo, resolvePaymentMethodAccountCode, logActivity, checkClosedPeriod } from "../route-helpers";
@@ -359,7 +359,7 @@ app.get("/api/journal-entries", requireAuth, requireAnyModule("accounting", "inv
   if (journalBook) conditions.push(eq(journalEntries.journalBook, journalBook));
   const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
   const [{ total }] = await db.select({ total: count() }).from(journalEntries).where(whereClause);
-  const entries = await db.select().from(journalEntries).where(whereClause).orderBy(desc(journalEntries.entryDate)).limit(pageSize).offset(offset);
+  const entries = await db.select().from(journalEntries).where(whereClause).orderBy(desc(journalEntries.entryDate), asc(journalEntries.id)).limit(pageSize).offset(offset);
   const allUsers = await db.select({ id: users.id, fullName: users.fullName }).from(users);
   const userMap = new Map(allUsers.map(u => [u.id, u.fullName]));
   const enriched = entries.map(e => ({

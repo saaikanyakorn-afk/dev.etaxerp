@@ -408,7 +408,8 @@ app.post("/api/firm-billing/batch-generate", requireAuth, requireModule("firm-mg
     if (!(await verifyCompanyAccess(user, companyId))) return res.status(403).json({ message: "ไม่มีสิทธิ์" });
 
     const clientRows = await db.select().from(firmClients)
-      .where(sql`${firmClients.id} IN (${sql.join(firmClientIds.map((id: number) => sql`${id}`), sql`, `)})`);
+      .where(sql`${firmClients.id} IN (${sql.join(firmClientIds.map((id: number) => sql`${id}`), sql`, `)})`)
+      .orderBy(asc(firmClients.name));
 
     const periodKey = `${year}${String(month).padStart(2, "0")}`;
     const startDate = `${year}-${String(month).padStart(2, "0")}-01`;
