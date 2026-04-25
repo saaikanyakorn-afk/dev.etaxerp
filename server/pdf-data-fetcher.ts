@@ -43,51 +43,32 @@ function isSafeUrl(urlStr: string): boolean {
   }
 }
 
-async function toPngBase64(buf: Buffer): Promise<string> {
-  try {
-    const sharp = (await import("sharp")).default;
-    const pngBuf = await sharp(buf).png().toBuffer();
-    return `data:image/png;base64,${pngBuf.toString("base64")}`;
-  } catch {
-    return `data:image/png;base64,${buf.toString("base64")}`;
-  }
-}
-
 async function fetchImageAsBase64(url: string | null | undefined): Promise<string | null> {
   if (!url) return null;
   try {
-    if (url.startsWith("data:")) {
-      // If already data URI but non-pdfmake format (webp/avif/gif), convert to PNG
-      const m = url.match(/^data:(image\/[a-z0-9.+-]+);base64,(.+)$/i);
-      if (m && !["image/jpeg", "image/jpg", "image/png"].includes(m[1].toLowerCase())) {
-        const buf = Buffer.from(m[2], "base64");
-        return await toPngBase64(buf);
-      }
-      return url;
-    }
+    if (url.startsWith("data:")) return url;
 
     const cached = imageCache.get(url);
     if (cached && Date.now() - cached.ts < IMAGE_CACHE_TTL) return cached.data;
 
     let result: string | null = null;
 
-    const fetchAndConvert = async (fetchUrl: string): Promise<string | null> => {
-      const resp = await fetch(fetchUrl, { signal: AbortSignal.timeout(8000) });
-      if (!resp.ok) return null;
-      const buf = Buffer.from(await resp.arrayBuffer());
-      const ct = (resp.headers.get("content-type") || "image/png").toLowerCase();
-      if (ct.includes("jpeg") || ct.includes("jpg") || ct.includes("png")) {
-        return `data:${ct.split(";")[0]};base64,${buf.toString("base64")}`;
-      }
-      return await toPngBase64(buf);
-    };
-
     if (url.startsWith("/")) {
       const fullUrl = `http://localhost:${process.env.PORT || 5000}${url}`;
-      result = await fetchAndConvert(fullUrl);
+      const resp = await fetch(fullUrl, { signal: AbortSignal.timeout(5000) });
+      if (resp.ok) {
+        const buf = Buffer.from(await resp.arrayBuffer());
+        const ct = resp.headers.get("content-type") || "image/png";
+        result = `data:${ct};base64,${buf.toString("base64")}`;
+      }
     } else if (url.startsWith("http")) {
       if (!isSafeUrl(url)) return null;
-      result = await fetchAndConvert(url);
+      const resp = await fetch(url, { signal: AbortSignal.timeout(5000) });
+      if (resp.ok) {
+        const buf = Buffer.from(await resp.arrayBuffer());
+        const ct = resp.headers.get("content-type") || "image/png";
+        result = `data:${ct};base64,${buf.toString("base64")}`;
+      }
     }
 
     imageCache.set(url, { data: result, ts: Date.now() });

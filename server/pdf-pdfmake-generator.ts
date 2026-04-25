@@ -210,10 +210,9 @@ function buildDocDefinition(opts: GeneratePdfOptions): TDocumentDefinitions {
   const docInfoStack: Content[] = [];
   docInfoStack.push({
     table: {
-      widths: ["*"],
       body: [[{ text: docInfo.label, fontSize: 16, bold: true, color: primary, alignment: "center" }]],
     },
-    layout: { hLineWidth: (i: number, node: any) => (i === 0 || i === node.table.body.length) ? 1 : 0, vLineWidth: (i: number, node: any) => (i === 0 || i === node.table.widths.length) ? 1 : 0, hLineColor: () => primary, vLineColor: () => primary, fillColor: () => headerBgLight, paddingLeft: () => 14, paddingRight: () => 14, paddingTop: () => 6, paddingBottom: () => 6 },
+    layout: { hLineWidth: () => 0, vLineWidth: () => 0, fillColor: () => headerBgLight, paddingLeft: () => 10, paddingRight: () => 10, paddingTop: () => 4, paddingBottom: () => 4 },
     margin: [0, 0, 0, 2],
   });
   docInfoStack.push({ text: docInfo.labelEn.toUpperCase(), fontSize: 9, color: "#6b7280", alignment: "right", margin: [0, 0, 0, 6] });
@@ -251,63 +250,59 @@ function buildDocDefinition(opts: GeneratePdfOptions): TDocumentDefinitions {
     },
   ]];
 
-  const boxLayout = (color: string) => ({
-    hLineWidth: (i: number, node: any) => (i === 0 || i === node.table.body.length) ? 1 : 0,
-    vLineWidth: (i: number, node: any) => (i === 0 || i === node.table.widths.length) ? 1 : 0,
-    hLineColor: () => color,
-    vLineColor: () => color,
-    paddingLeft: () => 8,
-    paddingRight: () => 8,
-    paddingTop: () => 8,
-    paddingBottom: () => 8,
-    fillColor: () => headerBgLight,
-  });
-
-  const customerBox: Content = {
-    table: { widths: ["*"], body: [custBody[0].slice(0, 1)] },
-    layout: boxLayout(primary),
-  };
-
   if (hasBank) {
-    const qrItems: Content[] = [];
+    const bankContent: Content[] = [];
     if (qrSrc) {
-      try { qrItems.push({ image: qrSrc, width: 56, height: 56, alignment: "center", margin: [0, 0, 0, 4] }); } catch {}
+      try { bankContent.push({ image: qrSrc, width: 56, height: 56, alignment: "center", margin: [0, 0, 0, 4] }); } catch {}
     }
-    qrItems.push({ text: "ข้อมูลชำระเงิน", fontSize: 7.5, bold: true, color: primary, alignment: "center", margin: [0, 0, 0, 2] });
+    bankContent.push({ text: "ข้อมูลชำระเงิน", fontSize: 7.5, bold: true, color: primary, alignment: "center", margin: [0, 0, 0, 2] });
     if (settings.promptpayQrBase64 && !settings.qrCodeBase64) {
-      qrItems.push({ text: "พร้อมเพย์ (PromptPay)", fontSize: 7, color: "#03c9d7", bold: true, alignment: "center", margin: [0, 1, 0, 0] });
+      bankContent.push({ text: "พร้อมเพย์ (PromptPay)", fontSize: 7, color: "#03c9d7", bold: true, alignment: "center", margin: [0, 1, 0, 0] });
     }
-    if (totalAmount > 0) qrItems.push({ text: `จำนวนเงิน: ${fmtNum(totalAmount)} บาท`, fontSize: 7.5, bold: true, color: primary, alignment: "center", margin: [0, 3, 0, 0] });
+    if (settings.bankName) bankContent.push({ text: `ธนาคาร: ${settings.bankName}`, fontSize: 7, color: "#4b5563", alignment: "center", margin: [0, 1, 0, 0] });
+    if (settings.bankAccountNumber) bankContent.push({ text: `เลขที่บัญชี: ${settings.bankAccountNumber}`, fontSize: 7, color: "#4b5563", alignment: "center", margin: [0, 1, 0, 0] });
+    if (settings.bankAccountName) bankContent.push({ text: `ชื่อบัญชี: ${settings.bankAccountName}`, fontSize: 7, color: "#4b5563", alignment: "center", margin: [0, 1, 0, 0] });
+    if (totalAmount > 0) bankContent.push({ text: `จำนวนเงิน: ${fmtNum(totalAmount)} บาท`, fontSize: 7.5, bold: true, color: primary, alignment: "center", margin: [0, 3, 0, 0] });
 
-    const qrBox: Content = {
-      table: { widths: ["*"], body: [[{ stack: qrItems }]] },
-      layout: boxLayout(primary),
-    };
-
-    const hasBankDetails = settings.bankName || settings.bankAccountNumber || settings.bankAccountName;
-    const bankDetailItems: Content[] = [];
-    if (settings.bankName) bankDetailItems.push({ text: `ธนาคาร: ${settings.bankName}`, fontSize: 7, color: "#4b5563", margin: [0, 0, 0, 1] });
-    if (settings.bankAccountNumber) bankDetailItems.push({ text: `เลขที่บัญชี: ${settings.bankAccountNumber}`, fontSize: 7, color: "#4b5563", margin: [0, 0, 0, 1] });
-    if (settings.bankAccountName) bankDetailItems.push({ text: `ชื่อบัญชี: ${settings.bankAccountName}`, fontSize: 7, color: "#4b5563" });
-
-    const rightStack: Content[] = [qrBox];
-    if (hasBankDetails) {
-      rightStack.push({
-        table: { widths: ["*"], body: [[{ stack: bankDetailItems }]] },
-        layout: boxLayout(primary),
-        margin: [0, 4, 0, 0],
-      });
-    }
+    custBody[0].push({ stack: bankContent });
 
     content.push({
-      columns: [
-        { stack: [customerBox], width: "*" },
-        { stack: rightStack, width: 130 },
-      ],
+      table: {
+        widths: ["*", 130],
+        body: custBody,
+      },
+      layout: {
+        hLineWidth: () => 0.5,
+        vLineWidth: () => 0.5,
+        hLineColor: () => headerBgLight,
+        vLineColor: () => headerBgLight,
+        paddingLeft: () => 7,
+        paddingRight: () => 7,
+        paddingTop: () => 7,
+        paddingBottom: () => 7,
+        fillColor: () => headerBgLight,
+      },
       margin: [0, 0, 0, 8],
     });
   } else {
-    content.push({ ...customerBox, margin: [0, 0, 0, 8] });
+    content.push({
+      table: {
+        widths: ["*"],
+        body: custBody,
+      },
+      layout: {
+        hLineWidth: () => 0.5,
+        vLineWidth: () => 0.5,
+        hLineColor: () => headerBgLight,
+        vLineColor: () => headerBgLight,
+        paddingLeft: () => 7,
+        paddingRight: () => 7,
+        paddingTop: () => 7,
+        paddingBottom: () => 7,
+        fillColor: () => headerBgLight,
+      },
+      margin: [0, 0, 0, 8],
+    });
   }
 
   const tableHeaders: TableCell[] = [
