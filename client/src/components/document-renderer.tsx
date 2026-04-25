@@ -268,6 +268,9 @@ export default function DocumentRenderer({
     ? parseFloat(quotation.totalAmount) || 0
     : (quotation.totalAmount || 0);
 
+  const withholdingTax = parseFloat(String(quotation.withholdingTax || "0"));
+  const qrAmount = Math.max(0, totalAmount - withholdingTax);
+
   const [promptpayQrUrl, setPromptpayQrUrl] = useState<string | null>(null);
   useEffect(() => {
     if (settings.qrCodeUrl || !settings.promptpayEnabled || !settings.promptpayId) {
@@ -276,7 +279,7 @@ export default function DocumentRenderer({
     }
     const id = settings.promptpayId.replace(/[-\s]/g, "");
     try {
-      const payload = generatePayload(id, { amount: totalAmount > 0 ? totalAmount : undefined });
+      const payload = generatePayload(id, { amount: qrAmount > 0 ? qrAmount : undefined });
       QRCode.toDataURL(payload, {
         width: 200,
         margin: 1,
@@ -286,13 +289,12 @@ export default function DocumentRenderer({
     } catch {
       setPromptpayQrUrl(null);
     }
-  }, [settings.promptpayEnabled, settings.promptpayId, settings.qrCodeUrl, totalAmount]);
+  }, [settings.promptpayEnabled, settings.promptpayId, settings.qrCodeUrl, qrAmount]);
 
   const items = quotation.items || [];
   const subtotal = parseFloat(String(quotation.subtotal || "0"));
   const discountAmount = parseFloat(String(quotation.discountAmount || "0"));
   const vatAmount = parseFloat(String(quotation.vatAmount || "0"));
-  const withholdingTax = parseFloat(String(quotation.withholdingTax || "0"));
   const priceMode = quotation.priceMode || "excluded";
   const valueBeforeVat = priceMode === "included"
     ? (subtotal - discountAmount - vatAmount)
@@ -424,8 +426,8 @@ export default function DocumentRenderer({
                 {settings.bankAccountNumber && <div>เลขที่บัญชี: {settings.bankAccountNumber}</div>}
                 {settings.bankAccountName && <div>ชื่อบัญชี: {settings.bankAccountName}</div>}
 
-                {totalAmount > 0 && (
-                  <div className="font-semibold text-[10px] mt-1" style={{ color: primary }}>จำนวนเงิน: {formatNumber(totalAmount)} บาท</div>
+                {qrAmount > 0 && (
+                  <div className="font-semibold text-[10px] mt-1" style={{ color: primary }}>จำนวนเงิน: {formatNumber(qrAmount)} บาท</div>
                 )}
               </div>
             </div>
