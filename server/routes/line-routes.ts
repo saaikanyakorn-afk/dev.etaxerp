@@ -164,7 +164,7 @@ app.post("/api/line/send-doc", requireAuth, async (req, res) => {
     };
     const DOC_COLORS: Record<string, string> = {
       invoice: "#fb9678", quotation: "#fb9678", "sales-order": "#fb9678", "sales_order": "#fb9678",
-      "tax-invoice": "#00897B", "tax_invoice": "#00897B", receipt: "#00897B",
+      "tax-invoice": "#03c9d7", "tax_invoice": "#03c9d7", receipt: "#03c9d7",
     };
     const labelTh = DOC_LABELS[docType] || "เอกสาร";
     const cardColor = DOC_COLORS[docType] || "#fb9678";
