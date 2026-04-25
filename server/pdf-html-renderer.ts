@@ -286,7 +286,7 @@ export function renderDocumentHtml(opts: GeneratePdfOptions): string {
           <span style="align-self:center">${fmt(r.val)}</span>
         </div>
       `).join("")}
-      <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:bold;padding:8px;margin-top:4px;border-radius:4px;background:${primary};color:white">
+      <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;font-weight:bold;padding:8px;margin-top:4px;border-radius:4px;-webkit-border-radius:4px;background:${primary};color:white">
         <div>
           <div>ยอดเงินสุทธิ${isForeignCurrency ? ` (${currencyCode})` : ""}</div>
           <div style="font-size:8px;font-weight:normal;opacity:0.8">Grand Total</div>
