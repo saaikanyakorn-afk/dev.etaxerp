@@ -2,7 +2,7 @@ import type { Express, Request, Response } from "express";
 import { db } from "../db";
 import { storage } from "../storage";
 import { eq, desc, asc, and, or, gte, lte, count , sql } from "drizzle-orm";
-import { accounts, companies, accountingFormulas, accountingFormulaLines, journalEntries, users, journalLines, pettyCashFunds, pettyCashTransactions, invoices, taxInvoices, receipts, expenses, expenseItems, withholdingTaxCerts, paymentMethods } from "@shared/schema";
+import { accounts, companies, accountingFormulas, accountingFormulaLines, journalEntries, users, journalLines, pettyCashFunds, pettyCashTransactions, invoices, taxInvoices, receipts, expenses, expenseItems, withholdingTaxCerts, paymentMethods, assetDepreciations, payrollRecords } from "@shared/schema";
 import { requireAuth, requireAdmin, requireRole, requireModule, requireAnyModule, checkDocOwnership } from "../route-middleware";
 import { getNextJournalEntryNo, resolvePaymentMethodAccountCode, logActivity, checkClosedPeriod } from "../route-helpers";
 import { parsePagination, paginatedResponse } from "./pagination";
