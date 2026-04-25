@@ -385,7 +385,7 @@ export function renderDocumentHtml(opts: GeneratePdfOptions): string {
     <div class="content">
 
       <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:16px">
-        <div style="display:flex;align-items:flex-start;gap:12px">
+        <div style="display:flex;align-items:flex-start;gap:20px">
           ${logoHtml}
           ${companyInfoHtml}
         </div>
