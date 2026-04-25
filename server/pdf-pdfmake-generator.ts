@@ -502,7 +502,7 @@ function buildDocDefinition(opts: GeneratePdfOptions): TDocumentDefinitions {
         { text: "", width: "*" },
         {
           stack: sigRight,
-          width: 115,
+          width: 180,
           alignment: "center",
         },
       ],
