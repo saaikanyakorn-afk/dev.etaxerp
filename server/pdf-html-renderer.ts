@@ -146,8 +146,8 @@ export function renderDocumentHtml(opts: GeneratePdfOptions): string {
   `;
 
   const docTitleHtml = `
-    <div style="text-align:right">
-      <div style="display:inline-block;padding:4px 12px;border-radius:6px;background:${theme.bg};text-align:right">
+    <div style="display:flex;flex-direction:column;align-items:flex-end">
+      <div style="padding:4px 12px;border-radius:6px;background:${theme.bg};text-align:right">
         <div style="font-weight:bold;font-size:16px;color:${primary}">${esc(docInfo.label)}</div>
         <div style="font-size:10px;color:#6b7280;margin-top:1px">${esc(docInfo.labelEn?.toUpperCase())}</div>
       </div>
