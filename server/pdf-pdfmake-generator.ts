@@ -287,9 +287,15 @@ function buildDocDefinition(opts: GeneratePdfOptions): TDocumentDefinitions {
       layout: boxLayout,
     };
 
+    const customerBox: Content = {
+      table: { widths: ["*"], body: custBody },
+      layout: boxLayout,
+      minHeight: 174,
+    };
+
     content.push({
       columns: [
-        { stack: [custBox], width: "*" },
+        { stack: [customerBox], width: "*" },
         { stack: [bankBox], width: 140 },
       ],
       columnGap: 8,
