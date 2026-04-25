@@ -487,6 +487,7 @@ export default function InvoiceForm() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/invoices"] });
       toast({ title: "อัพเดทใบแจ้งหนี้สำเร็จ", variant: "success" as any });
+      navigate("/sales/invoice");
     },
     onError: (err: any) => toast({ title: "เกิดข้อผิดพลาด", description: err.message, variant: "destructive" }),
   });

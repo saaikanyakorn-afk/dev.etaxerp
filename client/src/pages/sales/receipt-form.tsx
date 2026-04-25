@@ -528,6 +528,7 @@ export default function ReceiptForm() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/receipts"] });
       toast({ title: "อัพเดทใบเสร็จรับเงินสำเร็จ", variant: "success" as any });
+      navigate("/sales/receipt");
     },
     onError: (err: any) => toast({ title: "เกิดข้อผิดพลาด", description: err.message, variant: "destructive" }),
   });

@@ -422,6 +422,7 @@ export default function SalesOrderForm() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/sales-orders"] });
       toast({ title: "อัพเดทใบสั่งขายสำเร็จ", variant: "success" as any });
+      navigate("/sales/order");
     },
     onError: (err: any) => toast({ title: "เกิดข้อผิดพลาด", description: err.message, variant: "destructive" }),
   });

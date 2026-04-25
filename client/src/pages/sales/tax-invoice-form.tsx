@@ -764,6 +764,7 @@ export default function TaxInvoiceForm() {
       queryClient.invalidateQueries({ queryKey: ["/api/deposit-receipts/available"] });
       toast({ title: "อัพเดทใบกำกับภาษีสำเร็จ", variant: "success" as any });
       setDepositDeductions([]);
+      navigate("/sales/tax-invoice");
     },
     onError: (err: any) => toast({ title: "เกิดข้อผิดพลาด", description: err.message, variant: "destructive" }),
   });

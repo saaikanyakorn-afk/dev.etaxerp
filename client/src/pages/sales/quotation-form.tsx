@@ -362,6 +362,7 @@ export default function QuotationForm() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/quotations"] });
       toast({ title: "อัพเดทใบเสนอราคาสำเร็จ", variant: "success" as any });
+      navigate("/sales/quote");
     },
     onError: (err: any) => toast({ title: "เกิดข้อผิดพลาด", description: err.message, variant: "destructive" }),
   });
