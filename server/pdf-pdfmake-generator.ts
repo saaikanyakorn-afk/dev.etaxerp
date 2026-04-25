@@ -474,7 +474,7 @@ function buildDocDefinition(opts: GeneratePdfOptions): TDocumentDefinitions {
 
     const SIG_W = 150;
     const SIG_IMG_MAX_H = 55;
-    const SIG_LEFT_SPACER = 45;
+    const SIG_LEFT_SPACER = 60;
     const sigRight: Content[] = [];
     const sigImg = ensureBase64DataUri(signature?.signatureBase64);
     if (sigImg) {
