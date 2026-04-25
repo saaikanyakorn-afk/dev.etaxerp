@@ -167,7 +167,7 @@ export function renderDocumentHtml(opts: GeneratePdfOptions): string {
     : "";
 
   const customerBoxHtml = `
-    <div style="flex:1;border:1px solid ${theme.light || "#e5e7eb"};border-radius:4px;padding:10px;background:${theme.bg || "#fafafa"}">
+    <div style="flex:1;border:1px solid ${theme.light || "#e5e7eb"};border-radius:4px;-webkit-border-radius:4px;padding:10px;background:${theme.bg || "#fafafa"}">
       <div style="font-size:10px;font-weight:500;color:${primary};margin-bottom:4px">ลูกค้า / Customer</div>
       <div style="font-weight:500;font-size:12px;color:#1f2937">${esc(doc.customerName) || "-"}</div>
       ${doc.customerAddress ? `<div style="font-size:10px;color:#4b5563">${esc(doc.customerAddress)}</div>` : ""}
@@ -181,7 +181,7 @@ export function renderDocumentHtml(opts: GeneratePdfOptions): string {
 
   const hasBankInfo = settings.bankName || settings.qrBase64;
   const bankSideBoxHtml = hasBankInfo ? `
-    <div style="width:192px;border:1px solid ${theme.light || "#e5e7eb"};border-radius:4px;padding:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;background:${theme.bg || "#fafafa"}">
+    <div style="width:192px;border:1px solid ${theme.light || "#e5e7eb"};border-radius:4px;-webkit-border-radius:4px;padding:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;background:${theme.bg || "#fafafa"}">
       ${settings.qrBase64 ? `<div style="width:80px;height:80px;border:1px solid #e5e7eb;border-radius:4px;overflow:hidden;display:flex;align-items:center;justify-content:center;background:#fff;margin-bottom:6px"><img src="${settings.qrBase64}" style="max-width:100%;max-height:100%;object-fit:contain" /></div>` : ""}
       <div style="font-size:9px;color:#4b5563;text-align:center;width:100%">
         <div style="font-weight:500;color:${primary};margin-bottom:2px">ข้อมูลชำระเงิน</div>
