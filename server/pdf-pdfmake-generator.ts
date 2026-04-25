@@ -490,7 +490,7 @@ function buildDocDefinition(opts: GeneratePdfOptions): TDocumentDefinitions {
       columns: [
         {
           stack: [
-            { text: " ", margin: [0, 30, 0, 0] },
+            { text: " ", margin: [0, 40, 0, 0] },
             { canvas: [{ type: "line", x1: 0, y1: 0, x2: 115, y2: 0, lineWidth: 0.5, lineColor: "#9ca3af" }] },
             { text: sigLeftLabel, fontSize: 7.5, bold: true, alignment: "center", margin: [0, 3, 0, 0] },
             { text: sigLeftSub, fontSize: 7, color: "#6b7280", alignment: "center" },
