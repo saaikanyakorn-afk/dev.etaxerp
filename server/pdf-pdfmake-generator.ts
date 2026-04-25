@@ -373,8 +373,11 @@ function buildDocDefinition(opts: GeneratePdfOptions): TDocumentDefinitions {
       hLineWidth: (i: number, node: any) => i === 1 ? 0.5 : 0.3,
       vLineWidth: () => 0,
       hLineColor: (i: number, node: any) => i === 1 ? (theme.light || "#e5e7eb") : "#f3f4f6",
-      paddingLeft: () => 3,
-      paddingRight: () => 3,
+      paddingLeft: (i: number) => i === 0 ? 31 : 3,
+      paddingRight: (i: number, node: any) => {
+        const lastCol = (node.table.widths?.length ?? 1) - 1;
+        return i === lastCol ? 31 : 3;
+      },
       paddingTop: () => 3.5,
       paddingBottom: () => 3.5,
       fillColor: (rowIndex: number) => rowIndex === 0 ? headerBgLight : null,
