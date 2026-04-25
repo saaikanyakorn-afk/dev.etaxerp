@@ -221,7 +221,7 @@ app.get("/api/documents/:docType/:id/pdf", requireAuth, async (req, res) => {
     const filename = encodeURIComponent(`${docNo}.pdf`);
     res.set({
       "Content-Type": "application/pdf",
-      "Content-Disposition": `attachment; filename="${filename}"; filename*=UTF-8''${filename}`,
+      "Content-Disposition": `inline; filename="${filename}"; filename*=UTF-8''${filename}`,
       "Content-Length": pdfBuffer.length.toString(),
     });
     res.send(pdfBuffer);
@@ -250,7 +250,7 @@ app.get("/api/share/:docType/:token/pdf", async (req, res) => {
     const filename = encodeURIComponent(`${docNo}.pdf`);
     res.set({
       "Content-Type": "application/pdf",
-      "Content-Disposition": `attachment; filename="${filename}"; filename*=UTF-8''${filename}`,
+      "Content-Disposition": `inline; filename="${filename}"; filename*=UTF-8''${filename}`,
       "Content-Length": pdfBuffer.length.toString(),
     });
     res.send(pdfBuffer);
