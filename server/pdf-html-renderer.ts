@@ -182,7 +182,7 @@ export function renderDocumentHtml(opts: GeneratePdfOptions): string {
   const hasBankInfo = settings.bankName || settings.qrBase64;
   const bankSideBoxHtml = hasBankInfo ? `
     <div style="width:192px;border:1px solid ${theme.light || "#e5e7eb"};border-radius:4px;-webkit-border-radius:4px;padding:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;background:${theme.bg || "#fafafa"}">
-      ${settings.qrBase64 ? `<div style="width:80px;height:80px;border:1px solid #e5e7eb;border-radius:4px;overflow:hidden;display:flex;align-items:center;justify-content:center;background:#fff;margin-bottom:6px"><img src="${settings.qrBase64}" style="max-width:100%;max-height:100%;object-fit:contain" /></div>` : ""}
+      ${settings.qrBase64 ? `<div style="width:80px;height:80px;border:1px solid #e5e7eb;border-radius:4px;-webkit-border-radius:4px;overflow:hidden;display:flex;align-items:center;justify-content:center;background:#fff;margin-bottom:6px"><img src="${settings.qrBase64}" style="max-width:100%;max-height:100%;object-fit:contain" /></div>` : ""}
       <div style="font-size:9px;color:#4b5563;text-align:center;width:100%">
         <div style="font-weight:500;color:${primary};margin-bottom:2px">ข้อมูลชำระเงิน</div>
         ${settings.bankName ? `<div>ธนาคาร: ${esc(settings.bankName)}</div>` : ""}
@@ -256,7 +256,7 @@ export function renderDocumentHtml(opts: GeneratePdfOptions): string {
   ).join("");
 
   const thaiTextBoxHtml = `
-    <div style="border:1px solid ${theme.light || "#e5e7eb"};border-radius:4px;padding:8px;background:${theme.bg || "#fafafa"};text-align:center;font-size:10px;font-weight:600;color:#374151;margin-bottom:8px">
+    <div style="border:1px solid ${theme.light || "#e5e7eb"};border-radius:4px;-webkit-border-radius:4px;padding:8px;background:${theme.bg || "#fafafa"};text-align:center;font-size:10px;font-weight:600;color:#374151;margin-bottom:8px">
       ${isForeignCurrency ? `${fmt(totalAmount)} ${currencyCode}` : esc(numberToThaiText(totalAmount))}
     </div>
   `;
@@ -421,7 +421,7 @@ export function renderDocumentHtml(opts: GeneratePdfOptions): string {
 
       <div style="border-top:2px solid ${primary};padding-top:8px;display:flex;align-items:center;justify-content:space-between;margin-top:16px">
         <div style="display:flex;align-items:center;gap:6px">
-          <div style="width:16px;height:16px;border-radius:4px;background:${primary};display:flex;align-items:center;justify-content:center;color:white;font-weight:bold;font-size:7px">ET</div>
+          <div style="width:16px;height:16px;border-radius:4px;-webkit-border-radius:4px;background:${primary};display:flex;align-items:center;justify-content:center;color:white;font-weight:bold;font-size:7px">ET</div>
           <span style="font-size:8px;color:#9ca3af;letter-spacing:0.5px">Powered by <span style="font-weight:600;color:${primary}">E-Tax Center</span></span>
         </div>
         <span style="font-size:8px;color:#d1d5db">${esc(doc.docNo)}</span>
