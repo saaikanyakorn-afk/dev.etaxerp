@@ -136,7 +136,8 @@ function buildDocDefinition(opts: GeneratePdfOptions): TDocumentDefinitions {
   const theme = getDocTypeColor(documentType, categoryColors, settings.colorMode || "color");
   const primary = theme.primary;
   const accent = theme.accent;
-  const headerBgLight = lightenHex(primary, 0.85);
+  const headerBgLight = lightenHex(primary, 0.93);
+  const boxBorder = lightenHex(primary, 0.55);
 
   const companyName = company.name || "บริษัท";
   const companyAddress = doc.sellerBranchAddress || company.address || "";
@@ -214,7 +215,7 @@ function buildDocDefinition(opts: GeneratePdfOptions): TDocumentDefinitions {
         ],
       }]],
     },
-    layout: { hLineWidth: () => 0.5, vLineWidth: () => 0.5, hLineColor: () => headerBgLight, vLineColor: () => headerBgLight, fillColor: () => headerBgLight, paddingLeft: () => 14, paddingRight: () => 14, paddingTop: () => 6, paddingBottom: () => 6 },
+    layout: { hLineWidth: () => 0.5, vLineWidth: () => 0.5, hLineColor: () => boxBorder, vLineColor: () => boxBorder, fillColor: () => headerBgLight, paddingLeft: () => 14, paddingRight: () => 14, paddingTop: () => 6, paddingBottom: () => 6 },
     margin: [0, 0, 0, 6],
   });
   docInfoStack.push({ text: [{ text: "เลขที่: ", fontSize: 8.5 }, { text: doc.docNo, fontSize: 8.5, bold: true, color: accent }], alignment: "right", margin: [0, 2, 0, 0] });
@@ -254,8 +255,8 @@ function buildDocDefinition(opts: GeneratePdfOptions): TDocumentDefinitions {
   const boxLayout = {
     hLineWidth: () => 0.5,
     vLineWidth: () => 0.5,
-    hLineColor: () => headerBgLight,
-    vLineColor: () => headerBgLight,
+    hLineColor: () => boxBorder,
+    vLineColor: () => boxBorder,
     paddingLeft: () => 7,
     paddingRight: () => 7,
     paddingTop: () => 7,
@@ -429,8 +430,8 @@ function buildDocDefinition(opts: GeneratePdfOptions): TDocumentDefinitions {
     layout: {
       hLineWidth: () => 0.5,
       vLineWidth: () => 0.5,
-      hLineColor: () => headerBgLight,
-      vLineColor: () => headerBgLight,
+      hLineColor: () => boxBorder,
+      vLineColor: () => boxBorder,
       paddingLeft: () => 6,
       paddingRight: () => 6,
       paddingTop: () => 6,
