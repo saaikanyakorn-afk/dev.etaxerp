@@ -487,7 +487,7 @@ function buildDocDefinition(opts: GeneratePdfOptions): TDocumentDefinitions {
     sigRight.push({ text: sigRightSub, fontSize: 7, color: "#6b7280", alignment: "center" });
 
     const sigLeft: Content[] = [
-      { canvas: [{ type: "rect", x: 0, y: 0, w: 1, h: 38, color: "white" }] },
+      { canvas: [{ type: "rect", x: 0, y: 0, w: 1, h: 28, color: "white" }] },
       { canvas: [{ type: "line", x1: 0, y1: 0, x2: 115, y2: 0, lineWidth: 0.5, lineColor: "#9ca3af" }] },
       { text: sigLeftLabel, fontSize: 7.5, bold: true, alignment: "center", margin: [0, 3, 0, 0] },
       { text: sigLeftSub, fontSize: 7, color: "#6b7280", alignment: "center" },
