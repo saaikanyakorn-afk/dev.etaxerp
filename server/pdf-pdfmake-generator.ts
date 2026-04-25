@@ -472,6 +472,7 @@ function buildDocDefinition(opts: GeneratePdfOptions): TDocumentDefinitions {
     const sigRightLabel = documentType === "quotation" ? "ผู้เสนอราคา" : documentType === "receipt" ? "ผู้รับเงิน" : "ผู้ออกเอกสาร";
     const sigRightSub = documentType === "quotation" ? "Salesperson" : documentType === "receipt" ? "Cashier" : "Authorized";
 
+    const SIG_W = 150;
     const sigRight: Content[] = [];
     const sigImg = ensureBase64DataUri(signature?.signatureBase64);
     if (sigImg) {
@@ -479,16 +480,16 @@ function buildDocDefinition(opts: GeneratePdfOptions): TDocumentDefinitions {
         sigRight.push({ image: sigImg, fit: [90, 36], alignment: "center", margin: [0, 0, 0, 2] });
       } catch {}
     } else {
-      sigRight.push({ text: " ", margin: [0, 30, 0, 0] });
+      sigRight.push({ canvas: [{ type: "rect", x: 0, y: 0, w: 1, h: 38, color: "white" }] });
     }
-    sigRight.push({ canvas: [{ type: "line", x1: 0, y1: 0, x2: 115, y2: 0, lineWidth: 0.5, lineColor: "#9ca3af" }] });
+    sigRight.push({ canvas: [{ type: "line", x1: 0, y1: 0, x2: SIG_W, y2: 0, lineWidth: 0.5, lineColor: "#9ca3af" }] });
     if (signature?.signatureName) sigRight.push({ text: signature.signatureName, fontSize: 7.5, bold: true, alignment: "center", margin: [0, 3, 0, 0] });
     sigRight.push({ text: sigRightLabel, fontSize: 7.5, bold: true, color: "#6b7280", alignment: "center" });
     sigRight.push({ text: sigRightSub, fontSize: 7, color: "#6b7280", alignment: "center" });
 
     const sigLeft: Content[] = [
-      { canvas: [{ type: "rect", x: 0, y: 0, w: 1, h: 28, color: "white" }] },
-      { canvas: [{ type: "line", x1: 0, y1: 0, x2: 115, y2: 0, lineWidth: 0.5, lineColor: "#9ca3af" }] },
+      { canvas: [{ type: "rect", x: 0, y: 0, w: 1, h: 38, color: "white" }] },
+      { canvas: [{ type: "line", x1: 0, y1: 0, x2: SIG_W, y2: 0, lineWidth: 0.5, lineColor: "#9ca3af" }] },
       { text: sigLeftLabel, fontSize: 7.5, bold: true, alignment: "center", margin: [0, 3, 0, 0] },
       { text: sigLeftSub, fontSize: 7, color: "#6b7280", alignment: "center" },
       { text: "วันที่ ____/____/____", fontSize: 7, color: "#6b7280", alignment: "center" },
@@ -496,11 +497,11 @@ function buildDocDefinition(opts: GeneratePdfOptions): TDocumentDefinitions {
 
     content.push({
       table: {
-        widths: [115, "*", 180],
+        widths: [SIG_W, "*", SIG_W],
         body: [[
-          { stack: sigLeft, alignment: "center", border: [false, false, false, false] },
+          { stack: sigLeft, border: [false, false, false, false] },
           { text: "", border: [false, false, false, false] },
-          { stack: sigRight, alignment: "center", border: [false, false, false, false] },
+          { stack: sigRight, border: [false, false, false, false] },
         ]],
       },
       layout: {
