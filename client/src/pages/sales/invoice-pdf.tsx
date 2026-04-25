@@ -1,23 +1,54 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
 import Layout from "@/components/layout";
+import DocumentRenderer from "@/components/document-renderer";
 import EDocumentActions from "@/components/e-document-actions";
 
 export default function InvoicePdf() {
   const { id } = useParams<{ id: string }>();
   const [, navigate] = useLocation();
   const [data, setData] = useState<any>(null);
+  const [company, setCompany] = useState<any>(null);
+  const [docSettings, setDocSettings] = useState<any>({});
+  const [userSig, setUserSig] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const iframeRef = useRef<HTMLIFrameElement>(null);
-  const pdfUrl = `/api/documents/invoice/${id}/pdf`;
 
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch(`/api/invoices/${id}`, { credentials: "include" });
-        if (res.ok) setData(await res.json());
+        const [docRes, meRes] = await Promise.all([
+          fetch(`/api/invoices/${id}`, { credentials: "include" }),
+          fetch(`/api/auth/me`, { credentials: "include" }),
+        ]);
+
+        if (meRes.ok) {
+          const me = await meRes.json();
+          setUserSig({
+            signatureUrl: me.signatureUrl || null,
+            signatureName: me.signatureName || me.fullName,
+            signatureTitle: me.signatureTitle || null,
+          });
+        }
+
+        if (docRes.ok) {
+          const d = await docRes.json();
+          setData(d);
+
+          const [cRes, dsRes] = await Promise.all([
+            fetch(`/api/companies`, { credentials: "include" }),
+            fetch(`/api/document-settings/${d.companyId}`, { credentials: "include" }),
+          ]);
+
+          if (cRes.ok) {
+            const companies = await cRes.json();
+            setCompany(companies.find((co: any) => co.id === d.companyId) || null);
+          }
+          if (dsRes.ok) {
+            setDocSettings(await dsRes.json());
+          }
+        }
       } catch {}
       setLoading(false);
     })();
@@ -28,26 +59,30 @@ export default function InvoicePdf() {
 
   return (
     <Layout>
-      <div className="space-y-3 print:!space-y-0">
+      <div className="space-y-4 print:!space-y-0">
         <div className="flex items-center justify-between print:!hidden">
           <Button variant="ghost" size="sm" className="gap-1.5" onClick={() => navigate("/sales/invoice")}>
             <ArrowLeft className="h-4 w-4" /> กลับ
           </Button>
-          <EDocumentActions
-            documentType="invoice"
-            documentId={Number(id)}
-            docNo={data.invoiceNo}
-            customerEmail={data.contactEmail}
-            customerName={data.customerName}
-            compact
-          />
+          <div className="flex items-center gap-2">
+            <EDocumentActions
+              documentType="invoice"
+              documentId={Number(id)}
+              docNo={data.invoiceNo}
+              customerEmail={data.contactEmail}
+              customerName={data.customerName}
+              compact
+            />
+          </div>
         </div>
-        <div className="w-full print:!block" style={{ height: "calc(100vh - 80px)" }}>
-          <iframe
-            ref={iframeRef}
-            src={pdfUrl}
-            className="w-full h-full border-0"
-            title="Invoice PDF"
+
+        <div className="max-w-3xl mx-auto print:!max-w-none print:!m-0">
+          <DocumentRenderer
+            settings={docSettings}
+            company={company}
+            quotation={data}
+            documentType="invoice"
+            userSignature={userSig}
           />
         </div>
       </div>
