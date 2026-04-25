@@ -244,10 +244,39 @@ export default function PdfBulkImport() {
     tiktok_platform_fee: "TikTok ค่าบริการ", tiktok_affiliate_commission: "TikTok Affiliate ค่าคอมมิชชั่น",
     tiktok_shipping: "TikTok ค่าขนส่ง", lazada_platform_fee: "Lazada ค่าบริการ",
     lazada_shipping: "Lazada ค่าขนส่ง", grab_service_fee: "Grab ค่าบริการ",
-    ecommerce_commission: "E-Commerce ค่าคอมมิชชั่น", platform_fee: "ค่าบริการแพลตฟอร์ม",
+    ecommerce_commission: "E-Commerce ค่าคอมมิชชั่น", ecommerce_shipping: "E-Commerce ค่าขนส่ง",
+    platform_fee: "ค่าบริการแพลตฟอร์ม",
     restaurant_grab_gp: "ร้านอาหาร Grab GP", restaurant_lineman_gp: "ร้านอาหาร LINE MAN GP",
     restaurant_foodpanda_gp: "ร้านอาหาร Foodpanda GP", restaurant_robinhood_gp: "ร้านอาหาร Robinhood GP",
     restaurant_shopeefood_gp: "ร้านอาหาร ShopeeFood GP",
+  };
+
+  const FRONTEND_PLAT_MAP: Record<string, string> = {
+    "shopee:platform_fee": "shopee_platform_fee", "shopee:shipping": "shopee_shipping",
+    "shopee:commission": "shopee_platform_fee", "shopee:service_fee": "shopeefood_fee",
+    "shopee:ads": "shopee_platform_fee", "shopee:mixed": "shopee_platform_fee",
+    "tiktok:platform_fee": "tiktok_platform_fee", "tiktok:shipping": "tiktok_shipping",
+    "tiktok:commission": "ecommerce_commission", "tiktok:mixed": "tiktok_platform_fee",
+    "lazada:platform_fee": "lazada_platform_fee", "lazada:shipping": "lazada_shipping",
+    "lazada:commission": "lazada_platform_fee", "lazada:mixed": "lazada_platform_fee",
+    "grab:service_fee": "grab_service_fee", "grab:mixed": "grab_service_fee",
+    "myorder:shipping": "ecommerce_shipping", "myorder:service_fee": "ecommerce_commission",
+    "myorder:mixed": "ecommerce_shipping",
+    "other:mixed": "platform_fee",
+  };
+
+  const resolveDocBt = (doc: any): string | null => {
+    const key = `${doc.platform || "other"}:${doc.docSubType || "mixed"}`;
+    return FRONTEND_PLAT_MAP[key] || null;
+  };
+
+  const getDocFormula = (doc: any): any | null => {
+    if (selectedFormulaIdx !== "auto-detect" && selectedFormula) return selectedFormula;
+    const bt = resolveDocBt(doc);
+    if (!bt) return null;
+    return (availableFormulas as any[]).find(f => f.businessType === bt && f.source === "company")
+        || (availableFormulas as any[]).find(f => f.businessType === bt)
+        || null;
   };
 
   const loadFormulaPreview = useCallback(async (docs: ParsedDoc[]) => {
@@ -1079,6 +1108,7 @@ export default function PdfBulkImport() {
                         <TableHead>ผู้ขาย/ผู้รับเงิน</TableHead>
                         <TableHead>เลขผู้เสียภาษี</TableHead>
                         <TableHead>แพลตฟอร์ม</TableHead>
+                        <TableHead>บัญชีบันทึก</TableHead>
                         <TableHead>รายการ</TableHead>
                         <TableHead className="text-right">ยอดรวม</TableHead>
                         <TableHead className="text-right">VAT</TableHead>
@@ -1145,6 +1175,9 @@ export default function PdfBulkImport() {
                                   "grab:service_fee": { label: "Grab ค่า GP", color: "bg-green-100 text-green-700" },
                                   "grab:platform_fee": { label: "Grab ค่าบริการ", color: "bg-green-100 text-green-700" },
                                   "grab:mixed": { label: "Grab", color: "bg-green-100 text-green-700" },
+                                  "myorder:shipping": { label: "MyOrder ขนส่ง", color: "bg-cyan-100 text-cyan-700" },
+                                  "myorder:service_fee": { label: "MyOrder COD", color: "bg-cyan-200 text-cyan-900" },
+                                  "myorder:mixed": { label: "MyOrder", color: "bg-cyan-50 text-cyan-600" },
                                   "lineman:service_fee": { label: "LINE MAN ค่า GP", color: "bg-emerald-100 text-emerald-700" },
                                   "lineman:mixed": { label: "LINE MAN", color: "bg-emerald-100 text-emerald-700" },
                                   "foodpanda:service_fee": { label: "foodpanda ค่า GP", color: "bg-pink-100 text-pink-700" },
@@ -1158,6 +1191,45 @@ export default function PdfBulkImport() {
                                   return <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${info.color}`}>{info.label}</span>;
                                 }
                                 return <span className="text-gray-400 text-xs">ทั่วไป</span>;
+                              })()}
+                            </TableCell>
+                            <TableCell className="text-xs min-w-[120px]">
+                              {(() => {
+                                const formula = getDocFormula(doc);
+                                const hasVat = (doc.items || []).some((it: any) => it.vatType === "vat7");
+                                const drLines = (formula?.lines || []).filter((l: any) => l.direction === "debit" && !l.accountCode?.startsWith("143"));
+                                const crLines = (formula?.lines || []).filter((l: any) => l.direction === "credit");
+                                if (!formula) {
+                                  return <span className="text-gray-300 text-[10px]">-</span>;
+                                }
+                                return (
+                                  <div className="space-y-0.5">
+                                    {drLines.map((l: any) => (
+                                      <div key={l.accountCode} className="flex items-center gap-0.5">
+                                        <span className="text-[9px] font-bold text-blue-600 bg-blue-50 rounded px-0.5">Dr</span>
+                                        <span className="font-mono text-[10px] text-gray-700">{l.accountCode}</span>
+                                      </div>
+                                    ))}
+                                    {hasVat && (
+                                      <div className="flex items-center gap-0.5">
+                                        <span className="text-[9px] font-bold text-purple-600 bg-purple-50 rounded px-0.5">Dr</span>
+                                        <span className="font-mono text-[10px] text-gray-500">VAT 7%</span>
+                                      </div>
+                                    )}
+                                    {docWht > 0 && (
+                                      <div className="flex items-center gap-0.5">
+                                        <span className="text-[9px] font-bold text-amber-600 bg-amber-50 rounded px-0.5">Cr</span>
+                                        <span className="text-[10px] text-amber-700">WHT {(whtRate * 100 % 1 === 0 ? (whtRate * 100).toFixed(0) : (whtRate * 100).toFixed(1))}%</span>
+                                      </div>
+                                    )}
+                                    {crLines.map((l: any) => (
+                                      <div key={l.accountCode} className="flex items-center gap-0.5">
+                                        <span className="text-[9px] font-bold text-green-600 bg-green-50 rounded px-0.5">Cr</span>
+                                        <span className="font-mono text-[10px] text-gray-700">{l.accountCode}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                );
                               })()}
                             </TableCell>
                             <TableCell className="text-sm max-w-[250px]">
@@ -1210,7 +1282,7 @@ export default function PdfBulkImport() {
                           </TableRow>
                           {expandedDocs.has(doc.key) && (
                           <TableRow className="bg-gray-50/50">
-                            <TableCell colSpan={13} className="p-4">
+                            <TableCell colSpan={14} className="p-4">
                               <div className="text-sm space-y-2">
                                 <div className="font-medium text-gray-700 mb-2">รายการในเอกสาร</div>
                                 <Table>
@@ -1455,6 +1527,8 @@ export default function PdfBulkImport() {
                                 "lazada:platform_fee": "Lazada ค่าบริการ",
                                 "lazada:shipping": "Lazada ค่าขนส่ง",
                                 "grab:service_fee": "Grab ค่าบริการ",
+                                "myorder:shipping": "MyOrder ค่าขนส่ง",
+                                "myorder:service_fee": "MyOrder COD",
                               };
                               const info = FORMULA_LABEL_MAP[key];
                               return info ? (
