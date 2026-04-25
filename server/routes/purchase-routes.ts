@@ -2289,6 +2289,8 @@ export function registerPurchaseRoutes(app: Express) {
                           "tiktok:platform_fee": "tiktok_platform_fee", "tiktok:shipping": "tiktok_shipping",
                           "lazada:platform_fee": "lazada_platform_fee", "lazada:shipping": "lazada_shipping",
                           "grab:service_fee": "grab_service_fee",
+                          "myorder:shipping": "ecommerce_shipping", "myorder:service_fee": "ecommerce_commission",
+                          "myorder:mixed": "ecommerce_shipping",
                         };
                         return PLAT_MAP[key] || undefined;
                       })()
@@ -2362,6 +2364,8 @@ export function registerPurchaseRoutes(app: Express) {
         "lazada:platform_fee": "lazada_platform_fee", "lazada:shipping": "lazada_shipping",
         "lazada:commission": "lazada_platform_fee", "lazada:mixed": "lazada_platform_fee",
         "grab:service_fee": "grab_service_fee", "grab:mixed": "grab_service_fee",
+        "myorder:shipping": "ecommerce_shipping", "myorder:service_fee": "ecommerce_commission",
+        "myorder:mixed": "ecommerce_shipping",
         "other:mixed": "platform_fee",
       };
 
@@ -2480,6 +2484,11 @@ export function registerPurchaseRoutes(app: Express) {
         "THJV": "TKX", "IM": "GR",
       };
       function getBatchSuffix(doc: any): string {
+        if (doc.platform === "myorder") {
+          if (doc.docSubType === "shipping") return "MOS";
+          if (doc.docSubType === "service_fee") return "MOC";
+          return "MO";
+        }
         const prefix = doc.invoicePrefix || "";
         if (BATCH_SUFFIX_MAP[prefix]) return BATCH_SUFFIX_MAP[prefix];
         const sortedKeys = Object.keys(BATCH_SUFFIX_MAP).sort((a, b) => b.length - a.length);
@@ -2585,6 +2594,9 @@ export function registerPurchaseRoutes(app: Express) {
         "grab:platform_fee": "grab_service_fee",
         "grab:commission": "grab_service_fee",
         "grab:mixed": "grab_service_fee",
+        "myorder:shipping": "ecommerce_shipping",
+        "myorder:service_fee": "ecommerce_commission",
+        "myorder:mixed": "ecommerce_shipping",
         "other:mixed": "platform_fee",
       };
 
@@ -3194,6 +3206,7 @@ export function registerPurchaseRoutes(app: Express) {
           "tiktok_platform_fee": "TK",
           "tiktok_shipping": "TKX",
           "ecommerce_commission": "EC",
+          "ecommerce_shipping": "ECS",
           "grab_service_fee": "GR",
           "platform_fee": "PF",
         };
