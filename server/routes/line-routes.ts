@@ -162,7 +162,12 @@ app.post("/api/line/send-doc", requireAuth, async (req, res) => {
       quotation: "ใบเสนอราคา", "sales-order": "ใบสั่งขาย",
       "tax_invoice": "ใบกำกับภาษี", "sales_order": "ใบสั่งขาย",
     };
+    const DOC_COLORS: Record<string, string> = {
+      invoice: "#fb9678", quotation: "#fb9678", "sales-order": "#fb9678", "sales_order": "#fb9678",
+      "tax-invoice": "#00897B", "tax_invoice": "#00897B", receipt: "#00897B",
+    };
     const labelTh = DOC_LABELS[docType] || "เอกสาร";
+    const cardColor = DOC_COLORS[docType] || "#fb9678";
 
     let docNo = "", customerName = "", amountStr = "", companyName = "";
     try {
@@ -170,25 +175,34 @@ app.post("/api/line/send-doc", requireAuth, async (req, res) => {
       const shareToken = tokenMatch ? tokenMatch[1] : "";
       if (shareToken) {
         let cid = 0;
+        const calcNet = (r: any) => {
+          const sub = parseFloat(r?.subtotal || "0");
+          const disc = parseFloat(r?.discountAmount || "0");
+          const vat = parseFloat(r?.vatAmount || "0");
+          const wht = parseFloat(r?.withholdingTax || "0");
+          const pm = r?.priceMode || "excluded";
+          const vbv = pm === "included" ? (sub - disc - vat) : (sub - disc);
+          return vbv + vat - wht;
+        };
         if (docType === "invoice") {
           const [r] = await db.select().from(invoices).where(eq(invoices.shareToken, shareToken));
           cid = r?.companyId || 0;
-          amountStr = r?.totalAmount ? parseFloat(String(r.totalAmount)).toLocaleString("th-TH", { minimumFractionDigits: 2 }) : "";
+          const net = calcNet(r); amountStr = net ? net.toLocaleString("th-TH", { minimumFractionDigits: 2 }) : "";
           docNo = r?.invoiceNo || ""; customerName = r?.customerName || "";
         } else if (docType === "tax-invoice" || docType === "tax_invoice") {
           const [r] = await db.select().from(taxInvoices).where(eq(taxInvoices.shareToken, shareToken));
           cid = r?.companyId || 0;
-          amountStr = r?.totalAmount ? parseFloat(String(r.totalAmount)).toLocaleString("th-TH", { minimumFractionDigits: 2 }) : "";
+          const net = calcNet(r); amountStr = net ? net.toLocaleString("th-TH", { minimumFractionDigits: 2 }) : "";
           docNo = r?.taxInvoiceNo || ""; customerName = r?.customerName || "";
         } else if (docType === "receipt") {
           const [r] = await db.select().from(receipts).where(eq(receipts.shareToken, shareToken));
           cid = r?.companyId || 0;
-          amountStr = r?.totalAmount ? parseFloat(String(r.totalAmount)).toLocaleString("th-TH", { minimumFractionDigits: 2 }) : "";
+          const net = calcNet(r); amountStr = net ? net.toLocaleString("th-TH", { minimumFractionDigits: 2 }) : "";
           docNo = r?.receiptNo || ""; customerName = r?.customerName || "";
         } else if (docType === "quotation") {
           const [r] = await db.select().from(quotations).where(eq(quotations.shareToken, shareToken));
           cid = r?.companyId || 0;
-          amountStr = r?.totalAmount ? parseFloat(String(r.totalAmount)).toLocaleString("th-TH", { minimumFractionDigits: 2 }) : "";
+          const net = calcNet(r); amountStr = net ? net.toLocaleString("th-TH", { minimumFractionDigits: 2 }) : "";
           docNo = r?.quotationNo || ""; customerName = r?.customerName || "";
         }
         if (cid) {
@@ -205,7 +219,7 @@ app.post("/api/line/send-doc", requireAuth, async (req, res) => {
       contents: {
         type: "bubble",
         header: {
-          type: "box", layout: "vertical", backgroundColor: "#fb9678", paddingAll: "16px",
+          type: "box", layout: "vertical", backgroundColor: cardColor, paddingAll: "16px",
           contents: [
             ...(companyName ? [{ type: "text", text: companyName, size: "xs", color: "#ffffff", weight: "bold" }] : []),
             { type: "text", text: labelTh, size: "lg", color: "#ffffff", weight: "bold" },
@@ -222,7 +236,7 @@ app.post("/api/line/send-doc", requireAuth, async (req, res) => {
                 type: "box", layout: "horizontal", margin: "md",
                 contents: [
                   { type: "text", text: "ยอดชำระ", size: "sm", color: "#888888", flex: 1 },
-                  { type: "text", text: `฿${amountStr}`, size: "sm", weight: "bold", color: "#fb9678", align: "end" },
+                  { type: "text", text: `฿${amountStr}`, size: "sm", weight: "bold", color: cardColor, align: "end" },
                 ],
               },
             ] : []),
@@ -233,7 +247,7 @@ app.post("/api/line/send-doc", requireAuth, async (req, res) => {
           contents: [{
             type: "button",
             action: { type: "uri", label: `ดู${labelTh}`, uri: shareUrl },
-            style: "primary", color: "#fb9678",
+            style: "primary", color: cardColor,
           }],
         },
       },
