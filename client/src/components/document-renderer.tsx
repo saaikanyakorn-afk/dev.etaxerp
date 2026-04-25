@@ -360,8 +360,8 @@ export default function DocumentRenderer({
           <div className="text-right">
             <div className="flex justify-end w-full mb-0.5">
               <div
-                className="font-bold text-base px-3 py-1 rounded-md"
-                style={{ color: primary, backgroundColor: theme.bg }}
+                className="font-bold text-base"
+                style={{ color: primary }}
               >
                 {docInfo.label}
               </div>
