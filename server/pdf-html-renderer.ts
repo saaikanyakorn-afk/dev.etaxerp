@@ -299,7 +299,7 @@ export function renderDocumentHtml(opts: GeneratePdfOptions): string {
   let signatureHtml = "";
   if (settings.showSignature !== false) {
     const sigImg = signature?.signatureBase64
-      ? `<img src="${signature.signatureBase64}" style="height:40px;margin:0 auto 4px;display:block;object-fit:contain" />`
+      ? `<img src="${signature.signatureBase64}" style="height:40px;width:auto;max-width:100%;margin:0 auto 4px;display:block;object-fit:contain" />`
       : `<div style="height:40px;margin-bottom:4px"></div>`;
 
     const rightLabel = documentType === "quotation" ? "ผู้เสนอราคา"
