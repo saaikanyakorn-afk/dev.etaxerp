@@ -337,6 +337,38 @@ VALUES ('vXXX', 'What changed', 'alter_column|add_column|data_migration', 'etaxe
 - Production is NOT a debugging tool. Only cherry-pick solutions, never test code.
 - Kai must NEVER send wrong commands for production. Verify process names, paths, and syntax before sending.
 
+## ⏸️ PAUSED — Resume Here Next Session (2026-04-26 night)
+
+**Task: Fix eTax send-email — wrong etax_sent_to on invoice RE2604250044**
+
+Root cause confirmed: invoice id=459 has `etax_sent_to = csemail@etax.teda.th` (wrong — was saved by old production code). Contact has no email (null). csemail rejects because buyer email is missing from XML.
+
+**Checklist — resume from Step 1 (push to github-production):**
+```
+  [✅] Backup: backup_tax_invoices_20260426 created on deep-main (1 row: id=459)
+  [✅] Migration code ready: fixEtaxSentToInvoice459() in shared/schema-extra.ts (3-safety layers)
+  [✅] Hook call added: server/index.ts → runMigrationsInBackground()
+  [✅] etax-routes.ts: has validation block (TO ≠ csemail) + debugInfo
+  [✅] etax-send-dialog.tsx: has debug log panel + no-auto-close
+  [✅] replit.md Step 7 rule updated (clean ALL hook files, not just schema-extra)
+  [✅] Replit auto-committed everything (checkpoint cc87e257)
+
+  [ ] NEXT: Push 4 files to github-production → tell พี่ช้าง to run Restart #1
+        Files: shared/schema-extra.ts, server/index.ts,
+               server/routes/etax-routes.ts, client/src/components/etax-send-dialog.tsx
+  [ ] Restart #1 — pm2 restart etax-center
+  [ ] Verify BY EYES: system_config has FIX_ETAX_SENT_TO_INVOICE_459_20260426 flag
+                      tax_invoices id=459 has etax_sent_to = NULL
+  [ ] Comment out: schema-extra.ts (wrap in /* DONE */) + server/index.ts (remove hook call)
+  [ ] Push clean files + Restart #2
+  [ ] Record history in cherry-pick table
+```
+
+**After data fix, remaining work:**
+- พี่ทราย must add buyer email to contact id=2282 (ห้างหุ้นส่วนจำกัด ต.เจริญยนต์ โนนทอง) before re-sending eTax — without buyer email in XML, csemail will reject again.
+
+---
+
 ## Waiting List
 1. **Replit.app deploy broken** — DB connection timeout to deep-main from Replit cloud. Fix: change `DB_PROD_URL` in config to `etax-develop` (already exists: 295 tables, 72MB, 24 users, 448 companies). Won't fix network instability but separates from production data. Pending พี่ช้าง's go-ahead.
 
