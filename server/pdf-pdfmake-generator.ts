@@ -655,7 +655,7 @@ function buildDocDefinition(opts: GeneratePdfOptions): TDocumentDefinitions {
               width: "*",
             },
             etaxEnabled && isTaxDoc
-              ? { text: "ใบกำกับภาษีนี้ได้จัดทำและนำส่งกรมสรรพากรด้วยวิธีการทางอิเล็คทรอนิกส์", fontSize: 6, color: "#6b7280", alignment: "right", margin: [0, 3, 0, 0], width: 180 }
+              ? { text: "ใบกำกับภาษีนี้ได้จัดทำและนำส่งกรมสรรพากรด้วยวิธีการทางอิเล็คทรอนิกส์", fontSize: 6, color: "#6b7280", alignment: "right", margin: [0, 3, 0, 0], width: 270 }
               : { text: doc.docNo, fontSize: 6, color: "#d1d5db", alignment: "right", margin: [0, 3, 0, 0], width: "auto" },
           ],
           margin: [28, 6, 28, 0],
