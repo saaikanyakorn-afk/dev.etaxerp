@@ -5,6 +5,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { CheckCircle2, XCircle, Edit3, Printer, Download, Loader2, FileText } from "lucide-react";
 
+function isAndroid() {
+  return /android/i.test(navigator.userAgent);
+}
+
 export default function QuotationShare() {
   const { token } = useParams<{ token: string }>();
   const [data, setData] = useState<any>(null);
@@ -20,6 +24,7 @@ export default function QuotationShare() {
   const [downloading, setDownloading] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const objUrlRef = useRef<string>("");
+  const android = isAndroid();
 
   useEffect(() => {
     (async () => {
@@ -88,10 +93,12 @@ export default function QuotationShare() {
           <span className="text-sm font-medium truncate">{docNo}</span>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
-          <Button variant="ghost" size="sm" onClick={handlePrint} className="text-slate-300 hover:text-white hover:bg-slate-700 gap-1.5 h-8 text-xs" data-testid="button-print">
-            <Printer className="h-4 w-4" />
-            <span className="hidden sm:inline">พิมพ์</span>
-          </Button>
+          {!android && (
+            <Button variant="ghost" size="sm" onClick={handlePrint} className="text-slate-300 hover:text-white hover:bg-slate-700 gap-1.5 h-8 text-xs" data-testid="button-print">
+              <Printer className="h-4 w-4" />
+              <span className="hidden sm:inline">พิมพ์</span>
+            </Button>
+          )}
           <Button size="sm" onClick={handleDownload} disabled={downloading} className="bg-[var(--theme-primary)] hover:bg-[#e8856a] text-white gap-1.5 h-8 text-xs" data-testid="button-download-pdf">
             {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
             <span className="hidden sm:inline">{downloading ? "กำลังสร้าง..." : "ดาวน์โหลด PDF"}</span>
@@ -100,14 +107,28 @@ export default function QuotationShare() {
         </div>
       </div>
 
-      <iframe
-        ref={iframeRef}
-        src={pdfUrl!}
-        className="w-full border-0"
-        style={{ height: "80vh" }}
-        title={docNo}
-        data-testid="pdf-iframe"
-      />
+      {android ? (
+        <div className="flex flex-col items-center justify-center gap-6 p-8 bg-slate-700">
+          <FileText className="h-20 w-20 text-slate-400" />
+          <div className="text-center">
+            <div className="text-white text-lg font-medium mb-1">{docNo}</div>
+            <div className="text-slate-400 text-sm">กดปุ่มด้านล่างเพื่อดาวน์โหลดไฟล์ PDF</div>
+          </div>
+          <Button size="lg" onClick={handleDownload} disabled={downloading} className="bg-[var(--theme-primary)] hover:bg-[#e8856a] text-white gap-2 px-8 py-3 text-base" data-testid="button-download-pdf-android">
+            {downloading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Download className="h-5 w-5" />}
+            {downloading ? "กำลังโหลด..." : "ดาวน์โหลด PDF"}
+          </Button>
+        </div>
+      ) : (
+        <iframe
+          ref={iframeRef}
+          src={pdfUrl!}
+          className="w-full border-0"
+          style={{ height: "80vh" }}
+          title={docNo}
+          data-testid="pdf-iframe"
+        />
+      )}
 
       <div className="bg-slate-800 border-t border-slate-600 p-4">
         <div className="max-w-xl mx-auto bg-white rounded-lg p-6">
