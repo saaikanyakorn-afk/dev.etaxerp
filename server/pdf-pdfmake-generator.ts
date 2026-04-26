@@ -639,6 +639,10 @@ function buildDocDefinition(opts: GeneratePdfOptions): TDocumentDefinitions {
   }
 
   return {
+    info: {
+      title: doc.docNo || "document",
+      author: companyName,
+    },
     pageSize: "A4",
     pageMargins: [28, 28, 28, 40],
     defaultStyle: {
