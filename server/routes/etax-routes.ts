@@ -481,16 +481,11 @@ export function registerEtaxRoutes(app: Express) {
 
       const { tiv, data, documentType } = await buildEtaxDataFromInvoice(taxInvoiceId, companyId, printType);
 
-      let buyerEmail = (tiv as any).contactEmail || "";
-      if (!buyerEmail && tiv.customerId) {
-        const [contact] = await db.select().from(contacts).where(eq(contacts.id, tiv.customerId));
-        if (contact) buyerEmail = contact.email || "";
+      if (!comp.etaxTimestampEmail) {
+        return res.status(400).json({ message: "ยังไม่ได้ตั้งค่า Email สำหรับ Timestamp (csemail) ในหน้าตั้งค่า e-Tax Invoice" });
       }
 
-      const recipientEmail = comp.etaxBuyerTestEmail || recipientEmailOverride || buyerEmail;
-      if (!recipientEmail) {
-        return res.status(400).json({ message: "ไม่พบอีเมลผู้รับ กรุณาระบุอีเมลผู้ซื้อ" });
-      }
+      const recipientEmail = comp.etaxTimestampEmail;
 
       const xml = generateEtaxXml(data);
       const xmlFileName = "ETDA-invoice.xml";
@@ -506,14 +501,19 @@ export function registerEtaxRoutes(app: Express) {
         "80": "DBN", "81": "CRN",
       };
       const subjectPrefix = SUBJECT_PREFIX[data.typeCode] || "INV";
-      const subject = `[${dateStr}][${subjectPrefix}][${tiv.taxInvoiceNo}]${tiv.originalTaxInvoiceNo ? `[${tiv.originalTaxInvoiceNo}]` : ""}`;
+
+      let buyerEmail = (tiv as any).contactEmail || "";
+      if (!buyerEmail && tiv.customerId) {
+        const [contact] = await db.select().from(contacts).where(eq(contacts.id, tiv.customerId));
+        if (contact) buyerEmail = contact.email || "";
+      }
+      const buyerEmailForSubject = comp.etaxBuyerTestEmail || recipientEmailOverride || buyerEmail;
+
+      const subject = `[${dateStr}][${subjectPrefix}][${tiv.taxInvoiceNo}]${tiv.originalTaxInvoiceNo ? `[${tiv.originalTaxInvoiceNo}]` : ""}${buyerEmailForSubject ? `[${buyerEmailForSubject}]` : ""}`;
 
       const pdfFilename = `${tiv.taxInvoiceNo || "etax"}.pdf`;
 
       const ccEmails: string[] = [];
-      if (comp.etaxTimestampEmail) {
-        ccEmails.push(comp.etaxTimestampEmail);
-      }
 
       const DOC_LABEL: Record<string, string> = {
         "388": "ใบกำกับภาษี", "T02": "ใบแจ้งหนี้/ใบกำกับภาษี",
