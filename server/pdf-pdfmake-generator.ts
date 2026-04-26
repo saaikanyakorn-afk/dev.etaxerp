@@ -210,12 +210,12 @@ function buildDocDefinition(opts: GeneratePdfOptions): TDocumentDefinitions {
       widths: ["*"],
       body: [[{
         stack: [
-          { text: docInfo.label, fontSize: 18, bold: true, color: accent, alignment: "center" },
-          { text: docInfo.labelEn.toUpperCase(), fontSize: 9, color: accent, alignment: "center", margin: [0, 1, 0, 0] },
+          { text: docInfo.label, fontSize: 14, bold: true, color: accent, alignment: "center" },
+          { text: docInfo.labelEn.toUpperCase(), fontSize: 7.5, color: accent, alignment: "center", margin: [0, 1, 0, 0] },
         ],
       }]],
     },
-    layout: { hLineWidth: () => 0.5, vLineWidth: () => 0.5, hLineColor: () => boxBorder, vLineColor: () => boxBorder, fillColor: () => headerBgLight, paddingLeft: () => 14, paddingRight: () => 14, paddingTop: () => 6, paddingBottom: () => 6 },
+    layout: { hLineWidth: () => 0.5, vLineWidth: () => 0.5, hLineColor: () => boxBorder, vLineColor: () => boxBorder, fillColor: () => headerBgLight, paddingLeft: () => 8, paddingRight: () => 8, paddingTop: () => 6, paddingBottom: () => 6 },
     margin: [0, 0, 0, 6],
   });
   docInfoStack.push({ text: [{ text: "เลขที่: ", fontSize: 8.5 }, { text: doc.docNo, fontSize: 8.5, bold: true, color: accent }], alignment: "right", margin: [0, 2, 0, 0] });
@@ -228,7 +228,7 @@ function buildDocDefinition(opts: GeneratePdfOptions): TDocumentDefinitions {
   content.push({
     columns: [
       { stack: [leftCol], width: "*" },
-      { stack: docInfoStack, width: 170 },
+      { stack: docInfoStack, width: 140 },
     ],
     margin: [0, 0, 0, 8],
   });
