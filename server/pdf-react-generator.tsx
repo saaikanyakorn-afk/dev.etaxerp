@@ -125,6 +125,7 @@ export interface GeneratePdfOptions {
   documentType: string;
   signature?: PdfSignature | null;
   etaxEnabled?: boolean;
+  etaxSent?: boolean;
   etaxStampBase64?: string | null;
 }
 

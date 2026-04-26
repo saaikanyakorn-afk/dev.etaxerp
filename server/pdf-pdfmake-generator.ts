@@ -127,7 +127,7 @@ type TableCell = any;
 type TDocumentDefinitions = any;
 
 function buildDocDefinition(opts: GeneratePdfOptions): TDocumentDefinitions {
-  const { company, settings, document: doc, documentType, signature, etaxEnabled, etaxStampBase64 } = opts;
+  const { company, settings, document: doc, documentType, signature, etaxEnabled, etaxSent, etaxStampBase64 } = opts;
 
   console.log(`[PDF-pdfmake] Building doc: type=${documentType}, docNo=${doc.docNo}`);
 
@@ -654,7 +654,7 @@ function buildDocDefinition(opts: GeneratePdfOptions): TDocumentDefinitions {
               columnGap: 4,
               width: "*",
             },
-            etaxEnabled && isTaxDoc
+            etaxSent
               ? { text: "ใบกำกับภาษีนี้ได้จัดทำและนำส่งกรมสรรพากรด้วยวิธีการทางอิเล็คทรอนิกส์", fontSize: 6, color: "#6b7280", alignment: "right", margin: [0, 3, 0, 0], width: 270 }
               : { text: doc.docNo, fontSize: 6, color: "#d1d5db", alignment: "right", margin: [0, 3, 0, 0], width: "auto" },
           ],

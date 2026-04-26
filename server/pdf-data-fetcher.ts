@@ -343,6 +343,7 @@ async function buildPdfDataFromDoc(
   };
 
   const etaxEnabled = !!(company as any).etaxEnabled;
+  const etaxSent = !!(doc as any).etaxSentAt;
 
   return {
     company: pdfCompany,
@@ -351,6 +352,7 @@ async function buildPdfDataFromDoc(
     documentType: effectiveDocType,
     signature: userSig,
     etaxEnabled,
+    etaxSent,
     etaxStampBase64: etaxEnabled ? getEtaxStamp() : null,
   };
 }
