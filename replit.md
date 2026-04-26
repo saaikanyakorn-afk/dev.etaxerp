@@ -63,7 +63,9 @@ When พี่ทราย reports a layout issue on ANY document:
 The E-Tax Center is a multi-tenant digital accounting platform designed to revolutionize accounting processes for Thai accounting firms. It integrates with major e-commerce platforms (Shopee, Lazada, TikTok Shop) to automate order retrieval, tax invoice generation, and service fee calculation. The platform provides comprehensive client and human resources management (attendance, overtime, payroll), robust financial document processing, and advanced e-commerce functionalities, aiming to be a holistic solution for managing financial operations and expanding digital commerce services for its clients. Its vision is to be an all-in-one solution for managing clients' financial operations and expanding digital commerce service offerings.
 
 ## 🔒 PRODUCTION BUILD BASELINE (Safety-net — compare after every build)
-Last verified build: **2026-04-21 (v98 cherry-pick — migration seedAccount5210470)**
+Last verified build: **2026-04-26 (Deploy #8 — PDF pdfmake architecture + UX fixes, 31 files)**
+Dev HEAD at deploy: `9e96b8d8` | Production cherry-pick commit: `2adc257c`
+⚠️ BASELINE RESET: Agent อื่นได้ pull ทุกอย่างจาก dev → production ก่อน Deploy #8 → production ปัจจุบัน sync กับ dev HEAD `9e96b8d8` เป็น new baseline
 | File | Size | gzip | Note |
 |------|------|------|------|
 | dist/index.cjs | **7.4 MB** | — | Server bundle — +0.1 MB from v97 (maintenance.ts hook added). ⚠️ At rule boundary — watch next build |
