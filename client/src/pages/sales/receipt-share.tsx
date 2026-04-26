@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useParams } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Printer, Download, Loader2, FileText } from "lucide-react";
-import { redirectIfLineWebview, isLineWebview } from "@/lib/line-android-redirect";
+import { isAndroid } from "@/lib/line-android-redirect";
 
 export default function ReceiptShare() {
   const { token } = useParams<{ token: string }>();
@@ -11,15 +11,11 @@ export default function ReceiptShare() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [downloading, setDownloading] = useState(false);
-  const [redirected, setRedirected] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const objUrlRef = useRef<string>("");
+  const android = isAndroid();
 
   useEffect(() => {
-    if (redirectIfLineWebview()) {
-      setRedirected(true);
-      return;
-    }
     (async () => {
       try {
         const infoRes = await fetch(`/api/share/receipt/${token}`);
@@ -52,11 +48,8 @@ export default function ReceiptShare() {
     setDownloading(false);
   };
 
-  if (redirected) return <div className="flex items-center justify-center min-h-screen text-slate-500"><Loader2 className="h-6 w-6 animate-spin mr-2" />กำลังเปิดใน Chrome...</div>;
   if (loading) return <div className="flex items-center justify-center min-h-screen text-slate-500"><Loader2 className="h-6 w-6 animate-spin mr-2" />กำลังโหลด...</div>;
   if (error) return <div className="flex items-center justify-center min-h-screen text-red-500">{error}</div>;
-
-  const lineAndroid = isLineWebview();
 
   return (
     <div className="flex flex-col min-h-screen bg-slate-700">
@@ -66,7 +59,7 @@ export default function ReceiptShare() {
           <span className="text-sm font-medium truncate">{docNo}</span>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
-          {!lineAndroid && (
+          {!android && (
             <Button variant="ghost" size="sm" onClick={handlePrint} className="text-slate-300 hover:text-white hover:bg-slate-700 gap-1.5 h-8 text-xs" data-testid="button-print">
               <Printer className="h-4 w-4" />
               <span className="hidden sm:inline">พิมพ์</span>
@@ -80,16 +73,16 @@ export default function ReceiptShare() {
         </div>
       </div>
 
-      {lineAndroid ? (
+      {android ? (
         <div className="flex flex-col items-center justify-center flex-1 gap-6 p-8">
           <FileText className="h-20 w-20 text-slate-400" />
           <div className="text-center">
             <div className="text-white text-lg font-medium mb-1">{docNo}</div>
-            <div className="text-slate-400 text-sm">กดปุ่มด้านล่างเพื่อดาวน์โหลดไฟล์ PDF</div>
+            <div className="text-slate-400 text-sm">กดปุ่มด้านล่างเพื่อเปิดไฟล์ PDF</div>
           </div>
           <Button size="lg" onClick={handleDownload} disabled={downloading} className="bg-[var(--theme-primary)] hover:bg-[#e8856a] text-white gap-2 px-8 py-3 text-base" data-testid="button-download-pdf-android">
             {downloading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Download className="h-5 w-5" />}
-            {downloading ? "กำลังโหลด..." : "ดาวน์โหลด PDF"}
+            {downloading ? "กำลังโหลด..." : "เปิด PDF"}
           </Button>
         </div>
       ) : (
