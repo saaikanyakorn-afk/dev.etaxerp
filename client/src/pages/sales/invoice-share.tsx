@@ -19,12 +19,13 @@ export default function InvoiceShare() {
         const infoRes = await fetch(`/api/share/invoice/${token}`);
         if (!infoRes.ok) throw new Error("ไม่พบเอกสาร หรือลิงก์หมดอายุ");
         const d = await infoRes.json();
-        setDocNo(d.invoiceNo || "ใบแจ้งหนี้");
+        const name = d.invoiceNo || "ใบแจ้งหนี้";
+        setDocNo(name);
 
         const pdfRes = await fetch(`/api/share/invoice/${token}/pdf`);
         if (!pdfRes.ok) throw new Error("สร้าง PDF ไม่สำเร็จ");
         const blob = await pdfRes.blob();
-        objUrlRef.current = URL.createObjectURL(blob);
+        objUrlRef.current = URL.createObjectURL(new File([blob], `${name}.pdf`, { type: "application/pdf" }));
         setPdfUrl(objUrlRef.current);
       } catch (err: any) {
         setError(err.message);

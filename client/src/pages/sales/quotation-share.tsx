@@ -28,12 +28,13 @@ export default function QuotationShare() {
         if (!infoRes.ok) throw new Error("ไม่พบเอกสาร หรือลิงก์หมดอายุ");
         const d = await infoRes.json();
         setData(d);
-        setDocNo(d.quotationNo || "ใบเสนอราคา");
+        const name = d.quotationNo || "ใบเสนอราคา";
+        setDocNo(name);
 
         const pdfRes = await fetch(`/api/share/quotation/${token}/pdf`);
         if (!pdfRes.ok) throw new Error("สร้าง PDF ไม่สำเร็จ");
         const blob = await pdfRes.blob();
-        objUrlRef.current = URL.createObjectURL(blob);
+        objUrlRef.current = URL.createObjectURL(new File([blob], `${name}.pdf`, { type: "application/pdf" }));
         setPdfUrl(objUrlRef.current);
       } catch (err: any) {
         setError(err.message);

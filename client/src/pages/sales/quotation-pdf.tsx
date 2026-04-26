@@ -21,13 +21,15 @@ export default function QuotationPdf() {
           fetch(`/api/quotations/${id}`, { credentials: "include" }),
           fetch(`/api/documents/quotation/${id}/pdf`, { credentials: "include" }),
         ]);
+        let filename = "quotation.pdf";
         if (docRes.ok) {
           const d = await docRes.json();
+          filename = `${d.quotationNo || "quotation"}.pdf`;
           setDocNo(d.quotationNo || "quotation");
         }
         if (!pdfRes.ok) throw new Error("สร้าง PDF ไม่สำเร็จ");
         const blob = await pdfRes.blob();
-        objUrlRef.current = URL.createObjectURL(blob);
+        objUrlRef.current = URL.createObjectURL(new File([blob], filename, { type: "application/pdf" }));
         setPdfUrl(objUrlRef.current);
       } catch (err: any) {
         setError(err.message || "เกิดข้อผิดพลาด");

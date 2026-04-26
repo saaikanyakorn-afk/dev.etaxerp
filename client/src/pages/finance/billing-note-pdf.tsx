@@ -21,13 +21,15 @@ export default function BillingNotePdf() {
           fetch(`/api/finance/billing-notes/${id}`, { credentials: "include" }),
           fetch(`/api/documents/billing_note/${id}/pdf`, { credentials: "include" }),
         ]);
+        let filename = "billing-note.pdf";
         if (docRes.ok) {
           const d = await docRes.json();
+          filename = `${d.billingNo || "billing-note"}.pdf`;
           setDocNo(d.billingNo || "billing-note");
         }
         if (!pdfRes.ok) throw new Error("สร้าง PDF ไม่สำเร็จ");
         const blob = await pdfRes.blob();
-        objUrlRef.current = URL.createObjectURL(blob);
+        objUrlRef.current = URL.createObjectURL(new File([blob], filename, { type: "application/pdf" }));
         setPdfUrl(objUrlRef.current);
       } catch (err: any) {
         setError(err.message || "เกิดข้อผิดพลาด");

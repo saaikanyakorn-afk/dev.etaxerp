@@ -277,11 +277,13 @@ export default function TaxInvoicePdf() {
     setPdfUrl(null);
     setPdfLoading(true);
     const ptParam = printType !== "tax_invoice" ? `?printType=${printType}` : "";
+    const taxNo = data?.taxInvoiceNo || "tax-invoice";
+    const filename = `${taxNo}.pdf`;
     fetch(`/api/documents/tax_invoice/${id}/pdf${ptParam}`, { credentials: "include" })
       .then(r => { if (!r.ok) throw new Error("สร้าง PDF ไม่สำเร็จ"); return r.blob(); })
       .then(blob => {
         if (cancelled) return;
-        objUrlRef.current = URL.createObjectURL(blob);
+        objUrlRef.current = URL.createObjectURL(new File([blob], filename, { type: "application/pdf" }));
         setPdfUrl(objUrlRef.current);
       })
       .catch(() => {})

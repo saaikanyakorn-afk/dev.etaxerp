@@ -24,15 +24,17 @@ export default function InvoicePdf() {
           fetch(`/api/invoices/${id}`, { credentials: "include" }),
           fetch(`/api/documents/invoice/${id}/pdf`, { credentials: "include" }),
         ]);
+        let filename = "invoice.pdf";
         if (docRes.ok) {
           const d = await docRes.json();
+          filename = `${d.invoiceNo || "invoice"}.pdf`;
           setDocNo(d.invoiceNo || "invoice");
           setCustomerEmail(d.contactEmail || "");
           setCustomerName(d.customerName || "");
         }
         if (!pdfRes.ok) throw new Error("สร้าง PDF ไม่สำเร็จ");
         const blob = await pdfRes.blob();
-        objUrlRef.current = URL.createObjectURL(blob);
+        objUrlRef.current = URL.createObjectURL(new File([blob], filename, { type: "application/pdf" }));
         setPdfUrl(objUrlRef.current);
       } catch (err: any) {
         setError(err.message || "เกิดข้อผิดพลาด");

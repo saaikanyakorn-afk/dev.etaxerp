@@ -32,13 +32,14 @@ export default function TaxInvoiceShare() {
         const infoRes = await fetch(`/api/share/tax-invoice/${token}`);
         if (!infoRes.ok) throw new Error("ไม่พบเอกสาร หรือลิงก์หมดอายุ");
         const d = await infoRes.json();
-        setDocNo(d.taxInvoiceNo || FORM_LABELS[printType] || "ใบกำกับภาษี");
+        const name = d.taxInvoiceNo || FORM_LABELS[printType] || "ใบกำกับภาษี";
+        setDocNo(name);
 
         const ptParam = printType && printType !== "tax_invoice" ? `?printType=${printType}` : "";
         const pdfRes = await fetch(`/api/share/tax-invoice/${token}/pdf${ptParam}`);
         if (!pdfRes.ok) throw new Error("สร้าง PDF ไม่สำเร็จ");
         const blob = await pdfRes.blob();
-        objUrlRef.current = URL.createObjectURL(blob);
+        objUrlRef.current = URL.createObjectURL(new File([blob], `${name}.pdf`, { type: "application/pdf" }));
         setPdfUrl(objUrlRef.current);
       } catch (err: any) {
         setError(err.message);
