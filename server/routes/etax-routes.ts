@@ -492,15 +492,18 @@ export function registerEtaxRoutes(app: Express) {
         return res.status(400).json({ message: "ไม่พบอีเมลผู้รับ กรุณาระบุอีเมลผู้ซื้อ" });
       }
 
+      const debugLogs: string[] = [];
+      const dlog = (msg: string) => { console.log(msg); debugLogs.push(msg); };
+
       const xml = generateEtaxXml(data);
       const xmlFileName = "ETDA-invoice.xml";
-      console.log(`[eTax] buyerEmail in XML: "${data.buyerEmail}", recipientEmail: "${recipientEmail}"`);
+      dlog(`[XML] buyerEmail: "${data.buyerEmail}" | recipientEmail: "${recipientEmail}"`);
 
       const pdfOpts = await buildPdfDataById("tax_invoice", taxInvoiceId, printType);
       const pdfBuffer = await generatePdfMake(pdfOpts);
-      console.log(`[eTax] pdfmake buffer: ${pdfBuffer.length} bytes`);
+      dlog(`[PDF] pdfmake: ${pdfBuffer.length} bytes`);
       const pdfA3Buffer = await convertToPdfA3(pdfBuffer, xml, xmlFileName, documentType);
-      console.log(`[eTax] PDF/A-3 buffer: ${pdfA3Buffer.length} bytes`);
+      dlog(`[PDF] PDF/A-3: ${pdfA3Buffer.length} bytes`);
 
       const dateStr = parseDateToBE(tiv.taxInvoiceDate);
 
@@ -574,6 +577,7 @@ export function registerEtaxRoutes(app: Express) {
         if (ccEmails.length > 0) mailOptions.cc = ccEmails.join(", ");
         const info = await transporter.sendMail(mailOptions);
         messageId = info.messageId || null;
+        dlog(`[EMAIL] SMTP sent | to: ${recipientEmail} | cc: ${ccEmails.join(",")} | msgId: ${messageId}`);
       } else {
         if (!process.env.RESEND_API_KEY) {
           return res.status(400).json({ message: "ยังไม่ได้ตั้งค่า RESEND_API_KEY" });
@@ -601,9 +605,11 @@ export function registerEtaxRoutes(app: Express) {
         const sendResult = await resend.emails.send(emailPayload) as any;
         if (sendResult?.error || !sendResult?.data?.id) {
           const errMsg = sendResult?.error?.message || "ส่งอีเมลไม่สำเร็จ (Resend error)";
-          return res.status(500).json({ message: errMsg });
+          dlog(`[EMAIL] Resend error: ${errMsg}`);
+          return res.status(500).json({ message: errMsg, debugInfo: debugLogs });
         }
         messageId = sendResult.data.id;
+        dlog(`[EMAIL] Resend sent | to: ${recipientEmail} | cc: ${ccEmails.join(",")} | msgId: ${messageId}`);
       }
 
       await db.update(taxInvoices).set({
@@ -620,10 +626,11 @@ export function registerEtaxRoutes(app: Express) {
         cc: ccEmails,
         subject,
         messageId,
+        debugInfo: debugLogs,
       });
     } catch (err: any) {
       console.error("e-Tax email error:", err);
-      res.status(500).json({ message: err.message });
+      res.status(500).json({ message: err.message, debugInfo: [`[ERROR] ${err.message}`] });
     }
   });
 

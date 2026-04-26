@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { useCompany } from "@/lib/company-context";
 import { useQueryClient } from "@tanstack/react-query";
-import { Send, Loader2, Mail, AlertCircle } from "lucide-react";
+import { Send, Loader2, Mail, AlertCircle, ChevronDown, ChevronUp } from "lucide-react";
 
 type FormType = "tax_invoice" | "tax_invoice_receipt" | "receipt";
 
@@ -37,6 +37,8 @@ export function EtaxSendDialog({ open, onOpenChange, taxInvoiceId, taxInvoiceNo,
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(false);
   const [formType, setFormType] = useState<FormType>(defaultPrintType || "tax_invoice");
+  const [debugInfo, setDebugInfo] = useState<string[]>([]);
+  const [showDebug, setShowDebug] = useState(false);
 
   useEffect(() => {
     if (defaultPrintType) setFormType(defaultPrintType);
@@ -44,6 +46,8 @@ export function EtaxSendDialog({ open, onOpenChange, taxInvoiceId, taxInvoiceNo,
 
   useEffect(() => {
     if (open && taxInvoiceId && companyId) {
+      setDebugInfo([]);
+      setShowDebug(false);
       if (existingSentTo) {
         setBuyerEmail(existingSentTo);
         setIsTestMode(false);
@@ -69,6 +73,8 @@ export function EtaxSendDialog({ open, onOpenChange, taxInvoiceId, taxInvoiceNo,
       return;
     }
     setLoading(true);
+    setDebugInfo([]);
+    setShowDebug(false);
     try {
       const res = await fetch("/api/etax/send-email", {
         method: "POST",
@@ -82,6 +88,10 @@ export function EtaxSendDialog({ open, onOpenChange, taxInvoiceId, taxInvoiceNo,
         }),
       });
       const data = await res.json();
+      if (data.debugInfo?.length) {
+        setDebugInfo(data.debugInfo);
+        setShowDebug(true);
+      }
       if (!res.ok) throw new Error(data.message);
       toast({
         title: isResend ? "ส่ง e-Tax Invoice ซ้ำสำเร็จ" : "ส่ง e-Tax Invoice สำเร็จ",
@@ -166,6 +176,30 @@ export function EtaxSendDialog({ open, onOpenChange, taxInvoiceId, taxInvoiceNo,
               </p>
             )}
           </div>
+
+          {debugInfo.length > 0 && (
+            <div className="border border-gray-200 rounded-lg overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setShowDebug(!showDebug)}
+                className="w-full flex items-center justify-between px-3 py-2 bg-gray-50 text-xs font-medium text-gray-600 hover:bg-gray-100"
+                data-testid="btn-toggle-debug"
+              >
+                <span>Debug Log ({debugInfo.length} รายการ)</span>
+                {showDebug ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+              </button>
+              {showDebug && (
+                <div
+                  className="bg-gray-900 text-green-400 text-xs font-mono p-3 max-h-40 overflow-y-auto space-y-0.5"
+                  data-testid="debug-log-panel"
+                >
+                  {debugInfo.map((line, i) => (
+                    <div key={i} className="leading-relaxed">{line}</div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         <DialogFooter>
