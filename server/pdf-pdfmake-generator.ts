@@ -619,29 +619,6 @@ function buildDocDefinition(opts: GeneratePdfOptions): TDocumentDefinitions {
     });
   }
 
-  if (etaxEnabled && isTaxDoc) {
-    const etaxContent: Content[] = [];
-    etaxContent.push({ text: "ใบกำกับภาษีอิเล็กทรอนิกส์นี้ได้จัดทำและส่งข้อมูลให้แก่", fontSize: 6, color: "#6b7280", alignment: "right" });
-    etaxContent.push({ text: "กรมสรรพากรด้วยวิธีการทางอิเล็กทรอนิกส์", fontSize: 6, color: "#6b7280", alignment: "right" });
-
-    const etaxImg = ensureBase64DataUri(etaxStampBase64);
-    if (etaxImg) {
-      try {
-        content.push({
-          columns: [
-            { text: "", width: "*" },
-            { image: etaxImg, width: 50, height: 20, margin: [0, 0, 6, 0] },
-            { stack: etaxContent, width: "auto" },
-          ],
-          margin: [0, 5, 0, 0],
-        });
-      } catch {
-        content.push({ stack: etaxContent, margin: [0, 5, 0, 0] });
-      }
-    } else {
-      content.push({ stack: etaxContent, margin: [0, 5, 0, 0] });
-    }
-  }
 
   return {
     info: {
@@ -677,7 +654,9 @@ function buildDocDefinition(opts: GeneratePdfOptions): TDocumentDefinitions {
               columnGap: 4,
               width: "*",
             },
-            { text: doc.docNo, fontSize: 6, color: "#d1d5db", alignment: "right", margin: [0, 3, 0, 0], width: "auto" },
+            etaxEnabled && isTaxDoc
+              ? { text: "ใบกำกับภาษีนี้ได้จัดทำและนำส่งกรมสรรพากรด้วยวิธีการทางอิเล็คทรอนิกส์", fontSize: 6, color: "#6b7280", alignment: "right", margin: [0, 3, 0, 0], width: 180 }
+              : { text: doc.docNo, fontSize: 6, color: "#d1d5db", alignment: "right", margin: [0, 3, 0, 0], width: "auto" },
           ],
           margin: [28, 6, 28, 0],
         },
