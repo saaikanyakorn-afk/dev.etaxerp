@@ -799,6 +799,14 @@ async function runMigrationsInBackground() {
     } catch (e: any) {
       console.error("[OneTimeMigration] import/run error:", e.message);
     }
+    // DATA FIX 2026-04-26: Clear wrong etax_sent_to=csemail on invoice 459
+    // Backup: backup_tax_invoices_20260426 on deep-main. Comment out after verified.
+    try {
+      const { fixEtaxSentToInvoice459 } = await import("@shared/schema-extra");
+      await fixEtaxSentToInvoice459(db);
+    } catch (e: any) {
+      console.error("[DataFix] fixEtaxSentToInvoice459 error:", e.message);
+    }
     migrationReady = true;
     log("Core schema ready - API enabled");
     try {

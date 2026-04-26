@@ -173,6 +173,61 @@ export type TenantModuleSubscription = typeof tenantModuleSubscriptions.$inferSe
 // NOTE: Completed migrations are kept here as commented-out history for audit.
 // Workflow: write migration → hook → verify in DB → comment out → push.
 
+const FIX_ETAX_SENT_TO_KEY = "FIX_ETAX_SENT_TO_INVOICE_459_20260426";
+
+export async function fixEtaxSentToInvoice459(db: any) {
+  // SAFETY 1: flag check — if this key exists in system_config, skip entirely.
+  // This is the primary once-only guard. Set atomically inside a transaction below.
+  try {
+    const flagRows = await db.execute(sql`
+      SELECT config_value FROM system_config
+      WHERE config_key = ${FIX_ETAX_SENT_TO_KEY} LIMIT 1
+    `);
+    if ((flagRows.rows || []).length > 0) {
+      console.log("[DataFix] Invoice-459 fix already applied — skipping.");
+      return;
+    }
+  } catch (err: any) {
+    console.error("[DataFix] ❌ flag-check error:", err.message);
+    return; // do NOT proceed if we cannot confirm flag status
+  }
+
+  // SAFETY 2: Transaction — UPDATE + INSERT flag are atomic.
+  // If either fails, both roll back → flag is never set → will retry next restart.
+  // If both succeed → flag is set → will skip on every subsequent restart.
+  try {
+    await db.transaction(async (tx: any) => {
+      // SAFETY 3: WHERE condition — even if somehow run twice, the second run
+      // matches 0 rows because etax_sent_to is already NULL after first run.
+      const result = await tx.execute(sql`
+        UPDATE tax_invoices
+        SET etax_sent_to = NULL,
+            etax_sent_cc = NULL
+        WHERE id = 459
+          AND etax_sent_to = 'csemail@etax.teda.th'
+      `);
+
+      const affected = result.rowCount ?? result.count ?? 0;
+      console.log(`[DataFix] UPDATE affected ${affected} row(s) on invoice id=459`);
+
+      // Set flag INSIDE the same transaction — only committed if UPDATE also commits
+      await tx.execute(sql`
+        INSERT INTO system_config (config_key, config_value, description)
+        VALUES (
+          ${FIX_ETAX_SENT_TO_KEY},
+          ${"done_" + new Date().toISOString()},
+          'Clear wrong etax_sent_to=csemail on invoice 459 RE2604250044. Backup: backup_tax_invoices_20260426'
+        )
+        ON CONFLICT (config_key) DO NOTHING
+      `);
+    });
+
+    console.log("[DataFix] ✅ Invoice 459 etax_sent_to/cc cleared to NULL — flag set.");
+  } catch (err: any) {
+    console.error("[DataFix] ❌ transaction failed — no changes committed:", err.message);
+  }
+}
+
 /* ── DONE 2026-04-21: Seed account 5210470 (Company Registration Fee) ──
  * Verified: 453 / 453 prod companies on deep-main have code 5210470.
  * Flag: SEED_ACCOUNT_5210470_ALL_COMPANIES = done_2026-04-21T06:11:34.193Z
