@@ -339,6 +339,7 @@ async function buildPdfDataFromDoc(
     sellerBranchCode: doc.sellerBranchId || "",
     sellerBranchName: "",
     sellerBranchAddress: "",
+    paymentMethod: doc.paymentMethod || null,
   };
 
   const etaxEnabled = !!(company as any).etaxEnabled;

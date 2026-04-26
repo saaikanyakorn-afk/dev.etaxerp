@@ -444,17 +444,23 @@ function buildDocDefinition(opts: GeneratePdfOptions): TDocumentDefinitions {
   const showInvoicePaymentTerms = documentType === "invoice";
 
   if (showPaymentCheckboxes) {
-    const checkbox = (): Content => ({
-      table: { widths: [6], heights: [6], body: [[{ text: " ", fontSize: 1, border: [true, true, true, true] }]] },
-      layout: { hLineWidth: () => 0.5, vLineWidth: () => 0.5, hLineColor: () => "#9ca3af", vLineColor: () => "#9ca3af", paddingLeft: () => 0, paddingRight: () => 0, paddingTop: () => 0, paddingBottom: () => 0 },
+    const checkbox = (checked: boolean = false): Content => ({
+      table: { widths: [6], heights: [6], body: [[{ text: checked ? "✓" : " ", fontSize: checked ? 5 : 1, bold: checked, color: checked ? accent : "#fff", alignment: "center", border: [true, true, true, true] }]] },
+      layout: { hLineWidth: () => 0.5, vLineWidth: () => 0.5, hLineColor: () => checked ? accent : "#9ca3af", vLineColor: () => checked ? accent : "#9ca3af", fillColor: () => checked ? headerBgLight : "#fff", paddingLeft: () => 0, paddingRight: () => 0, paddingTop: () => 0, paddingBottom: () => 0 },
     });
-    const cbRow = (label: string): Content => ({
+    const cbRow = (label: string, checked: boolean = false): Content => ({
       columns: [
-        { width: 6, ...checkbox() } as any,
-        { text: label, fontSize: 7.5, color: "#4b5563", margin: [4, -1, 0, 0], width: "*" },
+        { width: 6, ...checkbox(checked) } as any,
+        { text: label, fontSize: 7.5, color: checked ? accent : "#4b5563", bold: checked, margin: [4, -1, 0, 0], width: "*" },
       ],
       columnGap: 0,
     });
+    const pm = doc.paymentMethod || "";
+    const isCash = pm === "cash" || pm === "เงินสด";
+    const isTransfer = pm === "transfer" || pm === "เงินโอน" || pm === "โอนเงิน" || pm.toLowerCase().includes("transfer");
+    const isCheque = pm === "cheque" || pm === "check" || pm === "เช็ค" || pm.includes("เช็ค");
+    const isOther = !!pm && !isCash && !isTransfer && !isCheque;
+    const otherLabel = isOther ? `อื่นๆ ${pm}` : "อื่นๆ _______________";
     const paymentDisclaimer = ["receipt", "tax_invoice_receipt", "deposit"].includes(documentType)
       ? "ใบเสร็จรับเงินจะสมบูรณ์เมื่อผู้รับเงินได้ลงนามรับเงินแล้ว, หากจ่ายด้วยเช็คหรือบัตรเครดิต\nใบเสร็จรับเงินจะสมบูรณ์เมื่อเรียกเก็บเงินได้แล้ว"
       : null;
@@ -466,15 +472,15 @@ function buildDocDefinition(opts: GeneratePdfOptions): TDocumentDefinitions {
             { text: "ชำระเงินโดย :", fontSize: 7.5, bold: true, color: "#374151", margin: [0, 0, 0, 4] },
             {
               columns: [
-                { width: "auto", stack: [cbRow("เงินสด")] },
-                { width: "auto", stack: [cbRow("เงินโอน")] },
+                { width: "auto", stack: [cbRow("เงินสด", isCash)] },
+                { width: "auto", stack: [cbRow("เงินโอน", isTransfer)] },
                 { text: "", width: "*" },
               ],
               columnGap: 24,
               margin: [0, 0, 0, 3],
             },
-            { ...cbRow("เช็คธนาคาร / เลขที่ / ลงวันที่ / มูลค่าก่อนภาษี"), margin: [0, 0, 0, 3] },
-            cbRow("อื่นๆ _______________"),
+            { ...cbRow("เช็คธนาคาร / เลขที่ / ลงวันที่ / มูลค่าก่อนภาษี", isCheque), margin: [0, 0, 0, 3] },
+            cbRow(otherLabel, isOther),
             ...(paymentDisclaimer ? [
               { canvas: [{ type: "line", x1: 0, y1: 4, x2: 240, y2: 4, lineWidth: 0.3, lineColor: boxBorder }] } as Content,
               { text: paymentDisclaimer, fontSize: 6.5, color: "#9ca3af", margin: [0, 4, 0, 0], lineHeight: 1.15 } as Content,

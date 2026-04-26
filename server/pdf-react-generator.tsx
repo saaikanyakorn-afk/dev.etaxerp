@@ -109,6 +109,7 @@ export interface PdfDocumentData {
   sellerBranchCode?: string;
   sellerBranchName?: string;
   sellerBranchAddress?: string;
+  paymentMethod?: string | null;
 }
 
 export interface PdfSignature {
