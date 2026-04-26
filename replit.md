@@ -200,8 +200,8 @@ STEPS:
   [ ] 4. Restart #1 — pm2 restart etax-center
   [ ] 5. Kai: verify migration ran (flag + columns) — print console output
   [ ] 6. If migration silent fail → run SQL directly on deep-main, print output
-  [ ] 7. Kai: comment out migration block → push clean file
-  [ ] 8. พี่ช้าง: pull clean migration file + npm run build
+  [ ] 7. Kai: comment out migration block in schema-extra.ts AND remove/comment the hook call in every file that was modified to invoke it (e.g. server/index.ts) → push ALL clean files
+  [ ] 8. พี่ช้าง: pull ALL clean files (schema-extra.ts + every hook file) + npm run build
   [ ] 9. Restart #2 — pm2 restart etax-center (clean build)
   [ ] 10. พี่ทราย: verify ALL features work (not just migration)
   [ ] 11. Loop closed ✅
@@ -260,8 +260,11 @@ INSERT INTO schema_versions (version, description, change_type, pushed_repos, ch
 VALUES ('vXXX', 'What changed', 'alter_column|add_column|data_migration', 'etaxerp', 'Kai/พี่ช้าง', 'backup: backup_<tablename>_<YYYYMMDD>');
 ```
 
-### Step 7 — Comment Out the One-Time Block
-In `schema-extra.ts`, wrap the migration function in a comment block:
+### Step 7 — Comment Out the One-Time Block (ALL modified files)
+
+**Two files always need cleaning — not one:**
+
+**File 1: `schema-extra.ts`** — wrap the migration function in a comment block:
 ```ts
 /* ── DONE <date>: <description> ──
  * Verified: <what you saw in DB>
@@ -269,6 +272,14 @@ In `schema-extra.ts`, wrap the migration function in a comment block:
  * <original code here>
  */
 ```
+
+**File 2: every file that added a hook call to invoke the migration** (e.g. `server/index.ts`) — comment out or remove the block that calls the migration function:
+```ts
+// DATA FIX DONE <date> — hook removed after verified. See schema-extra.ts history.
+// try { const { fixXxx } = await import("@shared/schema-extra"); await fixXxx(db); } catch ...
+```
+
+**Rule: push ALL cleaned files together in one commit for Restart #2. Never push schema-extra.ts clean without also cleaning every file that references it.**
 
 ### Step 8 — Push Clean to GitHub + Cherry-Pick Clean to etaxerp
 1. Commit the commented-out migration file to dev → push to GitHub production remote
