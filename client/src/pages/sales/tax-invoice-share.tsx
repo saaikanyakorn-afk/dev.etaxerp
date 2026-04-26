@@ -1,122 +1,93 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Printer, Download, Loader2, FileText } from "lucide-react";
-import DocumentRenderer from "@/components/document-renderer";
-import { downloadSharePdf } from "@/lib/download-pdf";
-import { useToast } from "@/hooks/use-toast";
 
 type PrintType = "tax_invoice" | "tax_invoice_receipt" | "invoice" | "delivery_note" | "receipt";
 
+const FORM_LABELS: Record<string, string> = {
+  tax_invoice: "ใบกำกับภาษี",
+  tax_invoice_receipt: "ใบเสร็จรับเงิน/ใบกำกับภาษี",
+  invoice: "ใบแจ้งหนี้",
+  receipt: "ใบเสร็จรับเงิน",
+  delivery_note: "ใบส่งของ",
+};
+
 export default function TaxInvoiceShare() {
   const { token } = useParams<{ token: string }>();
-  const [data, setData] = useState<any>(null);
+  const params = new URLSearchParams(window.location.search);
+  const printType = (params.get("printType") || "tax_invoice") as PrintType;
+
+  const [docNo, setDocNo] = useState(FORM_LABELS[printType] || "ใบกำกับภาษี");
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [downloading, setDownloading] = useState(false);
-  const { toast } = useToast();
-
-  const params = new URLSearchParams(window.location.search);
-  const printType = (params.get("printType") || "tax_invoice") as PrintType;
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const objUrlRef = useRef<string>("");
 
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch(`/api/share/tax-invoice/${token}`);
-        if (!res.ok) throw new Error("ไม่พบเอกสาร หรือลิงก์หมดอายุ");
-        setData(await res.json());
+        const infoRes = await fetch(`/api/share/tax-invoice/${token}`);
+        if (!infoRes.ok) throw new Error("ไม่พบเอกสาร หรือลิงก์หมดอายุ");
+        const d = await infoRes.json();
+        setDocNo(d.taxInvoiceNo || FORM_LABELS[printType] || "ใบกำกับภาษี");
+
+        const ptParam = printType && printType !== "tax_invoice" ? `?printType=${printType}` : "";
+        const pdfRes = await fetch(`/api/share/tax-invoice/${token}/pdf${ptParam}`);
+        if (!pdfRes.ok) throw new Error("สร้าง PDF ไม่สำเร็จ");
+        const blob = await pdfRes.blob();
+        objUrlRef.current = URL.createObjectURL(blob);
+        setPdfUrl(objUrlRef.current);
       } catch (err: any) {
         setError(err.message);
       }
       setLoading(false);
     })();
-  }, [token]);
+    return () => { if (objUrlRef.current) URL.revokeObjectURL(objUrlRef.current); };
+  }, [token, printType]);
 
+  const handlePrint = () => iframeRef.current?.contentWindow?.print();
   const handleDownload = async () => {
+    if (!pdfUrl) return;
     setDownloading(true);
-    try {
-      await downloadSharePdf("tax-invoice", token!, `${data?.taxInvoiceNo || "tax-invoice"}.pdf`, printType ? `printType=${printType}` : undefined);
-    } catch (err: any) {
-      toast({ title: "ดาวน์โหลดไม่สำเร็จ", description: err.message, variant: "destructive" });
-    }
+    const a = document.createElement("a");
+    a.href = pdfUrl;
+    a.download = `${docNo}.pdf`;
+    a.click();
     setDownloading(false);
   };
 
-  if (loading) return <div className="flex items-center justify-center min-h-screen text-slate-500">กำลังโหลด...</div>;
+  if (loading) return <div className="flex items-center justify-center min-h-screen text-slate-500"><Loader2 className="h-6 w-6 animate-spin mr-2" />กำลังโหลด...</div>;
   if (error) return <div className="flex items-center justify-center min-h-screen text-red-500">{error}</div>;
-  if (!data) return null;
-
-  const docSettings = data.documentSettings || {};
-
-  const renderData = { ...data };
-  let documentType: string = printType;
-  if (printType === "invoice") {
-    renderData.invoiceNo = data.taxInvoiceNo;
-    renderData.invoiceDate = data.taxInvoiceDate;
-  } else if (printType === "tax_invoice_receipt") {
-    renderData.receiptNo = data.taxInvoiceNo;
-    renderData.receiptDate = data.taxInvoiceDate;
-  } else if (printType === "receipt") {
-    renderData.receiptNo = data.taxInvoiceNo;
-    renderData.receiptDate = data.taxInvoiceDate;
-    documentType = "receipt";
-  } else if (printType === "delivery_note") {
-    renderData.orderNo = data.taxInvoiceNo;
-    renderData.orderDate = data.taxInvoiceDate;
-  }
-
-  const FORM_LABELS: Record<string, string> = {
-    tax_invoice: "ใบกำกับภาษี",
-    tax_invoice_receipt: "ใบเสร็จรับเงิน/ใบกำกับภาษี",
-    invoice: "ใบแจ้งหนี้",
-    receipt: "ใบเสร็จรับเงิน",
-    delivery_note: "ใบส่งของ",
-  };
 
   return (
-    <div className="min-h-screen bg-slate-700 print:bg-white">
-      <div className="sticky top-0 z-50 bg-slate-800 border-b border-slate-600 px-4 py-2.5 flex items-center justify-between print:hidden">
+    <div className="flex flex-col min-h-screen bg-slate-700">
+      <div className="sticky top-0 z-50 bg-slate-800 border-b border-slate-600 px-4 py-2.5 flex items-center justify-between">
         <div className="flex items-center gap-2 text-white min-w-0">
           <FileText className="h-5 w-5 text-[var(--theme-primary)] flex-shrink-0" />
-          <span className="text-sm font-medium truncate">{data.taxInvoiceNo || (FORM_LABELS[printType] || "ใบกำกับภาษี")}</span>
+          <span className="text-sm font-medium truncate">{docNo}</span>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => { const prev = document.title; document.title = data?.taxInvoiceNo || "tax-invoice"; window.print(); setTimeout(() => { document.title = prev; }, 1000); }}
-            className="text-slate-300 hover:text-white hover:bg-slate-700 gap-1.5 h-8 text-xs"
-            data-testid="button-print"
-          >
+          <Button variant="ghost" size="sm" onClick={handlePrint} className="text-slate-300 hover:text-white hover:bg-slate-700 gap-1.5 h-8 text-xs" data-testid="button-print">
             <Printer className="h-4 w-4" />
             <span className="hidden sm:inline">พิมพ์</span>
           </Button>
-          <Button
-            size="sm"
-            onClick={handleDownload}
-            disabled={downloading}
-            className="bg-[var(--theme-primary)] hover:bg-[#e8856a] text-white gap-1.5 h-8 text-xs"
-            data-testid="button-download-pdf"
-          >
+          <Button size="sm" onClick={handleDownload} disabled={downloading} className="bg-[var(--theme-primary)] hover:bg-[#e8856a] text-white gap-1.5 h-8 text-xs" data-testid="button-download-pdf">
             {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
             <span className="hidden sm:inline">{downloading ? "กำลังสร้าง..." : "ดาวน์โหลด PDF"}</span>
             <span className="sm:hidden">{downloading ? "..." : "PDF"}</span>
           </Button>
         </div>
       </div>
-
-      <div className="max-w-3xl mx-auto py-6 px-4 print:!py-0 print:!px-0 print:!max-w-none print:!m-0 overflow-x-auto">
-        <div id="doc-print-area">
-          <DocumentRenderer
-            settings={docSettings}
-            company={data.company}
-            quotation={renderData}
-            documentType={documentType}
-            userSignature={data.userSignature}
-            etaxEnabled={data.company?.etaxEnabled || false}
-          />
-        </div>
-      </div>
+      <iframe
+        ref={iframeRef}
+        src={pdfUrl!}
+        className="flex-1 w-full border-0"
+        title={docNo}
+        data-testid="pdf-iframe"
+      />
     </div>
   );
 }

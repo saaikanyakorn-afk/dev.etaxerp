@@ -1,90 +1,91 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Printer, Download, Loader2 } from "lucide-react";
 import Layout from "@/components/layout";
-import DocumentRenderer from "@/components/document-renderer";
 import EDocumentActions from "@/components/e-document-actions";
 
 export default function ReceiptPdf() {
   const { id } = useParams<{ id: string }>();
   const [, navigate] = useLocation();
-  const [data, setData] = useState<any>(null);
-  const [company, setCompany] = useState<any>(null);
-  const [docSettings, setDocSettings] = useState<any>({});
-  const [userSig, setUserSig] = useState<any>(null);
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [docNo, setDocNo] = useState("receipt");
+  const [customerEmail, setCustomerEmail] = useState("");
+  const [customerName, setCustomerName] = useState("");
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const objUrlRef = useRef<string>("");
 
   useEffect(() => {
     (async () => {
       try {
-        const [docRes, meRes] = await Promise.all([
+        const [docRes, pdfRes] = await Promise.all([
           fetch(`/api/receipts/${id}`, { credentials: "include" }),
-          fetch(`/api/auth/me`, { credentials: "include" }),
+          fetch(`/api/documents/receipt/${id}/pdf`, { credentials: "include" }),
         ]);
-
-        if (meRes.ok) {
-          const me = await meRes.json();
-          setUserSig({
-            signatureUrl: me.signatureUrl || null,
-            signatureName: me.signatureName || me.fullName,
-            signatureTitle: me.signatureTitle || null,
-          });
-        }
-
         if (docRes.ok) {
           const d = await docRes.json();
-          setData(d);
-
-          const [cRes, dsRes] = await Promise.all([
-            fetch(`/api/companies`, { credentials: "include" }),
-            fetch(`/api/document-settings/${d.companyId}`, { credentials: "include" }),
-          ]);
-
-          if (cRes.ok) {
-            const companies = await cRes.json();
-            setCompany(companies.find((co: any) => co.id === d.companyId) || null);
-          }
-          if (dsRes.ok) {
-            setDocSettings(await dsRes.json());
-          }
+          setDocNo(d.receiptNo || "receipt");
+          setCustomerEmail(d.contactEmail || "");
+          setCustomerName(d.customerName || "");
         }
-      } catch {}
+        if (!pdfRes.ok) throw new Error("สร้าง PDF ไม่สำเร็จ");
+        const blob = await pdfRes.blob();
+        objUrlRef.current = URL.createObjectURL(blob);
+        setPdfUrl(objUrlRef.current);
+      } catch (err: any) {
+        setError(err.message || "เกิดข้อผิดพลาด");
+      }
       setLoading(false);
     })();
+    return () => { if (objUrlRef.current) URL.revokeObjectURL(objUrlRef.current); };
   }, [id]);
 
-  if (loading) return <Layout><div className="text-center py-12 text-slate-500">กำลังโหลด...</div></Layout>;
-  if (!data) return <Layout><div className="text-center py-12 text-red-500">ไม่พบเอกสาร</div></Layout>;
+  const handlePrint = () => iframeRef.current?.contentWindow?.print();
+  const handleDownload = () => {
+    if (!pdfUrl) return;
+    const a = document.createElement("a");
+    a.href = pdfUrl;
+    a.download = `${docNo}.pdf`;
+    a.click();
+  };
+
+  if (loading) return <Layout><div className="flex items-center justify-center py-24"><Loader2 className="h-8 w-8 animate-spin text-slate-400" /></div></Layout>;
+  if (error) return <Layout><div className="text-center py-12 text-red-500">{error}</div></Layout>;
 
   return (
     <Layout>
-      <div className="space-y-4 print:!space-y-0">
-        <div className="flex items-center justify-between print:!hidden">
+      <div className="flex flex-col" style={{ height: "calc(100vh - 64px)" }}>
+        <div className="flex items-center justify-between py-2 flex-shrink-0">
           <Button variant="ghost" size="sm" className="gap-1.5" onClick={() => navigate("/sales/receipt")}>
             <ArrowLeft className="h-4 w-4" /> กลับ
           </Button>
           <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" className="gap-1.5" onClick={handlePrint} data-testid="button-print">
+              <Printer className="h-4 w-4" /> พิมพ์
+            </Button>
+            <Button variant="outline" size="sm" className="gap-1.5" onClick={handleDownload} data-testid="button-download">
+              <Download className="h-4 w-4" /> ดาวน์โหลด
+            </Button>
             <EDocumentActions
               documentType="receipt"
               documentId={Number(id)}
-              docNo={data.receiptNo}
-              customerEmail={data.contactEmail}
-              customerName={data.customerName}
+              docNo={docNo}
+              customerEmail={customerEmail}
+              customerName={customerName}
               compact
+              onDownload={handleDownload}
             />
           </div>
         </div>
-
-        <div className="max-w-3xl mx-auto print:!max-w-none print:!m-0">
-          <DocumentRenderer
-            settings={docSettings}
-            company={company}
-            quotation={data}
-            documentType="receipt"
-            userSignature={userSig}
-          />
-        </div>
+        <iframe
+          ref={iframeRef}
+          src={pdfUrl!}
+          className="flex-1 w-full border-0 rounded"
+          title={docNo}
+          data-testid="pdf-iframe"
+        />
       </div>
     </Layout>
   );

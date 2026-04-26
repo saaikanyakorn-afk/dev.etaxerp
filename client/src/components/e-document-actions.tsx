@@ -39,6 +39,7 @@ interface EDocumentActionsProps {
   customerName?: string;
   compact?: boolean;
   showFormTypeSelector?: boolean;
+  onDownload?: () => void;
 }
 
 const DOC_LABELS: Record<string, string> = {
@@ -89,6 +90,7 @@ export default function EDocumentActions({
   customerName,
   compact = false,
   showFormTypeSelector = false,
+  onDownload,
 }: EDocumentActionsProps) {
   const { toast } = useToast();
   const [downloading, setDownloading] = useState(false);
@@ -114,11 +116,15 @@ export default function EDocumentActions({
   }, []);
 
   const handleDownloadPdf = useCallback(() => {
+    if (onDownload) {
+      onDownload();
+      return;
+    }
     const originalTitle = document.title;
     document.title = docNo || originalTitle;
     window.print();
     document.title = originalTitle;
-  }, [docNo]);
+  }, [docNo, onDownload]);
 
   const handleCancelDownload = useCallback(() => {
     if (abortRef.current) {
