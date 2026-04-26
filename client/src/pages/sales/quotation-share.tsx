@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { CheckCircle2, XCircle, Edit3, Printer, Download, Loader2, FileText } from "lucide-react";
-import { isAndroid } from "@/lib/line-android-redirect";
+import { isAndroid, redirectToChrome } from "@/lib/line-android-redirect";
 
 export default function QuotationShare() {
   const { token } = useParams<{ token: string }>();
@@ -24,6 +24,7 @@ export default function QuotationShare() {
   const android = isAndroid();
 
   useEffect(() => {
+    redirectToChrome();
     (async () => {
       try {
         const infoRes = await fetch(`/api/share/quote/${token}`);
