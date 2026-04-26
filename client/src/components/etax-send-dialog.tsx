@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { useCompany } from "@/lib/company-context";
 import { useQueryClient } from "@tanstack/react-query";
-import { Send, Loader2, Mail, AlertCircle, ChevronDown, ChevronUp } from "lucide-react";
+import { Send, Loader2, Mail, AlertCircle, ChevronDown, ChevronUp, CheckCircle2 } from "lucide-react";
 
 type FormType = "tax_invoice" | "tax_invoice_receipt" | "receipt";
 
@@ -39,6 +39,7 @@ export function EtaxSendDialog({ open, onOpenChange, taxInvoiceId, taxInvoiceNo,
   const [formType, setFormType] = useState<FormType>(defaultPrintType || "tax_invoice");
   const [debugInfo, setDebugInfo] = useState<string[]>([]);
   const [showDebug, setShowDebug] = useState(false);
+  const [sendSuccess, setSendSuccess] = useState(false);
 
   useEffect(() => {
     if (defaultPrintType) setFormType(defaultPrintType);
@@ -48,6 +49,7 @@ export function EtaxSendDialog({ open, onOpenChange, taxInvoiceId, taxInvoiceNo,
     if (open && taxInvoiceId && companyId) {
       setDebugInfo([]);
       setShowDebug(false);
+      setSendSuccess(false);
       if (existingSentTo) {
         setBuyerEmail(existingSentTo);
         setIsTestMode(false);
@@ -93,13 +95,9 @@ export function EtaxSendDialog({ open, onOpenChange, taxInvoiceId, taxInvoiceNo,
         setShowDebug(true);
       }
       if (!res.ok) throw new Error(data.message);
-      toast({
-        title: isResend ? "ส่ง e-Tax Invoice ซ้ำสำเร็จ" : "ส่ง e-Tax Invoice สำเร็จ",
-        description: `ส่งถึง: ${data.to}${data.cc?.length ? ` (CC: ${data.cc.join(", ")})` : ""}`,
-      });
+      setSendSuccess(true);
       queryClient.invalidateQueries({ queryKey: ["/api/tax-invoices"] });
       queryClient.invalidateQueries({ queryKey: ["/api/etax/sent-list"] });
-      onOpenChange(false);
     } catch (err: any) {
       toast({ title: "ส่ง e-Tax ไม่สำเร็จ", description: err.message, variant: "destructive" });
     }
@@ -177,6 +175,13 @@ export function EtaxSendDialog({ open, onOpenChange, taxInvoiceId, taxInvoiceNo,
             )}
           </div>
 
+          {sendSuccess && (
+            <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-lg p-3 text-sm text-green-700">
+              <CheckCircle2 className="h-4 w-4 flex-shrink-0" />
+              <span>ส่ง e-Tax Invoice สำเร็จ — อีเมลถูกส่งไปยัง csemail เพื่อประทับเวลาแล้ว</span>
+            </div>
+          )}
+
           {debugInfo.length > 0 && (
             <div className="border border-gray-200 rounded-lg overflow-hidden">
               <button
@@ -203,18 +208,26 @@ export function EtaxSendDialog({ open, onOpenChange, taxInvoiceId, taxInvoiceNo,
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
-            ยกเลิก
-          </Button>
-          <Button
-            onClick={handleSend}
-            disabled={loading || !buyerEmail.trim()}
-            className="bg-[#fb9678] hover:bg-[#fb9678]/90 text-white gap-1.5"
-            data-testid="button-confirm-etax-send"
-          >
-            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-            {isResend ? "ส่งซ้ำ" : "ส่ง e-Tax Invoice"}
-          </Button>
+          {sendSuccess ? (
+            <Button onClick={() => onOpenChange(false)} className="bg-[#fb9678] hover:bg-[#fb9678]/90 text-white">
+              ปิด
+            </Button>
+          ) : (
+            <>
+              <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
+                ยกเลิก
+              </Button>
+              <Button
+                onClick={handleSend}
+                disabled={loading || !buyerEmail.trim()}
+                className="bg-[#fb9678] hover:bg-[#fb9678]/90 text-white gap-1.5"
+                data-testid="button-confirm-etax-send"
+              >
+                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                {isResend ? "ส่งซ้ำ" : "ส่ง e-Tax Invoice"}
+              </Button>
+            </>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

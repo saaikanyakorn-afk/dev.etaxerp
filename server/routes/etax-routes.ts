@@ -487,10 +487,18 @@ export function registerEtaxRoutes(app: Express) {
         if (contact) buyerEmail = contact.email || "";
       }
 
-      const recipientEmail = comp.etaxBuyerTestEmail || recipientEmailOverride || buyerEmail;
-      if (!recipientEmail) {
+      const timestampEmail = comp.etaxTimestampEmail || "csemail@etax.teda.th";
+      const rawRecipient = comp.etaxBuyerTestEmail || recipientEmailOverride || buyerEmail;
+      if (!rawRecipient) {
         return res.status(400).json({ message: "ไม่พบอีเมลผู้รับ กรุณาระบุอีเมลผู้ซื้อ" });
       }
+      if (rawRecipient.toLowerCase() === timestampEmail.toLowerCase()) {
+        return res.status(400).json({
+          message: `อีเมลผู้รับ (${rawRecipient}) ตรงกับ Timestamp Email — กรุณาแก้ไข "อีเมลทดสอบผู้ซื้อ" ในหน้าตั้งค่า e-Tax ให้เป็นอีเมลผู้ซื้อจริง หรือล้างค่าออก`,
+          debugInfo: [`[CONFIG ERROR] etaxBuyerTestEmail="${rawRecipient}" ตรงกับ etaxTimestampEmail="${timestampEmail}" — ไม่สามารถส่งให้ csemail เป็น TO ได้`],
+        });
+      }
+      const recipientEmail = rawRecipient;
 
       const debugLogs: string[] = [];
       const dlog = (msg: string) => { console.log(msg); debugLogs.push(msg); };
