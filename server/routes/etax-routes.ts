@@ -6,7 +6,7 @@ import { eq, and, isNotNull, gte, lte, sql, desc } from "drizzle-orm";
 import { requireAuth } from "../route-middleware";
 import { generateEtaxXml, type EtaxInvoiceData, type EtaxLineItem } from "@shared/etax-xml";
 import { convertToPdfA3, getDocumentTypeFromInvoice } from "../etax-pdf-a3";
-import { generatePdfMake } from "../pdf-pdfmake-generator";
+import { generatePdfDirect } from "../pdf-react-generator";
 import { buildPdfDataById } from "../pdf-data-fetcher";
 
 function parseDateToBE(dateVal: string | Date | null | undefined): string {
@@ -420,7 +420,7 @@ export function registerEtaxRoutes(app: Express) {
       const xmlFileName = "ETDA-invoice.xml";
 
       const pdfOpts = await buildPdfDataById("tax_invoice", taxInvoiceId, printType);
-      const pdfBuffer = await generatePdfMake(pdfOpts);
+      const pdfBuffer = await generatePdfDirect(pdfOpts);
 
       const pdfA3Buffer = await convertToPdfA3(pdfBuffer, xml, xmlFileName, documentType);
 
@@ -481,17 +481,22 @@ export function registerEtaxRoutes(app: Express) {
 
       const { tiv, data, documentType } = await buildEtaxDataFromInvoice(taxInvoiceId, companyId, printType);
 
-      if (!comp.etaxTimestampEmail) {
-        return res.status(400).json({ message: "ยังไม่ได้ตั้งค่า Email สำหรับ Timestamp (csemail) ในหน้าตั้งค่า e-Tax Invoice" });
+      let buyerEmail = (tiv as any).contactEmail || "";
+      if (!buyerEmail && tiv.customerId) {
+        const [contact] = await db.select().from(contacts).where(eq(contacts.id, tiv.customerId));
+        if (contact) buyerEmail = contact.email || "";
       }
 
-      const recipientEmail = comp.etaxTimestampEmail;
+      const recipientEmail = comp.etaxBuyerTestEmail || recipientEmailOverride || buyerEmail;
+      if (!recipientEmail) {
+        return res.status(400).json({ message: "ไม่พบอีเมลผู้รับ กรุณาระบุอีเมลผู้ซื้อ" });
+      }
 
       const xml = generateEtaxXml(data);
       const xmlFileName = "ETDA-invoice.xml";
 
       const pdfOpts = await buildPdfDataById("tax_invoice", taxInvoiceId, printType);
-      const pdfBuffer = await generatePdfMake(pdfOpts);
+      const pdfBuffer = await generatePdfDirect(pdfOpts);
       const pdfA3Buffer = await convertToPdfA3(pdfBuffer, xml, xmlFileName, documentType);
 
       const dateStr = parseDateToBE(tiv.taxInvoiceDate);
@@ -501,19 +506,14 @@ export function registerEtaxRoutes(app: Express) {
         "80": "DBN", "81": "CRN",
       };
       const subjectPrefix = SUBJECT_PREFIX[data.typeCode] || "INV";
-
-      let buyerEmail = (tiv as any).contactEmail || "";
-      if (!buyerEmail && tiv.customerId) {
-        const [contact] = await db.select().from(contacts).where(eq(contacts.id, tiv.customerId));
-        if (contact) buyerEmail = contact.email || "";
-      }
-      const buyerEmailForSubject = comp.etaxBuyerTestEmail || recipientEmailOverride || buyerEmail;
-
-      const subject = `[${dateStr}][${subjectPrefix}][${tiv.taxInvoiceNo}]${tiv.originalTaxInvoiceNo ? `[${tiv.originalTaxInvoiceNo}]` : ""}${buyerEmailForSubject ? `[${buyerEmailForSubject}]` : ""}`;
+      const subject = `[${dateStr}][${subjectPrefix}][${tiv.taxInvoiceNo}]${tiv.originalTaxInvoiceNo ? `[${tiv.originalTaxInvoiceNo}]` : ""}`;
 
       const pdfFilename = `${tiv.taxInvoiceNo || "etax"}.pdf`;
 
       const ccEmails: string[] = [];
+      if (comp.etaxTimestampEmail) {
+        ccEmails.push(comp.etaxTimestampEmail);
+      }
 
       const DOC_LABEL: Record<string, string> = {
         "388": "ใบกำกับภาษี", "T02": "ใบแจ้งหนี้/ใบกำกับภาษี",
