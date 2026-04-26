@@ -445,13 +445,13 @@ function buildDocDefinition(opts: GeneratePdfOptions): TDocumentDefinitions {
 
   if (showPaymentCheckboxes) {
     const checkbox = (checked: boolean = false): Content => ({
-      table: { widths: [6], heights: [6], body: [[{ text: checked ? "✓" : " ", fontSize: checked ? 5 : 1, bold: checked, color: checked ? accent : "#fff", alignment: "center", border: [true, true, true, true] }]] },
-      layout: { hLineWidth: () => 0.5, vLineWidth: () => 0.5, hLineColor: () => checked ? accent : "#9ca3af", vLineColor: () => checked ? accent : "#9ca3af", fillColor: () => checked ? headerBgLight : "#fff", paddingLeft: () => 0, paddingRight: () => 0, paddingTop: () => 0, paddingBottom: () => 0 },
+      table: { widths: [9], heights: [9], body: [[{ text: checked ? "✓" : " ", fontSize: checked ? 8 : 1, bold: true, color: "#ffffff", alignment: "center", border: [true, true, true, true] }]] },
+      layout: { hLineWidth: () => 0.7, vLineWidth: () => 0.7, hLineColor: () => checked ? accent : "#9ca3af", vLineColor: () => checked ? accent : "#9ca3af", fillColor: () => checked ? accent : "#ffffff", paddingLeft: () => 0, paddingRight: () => 0, paddingTop: () => 0, paddingBottom: () => 0 },
     });
     const cbRow = (label: string, checked: boolean = false): Content => ({
       columns: [
-        { width: 6, ...checkbox(checked) } as any,
-        { text: label, fontSize: 7.5, color: checked ? accent : "#4b5563", bold: checked, margin: [4, -1, 0, 0], width: "*" },
+        { width: 9, ...checkbox(checked) } as any,
+        { text: label, fontSize: 7.5, color: checked ? accent : "#4b5563", bold: checked, margin: [5, 0, 0, 0], width: "*" },
       ],
       columnGap: 0,
     });
