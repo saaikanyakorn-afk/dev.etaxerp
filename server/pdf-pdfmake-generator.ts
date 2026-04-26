@@ -444,14 +444,13 @@ function buildDocDefinition(opts: GeneratePdfOptions): TDocumentDefinitions {
   const showInvoicePaymentTerms = documentType === "invoice";
 
   if (showPaymentCheckboxes) {
-    const checkbox = (checked: boolean = false): Content => ({
-      table: { widths: [9], heights: [9], body: [[{ text: checked ? "✓" : " ", fontSize: checked ? 8 : 1, bold: true, color: "#ffffff", alignment: "center", border: [true, true, true, true] }]] },
-      layout: { hLineWidth: () => 0.7, vLineWidth: () => 0.7, hLineColor: () => checked ? accent : "#9ca3af", vLineColor: () => checked ? accent : "#9ca3af", fillColor: () => checked ? accent : "#ffffff", paddingLeft: () => 0, paddingRight: () => 0, paddingTop: () => 0, paddingBottom: () => 0 },
-    });
+    const checkboxSvg = (checked: boolean): string => checked
+      ? `<svg width="9" height="9" xmlns="http://www.w3.org/2000/svg"><rect width="9" height="9" rx="1" fill="${accent}" stroke="${accent}" stroke-width="0.5"/><polyline points="2,4.5 3.8,6.5 7,2.5" fill="none" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`
+      : `<svg width="9" height="9" xmlns="http://www.w3.org/2000/svg"><rect width="9" height="9" rx="1" fill="white" stroke="#9ca3af" stroke-width="0.6"/></svg>`;
     const cbRow = (label: string, checked: boolean = false): Content => ({
       columns: [
-        { width: 9, ...checkbox(checked) } as any,
-        { text: label, fontSize: 7.5, color: checked ? accent : "#4b5563", bold: checked, margin: [5, 0, 0, 0], width: "*" },
+        { svg: checkboxSvg(checked), width: 9, height: 9 } as any,
+        { text: label, fontSize: 7.5, color: checked ? accent : "#4b5563", bold: checked, margin: [5, -1, 0, 0], width: "*" },
       ],
       columnGap: 0,
     });
