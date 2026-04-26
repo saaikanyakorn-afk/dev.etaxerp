@@ -3,6 +3,62 @@
 ## Agent Identity
 - **Agent name: Kai** — The project owner identifies this agent by name. When asked "Who am I talking to?", always respond "This is Kai." This is used to verify session continuity during complex design work.
 
+---
+
+## 🖨️ MANDATORY PDF RULE — ENFORCED BY พี่ช้าง — ALL AGENTS MUST FOLLOW
+
+**This rule was set by พี่ช้าง (the system architect). It applies to EVERY agent, EVERY session, EVERY document type. There are NO exceptions.**
+
+### The Rule: pdfmake (Node.js server) = Single Source for ALL PDF Actions
+
+Every PDF document in this system must use **ONE source** only — the Node.js pdfmake generator on the server. This applies to all three actions without exception:
+
+| Action | ✅ CORRECT | ❌ FORBIDDEN |
+|--------|-----------|-------------|
+| **Preview** | `<iframe>` showing PDF blob fetched from `/api/documents/:type/:id/pdf` | HTML/DocumentRenderer preview |
+| **Print** | `iframe.contentWindow.print()` — prints the server-generated PDF | `window.print()` on HTML page |
+| **Download** | `URL.createObjectURL(blob)` from same server PDF endpoint | DocRaptor, browser print-to-PDF, HTML conversion |
+
+### Why This Rule Exists
+
+1. **HTML → PDF always drifts** — regardless of which engine converts it. This is a fundamental truth, not a tool limitation.
+2. **Browser-to-browser drift** — Windows default apps, Chrome vs Safari vs Edge all render differently. Local machines cannot be trusted to produce consistent output.
+3. **pdfmake was stress-tested** — unplugging LAN cable during high demand passed. No other tool came close. This choice is final.
+4. **Single source = zero drift** — what พี่ทราย sees in preview IS what she downloads IS what she prints. Always.
+
+### The "Completed Loop" Requirement
+
+When พี่ทราย reports a layout issue on ANY document:
+1. Fix it in `server/pdf-pdfmake-generator.ts` ONLY
+2. That fix automatically applies to Preview + Print + Download simultaneously
+3. **Do NOT announce "ready" until ALL THREE actions are verified**
+4. **Do NOT move to the next document until พี่ทราย confirms all three actions on the current one**
+
+### Document-to-API mapping
+
+| Document | API endpoint (auth) | Share endpoint (public) |
+|----------|--------------------|-----------------------|
+| ใบแจ้งหนี้ | `GET /api/documents/invoice/:id/pdf` | `GET /api/share/invoice/:token/pdf` |
+| ใบกำกับภาษี | `GET /api/documents/tax_invoice/:id/pdf?printType=xxx` | `GET /api/share/tax-invoice/:token/pdf?printType=xxx` |
+| ใบเสร็จรับเงิน | `GET /api/documents/receipt/:id/pdf` | `GET /api/share/receipt/:token/pdf` |
+| ใบเสนอราคา | `GET /api/documents/quotation/:id/pdf` | `GET /api/share/quotation/:token/pdf` |
+| ใบสั่งขาย | `GET /api/documents/sales_order/:id/pdf` | `GET /api/share/sales-order/:token/pdf` |
+| ใบวางบิล | `GET /api/documents/billing_note/:id/pdf` | — |
+
+**Exception (only one):** ใบกำกับภาษีอย่างย่อ (80mm thermal) stays as HTML — it is a thermal receipt format not an A4 document.
+
+### Key files — DO NOT revert these to HTML approach
+
+- `server/pdf-pdfmake-generator.ts` — PDF engine (pdfmake, Niramit Thai font)
+- `server/routes/pdf-routes.ts` — all PDF endpoints
+- `server/pdf-data-fetcher.ts` — data preparation for PDF
+- `server/fonts/Niramit-*.ttf` — Thai font files
+- `client/src/pages/sales/*-pdf.tsx` — ALL use iframe + blob, NO DocumentRenderer
+- `client/src/pages/sales/*-share.tsx` — ALL use iframe + blob, NO DocumentRenderer
+- `client/src/pages/finance/billing-note-pdf.tsx` — uses iframe + blob
+
+---
+
 ## Overview
 The E-Tax Center is a multi-tenant digital accounting platform designed to revolutionize accounting processes for Thai accounting firms. It integrates with major e-commerce platforms (Shopee, Lazada, TikTok Shop) to automate order retrieval, tax invoice generation, and service fee calculation. The platform provides comprehensive client and human resources management (attendance, overtime, payroll), robust financial document processing, and advanced e-commerce functionalities, aiming to be a holistic solution for managing financial operations and expanding digital commerce services for its clients. Its vision is to be an all-in-one solution for managing clients' financial operations and expanding digital commerce service offerings.
 
