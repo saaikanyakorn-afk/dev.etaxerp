@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useParams } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Printer, Download, Loader2, FileText } from "lucide-react";
+import { redirectIfLineWebview, isLineWebview } from "@/lib/line-android-redirect";
 
 type PrintType = "tax_invoice" | "tax_invoice_receipt" | "invoice" | "delivery_note" | "receipt";
 
@@ -13,10 +14,6 @@ const FORM_LABELS: Record<string, string> = {
   delivery_note: "ใบส่งของ",
 };
 
-function isAndroid() {
-  return /android/i.test(navigator.userAgent);
-}
-
 export default function TaxInvoiceShare() {
   const { token } = useParams<{ token: string }>();
   const params = new URLSearchParams(window.location.search);
@@ -27,11 +24,15 @@ export default function TaxInvoiceShare() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [downloading, setDownloading] = useState(false);
+  const [redirected, setRedirected] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const objUrlRef = useRef<string>("");
-  const android = isAndroid();
 
   useEffect(() => {
+    if (redirectIfLineWebview()) {
+      setRedirected(true);
+      return;
+    }
     (async () => {
       try {
         const infoRes = await fetch(`/api/share/tax-invoice/${token}`);
@@ -65,8 +66,11 @@ export default function TaxInvoiceShare() {
     setDownloading(false);
   };
 
+  if (redirected) return <div className="flex items-center justify-center min-h-screen text-slate-500"><Loader2 className="h-6 w-6 animate-spin mr-2" />กำลังเปิดใน Chrome...</div>;
   if (loading) return <div className="flex items-center justify-center min-h-screen text-slate-500"><Loader2 className="h-6 w-6 animate-spin mr-2" />กำลังโหลด...</div>;
   if (error) return <div className="flex items-center justify-center min-h-screen text-red-500">{error}</div>;
+
+  const lineAndroid = isLineWebview();
 
   return (
     <div className="flex flex-col min-h-screen bg-slate-700">
@@ -76,7 +80,7 @@ export default function TaxInvoiceShare() {
           <span className="text-sm font-medium truncate">{docNo}</span>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
-          {!android && (
+          {!lineAndroid && (
             <Button variant="ghost" size="sm" onClick={handlePrint} className="text-slate-300 hover:text-white hover:bg-slate-700 gap-1.5 h-8 text-xs" data-testid="button-print">
               <Printer className="h-4 w-4" />
               <span className="hidden sm:inline">พิมพ์</span>
@@ -90,7 +94,7 @@ export default function TaxInvoiceShare() {
         </div>
       </div>
 
-      {android ? (
+      {lineAndroid ? (
         <div className="flex flex-col items-center justify-center flex-1 gap-6 p-8">
           <FileText className="h-20 w-20 text-slate-400" />
           <div className="text-center">
@@ -103,13 +107,7 @@ export default function TaxInvoiceShare() {
           </Button>
         </div>
       ) : (
-        <iframe
-          ref={iframeRef}
-          src={pdfUrl!}
-          className="flex-1 w-full border-0"
-          title={docNo}
-          data-testid="pdf-iframe"
-        />
+        <iframe ref={iframeRef} src={pdfUrl!} className="flex-1 w-full border-0" title={docNo} data-testid="pdf-iframe" />
       )}
     </div>
   );

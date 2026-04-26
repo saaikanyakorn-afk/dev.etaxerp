@@ -4,10 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { CheckCircle2, XCircle, Edit3, Printer, Download, Loader2, FileText } from "lucide-react";
-
-function isAndroid() {
-  return /android/i.test(navigator.userAgent);
-}
+import { redirectIfLineWebview, isLineWebview } from "@/lib/line-android-redirect";
 
 export default function QuotationShare() {
   const { token } = useParams<{ token: string }>();
@@ -22,11 +19,16 @@ export default function QuotationShare() {
   const [note, setNote] = useState("");
   const [showNoteFor, setShowNoteFor] = useState<string | null>(null);
   const [downloading, setDownloading] = useState(false);
+  const [redirected, setRedirected] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const objUrlRef = useRef<string>("");
-  const android = isAndroid();
+  const lineWebview = isLineWebview();
 
   useEffect(() => {
+    if (redirectIfLineWebview()) {
+      setRedirected(true);
+      return;
+    }
     (async () => {
       try {
         const infoRes = await fetch(`/api/share/quote/${token}`);
@@ -79,6 +81,7 @@ export default function QuotationShare() {
     setDownloading(false);
   };
 
+  if (redirected) return <div className="flex items-center justify-center min-h-screen text-slate-500"><Loader2 className="h-6 w-6 animate-spin mr-2" />กำลังเปิดในเบราว์เซอร์...</div>;
   if (loading) return <div className="flex items-center justify-center min-h-screen text-slate-500"><Loader2 className="h-6 w-6 animate-spin mr-2" />กำลังโหลด...</div>;
   if (error) return <div className="flex items-center justify-center min-h-screen text-red-500">{error}</div>;
   if (!data) return null;
@@ -93,7 +96,7 @@ export default function QuotationShare() {
           <span className="text-sm font-medium truncate">{docNo}</span>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
-          {!android && (
+          {!lineWebview && (
             <Button variant="ghost" size="sm" onClick={handlePrint} className="text-slate-300 hover:text-white hover:bg-slate-700 gap-1.5 h-8 text-xs" data-testid="button-print">
               <Printer className="h-4 w-4" />
               <span className="hidden sm:inline">พิมพ์</span>
@@ -107,7 +110,7 @@ export default function QuotationShare() {
         </div>
       </div>
 
-      {android ? (
+      {lineWebview ? (
         <div className="flex flex-col items-center justify-center gap-6 p-8 bg-slate-700">
           <FileText className="h-20 w-20 text-slate-400" />
           <div className="text-center">
