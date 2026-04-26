@@ -155,7 +155,7 @@ function buildDocDefinition(opts: GeneratePdfOptions): TDocumentDefinitions {
       : `สาขาที่ ${companyBranch}`;
 
   const isTaxDoc = documentType === "tax_invoice" || documentType === "receipt" || documentType === "tax_invoice_receipt";
-  const era = isTaxDoc ? "BE" : (settings.dateEra || "CE");
+  const era = settings.dateEra || (isTaxDoc ? "BE" : "CE");
 
   const items = doc.items || [];
   const subtotal = doc.subtotal || 0;
