@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useParams } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Printer, Download, Loader2, FileText } from "lucide-react";
-import { isAndroid, redirectToChrome } from "@/lib/line-android-redirect";
+import { isAndroid, isLineAndroid, getChromeIntentUrl } from "@/lib/line-android-redirect";
 
 export default function SalesOrderShare() {
   const { token } = useParams<{ token: string }>();
@@ -16,7 +16,6 @@ export default function SalesOrderShare() {
   const android = isAndroid();
 
   useEffect(() => {
-    redirectToChrome();
     (async () => {
       try {
         const infoRes = await fetch(`/api/share/order/${token}`);
