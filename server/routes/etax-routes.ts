@@ -502,7 +502,14 @@ export function registerEtaxRoutes(app: Express) {
       };
       const subjectPrefix = SUBJECT_PREFIX[data.typeCode] || "INV";
 
-      const subject = `[${dateStr}][${subjectPrefix}][${tiv.taxInvoiceNo}]${tiv.originalTaxInvoiceNo ? `[${tiv.originalTaxInvoiceNo}]` : ""}`;
+      let buyerEmail = (tiv as any).contactEmail || "";
+      if (!buyerEmail && tiv.customerId) {
+        const [contact] = await db.select().from(contacts).where(eq(contacts.id, tiv.customerId));
+        if (contact) buyerEmail = contact.email || "";
+      }
+      const buyerEmailForSubject = comp.etaxBuyerTestEmail || recipientEmailOverride || buyerEmail;
+
+      const subject = `[${dateStr}][${subjectPrefix}][${tiv.taxInvoiceNo}]${tiv.originalTaxInvoiceNo ? `[${tiv.originalTaxInvoiceNo}]` : ""}${buyerEmailForSubject ? `[${buyerEmailForSubject}]` : ""}`;
 
       const pdfFilename = `${tiv.taxInvoiceNo || "etax"}.pdf`;
 
