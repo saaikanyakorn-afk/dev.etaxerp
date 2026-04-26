@@ -6,7 +6,7 @@ import { eq, and, isNotNull, gte, lte, sql, desc } from "drizzle-orm";
 import { requireAuth } from "../route-middleware";
 import { generateEtaxXml, type EtaxInvoiceData, type EtaxLineItem } from "@shared/etax-xml";
 import { convertToPdfA3, getDocumentTypeFromInvoice } from "../etax-pdf-a3";
-import { generatePdfDirect } from "../pdf-react-generator";
+import { generatePdfMake } from "../pdf-pdfmake-generator";
 import { buildPdfDataById } from "../pdf-data-fetcher";
 
 function parseDateToBE(dateVal: string | Date | null | undefined): string {
@@ -420,7 +420,7 @@ export function registerEtaxRoutes(app: Express) {
       const xmlFileName = "ETDA-invoice.xml";
 
       const pdfOpts = await buildPdfDataById("tax_invoice", taxInvoiceId, printType);
-      const pdfBuffer = await generatePdfDirect(pdfOpts);
+      const pdfBuffer = await generatePdfMake(pdfOpts);
 
       const pdfA3Buffer = await convertToPdfA3(pdfBuffer, xml, xmlFileName, documentType);
 
@@ -494,10 +494,13 @@ export function registerEtaxRoutes(app: Express) {
 
       const xml = generateEtaxXml(data);
       const xmlFileName = "ETDA-invoice.xml";
+      console.log(`[eTax] buyerEmail in XML: "${data.buyerEmail}", recipientEmail: "${recipientEmail}"`);
 
       const pdfOpts = await buildPdfDataById("tax_invoice", taxInvoiceId, printType);
-      const pdfBuffer = await generatePdfDirect(pdfOpts);
+      const pdfBuffer = await generatePdfMake(pdfOpts);
+      console.log(`[eTax] pdfmake buffer: ${pdfBuffer.length} bytes`);
       const pdfA3Buffer = await convertToPdfA3(pdfBuffer, xml, xmlFileName, documentType);
+      console.log(`[eTax] PDF/A-3 buffer: ${pdfA3Buffer.length} bytes`);
 
       const dateStr = parseDateToBE(tiv.taxInvoiceDate);
 
