@@ -254,7 +254,8 @@ async function buildPdfDataFromDoc(
       const generatePayload = (await import("promptpay-qr")).default;
       const QRCode = (await import("qrcode")).default;
       const id = docSetting.promptpayId.replace(/[-\s]/g, "");
-      const totalAmount = parseFloat(String(doc.totalAmount || "0"));
+      const withholdingTax = parseFloat(String(doc.withholdingTax || "0"));
+      const totalAmount = parseFloat(String(doc.totalAmount || "0")) - withholdingTax;
       const payload = generatePayload(id, { amount: totalAmount > 0 ? totalAmount : undefined });
       promptpayQrBase64 = await QRCode.toDataURL(payload, { width: 200, margin: 1 });
     } catch {}
