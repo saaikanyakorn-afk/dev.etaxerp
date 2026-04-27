@@ -281,7 +281,8 @@ function buildDocDefinition(opts: GeneratePdfOptions): TDocumentDefinitions {
     if (settings.bankName) bankContent.push({ text: `ธนาคาร: ${settings.bankName}`, fontSize: 7, color: "#4b5563", alignment: "center", margin: [0, 1, 0, 0] });
     if (settings.bankAccountNumber) bankContent.push({ text: `เลขที่บัญชี: ${settings.bankAccountNumber}`, fontSize: 7, color: "#4b5563", alignment: "center", margin: [0, 1, 0, 0] });
     if (settings.bankAccountName) bankContent.push({ text: `ชื่อบัญชี: ${settings.bankAccountName}`, fontSize: 7, color: "#4b5563", alignment: "center", margin: [0, 1, 0, 0] });
-    if (totalAmount > 0) bankContent.push({ text: `จำนวนเงิน: ${fmtNum(totalAmount)} บาท`, fontSize: 7.5, bold: true, color: primary, alignment: "center", margin: [0, 3, 0, 0] });
+    const qrPayAmount = totalAmount - withholdingTax;
+    if (qrPayAmount > 0) bankContent.push({ text: `จำนวนเงิน: ${fmtNum(qrPayAmount)} บาท`, fontSize: 7.5, bold: true, color: primary, alignment: "center", margin: [0, 3, 0, 0] });
 
     const boxHeight = 105;
     const customerBox: Content = {

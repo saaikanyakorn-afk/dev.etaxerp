@@ -188,7 +188,7 @@ export function renderDocumentHtml(opts: GeneratePdfOptions): string {
         ${settings.bankName ? `<div>ธนาคาร: ${esc(settings.bankName)}</div>` : ""}
         ${settings.bankAccountNumber ? `<div>เลขที่บัญชี: ${esc(settings.bankAccountNumber)}</div>` : ""}
         ${settings.bankAccountName ? `<div>ชื่อบัญชี: ${esc(settings.bankAccountName)}</div>` : ""}
-        ${totalAmount > 0 ? `<div style="font-weight:600;font-size:10px;margin-top:4px;color:${primary}">จำนวนเงิน: ${fmt(totalAmount)} บาท</div>` : ""}
+        ${(totalAmount - withholdingTax) > 0 ? `<div style="font-weight:600;font-size:10px;margin-top:4px;color:${primary}">จำนวนเงิน: ${fmt(totalAmount - withholdingTax)} บาท</div>` : ""}
       </div>
     </div>
   ` : "";
