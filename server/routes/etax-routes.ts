@@ -309,7 +309,7 @@ export function registerEtaxRoutes(app: Express) {
         buyerBuildingNumber = contact.buildingNumber || "";
         buyerBranchId = (contact as any).branch || "00000";
         buyerPhone = contact.phone || "";
-        buyerEmail = tiv.contactEmail || contact.email || "";
+        buyerEmail = tiv.contactEmail || "";
         buyerDistrictCode = contact.districtCode || "";
         buyerSubdistrictCode = contact.subdistrictCode || "";
         buyerProvinceCode = contact.provinceCode || "";
@@ -454,6 +454,14 @@ export function registerEtaxRoutes(app: Express) {
       const timestampEmail = comp.etaxTimestampEmail || "csemail@etax.teda.th";
 
       const { tiv, data, documentType } = await buildEtaxDataFromInvoice(taxInvoiceId, companyId, printType);
+
+      const isValidEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+      if (!data.buyerEmail) {
+        return res.status(400).json({ message: "ไม่พบอีเมลลูกค้าในเอกสาร กรุณากรอกอีเมลลูกค้าในหน้าแก้ไขเอกสารก่อนส่ง e-Tax", errorCode: "MISSING_BUYER_EMAIL" });
+      }
+      if (!isValidEmail(data.buyerEmail)) {
+        return res.status(400).json({ message: `รูปแบบอีเมลลูกค้าไม่ถูกต้อง "${data.buyerEmail}" กรุณาแก้ไขในหน้าแก้ไขเอกสารก่อนส่ง e-Tax`, errorCode: "INVALID_BUYER_EMAIL" });
+      }
 
       const debugLogs: string[] = [];
       const dlog = (msg: string) => { console.log(msg); debugLogs.push(msg); };

@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useCompany } from "@/lib/company-context";
 import { useQueryClient } from "@tanstack/react-query";
-import { Send, Loader2, Mail, ChevronDown, ChevronUp, CheckCircle2 } from "lucide-react";
+import { Send, Loader2, Mail, ChevronDown, ChevronUp, CheckCircle2, AlertCircle } from "lucide-react";
 
 type FormType = "tax_invoice" | "tax_invoice_receipt" | "receipt";
 
@@ -34,6 +34,7 @@ export function EtaxSendDialog({ open, onOpenChange, taxInvoiceId, taxInvoiceNo,
   const [debugInfo, setDebugInfo] = useState<string[]>([]);
   const [showDebug, setShowDebug] = useState(false);
   const [sendSuccess, setSendSuccess] = useState(false);
+  const [errorAlert, setErrorAlert] = useState<string | null>(null);
 
   useEffect(() => {
     if (defaultPrintType) setFormType(defaultPrintType);
@@ -44,12 +45,14 @@ export function EtaxSendDialog({ open, onOpenChange, taxInvoiceId, taxInvoiceNo,
     setDebugInfo([]);
     setShowDebug(false);
     setSendSuccess(false);
+    setErrorAlert(null);
   }, [open, taxInvoiceId]);
 
   const handleSend = async () => {
     setLoading(true);
     setDebugInfo([]);
     setShowDebug(false);
+    setErrorAlert(null);
     try {
       const res = await fetch("/api/etax/send-email", {
         method: "POST",
@@ -66,7 +69,15 @@ export function EtaxSendDialog({ open, onOpenChange, taxInvoiceId, taxInvoiceNo,
         setDebugInfo(data.debugInfo);
         setShowDebug(true);
       }
-      if (!res.ok) throw new Error(data.message);
+      if (!res.ok) {
+        const emailErrorCodes = ["MISSING_BUYER_EMAIL", "INVALID_BUYER_EMAIL"];
+        if (emailErrorCodes.includes(data.errorCode)) {
+          setErrorAlert(data.message);
+        } else {
+          toast({ title: "ส่ง e-Tax ไม่สำเร็จ", description: data.message, variant: "destructive" });
+        }
+        return;
+      }
       setSendSuccess(true);
       queryClient.invalidateQueries({ queryKey: ["/api/tax-invoices"] });
       queryClient.invalidateQueries({ queryKey: ["/api/etax/sent-list"] });
@@ -114,6 +125,16 @@ export function EtaxSendDialog({ open, onOpenChange, taxInvoiceId, taxInvoiceNo,
               ))}
             </div>
           </div>
+
+          {errorAlert && (
+            <div className="flex items-start gap-2 bg-red-50 border border-red-300 rounded-lg p-3 text-sm text-red-700" data-testid="alert-etax-email-error">
+              <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="font-medium mb-0.5">ไม่สามารถส่ง e-Tax ได้</p>
+                <p>{errorAlert}</p>
+              </div>
+            </div>
+          )}
 
           {sendSuccess && (
             <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-lg p-3 text-sm text-green-700">
