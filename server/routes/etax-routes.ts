@@ -684,54 +684,27 @@ export function registerEtaxRoutes(app: Express) {
 
   app.get("/api/etax/debug-pdfa3/:invoiceId", requireAuth, async (req, res) => {
     try {
-      const invoiceId = parseInt(req.params.invoiceId);
-      const pdfData = await buildPdfDataById(invoiceId);
-      const pdfBuffer = await generatePdfMake(pdfData);
+      const taxInvoiceId = parseInt(req.params.invoiceId);
+      const [tivRow] = await db.select().from(taxInvoices).where(eq(taxInvoices.id, taxInvoiceId));
+      if (!tivRow) return res.status(404).json({ message: "ไม่พบ invoice" });
 
-      const tiv = pdfData.taxInvoice;
-      const xmlData: EtaxInvoiceData = {
-        invoiceNumber: tiv.invoiceNumber,
-        issueDate: tiv.invoiceDate ? String(tiv.invoiceDate) : new Date().toISOString().split("T")[0],
-        seller: {
-          taxId: pdfData.company.taxId || "",
-          branchCode: pdfData.company.branchCode || "00000",
-          name: pdfData.company.name,
-          addressLine: [pdfData.company.address || ""].filter(Boolean),
-          phone: pdfData.company.phone || "",
-          email: pdfData.company.email || "",
-        },
-        buyer: {
-          taxId: pdfData.contact?.taxId || "",
-          branchCode: pdfData.contact?.branchCode || "00000",
-          name: pdfData.contact?.name || "",
-          addressLine: [pdfData.contact?.address || ""].filter(Boolean),
-          phone: pdfData.contact?.phone || "",
-          email: pdfData.contact?.email || tiv.contactEmail || "",
-        },
-        lines: pdfData.items.map((it: any) => ({
-          description: it.name || it.description || "",
-          quantity: it.quantity ?? 1,
-          unitCode: "EA",
-          unitPrice: it.price ?? it.unitPrice ?? 0,
-          vatRate: it.vatRate ?? 7,
-          lineTotal: it.total ?? it.lineTotal ?? 0,
-        })),
-        totalBeforeVat: tiv.subtotal ?? 0,
-        vatAmount: tiv.vatAmount ?? 0,
-        grandTotal: tiv.total ?? 0,
-        currency: "THB",
-        documentType: tiv.isCreditNote ? "CreditNote" : tiv.isDebitNote ? "DebitNote" : "TaxInvoice",
-      };
-      const xmlContent = generateEtaxXml(xmlData);
-      const xmlFileName = `${tiv.invoiceNumber}.xml`;
-      const docType = getDocumentTypeFromInvoice(tiv);
-      const pdfA3 = await convertToPdfA3(pdfBuffer, xmlContent, xmlFileName, docType);
+      const companyId = tivRow.companyId;
+      const { tiv, data, documentType } = await buildEtaxDataFromInvoice(taxInvoiceId, companyId);
+
+      const xml = generateEtaxXml(data);
+      const xmlFileName = `${tiv.taxInvoiceNo || tiv.invoiceNumber || "etax"}.xml`;
+
+      const pdfOpts = await buildPdfDataById("tax_invoice", taxInvoiceId);
+      const pdfBuffer = await generatePdfMake(pdfOpts);
+      const pdfA3 = await convertToPdfA3(pdfBuffer, xml, xmlFileName, documentType);
+
+      console.log(`[PDF/A-3 debug] ${xmlFileName}: pdfmake=${pdfBuffer.length} → pdfa3=${pdfA3.length} bytes`);
 
       res.setHeader("Content-Type", "application/pdf");
-      res.setHeader("Content-Disposition", `attachment; filename="${tiv.invoiceNumber}-pdfa3-debug.pdf"`);
-      res.setHeader("X-XML-Filename", xmlFileName);
+      res.setHeader("Content-Disposition", `attachment; filename="${xmlFileName.replace(".xml", "-pdfa3-debug.pdf")}"`);
       res.send(pdfA3);
     } catch (err: any) {
+      console.error("[PDF/A-3 debug] error:", err.message);
       res.status(500).json({ message: err.message });
     }
   });
