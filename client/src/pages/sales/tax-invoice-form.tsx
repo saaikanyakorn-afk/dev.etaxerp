@@ -220,8 +220,6 @@ function EtaxButton({ taxInvoiceId, companyId, taxInvoiceNo }: { taxInvoiceId: n
           onOpenChange={setShowSendDialog}
           taxInvoiceId={taxInvoiceId}
           taxInvoiceNo={taxInvoiceNo || tivData?.taxInvoiceNo || ""}
-          isResend={isSent}
-          existingSentTo={isSent ? tivData?.etaxSentTo : undefined}
           defaultPrintType={etaxPrintType}
           onPrintTypeChange={(pt) => setEtaxPrintType(pt)}
         />

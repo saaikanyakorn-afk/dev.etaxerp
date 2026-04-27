@@ -136,7 +136,7 @@ export default function TaxInvoiceList() {
   const etaxEnabled = etaxSettings?.etaxEnabled === true;
 
   const [sendingEtaxId, setSendingEtaxId] = useState<number | null>(null);
-  const [etaxDialog, setEtaxDialog] = useState<{ open: boolean; invId: number; invNo: string; isResend: boolean; sentTo?: string }>({ open: false, invId: 0, invNo: "", isResend: false });
+  const [etaxDialog, setEtaxDialog] = useState<{ open: boolean; invId: number; invNo: string }>({ open: false, invId: 0, invNo: "" });
 
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => {
@@ -553,7 +553,7 @@ export default function TaxInvoiceList() {
                                 {etaxEnabled && !inv.etaxSentAt && (
                                   <DropdownMenuItem
                                     data-testid={`button-etax-send-${inv.id}`}
-                                    onClick={() => setEtaxDialog({ open: true, invId: inv.id, invNo: inv.taxInvoiceNo, isResend: false })}
+                                    onClick={() => setEtaxDialog({ open: true, invId: inv.id, invNo: inv.taxInvoiceNo })}
                                     className="flex gap-2 text-[var(--theme-primary)]"
                                   >
                                     <Send className="h-3.5 w-3.5" />
@@ -568,7 +568,7 @@ export default function TaxInvoiceList() {
                                     </DropdownMenuItem>
                                     <DropdownMenuItem
                                       data-testid={`button-etax-resend-${inv.id}`}
-                                      onClick={() => setEtaxDialog({ open: true, invId: inv.id, invNo: inv.taxInvoiceNo, isResend: true, sentTo: inv.etaxSentTo })}
+                                      onClick={() => setEtaxDialog({ open: true, invId: inv.id, invNo: inv.taxInvoiceNo })}
                                       className="flex gap-2 text-amber-600"
                                     >
                                       {sendingEtaxId === inv.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
@@ -689,8 +689,6 @@ export default function TaxInvoiceList() {
         onOpenChange={(open) => setEtaxDialog(prev => ({ ...prev, open }))}
         taxInvoiceId={etaxDialog.invId}
         taxInvoiceNo={etaxDialog.invNo}
-        isResend={etaxDialog.isResend}
-        existingSentTo={etaxDialog.sentTo}
       />
     </Layout>
   );

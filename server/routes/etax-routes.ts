@@ -434,49 +434,10 @@ export function registerEtaxRoutes(app: Express) {
     }
   });
 
-  app.get("/api/etax/buyer-email", requireAuth, async (req, res) => {
-    try {
-      const user = req.user as any;
-      const taxInvoiceId = Number(req.query.taxInvoiceId);
-      const companyId = Number(req.query.companyId);
-      if (!taxInvoiceId || !companyId) return res.status(400).json({ message: "taxInvoiceId and companyId required" });
-
-      const [comp] = await db.select().from(companies).where(eq(companies.id, companyId));
-      if (!comp || !checkCompanyAccess(comp, user)) return res.status(403).json({ message: "ไม่มีสิทธิ์" });
-
-      const [tiv] = await db.select().from(taxInvoices).where(
-        and(eq(taxInvoices.id, taxInvoiceId), eq(taxInvoices.companyId, companyId))
-      );
-      if (!tiv) return res.status(404).json({ message: "ไม่พบใบกำกับภาษี" });
-
-      let email = (tiv as any).contactEmail || "";
-      let contactId: number | null = tiv.customerId || null;
-      let contactName: string = tiv.customerName || "";
-      if (!email && tiv.customerId) {
-        const [contact] = await db.select().from(contacts).where(eq(contacts.id, tiv.customerId));
-        if (contact) {
-          email = contact.email || "";
-          contactName = contact.name || tiv.customerName || "";
-        }
-      }
-
-      const testEmail = comp.etaxBuyerTestEmail || "";
-      res.json({
-        email: testEmail || email,
-        isTestEmail: !!testEmail,
-        hasEmail: !!(testEmail || email),
-        contactId,
-        contactName,
-      });
-    } catch (err: any) {
-      res.status(500).json({ message: err.message });
-    }
-  });
-
   app.post("/api/etax/send-email", requireAuth, async (req, res) => {
     try {
       const user = req.user as any;
-      const { taxInvoiceId, companyId, recipientEmailOverride, printType: rawPrintType } = req.body;
+      const { taxInvoiceId, companyId, printType: rawPrintType } = req.body;
       if (!taxInvoiceId || !companyId) return res.status(400).json({ message: "taxInvoiceId and companyId are required" });
       const validPrintTypes = ["tax_invoice", "tax_invoice_receipt", "receipt"];
       const printType = validPrintTypes.includes(rawPrintType) ? rawPrintType : undefined;
@@ -490,33 +451,16 @@ export function registerEtaxRoutes(app: Express) {
         return res.status(400).json({ message: "e-Tax Invoice ยังไม่เปิดใช้งาน" });
       }
 
-      const { tiv, data, documentType } = await buildEtaxDataFromInvoice(taxInvoiceId, companyId, printType);
-
-      let buyerEmail = (tiv as any).contactEmail || "";
-      if (!buyerEmail && tiv.customerId) {
-        const [contact] = await db.select().from(contacts).where(eq(contacts.id, tiv.customerId));
-        if (contact) buyerEmail = contact.email || "";
-      }
-
       const timestampEmail = comp.etaxTimestampEmail || "csemail@etax.teda.th";
-      const rawRecipient = comp.etaxBuyerTestEmail || recipientEmailOverride || buyerEmail;
-      if (!rawRecipient) {
-        return res.status(400).json({ message: "ไม่พบอีเมลผู้รับ กรุณาระบุอีเมลผู้ซื้อ" });
-      }
-      if (rawRecipient.toLowerCase() === timestampEmail.toLowerCase()) {
-        return res.status(400).json({
-          message: `อีเมลผู้รับ (${rawRecipient}) ตรงกับ Timestamp Email — กรุณาแก้ไข "อีเมลทดสอบผู้ซื้อ" ในหน้าตั้งค่า e-Tax ให้เป็นอีเมลผู้ซื้อจริง หรือล้างค่าออก`,
-          debugInfo: [`[CONFIG ERROR] etaxBuyerTestEmail="${rawRecipient}" ตรงกับ etaxTimestampEmail="${timestampEmail}" — ไม่สามารถส่งให้ csemail เป็น TO ได้`],
-        });
-      }
-      const recipientEmail = rawRecipient;
+
+      const { tiv, data, documentType } = await buildEtaxDataFromInvoice(taxInvoiceId, companyId, printType);
 
       const debugLogs: string[] = [];
       const dlog = (msg: string) => { console.log(msg); debugLogs.push(msg); };
 
       const xml = generateEtaxXml(data);
       const xmlFileName = "ETDA-invoice.xml";
-      dlog(`[XML] buyerEmail: "${data.buyerEmail}" | recipientEmail: "${recipientEmail}"`);
+      dlog(`[XML] taxInvoiceNo: "${tiv.taxInvoiceNo}" | to: "${timestampEmail}"`);
 
       const pdfOpts = await buildPdfDataById("tax_invoice", taxInvoiceId, printType);
       const pdfBuffer = await generatePdfMake(pdfOpts);
@@ -535,11 +479,6 @@ export function registerEtaxRoutes(app: Express) {
 
       const pdfFilename = `${tiv.taxInvoiceNo || "etax"}.pdf`;
 
-      const ccEmails: string[] = [];
-      if (comp.etaxTimestampEmail) {
-        ccEmails.push(comp.etaxTimestampEmail);
-      }
-
       const DOC_LABEL: Record<string, string> = {
         "388": "ใบกำกับภาษี", "T02": "ใบแจ้งหนี้/ใบกำกับภาษี",
         "T03": "ใบเสร็จรับเงิน/ใบกำกับภาษี", "T04": "ใบส่งของ/ใบกำกับภาษี",
@@ -550,12 +489,11 @@ export function registerEtaxRoutes(app: Express) {
       const htmlBody = `
         <div style="font-family: 'Sarabun', Arial, sans-serif; max-width: 600px; margin: 0 auto;">
           <div style="background: #fb9678; color: white; padding: 20px; border-radius: 8px 8px 0 0;">
-            <h2 style="margin: 0;">e-Tax Invoice by Email</h2>
+            <h2 style="margin: 0;">e-Tax Invoice Submission</h2>
             <p style="margin: 5px 0 0; opacity: 0.9;">${comp.name}</p>
           </div>
           <div style="padding: 20px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
-            <p>เรียน ผู้รับ${docTypeLabel},</p>
-            <p>${comp.name} ได้ส่ง${docTypeLabel}อิเล็กทรอนิกส์มาให้ท่าน</p>
+            <p>ส่ง${docTypeLabel}อิเล็กทรอนิกส์เพื่อประทับเวลา</p>
             <table style="width: 100%; border-collapse: collapse; margin: 15px 0;">
               <tr><td style="padding: 6px 0; color: #666;">ประเภทเอกสาร:</td><td style="padding: 6px 0; font-weight: 600;">${docTypeLabel}</td></tr>
               <tr><td style="padding: 6px 0; color: #666;">เลขที่เอกสาร:</td><td style="padding: 6px 0; font-weight: 600;">${tiv.taxInvoiceNo}</td></tr>
@@ -588,15 +526,14 @@ export function registerEtaxRoutes(app: Express) {
         const transporter = nodemailer.default.createTransport(smtpConfig);
         const mailOptions: any = {
           from: `"${comp.name}" <${comp.smtpUser}>`,
-          to: recipientEmail,
+          to: timestampEmail,
           subject,
           html: htmlBody,
           attachments: [{ filename: pdfFilename, content: pdfA3Buffer, contentType: "application/pdf" }],
         };
-        if (ccEmails.length > 0) mailOptions.cc = ccEmails.join(", ");
         const info = await transporter.sendMail(mailOptions);
         messageId = info.messageId || null;
-        dlog(`[EMAIL] SMTP sent | to: ${recipientEmail} | cc: ${ccEmails.join(",")} | msgId: ${messageId}`);
+        dlog(`[EMAIL] SMTP sent | to: ${timestampEmail} | msgId: ${messageId}`);
       } else {
         if (!process.env.RESEND_API_KEY) {
           return res.status(400).json({ message: "ยังไม่ได้ตั้งค่า RESEND_API_KEY" });
@@ -608,19 +545,11 @@ export function registerEtaxRoutes(app: Express) {
         const fromEmail = rawFrom.includes("<") ? rawFrom : (isTestEmail ? rawFrom : `${comp.name.slice(0, 200)} <${rawFrom}>`);
         const emailPayload: any = {
           from: fromEmail,
-          to: [recipientEmail],
+          to: [timestampEmail],
           subject,
           html: htmlBody,
           attachments: [{ filename: pdfFilename, content: pdfA3Buffer.toString("base64") }],
         };
-        if (ccEmails.length > 0) {
-          if (isTestEmail) {
-            const ownerEmail = ccEmails.find(e => e === recipientEmail);
-            if (ownerEmail) emailPayload.cc = [ownerEmail];
-          } else {
-            emailPayload.cc = ccEmails;
-          }
-        }
         const sendResult = await resend.emails.send(emailPayload) as any;
         if (sendResult?.error || !sendResult?.data?.id) {
           const errMsg = sendResult?.error?.message || "ส่งอีเมลไม่สำเร็จ (Resend error)";
@@ -628,21 +557,20 @@ export function registerEtaxRoutes(app: Express) {
           return res.status(500).json({ message: errMsg, debugInfo: debugLogs });
         }
         messageId = sendResult.data.id;
-        dlog(`[EMAIL] Resend sent | to: ${recipientEmail} | cc: ${ccEmails.join(",")} | msgId: ${messageId}`);
+        dlog(`[EMAIL] Resend sent | to: ${timestampEmail} | msgId: ${messageId}`);
       }
 
       await db.update(taxInvoices).set({
         etaxSentAt: new Date(),
-        etaxSentTo: recipientEmail,
-        etaxSentCc: ccEmails.length > 0 ? ccEmails.join(", ") : null,
+        etaxSentTo: timestampEmail,
+        etaxSentCc: null,
         etaxMessageId: messageId,
       }).where(eq(taxInvoices.id, taxInvoiceId));
 
       res.json({
         success: true,
         provider,
-        to: recipientEmail,
-        cc: ccEmails,
+        to: timestampEmail,
         subject,
         messageId,
         debugInfo: debugLogs,

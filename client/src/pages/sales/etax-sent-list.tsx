@@ -43,7 +43,7 @@ export default function EtaxSentList() {
   const [customTo, setCustomTo] = useState("");
   const [useCustomRange, setUseCustomRange] = useState(false);
   const [searchText, setSearchText] = useState("");
-  const [resendDialog, setResendDialog] = useState<{ open: boolean; id: number; no: string; sentTo?: string }>({ open: false, id: 0, no: "" });
+  const [resendDialog, setResendDialog] = useState<{ open: boolean; id: number; no: string }>({ open: false, id: 0, no: "" });
 
   const monthRange = getMonthRange(monthOffset);
   const fromDate = useCustomRange ? customFrom : monthRange.fromDate;
@@ -292,7 +292,7 @@ export default function EtaxSentList() {
                             variant="ghost"
                             size="sm"
                             className="h-7 px-2 text-amber-600 hover:text-amber-700 hover:bg-amber-50"
-                            onClick={() => setResendDialog({ open: true, id: row.id, no: row.taxInvoiceNo, sentTo: row.etaxSentTo })}
+                            onClick={() => setResendDialog({ open: true, id: row.id, no: row.taxInvoiceNo })}
                             data-testid={`btn-resend-${row.id}`}
                           >
                             <Send className="h-3.5 w-3.5 mr-1" />
@@ -320,8 +320,6 @@ export default function EtaxSentList() {
         onOpenChange={(open) => setResendDialog(prev => ({ ...prev, open }))}
         taxInvoiceId={resendDialog.id}
         taxInvoiceNo={resendDialog.no}
-        isResend={true}
-        existingSentTo={resendDialog.sentTo}
       />
     </Layout>
   );
