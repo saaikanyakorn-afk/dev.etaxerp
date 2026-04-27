@@ -42,7 +42,7 @@ export async function convertToPdfA3(
   fileSpecDict.set(PDFName.of("F"), PDFString.of(xmlFileName));
   fileSpecDict.set(PDFName.of("UF"), PDFHexString.fromText(xmlFileName));
   fileSpecDict.set(PDFName.of("EF"), efDict);
-  fileSpecDict.set(PDFName.of("AFRelationship"), PDFName.of("Alternative"));
+  fileSpecDict.set(PDFName.of("AFRelationship"), PDFName.of("Source"));
   fileSpecDict.set(PDFName.of("Desc"), PDFString.of("Tax Invoice XML Data"));
 
   const fileSpecRef = context.register(fileSpecDict);
@@ -103,7 +103,7 @@ export async function convertToPdfA3(
   }
 
   const resultBytes = await pdfDoc.save();
-  console.log(`[PDF/A-3] Built PDF/A-3b: ${pdfBuffer.length} → ${resultBytes.length} bytes`);
+  console.log(`[PDF/A-3] Built PDF/A-3u: ${pdfBuffer.length} → ${resultBytes.length} bytes`);
   return Buffer.from(resultBytes);
 }
 
