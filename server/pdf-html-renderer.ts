@@ -257,7 +257,7 @@ export function renderDocumentHtml(opts: GeneratePdfOptions): string {
 
   const thaiTextBoxHtml = `
     <div style="border:1px solid ${theme.light || "#e5e7eb"};border-radius:4px;-webkit-border-radius:4px;padding:8px;background:${theme.bg || "#fafafa"};text-align:center;font-size:10px;font-weight:600;color:#374151;margin-bottom:8px">
-      ${isForeignCurrency ? `${fmt(totalAmount)} ${currencyCode}` : esc(numberToThaiText(totalAmount))}
+      ${isForeignCurrency ? `${fmt(totalAmount - withholdingTax)} ${currencyCode}` : esc(numberToThaiText(totalAmount - withholdingTax))}
     </div>
   `;
 
@@ -291,7 +291,7 @@ export function renderDocumentHtml(opts: GeneratePdfOptions): string {
           <div>ยอดเงินสุทธิ${isForeignCurrency ? ` (${currencyCode})` : ""}</div>
           <div style="font-size:8px;font-weight:normal;opacity:0.8">Grand Total</div>
         </div>
-        <span style="align-self:center">${fmt(totalAmount)}</span>
+        <span style="align-self:center">${fmt(totalAmount - withholdingTax)}</span>
       </div>
     </div>
   `;

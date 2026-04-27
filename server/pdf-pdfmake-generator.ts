@@ -384,7 +384,8 @@ function buildDocDefinition(opts: GeneratePdfOptions): TDocumentDefinitions {
     margin: [0, 0, 0, 8],
   });
 
-  const thaiAmountText = isForeignCurrency ? `${fmtNum(totalAmount)} ${currencyCode}` : numberToThaiText(totalAmount);
+  const netPayAmount = subtotal + vatAmount - withholdingTax;
+  const thaiAmountText = isForeignCurrency ? `${fmtNum(netPayAmount)} ${currencyCode}` : numberToThaiText(netPayAmount);
 
   const summaryBody: Content[][] = [];
   summaryBody.push([
@@ -413,7 +414,7 @@ function buildDocDefinition(opts: GeneratePdfOptions): TDocumentDefinitions {
   }
   summaryBody.push([
     { text: [{ text: `ยอดเงินสุทธิ ${isForeignCurrency ? `(${currencyCode})` : ""}\n`, fontSize: 9, bold: true, color: "white" }, { text: "Grand Total", fontSize: 6, color: "white" }], fillColor: primary },
-    { text: fmtNum(totalAmount), fontSize: 9, bold: true, color: "white", alignment: "right", fillColor: primary },
+    { text: fmtNum(netPayAmount), fontSize: 9, bold: true, color: "white", alignment: "right", fillColor: primary },
   ]);
 
   const notesStack: Content[] = [];
