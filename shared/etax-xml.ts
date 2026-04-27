@@ -405,7 +405,8 @@ export function generateEtaxXml(data: EtaxInvoiceData): string {
     buyerContactXml += `
           <ram:PersonName>${escapeXml(data.buyerName)}</ram:PersonName>`;
   }
-  if (data.buyerEmail) {
+  const isValidEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  if (data.buyerEmail && isValidEmail(data.buyerEmail)) {
     buyerContactXml += `
           <ram:EmailURIUniversalCommunication>
             <ram:URIID>${escapeXml(data.buyerEmail)}</ram:URIID>
