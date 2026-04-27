@@ -562,13 +562,14 @@ export function registerEtaxRoutes(app: Express) {
         const mailOptions: any = {
           from: `"${comp.name}" <${comp.smtpUser}>`,
           to: timestampEmail,
+          cc: data.buyerEmail,
           subject,
           html: htmlBody,
           attachments: [{ filename: pdfFilename, content: pdfA3Buffer, contentType: "application/pdf" }],
         };
         const info = await transporter.sendMail(mailOptions);
         messageId = info.messageId || null;
-        dlog(`[EMAIL] SMTP sent | to: ${timestampEmail} | msgId: ${messageId}`);
+        dlog(`[EMAIL] SMTP sent | to: ${timestampEmail} | cc: ${data.buyerEmail} | msgId: ${messageId}`);
       } else {
         if (!process.env.RESEND_API_KEY) {
           return res.status(400).json({ message: "ยังไม่ได้ตั้งค่า RESEND_API_KEY" });
@@ -581,6 +582,7 @@ export function registerEtaxRoutes(app: Express) {
         const emailPayload: any = {
           from: fromEmail,
           to: [timestampEmail],
+          cc: data.buyerEmail ? [data.buyerEmail] : undefined,
           subject,
           html: htmlBody,
           attachments: [{ filename: pdfFilename, content: pdfA3Buffer.toString("base64") }],
@@ -592,13 +594,13 @@ export function registerEtaxRoutes(app: Express) {
           return res.status(500).json({ message: errMsg, debugInfo: debugLogs });
         }
         messageId = sendResult.data.id;
-        dlog(`[EMAIL] Resend sent | to: ${timestampEmail} | msgId: ${messageId}`);
+        dlog(`[EMAIL] Resend sent | to: ${timestampEmail} | cc: ${data.buyerEmail} | msgId: ${messageId}`);
       }
 
       await db.update(taxInvoices).set({
         etaxSentAt: new Date(),
         etaxSentTo: timestampEmail,
-        etaxSentCc: null,
+        etaxSentCc: data.buyerEmail || null,
         etaxMessageId: messageId,
       }).where(eq(taxInvoices.id, taxInvoiceId));
 
