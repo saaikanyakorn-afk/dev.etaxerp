@@ -12,7 +12,7 @@ export async function convertToPdfA3(
   const iccPath = path.join(process.cwd(), "server", "assets", "sRGB2014.icc");
   const iccProfile = loadSrgbIccProfile(iccPath);
 
-  const pdfDoc = await PDFDocument.load(pdfBuffer);
+  const pdfDoc = await PDFDocument.load(pdfBuffer, { ignoreEncryption: true });
   const context = pdfDoc.context;
   const catalog = pdfDoc.catalog;
 
@@ -20,19 +20,21 @@ export async function convertToPdfA3(
   const now = new Date();
   const pdfDateStr = formatPdfDate(now);
 
+  // ── 1. Embedded XML file stream (EmbeddedFile) ──────────────────────────────
+  // IMPORTANT: context.stream() requires a plain object {string: PDFObject}, NOT Map
   const paramsDict = context.obj({});
   paramsDict.set(PDFName.of("Size"), context.obj(xmlBytes.length));
   paramsDict.set(PDFName.of("CreationDate"), PDFString.of(pdfDateStr));
   paramsDict.set(PDFName.of("ModDate"), PDFString.of(pdfDateStr));
 
-  const fileStreamDict = new Map<PDFName, any>();
-  fileStreamDict.set(PDFName.of("Type"), PDFName.of("EmbeddedFile"));
-  fileStreamDict.set(PDFName.of("Subtype"), PDFName.of("application#2Fxml"));
-  fileStreamDict.set(PDFName.of("Params"), paramsDict);
-
-  const fileStream = context.stream(xmlBytes, fileStreamDict);
+  const fileStream = context.stream(new Uint8Array(xmlBytes), {
+    Type: PDFName.of("EmbeddedFile"),
+    Subtype: PDFName.of("application#2Fxml"),
+    Params: paramsDict,
+  });
   const fileStreamRef = context.register(fileStream);
 
+  // ── 2. FileSpec dictionary ───────────────────────────────────────────────────
   const efDict = context.obj({});
   efDict.set(PDFName.of("F"), fileStreamRef);
   efDict.set(PDFName.of("UF"), fileStreamRef);
@@ -44,23 +46,27 @@ export async function convertToPdfA3(
   fileSpecDict.set(PDFName.of("EF"), efDict);
   fileSpecDict.set(PDFName.of("AFRelationship"), PDFName.of("Source"));
   fileSpecDict.set(PDFName.of("Desc"), PDFString.of("Tax Invoice XML Data"));
-
   const fileSpecRef = context.register(fileSpecDict);
 
-  const namesDict = context.obj({});
+  // ── 3. Names tree: EmbeddedFiles ────────────────────────────────────────────
   const embeddedFilesArray = PDFArray.withContext(context);
   embeddedFilesArray.push(PDFHexString.fromText(xmlFileName));
   embeddedFilesArray.push(fileSpecRef);
+
+  const namesDict = context.obj({});
   namesDict.set(PDFName.of("Names"), embeddedFilesArray);
+  const namesDictRef = context.register(namesDict);
 
   const nameTreeDict = context.obj({});
-  nameTreeDict.set(PDFName.of("EmbeddedFiles"), context.register(namesDict));
+  nameTreeDict.set(PDFName.of("EmbeddedFiles"), namesDictRef);
   catalog.set(PDFName.of("Names"), context.register(nameTreeDict));
 
+  // ── 4. AF array on Catalog ──────────────────────────────────────────────────
   const afArray = PDFArray.withContext(context);
   afArray.push(fileSpecRef);
   catalog.set(PDFName.of("AF"), afArray);
 
+  // ── 5. Catalog metadata ─────────────────────────────────────────────────────
   catalog.set(PDFName.of("MarkInfo"), context.obj({ Marked: true }));
   catalog.set(PDFName.of("Lang"), PDFString.of("th-TH"));
 
@@ -68,24 +74,24 @@ export async function convertToPdfA3(
   viewerPrefs.set(PDFName.of("DisplayDocTitle"), context.obj(true));
   catalog.set(PDFName.of("ViewerPreferences"), viewerPrefs);
 
+  // ── 6. XMP Metadata stream ──────────────────────────────────────────────────
   const xmpXml = generateEtaxXmpMetadata({ documentType, xmlFileName, creationDate: now });
-  const xmpBytes = Buffer.from(xmpXml, "utf-8");
+  const xmpBytes = new Uint8Array(Buffer.from(xmpXml, "utf-8"));
 
-  const xmpStreamDict = new Map<PDFName, any>();
-  xmpStreamDict.set(PDFName.of("Type"), PDFName.of("Metadata"));
-  xmpStreamDict.set(PDFName.of("Subtype"), PDFName.of("XML"));
-  xmpStreamDict.set(PDFName.of("Length"), context.obj(xmpBytes.length));
-
-  const xmpStream = context.stream(xmpBytes, xmpStreamDict);
+  const xmpStream = context.stream(xmpBytes, {
+    Type: PDFName.of("Metadata"),
+    Subtype: PDFName.of("XML"),
+  });
   const xmpStreamRef = context.register(xmpStream);
   catalog.set(PDFName.of("Metadata"), xmpStreamRef);
 
-  const iccStreamDict = new Map<PDFName, any>();
-  iccStreamDict.set(PDFName.of("N"), context.obj(3));
-  iccStreamDict.set(PDFName.of("Length"), context.obj(iccProfile.length));
-  const iccStream = context.stream(iccProfile, iccStreamDict);
+  // ── 7. ICC Profile stream ───────────────────────────────────────────────────
+  const iccStream = context.stream(iccProfile, {
+    N: context.obj(3),
+  });
   const iccStreamRef = context.register(iccStream);
 
+  // ── 8. OutputIntent ─────────────────────────────────────────────────────────
   const outputIntentDict = context.obj({});
   outputIntentDict.set(PDFName.of("Type"), PDFName.of("OutputIntent"));
   outputIntentDict.set(PDFName.of("S"), PDFName.of("GTS_PDFA3"));
@@ -93,14 +99,29 @@ export async function convertToPdfA3(
   outputIntentDict.set(PDFName.of("RegistryName"), PDFString.of("http://www.color.org"));
   outputIntentDict.set(PDFName.of("Info"), PDFString.of("sRGB IEC61966-2.1"));
   outputIntentDict.set(PDFName.of("DestOutputProfile"), iccStreamRef);
-
   const outputIntentRef = context.register(outputIntentDict);
+
   const outputIntentsArray = PDFArray.withContext(context);
   outputIntentsArray.push(outputIntentRef);
   catalog.set(PDFName.of("OutputIntents"), outputIntentsArray);
 
+  // ── 9. Fix transparency on all pages (ISO 19005-3:2012 Clause 6.2.10) ───────
+  // pdfmake pages use ExtGState with alpha (CA/ca) — add Group/CS so veraPDF passes
+  for (const page of pdfDoc.getPages()) {
+    const pageDict = page.node;
+    if (!pageDict.has(PDFName.of("Group"))) {
+      const groupDict = context.obj({});
+      groupDict.set(PDFName.of("Type"), PDFName.of("Group"));
+      groupDict.set(PDFName.of("S"), PDFName.of("Transparency"));
+      groupDict.set(PDFName.of("CS"), PDFName.of("DeviceRGB"));
+      groupDict.set(PDFName.of("I"), context.obj(false));
+      groupDict.set(PDFName.of("K"), context.obj(false));
+      pageDict.set(PDFName.of("Group"), groupDict);
+    }
+  }
+
   const resultBytes = await pdfDoc.save({ useObjectStreams: false });
-  console.log(`[PDF/A-3] Built PDF/A-3u: ${pdfBuffer.length} → ${resultBytes.length} bytes`);
+  console.log(`[PDF/A-3] Built PDF/A-3u: ${pdfBuffer.length} → ${resultBytes.length} bytes, xml=${xmlBytes.length}B, icc=${iccProfile.length}B`);
   return Buffer.from(resultBytes);
 }
 
@@ -124,9 +145,12 @@ function loadSrgbIccProfile(iccPath: string): Uint8Array {
         console.log(`[PDF/A-3] Loaded ICC profile: ${data.length} bytes`);
         return data;
       }
+      console.warn(`[PDF/A-3] ICC profile invalid sig="${sig}" size=${data.length}`);
     }
-  } catch {}
-  console.warn("[PDF/A-3] ICC profile not found, generating minimal sRGB profile");
+  } catch (e) {
+    console.warn(`[PDF/A-3] ICC load error: ${e}`);
+  }
+  console.warn("[PDF/A-3] Using built-in minimal sRGB ICC profile");
   return generateMinimalSrgbIcc();
 }
 
