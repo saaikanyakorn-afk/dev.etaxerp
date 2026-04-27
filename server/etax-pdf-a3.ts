@@ -81,14 +81,8 @@ export async function convertToPdfA3(
   const iccPath = path.join(process.cwd(), "server", "assets", "sRGB2014.icc");
   const iccProfile = loadSrgbIccProfile(iccPath);
 
-  let pdfABuffer: Buffer;
-  try {
-    pdfABuffer = await convertToPdfA3WithGhostscript(pdfBuffer, iccPath);
-    console.log(`[PDF/A-3] Ghostscript conversion OK: ${pdfBuffer.length} → ${pdfABuffer.length} bytes`);
-  } catch (err: any) {
-    console.error(`[PDF/A-3] Ghostscript failed, building PDF/A-3 manually: ${err.message}`);
-    pdfABuffer = pdfBuffer;
-  }
+  const pdfABuffer = await convertToPdfA3WithGhostscript(pdfBuffer, iccPath);
+  console.log(`[PDF/A-3] Ghostscript conversion OK: ${pdfBuffer.length} → ${pdfABuffer.length} bytes`);
 
   const pdfDoc = await PDFDocument.load(pdfABuffer);
   const context = pdfDoc.context;
