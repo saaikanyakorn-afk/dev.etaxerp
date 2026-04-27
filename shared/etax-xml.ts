@@ -530,7 +530,7 @@ export function generateEtaxXmpMetadata(data: {
       xmlns:pdfaid="http://www.aiim.org/pdfa/ns/id/">
       <dc:format>application/pdf</dc:format>
       <pdfaid:part>3</pdfaid:part>
-      <pdfaid:conformance>U</pdfaid:conformance>
+      <pdfaid:conformance>B</pdfaid:conformance>
     </rdf:Description>
     <rdf:Description rdf:about=""
       xmlns:pdfaExtension="http://www.aiim.org/pdfa/ns/extension/"

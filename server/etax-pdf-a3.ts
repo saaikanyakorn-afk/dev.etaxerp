@@ -1,76 +1,7 @@
-import { PDFDocument, PDFName, PDFString, PDFArray, PDFHexString, PDFDict, PDFStream } from "pdf-lib";
+import { PDFDocument, PDFName, PDFString, PDFArray, PDFHexString } from "pdf-lib";
 import { generateEtaxXmpMetadata } from "@shared/etax-xml";
-import { execFile } from "child_process";
 import * as fs from "fs";
 import * as path from "path";
-import * as os from "os";
-
-async function convertToPdfA3WithGhostscript(
-  pdfBuffer: Buffer,
-  iccPath: string
-): Promise<Buffer> {
-  const tmpDir = os.tmpdir();
-  const ts = Date.now();
-  const inputPath = path.join(tmpDir, `gs_input_${ts}.pdf`);
-  const outputPath = path.join(tmpDir, `gs_output_${ts}.pdf`);
-
-  fs.writeFileSync(inputPath, pdfBuffer);
-
-  const pdfaDefPs = path.join(tmpDir, `PDFA_def_${ts}.ps`);
-  fs.writeFileSync(pdfaDefPs, `
-% PDF/A-3 definition for Ghostscript
-/ICCProfile (${iccPath.replace(/\\/g, "/")}) def
-[
-  /Title (e-Tax Invoice)
-  /DOCINFO pdfmark
-[
-  /ICCProfile ICCProfile
-  /OutputCondition (sRGB IEC61966-2.1)
-  /OutputConditionIdentifier (sRGB IEC61966-2.1)
-  /RegistryName (http://www.color.org)
-  /Info (sRGB IEC61966-2.1)
-  /OutputIntents pdfmark
-`);
-
-  return new Promise<Buffer>((resolve, reject) => {
-    const args = [
-      "-dPDFA=3",
-      "-dBATCH",
-      "-dNOPAUSE",
-      "-dNOOUTERSAVE",
-      "-dPDFACompatibilityPolicy=1",
-      "-dCompressFonts=true",
-      "-dSubsetFonts=true",
-      "-dEmbedAllFonts=true",
-      "-sColorConversionStrategy=UseDeviceIndependentColor",
-      "-sDEVICE=pdfwrite",
-      "-dAutoRotatePages=/None",
-      `-sOutputFile=${outputPath}`,
-      pdfaDefPs,
-      inputPath,
-    ];
-
-    execFile("gs", args, { timeout: 60000, maxBuffer: 50 * 1024 * 1024 }, (error, _stdout, stderr) => {
-      try { fs.unlinkSync(inputPath); } catch {}
-      try { fs.unlinkSync(pdfaDefPs); } catch {}
-
-      if (error) {
-        try { fs.unlinkSync(outputPath); } catch {}
-        console.error("[GS] Ghostscript PDF/A-3 conversion failed:", stderr);
-        reject(new Error(`Ghostscript PDF/A-3 conversion failed: ${error.message}`));
-        return;
-      }
-
-      try {
-        const result = fs.readFileSync(outputPath);
-        fs.unlinkSync(outputPath);
-        resolve(result);
-      } catch (readErr: any) {
-        reject(new Error(`Failed to read GS output: ${readErr.message}`));
-      }
-    });
-  });
-}
 
 export async function convertToPdfA3(
   pdfBuffer: Buffer,
@@ -81,10 +12,7 @@ export async function convertToPdfA3(
   const iccPath = path.join(process.cwd(), "server", "assets", "sRGB2014.icc");
   const iccProfile = loadSrgbIccProfile(iccPath);
 
-  const pdfABuffer = await convertToPdfA3WithGhostscript(pdfBuffer, iccPath);
-  console.log(`[PDF/A-3] Ghostscript conversion OK: ${pdfBuffer.length} → ${pdfABuffer.length} bytes`);
-
-  const pdfDoc = await PDFDocument.load(pdfABuffer);
+  const pdfDoc = await PDFDocument.load(pdfBuffer);
   const context = pdfDoc.context;
   const catalog = pdfDoc.catalog;
 
@@ -156,7 +84,7 @@ export async function convertToPdfA3(
   if (!existingIntents) {
     const outputIntentDict = context.obj({});
     outputIntentDict.set(PDFName.of("Type"), PDFName.of("OutputIntent"));
-    outputIntentDict.set(PDFName.of("S"), PDFName.of("GTS_PDFA1"));
+    outputIntentDict.set(PDFName.of("S"), PDFName.of("GTS_PDFA3"));
     outputIntentDict.set(PDFName.of("OutputConditionIdentifier"), PDFString.of("sRGB IEC61966-2.1"));
     outputIntentDict.set(PDFName.of("RegistryName"), PDFString.of("http://www.color.org"));
     outputIntentDict.set(PDFName.of("Info"), PDFString.of("sRGB IEC61966-2.1"));
@@ -175,6 +103,7 @@ export async function convertToPdfA3(
   }
 
   const resultBytes = await pdfDoc.save();
+  console.log(`[PDF/A-3] Built PDF/A-3b: ${pdfBuffer.length} → ${resultBytes.length} bytes`);
   return Buffer.from(resultBytes);
 }
 
