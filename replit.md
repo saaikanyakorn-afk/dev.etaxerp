@@ -346,6 +346,51 @@ VALUES ('vXXX', 'What changed', 'alter_column|add_column|data_migration', 'etaxe
 
 ## MANDATORY RULES — VIOLATIONS WILL BREAK PRODUCTION
 
+### Rule 0a: No Fallback on Production Code (ABSOLUTE)
+**Taught by พี่ช้าง — 2026-04-27. Also enforced via `RULE_NO_FALLBACK` in system_config (printed every server startup).**
+
+**NEVER use `|| default` fallback on production code.** This includes:
+- `const x = value || "default"` — if `value` is unexpected, code silently uses wrong default
+- `someMap[key] || "fallback"` — if `key` is unknown, code moves on without anyone knowing
+
+**Why it's dangerous:** Another agent (or future change) may alter a field's type or meaning. Fallback silently accepts the wrong value and continues. No one knows. Damage accumulates quietly.
+
+**The correct pattern — explicit case, unexpected goes to otherwise:**
+```ts
+// BAD
+const prefix = SUBJECT_PREFIX[typeCode] || "INV";
+
+// GOOD
+if (!SUBJECT_PREFIX[typeCode]) {
+  throw new Error(`[ETAX-TYPECODE] Unexpected typeCode="${typeCode}" — taxInvoiceId=${id}. Check SUBJECT_PREFIX map.`);
+}
+const prefix = SUBJECT_PREFIX[typeCode];
+```
+
+If something unexpected happens → **stop immediately, report with enough info to trace, never silently continue.**
+
+---
+
+### Rule 0b: Two-Layer Error Reporting on Production (ABSOLUTE)
+**Taught by พี่ช้าง — 2026-04-27. Also enforced via `RULE_TWO_SCREEN_ERROR_TYPES` in system_config.**
+
+Every production error that surfaces to the user must have **exactly two layers — never mixed:**
+
+**Layer 1 — For User (Actionable):**
+- Plain language the user understands
+- Tells them what to do next (go to this screen, fill in this field)
+- NO variable names, NO record IDs, NO technical terms
+- Example: *"ผู้ซื้อรายนี้ไม่มี Email — กรุณาไปที่ Contacts เพิ่ม Email ของ [ชื่อ] ก่อนส่ง e-Tax"*
+
+**Layer 2 — For Programmer (Diagnostic):**
+- Variable names, DB record IDs, actual values received, file/function context
+- User does NOT need to understand it — user copies the screen and sends to IT
+- Example: *`[ETAX-NO-EMAIL] taxInvoiceId=459 | customerId=2282 | contact.email=null | etaxBuyerTestEmail=null`*
+
+**Never mix** the two layers into one message. User gets confused. Programmer loses trace info.
+
+---
+
 ### Rule 1: Database Structure Changes (ZERO TOLERANCE)
 **BEFORE adding/removing/changing ANY column in `shared/schema.ts`:**
 1. STOP. Tell พี่ช้าง: "ฟีเจอร์นี้ต้องเพิ่ม/แก้คอลัมน์ [ชื่อ] ในตาราง [ชื่อ]"

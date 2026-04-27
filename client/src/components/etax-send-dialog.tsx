@@ -26,6 +26,12 @@ interface EtaxSendDialogProps {
   onPrintTypeChange?: (pt: FormType) => void;
 }
 
+// Rule 0b: Two-layer error — user message (actionable) + diagnostic (for programmer to trace)
+interface BlockingError {
+  userMessage: string;       // Layer 1: plain language, tells user what to do — NO technical terms
+  diagnosticLines: string[]; // Layer 2: variable names, IDs, values — for programmer, user screenshots this
+}
+
 export function EtaxSendDialog({ open, onOpenChange, taxInvoiceId, taxInvoiceNo, isResend, existingSentTo, defaultPrintType, onPrintTypeChange }: EtaxSendDialogProps) {
   const { toast } = useToast();
   const { selectedCompany } = useCompany();
@@ -39,14 +45,9 @@ export function EtaxSendDialog({ open, onOpenChange, taxInvoiceId, taxInvoiceNo,
   const [formType, setFormType] = useState<FormType>(defaultPrintType || "tax_invoice");
   const [debugInfo, setDebugInfo] = useState<string[]>([]);
   const [showDebug, setShowDebug] = useState(false);
+  const [showDiagnostic, setShowDiagnostic] = useState(false);
   const [sendSuccess, setSendSuccess] = useState(false);
-
-  // Blocking error — shown prominently, disables send button entirely
-  const [blockingError, setBlockingError] = useState<{
-    type: "fetch_failed" | "no_buyer_email";
-    message: string;
-    detail: string;
-  } | null>(null);
+  const [blockingError, setBlockingError] = useState<BlockingError | null>(null);
 
   useEffect(() => {
     if (defaultPrintType) setFormType(defaultPrintType);
@@ -58,6 +59,7 @@ export function EtaxSendDialog({ open, onOpenChange, taxInvoiceId, taxInvoiceNo,
 
     setDebugInfo([]);
     setShowDebug(false);
+    setShowDiagnostic(false);
     setSendSuccess(false);
     setBlockingError(null);
 
@@ -72,41 +74,51 @@ export function EtaxSendDialog({ open, onOpenChange, taxInvoiceId, taxInvoiceNo,
       credentials: "include",
     })
       .then((r) => {
-        if (!r.ok) throw new Error(`HTTP ${r.status} — server ตอบกลับ error`);
+        // Rule 0a: No fallback — non-OK response must not silently continue
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json();
       })
       .then((data) => {
         setBuyerEmail(data.email || "");
         setIsTestMode(data.isTestEmail || false);
 
-        // No email found in contact record — block send, show actionable error
+        // Rule 0a: No fallback — if no email, stop and report, do not let user proceed
         if (!data.hasEmail && !data.isTestEmail) {
-          const contactLabel = data.contactName
-            ? `"${data.contactName}"${data.contactId ? ` (id: ${data.contactId})` : ""}`
-            : data.contactId
-              ? `contact id: ${data.contactId}`
-              : "ผู้ซื้อรายนี้";
+          const contactLabel = data.contactName || `contact id ${data.contactId}` || "ผู้ซื้อรายนี้";
           setBlockingError({
-            type: "no_buyer_email",
-            message: "ส่ง e-Tax ไม่ได้ — ไม่พบ Email ผู้ซื้อ",
-            detail: `${contactLabel} ไม่มี email ในระบบ กรุณาเพิ่ม email ที่หน้า Contacts ก่อนส่ง e-Tax`,
+            // Layer 1: user understands this, knows what to do
+            userMessage: `ไม่พบ Email ของ "${contactLabel}" ในระบบ — กรุณาไปที่หน้า Contacts เพิ่ม Email ให้ผู้ซื้อรายนี้ก่อน แล้วกลับมาส่ง e-Tax ใหม่`,
+            // Layer 2: programmer traces from here
+            diagnosticLines: [
+              `[ETAX-NO-BUYER-EMAIL]`,
+              `taxInvoiceId=${taxInvoiceId} | companyId=${companyId}`,
+              `contact.id=${data.contactId ?? "null"} | contact.name="${data.contactName ?? ""}"`,
+              `contact.email=null | etaxBuyerTestEmail=null`,
+              `hasEmail=${data.hasEmail} | isTestEmail=${data.isTestEmail}`,
+            ],
           });
         }
       })
       .catch((err: Error) => {
-        // Network error or non-OK response — must not silently ignore
+        // Rule 0a: No fallback — fetch failure must not silently continue
         setBuyerEmail("");
         setBlockingError({
-          type: "fetch_failed",
-          message: "โหลดข้อมูลผู้ซื้อไม่สำเร็จ",
-          detail: `${err.message} — ไม่สามารถส่ง e-Tax ได้จนกว่าจะโหลดข้อมูลสำเร็จ (taxInvoiceId=${taxInvoiceId}, companyId=${companyId})`,
+          // Layer 1: user knows what to do (close and retry, or call IT)
+          userMessage: "ระบบโหลดข้อมูลผู้ซื้อไม่สำเร็จ — กรุณาปิดหน้าต่างนี้แล้วลองใหม่ ถ้ายังไม่หายกรุณาแจ้ง IT",
+          // Layer 2: programmer traces from here
+          diagnosticLines: [
+            `[ETAX-FETCH-FAILED]`,
+            `endpoint=/api/etax/buyer-email`,
+            `taxInvoiceId=${taxInvoiceId} | companyId=${companyId}`,
+            `error="${err.message}"`,
+          ],
         });
       })
       .finally(() => setFetching(false));
   }, [open, taxInvoiceId, companyId, existingSentTo]);
 
   const handleSend = async () => {
-    if (blockingError) return; // guarded by disabled button, but double-check
+    if (blockingError) return; // guarded by disabled button — double safety
     if (!buyerEmail.trim()) {
       toast({ title: "กรุณาระบุอีเมลผู้ซื้อ", variant: "destructive" });
       return;
@@ -157,16 +169,35 @@ export function EtaxSendDialog({ open, onOpenChange, taxInvoiceId, taxInvoiceNo,
             <p className="text-xs mt-1">ระบบจะสร้าง PDF/A-3 พร้อม XML ตามมาตรฐาน สพธอ. และส่ง Email พร้อม CC ไปยัง Time Stamp</p>
           </div>
 
-          {/* Blocking error — shown prominently before everything else, send button disabled */}
+          {/* Blocking error — Layer 1 (user) always visible, Layer 2 (diagnostic) collapsible */}
           {blockingError && (
-            <div
-              className="flex gap-3 bg-red-50 border border-red-400 rounded-lg p-3"
-              data-testid="etax-blocking-error"
-            >
-              <XCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
-              <div className="space-y-1">
-                <p className="text-sm font-semibold text-red-700">{blockingError.message}</p>
-                <p className="text-xs text-red-600 leading-relaxed">{blockingError.detail}</p>
+            <div className="border border-red-400 rounded-lg overflow-hidden" data-testid="etax-blocking-error">
+              {/* Layer 1: user message — plain language, actionable */}
+              <div className="flex gap-3 bg-red-50 p-3">
+                <XCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
+                <p className="text-sm text-red-700 leading-relaxed">{blockingError.userMessage}</p>
+              </div>
+              {/* Layer 2: diagnostic — for programmer, user screenshots this panel */}
+              <div>
+                <button
+                  type="button"
+                  onClick={() => setShowDiagnostic(!showDiagnostic)}
+                  className="w-full flex items-center justify-between px-3 py-1.5 bg-red-100 text-xs font-medium text-red-600 hover:bg-red-200"
+                  data-testid="btn-toggle-diagnostic"
+                >
+                  <span>ข้อมูลสำหรับ IT ({blockingError.diagnosticLines.length} รายการ)</span>
+                  {showDiagnostic ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                </button>
+                {showDiagnostic && (
+                  <div
+                    className="bg-gray-900 text-red-300 text-xs font-mono p-3 space-y-0.5"
+                    data-testid="diagnostic-panel"
+                  >
+                    {blockingError.diagnosticLines.map((line, i) => (
+                      <div key={i} className="leading-relaxed">{line}</div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -227,6 +258,7 @@ export function EtaxSendDialog({ open, onOpenChange, taxInvoiceId, taxInvoiceNo,
             </div>
           )}
 
+          {/* Debug log — server-side trace after send attempt */}
           {debugInfo.length > 0 && (
             <div className="border border-gray-200 rounded-lg overflow-hidden">
               <button
