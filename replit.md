@@ -92,6 +92,8 @@ Dev HEAD at deploy: `9e96b8d8` | Production cherry-pick commit: `2adc257c`
 | 2026-04-21 | v103 | expense-routes.ts (confirmed pull) | 7.4 MB | index-BsEaVt8S.js 360.46 kB | Confirmed expense-routes.ts was old on prod — pulled correct version. Build 43.75s, pm2 restart 7, 84.6mb |
 | 2026-04-21 | v104 | module-select.tsx | 7.4 MB | index-BSIVEiKF.js 344.49 kB | Fix: add inventory/sales/purchases cards to module-select. Employee with inventory perms was auto-redirected to /hr/attendance (hasMultipleModules=false). Build 43.94s, pm2 restart 10, 85.1mb |
 | 2026-04-23 | v105 | sales-docs-routes.ts, purchase-routes.ts, invoice-form.tsx, purchase-invoice.tsx, replit.md | 7.4 MB | index-BoOQHVbf.js 360.46 kB | Warehouse selector Parts 2+3+4: save + fetch + UI. Build 42.96s, pm2 83.0mb |
+| 2026-04-27 | v106 r1 | schema-extra.ts, index.ts, etax-routes.ts, etax-send-dialog.tsx | — | — | DATA FIX ACTIVE: clear etax_sent_to=csemail on invoice 459 RE2604250044. Backup: backup_tax_invoices_20260426. etax-routes: validation block (TO≠csemail) + debugInfo. etax-send-dialog: debug panel + no-auto-close. |
+| 2026-04-27 | v106 r2 | schema-extra.ts, index.ts | — | — | DATA FIX DONE (loop close). FLAG=done_2026-04-27T00:28:27.087Z. invoice 459 etax_sent_to=null ✅ Migration commented out, hook removed. |
 
 ## 🔴 GOLDEN RULE — PULL-BEFORE-TOUCH (MANDATORY for any protected/sensitive file)
 
