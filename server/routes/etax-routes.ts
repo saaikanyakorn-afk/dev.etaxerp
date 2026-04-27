@@ -451,11 +451,17 @@ export function registerEtaxRoutes(app: Express) {
         return res.status(400).json({ message: "e-Tax Invoice ยังไม่เปิดใช้งาน" });
       }
 
-      const timestampEmail = comp.etaxTimestampEmail || "csemail@etax.teda.th";
+      if (!comp.etaxTimestampEmail) {
+        return res.status(400).json({ message: "ยังไม่ได้ตั้งค่าอีเมล TEDA (Timestamp Email) ในหน้าตั้งค่า e-Tax Invoice" });
+      }
+      const isValidEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+      if (!isValidEmail(comp.etaxTimestampEmail)) {
+        return res.status(400).json({ message: `รูปแบบอีเมล TEDA ไม่ถูกต้อง "${comp.etaxTimestampEmail}" กรุณาแก้ไขในหน้าตั้งค่า e-Tax Invoice` });
+      }
+      const timestampEmail = comp.etaxTimestampEmail;
 
       const { tiv, data, documentType } = await buildEtaxDataFromInvoice(taxInvoiceId, companyId, printType);
 
-      const isValidEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
       if (!data.buyerEmail) {
         return res.status(400).json({ message: "ไม่พบอีเมลลูกค้าในเอกสาร กรุณากรอกอีเมลลูกค้าในหน้าแก้ไขเอกสารก่อนส่ง e-Tax", errorCode: "MISSING_BUYER_EMAIL" });
       }
@@ -482,17 +488,27 @@ export function registerEtaxRoutes(app: Express) {
         "388": "INV", "T02": "INV", "T03": "INV", "T04": "INV",
         "80": "DBN", "81": "CRN",
       };
-      const subjectPrefix = SUBJECT_PREFIX[data.typeCode] || "INV";
+      if (!(data.typeCode in SUBJECT_PREFIX)) {
+        throw new Error(`typeCode ไม่รู้จัก "${data.typeCode}" — ไม่สามารถสร้าง subject ได้`);
+      }
+      const subjectPrefix = SUBJECT_PREFIX[data.typeCode];
+
+      if (!tiv.taxInvoiceNo) {
+        throw new Error("ไม่พบเลขที่เอกสาร (taxInvoiceNo) — ไม่สามารถส่งได้");
+      }
       const subject = `[${dateStr}][${subjectPrefix}][${tiv.taxInvoiceNo}]${tiv.originalTaxInvoiceNo ? `[${tiv.originalTaxInvoiceNo}]` : ""}`;
 
-      const pdfFilename = `${tiv.taxInvoiceNo || "etax"}.pdf`;
+      const pdfFilename = `${tiv.taxInvoiceNo}.pdf`;
 
       const DOC_LABEL: Record<string, string> = {
         "388": "ใบกำกับภาษี", "T02": "ใบแจ้งหนี้/ใบกำกับภาษี",
         "T03": "ใบเสร็จรับเงิน/ใบกำกับภาษี", "T04": "ใบส่งของ/ใบกำกับภาษี",
         "80": "ใบเพิ่มหนี้", "81": "ใบลดหนี้",
       };
-      const docTypeLabel = DOC_LABEL[data.typeCode] || "ใบกำกับภาษี";
+      if (!(data.typeCode in DOC_LABEL)) {
+        throw new Error(`typeCode ไม่รู้จัก "${data.typeCode}" — ไม่สามารถสร้างเนื้อหาอีเมลได้`);
+      }
+      const docTypeLabel = DOC_LABEL[data.typeCode];
 
       const htmlBody = `
         <div style="font-family: 'Sarabun', Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -517,16 +533,27 @@ export function registerEtaxRoutes(app: Express) {
         </div>
       `;
 
-      const provider = comp.etaxEmailProvider || "resend";
+      const validProviders = ["resend", "gmail", "smtp"] as const;
+      type EmailProvider = typeof validProviders[number];
+      if (!comp.etaxEmailProvider) {
+        return res.status(400).json({ message: "ยังไม่ได้ตั้งค่าผู้ให้บริการอีเมล (Email Provider) ในหน้าตั้งค่า e-Tax Invoice" });
+      }
+      if (!validProviders.includes(comp.etaxEmailProvider as EmailProvider)) {
+        throw new Error(`Email Provider ไม่รู้จัก "${comp.etaxEmailProvider}" — ค่าที่รองรับ: ${validProviders.join(", ")}`);
+      }
+      const provider = comp.etaxEmailProvider as EmailProvider;
       let messageId: string | null = null;
 
       if (provider === "gmail" || provider === "smtp") {
         if (!comp.smtpUser || !comp.smtpPass) {
           return res.status(400).json({ message: "ยังไม่ได้ตั้งค่า SMTP Email/Password ในหน้าตั้งค่า e-Tax Invoice" });
         }
+        if (provider === "smtp" && !comp.smtpHost) {
+          return res.status(400).json({ message: "ยังไม่ได้ตั้งค่า SMTP Host ในหน้าตั้งค่า e-Tax Invoice" });
+        }
         const nodemailer = await import("nodemailer");
         const smtpConfig: any = {
-          host: provider === "gmail" ? "smtp.gmail.com" : (comp.smtpHost || "smtp.gmail.com"),
+          host: provider === "gmail" ? "smtp.gmail.com" : comp.smtpHost,
           port: provider === "gmail" ? 587 : (comp.smtpPort || 587),
           secure: false,
           auth: { user: comp.smtpUser, pass: comp.smtpPass },
