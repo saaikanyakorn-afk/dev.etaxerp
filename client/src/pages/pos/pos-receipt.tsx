@@ -2,7 +2,6 @@ import { useState, useEffect, useRef } from "react";
 import { useParams } from "wouter";
 import { Printer, ArrowLeft, Bluetooth, BluetoothConnected, Settings, Wifi, WifiOff, Smartphone, Eye, Mail, Send, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { objectPathToUrl } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -63,10 +62,8 @@ export default function PosReceipt() {
   const [paperWidth, setPaperWidth] = useState<"58" | "80">("58");
   const [connecting, setConnecting] = useState(false);
   const [showEtaxDialog, setShowEtaxDialog] = useState(false);
-  const [etaxEmail, setEtaxEmail] = useState("");
   const [etaxSending, setEtaxSending] = useState(false);
   const [etaxSent, setEtaxSent] = useState(false);
-  const [etaxSentTo, setEtaxSentTo] = useState<string | null>(null);
   const receiptRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
   const platform = getPlatform();
@@ -95,7 +92,6 @@ export default function PosReceipt() {
 
           if (result.doc?.etaxSentAt) {
             setEtaxSent(true);
-            setEtaxSentTo(result.doc.etaxSentTo || null);
           }
 
           const logoUrl = result.docSettings?.logoUrl || result.company?.logoUrl;
@@ -224,24 +220,12 @@ export default function PosReceipt() {
     }
   };
 
-  const handleOpenEtaxDialog = async () => {
-    if (!data) return;
-    try {
-      const res = await fetch(`/api/etax/buyer-email?taxInvoiceId=${data.id}&companyId=${data.companyId}`, { credentials: "include" });
-      if (res.ok) {
-        const result = await res.json();
-        setEtaxEmail(result.email || data.contactEmail || "");
-      } else {
-        setEtaxEmail(data.contactEmail || "");
-      }
-    } catch {
-      setEtaxEmail(data.contactEmail || "");
-    }
+  const handleOpenEtaxDialog = () => {
     setShowEtaxDialog(true);
   };
 
   const handleSendEtax = async () => {
-    if (!data || !etaxEmail) return;
+    if (!data) return;
     setEtaxSending(true);
     try {
       const res = await fetch("/api/etax/send-email", {
@@ -251,7 +235,6 @@ export default function PosReceipt() {
         body: JSON.stringify({
           taxInvoiceId: data.id,
           companyId: data.companyId,
-          recipientEmailOverride: etaxEmail,
           printType: "tax_invoice_receipt",
         }),
       });
@@ -261,9 +244,8 @@ export default function PosReceipt() {
         return;
       }
       setEtaxSent(true);
-      setEtaxSentTo(etaxEmail);
       setShowEtaxDialog(false);
-      toast({ title: "ส่ง eTax Invoice สำเร็จ", description: `ส่งไปที่ ${etaxEmail}`, variant: "success" as any });
+      toast({ title: "ส่ง eTax Invoice สำเร็จ", description: "ส่งไปยังกรมสรรพากรเพื่อประทับเวลาแล้ว", variant: "success" as any });
     } catch (err: any) {
       toast({ title: "ส่ง eTax ไม่สำเร็จ", description: err.message, variant: "destructive" });
     } finally {
@@ -386,7 +368,7 @@ export default function PosReceipt() {
             etaxSent ? (
               <Badge variant="outline" className="gap-1.5 border-green-400 text-green-600 py-1.5 px-3" data-testid="badge-etax-sent">
                 <CheckCircle2 className="h-3.5 w-3.5" />
-                ส่ง eTax แล้ว{etaxSentTo ? ` → ${etaxSentTo}` : ""}
+                ส่ง eTax ไปยังกรมสรรพากรแล้ว
               </Badge>
             ) : (
               <Button
@@ -511,7 +493,7 @@ export default function PosReceipt() {
         <DialogContent className="max-h-[90vh] overflow-y-auto max-w-sm">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Mail className="h-5 w-5 text-cyan-600" /> ส่ง eTax Invoice ทางอีเมล
+              <Mail className="h-5 w-5 text-cyan-600" /> ส่ง eTax Invoice ไปยังกรมสรรพากร
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
@@ -529,18 +511,8 @@ export default function PosReceipt() {
                 <span className="font-medium">฿{formatMoney(data.totalAmount)}</span>
               </div>
             </div>
-            <div>
-              <label className="text-sm font-medium mb-1 block">อีเมลผู้รับ</label>
-              <Input
-                type="email"
-                placeholder="email@example.com"
-                value={etaxEmail}
-                onChange={(e) => setEtaxEmail(e.target.value)}
-                data-testid="input-etax-email"
-              />
-            </div>
-            <div className="text-xs text-gray-500">
-              ระบบจะส่ง PDF/A-3 (แนบ XML ตามมาตรฐาน สพธอ.) ไปยังอีเมลที่ระบุ
+            <div className="text-xs text-blue-600 bg-blue-50 rounded p-2">
+              ระบบจะส่ง PDF/A-3 (แนบ XML ตามมาตรฐาน สพธอ.) ไปยังกรมสรรพากรเพื่อประทับเวลา กรมสรรพากรจะส่งเอกสารต่อให้ลูกค้าเอง
             </div>
           </div>
           <DialogFooter className="gap-2 sm:gap-0">
@@ -548,11 +520,11 @@ export default function PosReceipt() {
             <Button
               onClick={handleSendEtax}
               className="gap-1.5 bg-cyan-500 hover:bg-cyan-600"
-              disabled={etaxSending || !etaxEmail}
+              disabled={etaxSending}
               data-testid="btn-confirm-send-etax"
             >
               <Send className="h-4 w-4" />
-              {etaxSending ? "กำลังส่ง..." : "ส่งอีเมล"}
+              {etaxSending ? "กำลังส่ง..." : "ส่งไปยังกรมสรรพากร"}
             </Button>
           </DialogFooter>
         </DialogContent>
