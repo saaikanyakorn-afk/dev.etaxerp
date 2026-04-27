@@ -1004,7 +1004,11 @@ export default function PayrollTaxPage() {
           return d >= otStartDate && d < otEndDate;
         });
 
-        const attendanceDates = new Set(monthAttendance.map((a: any) => {
+        const otPeriodAttendance = attendance.filter((a: any) => {
+          const d = new Date(a.date);
+          return d >= otStartDate && d < otEndDate;
+        });
+        const attendanceDates = new Set(otPeriodAttendance.map((a: any) => {
           const d = new Date(a.date);
           return d.toISOString().slice(0, 10);
         }));
