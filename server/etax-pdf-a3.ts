@@ -105,10 +105,45 @@ export async function convertToPdfA3(
   outputIntentsArray.push(outputIntentRef);
   catalog.set(PDFName.of("OutputIntents"), outputIntentsArray);
 
-  // ── 9. Fix transparency on all pages (ISO 19005-3:2012 Clause 6.2.10) ───────
-  // pdfmake pages use ExtGState with alpha (CA/ca) — add Group/CS so veraPDF passes
+  // ── 9. Fix all pages: DefaultRGB + transparency Group ───────────────────────
+  // ISO 19005-3:2012 Clause 6.2.4.3: DeviceRGB valid when DefaultRGB set in Resources
+  // ISO 19005-3:2012 Clause 6.2.10: transparency pages need Group/CS
+  // Build a shared ICCBased ColorSpace array pointing to our ICC profile
+  const iccBasedCS = PDFArray.withContext(context);
+  iccBasedCS.push(PDFName.of("ICCBased"));
+  iccBasedCS.push(iccStreamRef);
+
+  // Register it so it gets its own object reference
+  const iccBasedCSRef = context.register(iccBasedCS);
+
+  const seenResources = new Set<string>();
+
   for (const page of pdfDoc.getPages()) {
     const pageDict = page.node;
+
+    // 9a. DefaultRGB in page Resources
+    const resourcesVal = pageDict.get(PDFName.of("Resources"));
+    if (resourcesVal) {
+      const resourcesObj = context.lookup(resourcesVal) as any;
+
+      if (resourcesObj && typeof resourcesObj.get === "function") {
+        const resObjId = resourcesVal.toString();
+        if (!seenResources.has(resObjId)) {
+          seenResources.add(resObjId);
+
+          let csDict = resourcesObj.get(PDFName.of("ColorSpace"));
+          if (!csDict) {
+            csDict = context.obj({});
+            resourcesObj.set(PDFName.of("ColorSpace"), csDict);
+          }
+          if (typeof csDict.set === "function") {
+            csDict.set(PDFName.of("DefaultRGB"), iccBasedCSRef);
+          }
+        }
+      }
+    }
+
+    // 9b. Group/CS for transparency (Clause 6.2.10)
     if (!pageDict.has(PDFName.of("Group"))) {
       const groupDict = context.obj({});
       groupDict.set(PDFName.of("Type"), PDFName.of("Group"));
