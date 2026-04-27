@@ -27,7 +27,7 @@ export async function convertToPdfA3(
 
   const fileStreamDict = new Map<PDFName, any>();
   fileStreamDict.set(PDFName.of("Type"), PDFName.of("EmbeddedFile"));
-  fileStreamDict.set(PDFName.of("Subtype"), PDFName.of("text#2Fxml"));
+  fileStreamDict.set(PDFName.of("Subtype"), PDFName.of("application#2Fxml"));
   fileStreamDict.set(PDFName.of("Params"), paramsDict);
 
   const fileStream = context.stream(xmlBytes, fileStreamDict);
@@ -80,29 +80,26 @@ export async function convertToPdfA3(
   const xmpStreamRef = context.register(xmpStream);
   catalog.set(PDFName.of("Metadata"), xmpStreamRef);
 
-  const existingIntents = catalog.lookup(PDFName.of("OutputIntents"));
-  if (!existingIntents) {
-    const outputIntentDict = context.obj({});
-    outputIntentDict.set(PDFName.of("Type"), PDFName.of("OutputIntent"));
-    outputIntentDict.set(PDFName.of("S"), PDFName.of("GTS_PDFA3"));
-    outputIntentDict.set(PDFName.of("OutputConditionIdentifier"), PDFString.of("sRGB IEC61966-2.1"));
-    outputIntentDict.set(PDFName.of("RegistryName"), PDFString.of("http://www.color.org"));
-    outputIntentDict.set(PDFName.of("Info"), PDFString.of("sRGB IEC61966-2.1"));
+  const iccStreamDict = new Map<PDFName, any>();
+  iccStreamDict.set(PDFName.of("N"), context.obj(3));
+  iccStreamDict.set(PDFName.of("Length"), context.obj(iccProfile.length));
+  const iccStream = context.stream(iccProfile, iccStreamDict);
+  const iccStreamRef = context.register(iccStream);
 
-    const iccStreamDict = new Map<PDFName, any>();
-    iccStreamDict.set(PDFName.of("N"), context.obj(3));
-    iccStreamDict.set(PDFName.of("Length"), context.obj(iccProfile.length));
-    const iccStream = context.stream(iccProfile, iccStreamDict);
-    const iccStreamRef = context.register(iccStream);
-    outputIntentDict.set(PDFName.of("DestOutputProfile"), iccStreamRef);
+  const outputIntentDict = context.obj({});
+  outputIntentDict.set(PDFName.of("Type"), PDFName.of("OutputIntent"));
+  outputIntentDict.set(PDFName.of("S"), PDFName.of("GTS_PDFA3"));
+  outputIntentDict.set(PDFName.of("OutputConditionIdentifier"), PDFString.of("sRGB IEC61966-2.1"));
+  outputIntentDict.set(PDFName.of("RegistryName"), PDFString.of("http://www.color.org"));
+  outputIntentDict.set(PDFName.of("Info"), PDFString.of("sRGB IEC61966-2.1"));
+  outputIntentDict.set(PDFName.of("DestOutputProfile"), iccStreamRef);
 
-    const outputIntentRef = context.register(outputIntentDict);
-    const outputIntentsArray = PDFArray.withContext(context);
-    outputIntentsArray.push(outputIntentRef);
-    catalog.set(PDFName.of("OutputIntents"), outputIntentsArray);
-  }
+  const outputIntentRef = context.register(outputIntentDict);
+  const outputIntentsArray = PDFArray.withContext(context);
+  outputIntentsArray.push(outputIntentRef);
+  catalog.set(PDFName.of("OutputIntents"), outputIntentsArray);
 
-  const resultBytes = await pdfDoc.save();
+  const resultBytes = await pdfDoc.save({ useObjectStreams: false });
   console.log(`[PDF/A-3] Built PDF/A-3u: ${pdfBuffer.length} → ${resultBytes.length} bytes`);
   return Buffer.from(resultBytes);
 }
