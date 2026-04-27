@@ -383,9 +383,10 @@ export function generateEtaxXml(data: EtaxInvoiceData): string {
     sellerContactXml = `
         <ram:DefinedTradeContact>`;
     if (data.sellerEmail) {
+      const sellerEmailUri = data.sellerEmail.startsWith("mailto:") ? data.sellerEmail : `mailto:${data.sellerEmail}`;
       sellerContactXml += `
           <ram:EmailURIUniversalCommunication>
-            <ram:URIID>${escapeXml(data.sellerEmail)}</ram:URIID>
+            <ram:URIID>${escapeXml(sellerEmailUri)}</ram:URIID>
           </ram:EmailURIUniversalCommunication>`;
     }
     if (sellerPhoneFmt) {
@@ -406,9 +407,10 @@ export function generateEtaxXml(data: EtaxInvoiceData): string {
           <ram:PersonName>${escapeXml(data.buyerName)}</ram:PersonName>`;
   }
   if (data.buyerEmail) {
+    const buyerEmailUri = data.buyerEmail.startsWith("mailto:") ? data.buyerEmail : `mailto:${data.buyerEmail}`;
     buyerContactXml += `
           <ram:EmailURIUniversalCommunication>
-            <ram:URIID>${escapeXml(data.buyerEmail)}</ram:URIID>
+            <ram:URIID>${escapeXml(buyerEmailUri)}</ram:URIID>
           </ram:EmailURIUniversalCommunication>`;
   }
   if (buyerPhoneFmt) {
