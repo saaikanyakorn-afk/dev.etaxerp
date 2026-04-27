@@ -1,3 +1,32 @@
+// =============================================================================
+// schema-extra.ts — PURPOSE & USAGE GUIDE
+// =============================================================================
+// PRIMARY USE: Table definitions that cannot go in schema.ts (cherry-pick safe).
+//
+// SECONDARY USE: Batch operations via one-time migration pattern.
+//   When a task requires calling an existing function on many records (e.g.
+//   re-generating hundreds of PDFs, bulk-sending emails, recalculating totals)
+//   and it is too much for พี่ทราย to click manually — Kai can write a one-time
+//   startup block here that calls the existing working functions in a loop.
+//
+//   Pattern (same as schema migrations):
+//     1. Write the batch block with a unique system_config flag key.
+//     2. Deploy → server runs it once on startup → flag is set → never runs again.
+//     3. Comment out the block → push clean in the next cycle.
+//
+//   Example skeleton:
+//     const FLAG = "BATCH_REGENERATE_PDF_2026_XX_XX";
+//     const done = await db.query.systemConfig.findFirst({ where: eq(..., FLAG) });
+//     if (!done) {
+//       const invoices = await db.select().from(invoices).where(...);
+//       for (const inv of invoices) { await generatePdf(inv.id); }
+//       await db.insert(systemConfig).values({ configKey: FLAG, configValue: "done" });
+//     }
+//
+//   Rule: NEVER leave an active batch block in production after it has run.
+//   Rule: Always guard with system_config flag — idempotent, runs exactly once.
+// =============================================================================
+
 import { pgTable, serial, integer, text, varchar, decimal, date, timestamp, boolean, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { sql } from "drizzle-orm";
