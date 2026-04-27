@@ -309,7 +309,7 @@ export function registerEtaxRoutes(app: Express) {
         buyerBuildingNumber = contact.buildingNumber || "";
         buyerBranchId = (contact as any).branch || "00000";
         buyerPhone = contact.phone || "";
-        buyerEmail = contact.email || "";
+        buyerEmail = tiv.contactEmail || contact.email || "";
         buyerDistrictCode = contact.districtCode || "";
         buyerSubdistrictCode = contact.subdistrictCode || "";
         buyerProvinceCode = contact.provinceCode || "";
