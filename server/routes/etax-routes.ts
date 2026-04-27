@@ -450,13 +450,24 @@ export function registerEtaxRoutes(app: Express) {
       if (!tiv) return res.status(404).json({ message: "ไม่พบใบกำกับภาษี" });
 
       let email = (tiv as any).contactEmail || "";
+      let contactId: number | null = tiv.customerId || null;
+      let contactName: string = tiv.customerName || "";
       if (!email && tiv.customerId) {
         const [contact] = await db.select().from(contacts).where(eq(contacts.id, tiv.customerId));
-        if (contact) email = contact.email || "";
+        if (contact) {
+          email = contact.email || "";
+          contactName = contact.name || tiv.customerName || "";
+        }
       }
 
       const testEmail = comp.etaxBuyerTestEmail || "";
-      res.json({ email: testEmail || email, isTestEmail: !!testEmail });
+      res.json({
+        email: testEmail || email,
+        isTestEmail: !!testEmail,
+        hasEmail: !!(testEmail || email),
+        contactId,
+        contactName,
+      });
     } catch (err: any) {
       res.status(500).json({ message: err.message });
     }

@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { useCompany } from "@/lib/company-context";
 import { useQueryClient } from "@tanstack/react-query";
-import { Send, Loader2, Mail, AlertCircle, ChevronDown, ChevronUp, CheckCircle2 } from "lucide-react";
+import { Send, Loader2, Mail, AlertCircle, ChevronDown, ChevronUp, CheckCircle2, XCircle } from "lucide-react";
 
 type FormType = "tax_invoice" | "tax_invoice_receipt" | "receipt";
 
@@ -41,35 +41,72 @@ export function EtaxSendDialog({ open, onOpenChange, taxInvoiceId, taxInvoiceNo,
   const [showDebug, setShowDebug] = useState(false);
   const [sendSuccess, setSendSuccess] = useState(false);
 
+  // Blocking error — shown prominently, disables send button entirely
+  const [blockingError, setBlockingError] = useState<{
+    type: "fetch_failed" | "no_buyer_email";
+    message: string;
+    detail: string;
+  } | null>(null);
+
   useEffect(() => {
     if (defaultPrintType) setFormType(defaultPrintType);
   }, [defaultPrintType]);
 
   useEffect(() => {
-    if (open && taxInvoiceId && companyId) {
-      setDebugInfo([]);
-      setShowDebug(false);
-      setSendSuccess(false);
-      if (existingSentTo) {
-        setBuyerEmail(existingSentTo);
-        setIsTestMode(false);
-      } else {
-        setFetching(true);
-        fetch(`/api/etax/buyer-email?taxInvoiceId=${taxInvoiceId}&companyId=${companyId}`, {
-          credentials: "include",
-        })
-          .then((r) => r.json())
-          .then((data) => {
-            setBuyerEmail(data.email || "");
-            setIsTestMode(data.isTestEmail || false);
-          })
-          .catch(() => {})
-          .finally(() => setFetching(false));
-      }
+    if (!open) return;
+    if (!taxInvoiceId || !companyId) return;
+
+    setDebugInfo([]);
+    setShowDebug(false);
+    setSendSuccess(false);
+    setBlockingError(null);
+
+    if (existingSentTo) {
+      setBuyerEmail(existingSentTo);
+      setIsTestMode(false);
+      return;
     }
+
+    setFetching(true);
+    fetch(`/api/etax/buyer-email?taxInvoiceId=${taxInvoiceId}&companyId=${companyId}`, {
+      credentials: "include",
+    })
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status} — server ตอบกลับ error`);
+        return r.json();
+      })
+      .then((data) => {
+        setBuyerEmail(data.email || "");
+        setIsTestMode(data.isTestEmail || false);
+
+        // No email found in contact record — block send, show actionable error
+        if (!data.hasEmail && !data.isTestEmail) {
+          const contactLabel = data.contactName
+            ? `"${data.contactName}"${data.contactId ? ` (id: ${data.contactId})` : ""}`
+            : data.contactId
+              ? `contact id: ${data.contactId}`
+              : "ผู้ซื้อรายนี้";
+          setBlockingError({
+            type: "no_buyer_email",
+            message: "ส่ง e-Tax ไม่ได้ — ไม่พบ Email ผู้ซื้อ",
+            detail: `${contactLabel} ไม่มี email ในระบบ กรุณาเพิ่ม email ที่หน้า Contacts ก่อนส่ง e-Tax`,
+          });
+        }
+      })
+      .catch((err: Error) => {
+        // Network error or non-OK response — must not silently ignore
+        setBuyerEmail("");
+        setBlockingError({
+          type: "fetch_failed",
+          message: "โหลดข้อมูลผู้ซื้อไม่สำเร็จ",
+          detail: `${err.message} — ไม่สามารถส่ง e-Tax ได้จนกว่าจะโหลดข้อมูลสำเร็จ (taxInvoiceId=${taxInvoiceId}, companyId=${companyId})`,
+        });
+      })
+      .finally(() => setFetching(false));
   }, [open, taxInvoiceId, companyId, existingSentTo]);
 
   const handleSend = async () => {
+    if (blockingError) return; // guarded by disabled button, but double-check
     if (!buyerEmail.trim()) {
       toast({ title: "กรุณาระบุอีเมลผู้ซื้อ", variant: "destructive" });
       return;
@@ -120,6 +157,20 @@ export function EtaxSendDialog({ open, onOpenChange, taxInvoiceId, taxInvoiceNo,
             <p className="text-xs mt-1">ระบบจะสร้าง PDF/A-3 พร้อม XML ตามมาตรฐาน สพธอ. และส่ง Email พร้อม CC ไปยัง Time Stamp</p>
           </div>
 
+          {/* Blocking error — shown prominently before everything else, send button disabled */}
+          {blockingError && (
+            <div
+              className="flex gap-3 bg-red-50 border border-red-400 rounded-lg p-3"
+              data-testid="etax-blocking-error"
+            >
+              <XCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <p className="text-sm font-semibold text-red-700">{blockingError.message}</p>
+                <p className="text-xs text-red-600 leading-relaxed">{blockingError.detail}</p>
+              </div>
+            </div>
+          )}
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">
               รูปแบบเอกสาร
@@ -157,7 +208,7 @@ export function EtaxSendDialog({ open, onOpenChange, taxInvoiceId, taxInvoiceNo,
                 onChange={(e) => setBuyerEmail(e.target.value)}
                 placeholder="buyer@example.com"
                 type="email"
-                disabled={isTestMode}
+                disabled={isTestMode || !!blockingError}
                 data-testid="input-etax-buyer-email"
               />
             )}
@@ -165,12 +216,6 @@ export function EtaxSendDialog({ open, onOpenChange, taxInvoiceId, taxInvoiceNo,
               <p className="flex items-center gap-1 text-xs text-amber-600 mt-1">
                 <AlertCircle className="h-3 w-3" />
                 โหมดทดสอบ — ส่งไปที่อีเมลทดสอบที่ตั้งค่าไว้ (แก้ได้ที่หน้าตั้งค่า e-Tax)
-              </p>
-            )}
-            {!fetching && !buyerEmail && !isTestMode && (
-              <p className="flex items-center gap-1 text-xs text-amber-600 mt-1">
-                <AlertCircle className="h-3 w-3" />
-                ไม่พบอีเมลผู้ซื้อ กรุณากรอกอีเมลก่อนส่ง
               </p>
             )}
           </div>
@@ -219,7 +264,7 @@ export function EtaxSendDialog({ open, onOpenChange, taxInvoiceId, taxInvoiceNo,
               </Button>
               <Button
                 onClick={handleSend}
-                disabled={loading || !buyerEmail.trim()}
+                disabled={loading || fetching || !!blockingError || !buyerEmail.trim()}
                 className="bg-[#fb9678] hover:bg-[#fb9678]/90 text-white gap-1.5"
                 data-testid="button-confirm-etax-send"
               >
