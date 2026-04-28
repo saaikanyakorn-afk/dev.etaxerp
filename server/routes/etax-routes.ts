@@ -585,28 +585,18 @@ export function registerEtaxRoutes(app: Express) {
           auth: { user: comp.smtpUser, pass: comp.smtpPass },
         };
         const transporter = nodemailer.default.createTransport(smtpConfig);
-        // Email 1: ส่งไปที่ ETDA พร้อม PDF/A-3 (ETDA จะ timestamp แล้วส่งให้ buyer เอง)
-        const etdaMail: any = {
+        // ส่ง To: buyer, CC: ETDA พร้อม PDF/A-3 ตามข้อกำหนด ETDA
+        const mailOptions: any = {
           from: `"${comp.name}" <${comp.smtpUser}>`,
-          to: timestampEmail,
+          to: data.buyerEmail,
+          cc: timestampEmail,
           subject,
           html: htmlBodyEtda,
           attachments: [{ filename: pdfFilename, content: pdfA3Buffer, contentType: "application/pdf" }],
         };
-        const info = await transporter.sendMail(etdaMail);
+        const info = await transporter.sendMail(mailOptions);
         messageId = info.messageId || null;
-        dlog(`[EMAIL] SMTP→ETDA sent | to: ${timestampEmail} | msgId: ${messageId}`);
-        // Email 2: แจ้งผู้ซื้อ (ไม่มี PDF — รอรับจาก ETDA โดยตรง)
-        if (data.buyerEmail && data.buyerEmail !== timestampEmail) {
-          const buyerMail: any = {
-            from: `"${comp.name}" <${comp.smtpUser}>`,
-            to: data.buyerEmail,
-            subject: `แจ้งการส่ง${docTypeLabel}อิเล็กทรอนิกส์ ${tiv.taxInvoiceNo}`,
-            html: htmlBodyBuyer,
-          };
-          await transporter.sendMail(buyerMail);
-          dlog(`[EMAIL] SMTP→Buyer notify sent | to: ${data.buyerEmail}`);
-        }
+        dlog(`[EMAIL] SMTP sent | to: ${data.buyerEmail} | cc: ${timestampEmail} | msgId: ${messageId}`);
       } else {
         if (!process.env.RESEND_API_KEY) {
           return res.status(400).json({ message: "ยังไม่ได้ตั้งค่า RESEND_API_KEY" });
@@ -616,33 +606,23 @@ export function registerEtaxRoutes(app: Express) {
         const rawFrom = process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev";
         const isTestEmail = rawFrom.includes("onboarding@resend.dev");
         const fromEmail = rawFrom.includes("<") ? rawFrom : (isTestEmail ? rawFrom : `${comp.name.slice(0, 200)} <${rawFrom}>`);
-        // Email 1: ส่งไปที่ ETDA พร้อม PDF/A-3
-        const etdaPayload: any = {
+        // ส่ง To: buyer, CC: ETDA พร้อม PDF/A-3 ตามข้อกำหนด ETDA
+        const emailPayload: any = {
           from: fromEmail,
-          to: [timestampEmail],
+          to: [data.buyerEmail],
+          cc: [timestampEmail],
           subject,
           html: htmlBodyEtda,
           attachments: [{ filename: pdfFilename, content: pdfA3Buffer.toString("base64") }],
         };
-        const sendResult = await resend.emails.send(etdaPayload) as any;
+        const sendResult = await resend.emails.send(emailPayload) as any;
         if (sendResult?.error || !sendResult?.data?.id) {
           const errMsg = sendResult?.error?.message || "ส่งอีเมลไม่สำเร็จ (Resend error)";
           dlog(`[EMAIL] Resend error: ${errMsg}`);
           return res.status(500).json({ message: errMsg, debugInfo: debugLogs });
         }
         messageId = sendResult.data.id;
-        dlog(`[EMAIL] Resend→ETDA sent | to: ${timestampEmail} | msgId: ${messageId}`);
-        // Email 2: แจ้งผู้ซื้อ (ไม่มี PDF)
-        if (data.buyerEmail && data.buyerEmail !== timestampEmail) {
-          const buyerPayload: any = {
-            from: fromEmail,
-            to: [data.buyerEmail],
-            subject: `แจ้งการส่ง${docTypeLabel}อิเล็กทรอนิกส์ ${tiv.taxInvoiceNo}`,
-            html: htmlBodyBuyer,
-          };
-          await resend.emails.send(buyerPayload);
-          dlog(`[EMAIL] Resend→Buyer notify sent | to: ${data.buyerEmail}`);
-        }
+        dlog(`[EMAIL] Resend sent | to: ${data.buyerEmail} | cc: ${timestampEmail} | msgId: ${messageId}`);
       }
 
       await db.update(taxInvoices).set({
