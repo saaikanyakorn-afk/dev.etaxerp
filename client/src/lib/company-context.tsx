@@ -153,6 +153,15 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
       return;
     }
 
+    const primary = companies.find(c => c.isPrimary);
+    if (primary) {
+      idRef.current = primary.id;
+      setRaw(primary.id);
+      writeSaved(primary.id);
+      syncUrlCompanyId(primary.id);
+      return;
+    }
+
     idRef.current = null;
     setRaw(null);
     syncUrlCompanyId(null);
