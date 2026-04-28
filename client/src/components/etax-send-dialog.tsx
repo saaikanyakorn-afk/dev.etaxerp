@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useCompany } from "@/lib/company-context";
 import { useQueryClient } from "@tanstack/react-query";
-import { Send, Loader2, Mail, ChevronDown, ChevronUp, CheckCircle2, AlertCircle, Bug } from "lucide-react";
+import { Send, Loader2, Mail, ChevronDown, ChevronUp, CheckCircle2, AlertCircle } from "lucide-react";
 
 type FormType = "tax_invoice" | "tax_invoice_receipt" | "receipt";
 
@@ -35,9 +35,6 @@ export function EtaxSendDialog({ open, onOpenChange, taxInvoiceId, taxInvoiceNo,
   const [showDebug, setShowDebug] = useState(false);
   const [sendSuccess, setSendSuccess] = useState(false);
   const [errorAlert, setErrorAlert] = useState<string | null>(null);
-  const [rawDebugLoading, setRawDebugLoading] = useState(false);
-  const [rawDebugResult, setRawDebugResult] = useState<any>(null);
-  const [showRawDebug, setShowRawDebug] = useState(false);
 
   useEffect(() => {
     if (defaultPrintType) setFormType(defaultPrintType);
@@ -50,29 +47,6 @@ export function EtaxSendDialog({ open, onOpenChange, taxInvoiceId, taxInvoiceNo,
     setSendSuccess(false);
     setErrorAlert(null);
   }, [open, taxInvoiceId]);
-
-  const handleDebugEmailRaw = async (sendReal: boolean) => {
-    setRawDebugLoading(true);
-    setRawDebugResult(null);
-    try {
-      const res = await fetch("/api/etax/debug-email-raw", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ taxInvoiceId, companyId, printType: formType, sendReal }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        toast({ title: "Debug ไม่สำเร็จ", description: data.message, variant: "destructive" });
-        return;
-      }
-      setRawDebugResult(data);
-      setShowRawDebug(true);
-    } catch (err: any) {
-      toast({ title: "Debug error", description: err.message, variant: "destructive" });
-    }
-    setRawDebugLoading(false);
-  };
 
   const handleSend = async () => {
     setLoading(true);
