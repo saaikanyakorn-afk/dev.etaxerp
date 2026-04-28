@@ -65,7 +65,13 @@ export default function QuotationShare() {
     setResponding(false);
   }
 
-  const handlePrint = () => iframeRef.current?.contentWindow?.print();
+  const handlePrint = () => {
+    if (!iframeRef.current?.contentWindow) return;
+    const prev = document.title;
+    document.title = docNo;
+    setTimeout(() => { document.title = prev; }, 1000);
+    iframeRef.current.contentWindow.print();
+  };
   const handleDownload = async () => {
     if (!pdfUrl) return;
     setDownloading(true);

@@ -44,7 +44,13 @@ export default function InvoicePdf() {
     return () => { if (objUrlRef.current) URL.revokeObjectURL(objUrlRef.current); };
   }, [id]);
 
-  const handlePrint = () => iframeRef.current?.contentWindow?.print();
+  const handlePrint = () => {
+    if (!iframeRef.current?.contentWindow) return;
+    const prev = document.title;
+    document.title = docNo;
+    setTimeout(() => { document.title = prev; }, 1000);
+    iframeRef.current.contentWindow.print();
+  };
   const handleDownload = () => {
     if (!pdfUrl) return;
     const a = document.createElement("a");
