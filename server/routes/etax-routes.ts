@@ -710,6 +710,106 @@ export function registerEtaxRoutes(app: Express) {
     }
   });
 
+  // Debug endpoint: capture raw email headers via Ethereal + send real SMTP to see ETDA response
+  app.post("/api/etax/debug-email-raw", requireAuth, async (req, res) => {
+    try {
+      const user = (req as any).user;
+      const { taxInvoiceId, companyId, printType: rawPrintType, sendReal } = req.body;
+      if (!taxInvoiceId || !companyId) return res.status(400).json({ message: "taxInvoiceId and companyId required" });
+      const validPrintTypes = ["tax_invoice", "tax_invoice_receipt", "receipt"];
+      const printType = validPrintTypes.includes(rawPrintType) ? rawPrintType : undefined;
+
+      const [comp] = await db.select().from(companies).where(eq(companies.id, companyId));
+      if (!comp) return res.status(404).json({ message: "Company not found" });
+      if (!checkCompanyAccess(comp, user)) return res.status(403).json({ message: "ไม่มีสิทธิ์" });
+
+      const { tiv, data, documentType } = await buildEtaxDataFromInvoice(taxInvoiceId, companyId, printType);
+      const xml = generateEtaxXml(data);
+      const xmlFileName = "ETDA-invoice.xml";
+      const pdfOpts = await buildPdfDataById("tax_invoice", taxInvoiceId, printType);
+      pdfOpts.etaxSent = true;
+      const pdfBuffer = await generatePdfMake(pdfOpts);
+      const pdfA3Buffer = await convertToPdfA3(pdfBuffer, xml, xmlFileName, documentType);
+
+      const dateStr = parseDateToBE(tiv.taxInvoiceDate);
+      const SUBJECT_PREFIX: Record<string, string> = { "388": "INV", "T02": "INV", "T03": "INV", "T04": "INV", "80": "DBN", "81": "CRN" };
+      const subjectPrefix = SUBJECT_PREFIX[data.typeCode] || "INV";
+      const subject = `[${dateStr}][${subjectPrefix}][${tiv.taxInvoiceNo || "TEST"}]`;
+      const pdfFilename = `${tiv.taxInvoiceNo || "test"}.pdf`;
+
+      const buyerEmail = data.buyerEmail || "buyer@example.com";
+      const timestampEmail = comp.etaxTimestampEmail || "csemail@etax.teda.th";
+
+      const htmlBody = `<div style="font-family:Arial,sans-serif;padding:20px"><h3>e-Tax Invoice Debug</h3><p>To: ${buyerEmail}</p><p>CC: ${timestampEmail}</p><p>Subject: ${subject}</p></div>`;
+
+      const nodemailer = await import("nodemailer");
+
+      // 1) Ethereal capture — raw MIME headers, ไม่ส่งออกจริง
+      const testAccount = await nodemailer.default.createTestAccount();
+      const etherealTransport = nodemailer.default.createTransport({
+        host: "smtp.ethereal.email",
+        port: 587,
+        secure: false,
+        auth: { user: testAccount.user, pass: testAccount.pass },
+      });
+
+      const mailOptions: any = {
+        from: comp.smtpUser ? `"${comp.name}" <${comp.smtpUser}>` : `"${comp.name}" <${testAccount.user}>`,
+        to: buyerEmail,
+        cc: timestampEmail,
+        subject,
+        html: htmlBody,
+        attachments: [{ filename: pdfFilename, content: pdfA3Buffer, contentType: "application/pdf" }],
+      };
+
+      const etherealInfo = await etherealTransport.sendMail(mailOptions);
+      const etherealPreviewUrl = nodemailer.default.getTestMessageUrl(etherealInfo);
+
+      const result: any = {
+        etherealPreviewUrl,
+        emailStructure: {
+          from: mailOptions.from,
+          to: mailOptions.to,
+          cc: mailOptions.cc,
+          subject: mailOptions.subject,
+          attachments: [{ filename: pdfFilename, size: pdfA3Buffer.length }],
+        },
+        etherealMessageId: etherealInfo.messageId,
+        etherealResponse: etherealInfo.response,
+      };
+
+      // 2) Real SMTP send (optional) — ส่งจริงให้ ETDA เพื่อรับ response กลับมาดูใน Gmail buyer
+      if (sendReal && comp.smtpUser && comp.smtpPass) {
+        try {
+          const smtpConfig: any = {
+            host: comp.smtpHost || "smtp.gmail.com",
+            port: comp.smtpPort || 587,
+            secure: false,
+            auth: { user: comp.smtpUser.trim(), pass: comp.smtpPass.trim() },
+          };
+          const realTransport = nodemailer.default.createTransport(smtpConfig);
+          const realMailOptions = { ...mailOptions, from: `"${comp.name}" <${comp.smtpUser.trim()}>` };
+          const realInfo = await realTransport.sendMail(realMailOptions);
+          result.realSmtp = {
+            sent: true,
+            messageId: realInfo.messageId,
+            response: realInfo.response,
+            envelope: realInfo.envelope,
+            note: `ส่งจริงแล้ว: To: ${buyerEmail}, CC: ${timestampEmail}. ตรวจสอบ Gmail ของ buyer → เปิด email → More (⋮) → Show original เพื่อดู raw headers`,
+          };
+        } catch (smtpErr: any) {
+          result.realSmtp = { sent: false, error: smtpErr.message };
+        }
+      }
+
+      console.log(`[DEBUG-EMAIL-RAW] ethereal: ${etherealPreviewUrl}`);
+      res.json(result);
+    } catch (err: any) {
+      console.error("[DEBUG-EMAIL-RAW] error:", err.message);
+      res.status(500).json({ message: err.message });
+    }
+  });
+
   app.get("/api/etax/debug-pdfa3/:invoiceId", requireAuth, async (req, res) => {
     try {
       const taxInvoiceId = parseInt(req.params.invoiceId);
