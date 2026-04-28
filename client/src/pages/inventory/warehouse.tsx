@@ -220,6 +220,16 @@ export default function WarehousePage(props: { Wrapper?: React.ComponentType<{ c
     enabled: !!companyId,
   });
 
+  const { data: stockByWarehouse = {} } = useQuery<Record<number, { warehouseName: string; qty: number }[]>>({
+    queryKey: ["/api/inventory/stock-by-warehouse", companyId],
+    queryFn: async () => {
+      const r = await fetch(`/api/inventory/stock-by-warehouse?companyId=${companyId}`, { credentials: "include" });
+      if (!r.ok) return {};
+      return r.json();
+    },
+    enabled: !!companyId,
+  });
+
   const { data: movements = [] } = useQuery<StockMovement[]>({
     queryKey: ["/api/stock-movements", companyId, movementProductFilter],
     queryFn: async () => {
@@ -701,6 +711,7 @@ export default function WarehousePage(props: { Wrapper?: React.ComponentType<{ c
                         <TableHead className="w-24 text-right">ราคาขาย</TableHead>
                         <TableHead className="w-24 text-right">ต้นทุน</TableHead>
                         <TableHead className="w-28 text-right">คงเหลือ</TableHead>
+                        <TableHead className="w-44">แยกตามคลัง</TableHead>
                         <TableHead className="w-28 text-right">จอง</TableHead>
                         <TableHead className="w-28 text-right">พร้อมขาย</TableHead>
                         <TableHead className="w-28 text-right">มูลค่า</TableHead>
@@ -711,7 +722,7 @@ export default function WarehousePage(props: { Wrapper?: React.ComponentType<{ c
                     <TableBody>
                       {filteredProducts.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={12} className="text-center py-16">
+                          <TableCell colSpan={13} className="text-center py-16">
                             <div className="flex flex-col items-center gap-3 text-muted-foreground">
                               <Package className="h-12 w-12 text-slate-300" />
                               <p className="font-medium">ยังไม่มีสินค้าในคลัง</p>
@@ -751,6 +762,31 @@ export default function WarehousePage(props: { Wrapper?: React.ComponentType<{ c
                                 <span className={`text-sm font-bold ${status.color}`} data-testid={`text-qty-${p.id}`}>
                                   {formatNumber(p.currentQty)}
                                 </span>
+                              </TableCell>
+                              <TableCell className="text-xs" data-testid={`text-warehouse-stock-${p.id}`}>
+                                {(() => {
+                                  const wStocks = stockByWarehouse[p.id];
+                                  if (!wStocks || wStocks.length === 0) return <span className="text-muted-foreground">-</span>;
+                                  const sorted = [...wStocks].sort((a, b) => b.qty - a.qty);
+                                  const show = sorted.slice(0, 2);
+                                  const rest = sorted.slice(2);
+                                  const allText = sorted.map(ws => `${ws.warehouseName}: ${formatNumber(ws.qty, 0)}`).join("\n");
+                                  return (
+                                    <div className="flex flex-wrap gap-1" title={allText}>
+                                      {show.map((ws, i) => (
+                                        <span key={i} className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-blue-50 text-[11px] leading-tight whitespace-nowrap">
+                                          <span className="text-gray-600 max-w-[60px] truncate">{ws.warehouseName}</span>
+                                          <span className="font-semibold text-blue-700 tabular-nums">{formatNumber(ws.qty, 0)}</span>
+                                        </span>
+                                      ))}
+                                      {rest.length > 0 && (
+                                        <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-gray-100 text-[11px] text-gray-500 cursor-help" title={allText}>
+                                          +{rest.length}
+                                        </span>
+                                      )}
+                                    </div>
+                                  );
+                                })()}
                               </TableCell>
                               <TableCell className="text-right text-xs text-muted-foreground">
                                 {formatNumber(p.reservedQty)}
