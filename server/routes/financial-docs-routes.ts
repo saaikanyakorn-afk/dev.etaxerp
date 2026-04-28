@@ -4,7 +4,8 @@ import { storage } from "../storage";
 import { eq, desc, and, or, inArray, count } from "drizzle-orm";
 import { receipts, depositReceipts, contacts, users, purchaseDeposits, taxInvoices, taxInvoiceItems, salesCreditNotes, salesCreditNoteItems, purchaseInvoices, purchaseInvoiceItems, purchaseDebitNotes, purchaseDebitNoteItems, purchaseDepositDeductions, depositDeductions } from "@shared/schema";
 import { requireAuth, requireModule, requireRole, requireAnyModule, checkDocOwnership } from "../route-middleware";
-import { getNextDocNo, createAutoJournalEntry, resolvePaymentMethodAccountCode, logActivity } from "../route-helpers";
+import { sql } from "drizzle-orm";
+import { getNextDocNo, createAutoJournalEntry, resolvePaymentMethodAccountCode, logActivity, upsertWarehouseStockLevel } from "../route-helpers";
 import { parsePagination, paginatedResponse } from "./pagination";
 
 export function registerFinancialDocsRoutes(app: Express) {
@@ -856,6 +857,19 @@ app.post("/api/sales-credit-notes", requireAuth, requireAnyModule("sales", "ecom
 
     const savedItems = await db.select().from(salesCreditNoteItems).where(eq(salesCreditNoteItems.creditNoteId, result.id));
 
+    const returnToStock = body.returnToStock === true || body.returnToStock === "true";
+    const returnWarehouseId = body.returnWarehouseId ? Number(body.returnWarehouseId) : null;
+    if (returnToStock && returnWarehouseId) {
+      await db.execute(sql`UPDATE sales_credit_notes SET return_to_stock = TRUE, return_warehouse_id = ${returnWarehouseId} WHERE id = ${result.id}`);
+      for (const item of savedItems) {
+        if (item.productId && item.qty) {
+          await upsertWarehouseStockLevel(result.companyId, item.productId, returnWarehouseId, Number(item.qty));
+        }
+      }
+    } else {
+      await db.execute(sql`UPDATE sales_credit_notes SET return_to_stock = FALSE, return_warehouse_id = NULL WHERE id = ${result.id}`);
+    }
+
     let journalResult = null;
     try {
       journalResult = await createAutoJournalEntry({
@@ -895,6 +909,14 @@ app.patch("/api/sales-credit-notes/:id", requireAuth, requireAnyModule("sales", 
     else if (body.refTaxInvoiceId !== null) body.refTaxInvoiceId = Number(body.refTaxInvoiceId) || null;
 
     const statusChanged = body.status && body.status !== existing.status;
+
+    const oldCnRaw = await db.execute(sql`SELECT return_to_stock, return_warehouse_id FROM sales_credit_notes WHERE id = ${existing.id}`);
+    const oldCnMeta = (oldCnRaw as any).rows?.[0] || {};
+    const oldReturnToStock = oldCnMeta.return_to_stock === true;
+    const oldReturnWarehouseId = oldCnMeta.return_warehouse_id ? Number(oldCnMeta.return_warehouse_id) : null;
+    const oldItemsForRevert = (items && Array.isArray(items) && oldReturnToStock && oldReturnWarehouseId)
+      ? await db.select().from(salesCreditNoteItems).where(eq(salesCreditNoteItems.creditNoteId, existing.id))
+      : [];
 
     const result = await db.transaction(async (tx) => {
       const [updated] = await tx.update(salesCreditNotes).set({
@@ -952,6 +974,27 @@ app.patch("/api/sales-credit-notes/:id", requireAuth, requireAnyModule("sales", 
     }
 
     const savedItems = await db.select().from(salesCreditNoteItems).where(eq(salesCreditNoteItems.creditNoteId, result.id));
+
+    const returnToStock = body.returnToStock === true || body.returnToStock === "true";
+    const returnWarehouseId = body.returnWarehouseId ? Number(body.returnWarehouseId) : null;
+
+    for (const item of oldItemsForRevert) {
+      if (item.productId && item.qty && oldReturnWarehouseId) {
+        await upsertWarehouseStockLevel(existing.companyId, item.productId, oldReturnWarehouseId, -Number(item.qty));
+      }
+    }
+
+    if (returnToStock && returnWarehouseId) {
+      await db.execute(sql`UPDATE sales_credit_notes SET return_to_stock = TRUE, return_warehouse_id = ${returnWarehouseId} WHERE id = ${result.id}`);
+      for (const item of savedItems) {
+        if (item.productId && item.qty) {
+          await upsertWarehouseStockLevel(result.companyId, item.productId, returnWarehouseId, Number(item.qty));
+        }
+      }
+    } else {
+      await db.execute(sql`UPDATE sales_credit_notes SET return_to_stock = FALSE, return_warehouse_id = NULL WHERE id = ${result.id}`);
+    }
+
     res.json({ ...result, items: savedItems, journalResult });
   } catch (err: any) { res.status(400).json({ message: err.message }); }
 });
@@ -962,10 +1005,22 @@ app.delete("/api/sales-credit-notes/:id", requireAuth, requireAnyModule("sales",
     if (!existing) return res.status(404).json({ message: "ไม่พบใบลดหนี้" });
     { const ac = await checkDocOwnership(existing.companyId, req.user); if (!ac.allowed) return res.status(403).json({ message: ac.message }); }
     if (existing.status !== "draft") return res.status(400).json({ message: "ลบได้เฉพาะใบลดหนี้สถานะแบบร่างเท่านั้น" });
+    const cnMetaRaw = await db.execute(sql`SELECT return_to_stock, return_warehouse_id FROM sales_credit_notes WHERE id = ${existing.id}`);
+    const cnMeta = (cnMetaRaw as any).rows?.[0] || {};
+    const delReturnToStock = cnMeta.return_to_stock === true;
+    const delReturnWarehouseId = cnMeta.return_warehouse_id ? Number(cnMeta.return_warehouse_id) : null;
+    const cnItemsToRevert = delReturnToStock && delReturnWarehouseId
+      ? await db.select().from(salesCreditNoteItems).where(eq(salesCreditNoteItems.creditNoteId, existing.id))
+      : [];
     await db.transaction(async (tx) => {
       await tx.delete(salesCreditNoteItems).where(eq(salesCreditNoteItems.creditNoteId, existing.id));
       await tx.delete(salesCreditNotes).where(eq(salesCreditNotes.id, existing.id));
     });
+    for (const item of cnItemsToRevert) {
+      if (item.productId && item.qty && delReturnWarehouseId) {
+        await upsertWarehouseStockLevel(existing.companyId, item.productId, delReturnWarehouseId, -Number(item.qty));
+      }
+    }
     res.json({ success: true });
   } catch (err: any) { res.status(500).json({ message: err.message }); }
 });

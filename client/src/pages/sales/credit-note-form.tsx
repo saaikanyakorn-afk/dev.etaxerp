@@ -94,6 +94,8 @@ export default function CreditNoteForm() {
 
   const [priceMode, setPriceMode] = useState<"excluded" | "included">("excluded");
   const [journalOverrideLines, setJournalOverrideLines] = useState<JournalLine[] | null>(null);
+  const [returnToStock, setReturnToStock] = useState(false);
+  const [returnWarehouseId, setReturnWarehouseId] = useState<number | undefined>(undefined);
   const [form, setForm] = useState({
     creditNoteNo: "",
     creditNoteDate: toLocalDateStr(new Date()),
@@ -165,6 +167,17 @@ export default function CreditNoteForm() {
     enabled: !!companyId,
   });
 
+  const { data: warehouses = [] } = useQuery<any[]>({
+    queryKey: ["/api/inventory/warehouses", companyId],
+    queryFn: async () => {
+      if (!companyId) return [];
+      const res = await fetch(`/api/inventory/warehouses?companyId=${companyId}`, { credentials: "include" });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!companyId,
+  });
+
   useEffect(() => {
     if (isNew && activePaymentMethods.length > 0 && (form.paymentMethod === "transfer" || form.paymentMethod === "")) {
       const defaultMethod = activePaymentMethods.find((m: any) => m.isDefault) || activePaymentMethods[0];
@@ -185,6 +198,8 @@ export default function CreditNoteForm() {
           if (res.ok) {
             const data = await res.json();
             setPriceMode(data.priceMode || "excluded");
+            setReturnToStock(data.return_to_stock || data.returnToStock || false);
+            setReturnWarehouseId(data.return_warehouse_id || data.returnWarehouseId || undefined);
             setForm({
               creditNoteNo: data.creditNoteNo || "",
               creditNoteDate: data.creditNoteDate || "",
@@ -353,6 +368,8 @@ export default function CreditNoteForm() {
     });
     setItems([{ ...emptyItem(), vatType: defaultVatType }]);
     setPriceMode("excluded");
+    setReturnToStock(false);
+    setReturnWarehouseId(undefined);
   }
 
   async function handleSubmit(approveNow = false) {
@@ -371,6 +388,8 @@ export default function CreditNoteForm() {
       totalAmount: totals.totalAmount.toFixed(2),
       discountAmount: totals.discountAmount.toFixed(2),
       status: approveNow ? "approved" : form.status,
+      returnToStock,
+      returnWarehouseId: returnToStock ? (returnWarehouseId || null) : null,
       items: items.filter(it => it.productName).map(it => ({
         productId: it.productId || null,
         productCode: it.productCode,
@@ -727,6 +746,43 @@ export default function CreditNoteForm() {
             <button data-testid="button-add-item" onClick={addItem} className="flex items-center gap-1.5 text-sm text-green-600 hover:text-green-700 font-medium px-2 py-1.5 hover:bg-green-50 rounded">
               <Plus className="h-4 w-4" /> เพิ่มรายการ
             </button>
+
+            <div className="border border-orange-200 bg-orange-50 rounded-lg p-3 mb-2">
+              <div className="flex items-center gap-2 mb-2">
+                <input
+                  type="checkbox"
+                  id="return-to-stock"
+                  data-testid="checkbox-return-to-stock"
+                  checked={returnToStock}
+                  onChange={e => { setReturnToStock(e.target.checked); if (!e.target.checked) setReturnWarehouseId(undefined); }}
+                  className="h-4 w-4 accent-orange-500 cursor-pointer"
+                />
+                <label htmlFor="return-to-stock" className="text-sm font-medium text-orange-700 cursor-pointer select-none">
+                  รับสินค้าคืนเข้าคลัง (คืนสต๊อก)
+                </label>
+              </div>
+              {returnToStock && (
+                <div className="ml-6 mt-1.5">
+                  <label className="text-xs text-orange-600 mb-1 block font-medium">เลือกคลังที่รับสินค้าคืน</label>
+                  <select
+                    data-testid="select-return-warehouse"
+                    value={returnWarehouseId ? String(returnWarehouseId) : ""}
+                    onChange={e => setReturnWarehouseId(e.target.value ? Number(e.target.value) : undefined)}
+                    className="h-8 text-sm border border-orange-300 rounded bg-white px-2 outline-none focus:ring-1 focus:ring-orange-400 min-w-[200px]"
+                  >
+                    <option value="">-- เลือกคลัง --</option>
+                    {warehouses.map((w: any) => (
+                      <option key={w.id} value={String(w.id)}>
+                        {w.code ? `[${w.code}] ` : ""}{w.name}
+                      </option>
+                    ))}
+                  </select>
+                  {returnWarehouseId && (
+                    <p className="text-xs text-orange-500 mt-1">สต๊อกคลังจะเพิ่มขึ้นเมื่อบันทึกใบลดหนี้</p>
+                  )}
+                </div>
+              )}
+            </div>
 
             <div className="flex flex-col sm:flex-row items-start gap-4 sm:gap-6 doc-summary-section">
               <div className="flex-1 space-y-3">

@@ -77,6 +77,7 @@ export default function GoodsReceivingForm(props: { Wrapper?: React.ComponentTyp
     poId: undefined as number | undefined,
     notes: "",
     status: "draft",
+    warehouseId: undefined as number | undefined,
   });
 
   const [items, setItems] = useState<GRItemForm[]>([emptyItem()]);
@@ -120,6 +121,17 @@ export default function GoodsReceivingForm(props: { Wrapper?: React.ComponentTyp
     enabled: !!companyId,
   });
 
+  const { data: warehouses = [] } = useQuery<any[]>({
+    queryKey: ["/api/inventory/warehouses", companyId],
+    queryFn: async () => {
+      if (!companyId) return [];
+      const res = await fetch(`/api/inventory/warehouses?companyId=${companyId}`, { credentials: "include" });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!companyId,
+  });
+
   useEffect(() => {
     if (loaded) return;
     if (isNew) {
@@ -139,6 +151,7 @@ export default function GoodsReceivingForm(props: { Wrapper?: React.ComponentTyp
               poId: data.poId || undefined,
               notes: data.notes || "",
               status: data.status || "draft",
+              warehouseId: data.warehouse_id || data.warehouseId || undefined,
             });
             if (data.items && data.items.length > 0) {
               setItems(data.items.map((it: any) => ({
@@ -330,6 +343,7 @@ export default function GoodsReceivingForm(props: { Wrapper?: React.ComponentTyp
       poId: form.poId || null,
       notes: form.notes,
       status: form.status,
+      warehouseId: form.warehouseId || null,
       totalAmount: calcGrandTotal().toFixed(2),
       items: validItems.map(it => ({
         productId: it.productId || null,
@@ -460,6 +474,32 @@ export default function GoodsReceivingForm(props: { Wrapper?: React.ComponentTyp
                 )}
                 {form.poId && (
                   <p className="text-xs text-blue-600 mt-1">รายการสินค้าถูกดึงจาก {form.poReference} อัตโนมัติ</p>
+                )}
+              </div>
+
+              <div>
+                <Label className="text-sm text-slate-600 flex items-center gap-1.5">
+                  <Package className="h-3.5 w-3.5 text-orange-500" />
+                  คลังสินค้าที่รับเข้า
+                </Label>
+                <Select
+                  value={form.warehouseId ? String(form.warehouseId) : "__none__"}
+                  onValueChange={v => setForm(prev => ({ ...prev, warehouseId: v === "__none__" ? undefined : Number(v) }))}
+                >
+                  <SelectTrigger className="mt-1 h-9 text-sm bg-white" data-testid="select-warehouse">
+                    <SelectValue placeholder="เลือกคลังสินค้า (ไม่บังคับ)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">-- ไม่ระบุคลัง --</SelectItem>
+                    {warehouses.map((w: any) => (
+                      <SelectItem key={w.id} value={String(w.id)}>
+                        {w.code ? `[${w.code}] ` : ""}{w.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {form.warehouseId && (
+                  <p className="text-xs text-orange-600 mt-1">สต๊อกคลังจะถูกอัปเดตอัตโนมัติเมื่ออนุมัติ</p>
                 )}
               </div>
 

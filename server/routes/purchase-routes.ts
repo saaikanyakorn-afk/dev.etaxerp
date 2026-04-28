@@ -1391,12 +1391,18 @@ export function registerPurchaseRoutes(app: Express) {
       const [existing] = await db.select().from(purchaseInvoices).where(eq(purchaseInvoices.id, Number(req.params.id)));
       if (!existing) return res.status(404).json({ message: "ไม่พบใบแจ้งหนี้ซื้อ" });
       { const ac = await checkDocOwnership(existing.companyId, req.user); if (!ac.allowed) return res.status(403).json({ message: ac.message }); }
+      const piItems = await fetchPurchaseInvoiceItems(existing.id);
       await db.transaction(async (tx) => {
         await deleteJournalEntriesForDoc(tx, "purchase_invoice", existing.id);
         await deleteStockMovementsForDoc(tx, "purchase_invoice", existing.id);
         await tx.delete(purchaseInvoiceItems).where(eq(purchaseInvoiceItems.purchaseInvoiceId, existing.id));
         await tx.delete(purchaseInvoices).where(eq(purchaseInvoices.id, existing.id));
       });
+      for (const item of piItems) {
+        if (item.warehouseId && item.productId && item.qty) {
+          await upsertWarehouseStockLevel(existing.companyId, item.productId, item.warehouseId, -Number(item.qty));
+        }
+      }
       res.json({ success: true });
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
@@ -1413,12 +1419,18 @@ export function registerPurchaseRoutes(app: Express) {
         try {
           const [existing] = await db.select().from(purchaseInvoices).where(eq(purchaseInvoices.id, Number(id)));
           if (!existing) { errors.push({ id, error: "ไม่พบเอกสาร" }); continue; }
+          const bulkPiItems = await fetchPurchaseInvoiceItems(existing.id);
           await db.transaction(async (tx) => {
             await deleteJournalEntriesForDoc(tx, "purchase_invoice", existing.id);
             await deleteStockMovementsForDoc(tx, "purchase_invoice", existing.id);
             await tx.delete(purchaseInvoiceItems).where(eq(purchaseInvoiceItems.purchaseInvoiceId, existing.id));
             await tx.delete(purchaseInvoices).where(eq(purchaseInvoices.id, existing.id));
           });
+          for (const item of bulkPiItems) {
+            if (item.warehouseId && item.productId && item.qty) {
+              await upsertWarehouseStockLevel(existing.companyId, item.productId, item.warehouseId, -Number(item.qty));
+            }
+          }
           deleted++;
         } catch (err: any) {
           errors.push({ id, error: err.message });

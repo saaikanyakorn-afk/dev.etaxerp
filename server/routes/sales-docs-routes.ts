@@ -5,7 +5,7 @@ import { eq, desc, and, inArray, count, sql, isNull } from "drizzle-orm";
 import { salesOrders, invoices, salesOrderItems, quotations, companies, documentSettings, quotationItems, users, invoiceItems, journalEntries, journalLines, accounts, products, contacts, documentImportBatches, taxInvoices, taxInvoiceItems, receipts, receiptItems, purchaseInvoices, expenses, commissionRules, commissionRecords, employees, liveCfOrders, salesCreditNotes, billingNotes, billingNoteLinkedDocs, purchaseRequests, bidComparisons, purchaseOrders, productBundles, purchaseDebitNotes } from "@shared/schema";
 import { gte, lte, or } from "drizzle-orm";
 import { requireAuth, requireRole, requireAnyModule, getCompanyTenantId, checkDocOwnership } from "../route-middleware";
-import { getNextDocNo, validateDocNo, getNextJournalEntryNo, createAutoJournalEntry, resolvePaymentMethodAccountCode, logActivity, checkDocumentLimit, deleteStockMovementsForDoc, deleteJournalEntriesForDoc, recomputePaymentStatus, deductStockBundleAware } from "../route-helpers";
+import { getNextDocNo, validateDocNo, getNextJournalEntryNo, createAutoJournalEntry, resolvePaymentMethodAccountCode, logActivity, checkDocumentLimit, deleteStockMovementsForDoc, deleteJournalEntriesForDoc, recomputePaymentStatus, deductStockBundleAware, upsertWarehouseStockLevel } from "../route-helpers";
 import { parsePagination, paginatedResponse } from "./pagination";
 import multer from "multer";
 import * as XLSX from "xlsx";
@@ -1042,12 +1042,18 @@ app.delete("/api/invoices/:id", requireAuth, requireAnyModule("sales", "ecommerc
     const [existing] = await db.select().from(invoices).where(eq(invoices.id, Number(req.params.id)));
     if (!existing) return res.status(404).json({ message: "ไม่พบใบแจ้งหนี้" });
     { const ac = await checkDocOwnership(existing.companyId, req.user); if (!ac.allowed) return res.status(403).json({ message: ac.message }); }
+    const invItems = await fetchInvoiceItems(existing.id);
     await db.transaction(async (tx) => {
       await deleteJournalEntriesForDoc(tx, "invoice", existing.id);
       await deleteStockMovementsForDoc(tx, "invoice", existing.id);
       await tx.delete(invoiceItems).where(eq(invoiceItems.invoiceId, existing.id));
       await tx.delete(invoices).where(eq(invoices.id, existing.id));
     });
+    for (const item of invItems) {
+      if (item.warehouseId && item.productId && item.qty) {
+        await upsertWarehouseStockLevel(existing.companyId, item.productId, item.warehouseId, Number(item.qty));
+      }
+    }
     res.json({ success: true });
   } catch (err: any) { res.status(500).json({ message: err.message }); }
 });
@@ -1068,12 +1074,18 @@ app.post("/api/invoices/bulk-delete", requireAuth, requireAnyModule("sales", "ec
       try {
         const [existing] = await db.select().from(invoices).where(eq(invoices.id, Number(id)));
         if (!existing) { errors.push(`#${id}: ไม่พบ`); continue; }
+        const bulkInvItems = await fetchInvoiceItems(existing.id);
         await db.transaction(async (tx) => {
           await deleteJournalEntriesForDoc(tx, "invoice", existing.id);
           await deleteStockMovementsForDoc(tx, "invoice", existing.id);
           await tx.delete(invoiceItems).where(eq(invoiceItems.invoiceId, existing.id));
           await tx.delete(invoices).where(eq(invoices.id, existing.id));
         });
+        for (const item of bulkInvItems) {
+          if (item.warehouseId && item.productId && item.qty) {
+            await upsertWarehouseStockLevel(existing.companyId, item.productId, item.warehouseId, Number(item.qty));
+          }
+        }
         logActivity({ companyId: existing.companyId, userId: user.id, userName: user.username, action: "delete", entityType: "invoice", entityId: String(existing.id), entityName: existing.invoiceNo }).catch(() => {});
         deleted++;
       } catch (e: any) {
@@ -2150,6 +2162,7 @@ app.delete("/api/tax-invoices/:id", requireAuth, requireAnyModule("sales", "ecom
     if (blockers.length > 0) {
       return res.status(400).json({ message: `ไม่สามารถลบได้ เนื่องจากมีเอกสารเชื่อมอยู่:\n${blockers.join("\n")}\nกรุณาลบเอกสารที่เชื่อมก่อน` });
     }
+    const tiItems = await fetchTaxInvoiceItems(existing.id);
     await db.transaction(async (tx) => {
       await tx.update(liveCfOrders).set({ taxInvoiceId: null }).where(eq(liveCfOrders.taxInvoiceId, existing.id));
       await deleteJournalEntriesForDoc(tx, "tax_invoice", existing.id);
@@ -2157,6 +2170,11 @@ app.delete("/api/tax-invoices/:id", requireAuth, requireAnyModule("sales", "ecom
       await tx.delete(taxInvoiceItems).where(eq(taxInvoiceItems.taxInvoiceId, existing.id));
       await tx.delete(taxInvoices).where(eq(taxInvoices.id, existing.id));
     });
+    for (const item of tiItems) {
+      if (item.warehouseId && item.productId && item.qty) {
+        await upsertWarehouseStockLevel(existing.companyId, item.productId, item.warehouseId, Number(item.qty));
+      }
+    }
     const user = req.user as any;
     logActivity({ companyId: existing.companyId, userId: user.id, userName: user.username, action: "delete", entityType: "tax_invoice", entityId: String(existing.id), entityName: existing.taxInvoiceNo }).catch(() => {});
     res.json({ success: true });
@@ -2177,12 +2195,18 @@ app.post("/api/tax-invoices/bulk-delete", requireAuth, requireAnyModule("sales",
       try {
         const [existing] = await db.select().from(taxInvoices).where(eq(taxInvoices.id, Number(id)));
         if (!existing) { errors.push(`#${id}: ไม่พบ`); continue; }
+        const bulkTiItems = await fetchTaxInvoiceItems(existing.id);
         await db.transaction(async (tx) => {
           await deleteJournalEntriesForDoc(tx, "tax_invoice", existing.id);
           await deleteStockMovementsForDoc(tx, "tax_invoice", existing.id);
           await tx.delete(taxInvoiceItems).where(eq(taxInvoiceItems.taxInvoiceId, existing.id));
           await tx.delete(taxInvoices).where(eq(taxInvoices.id, existing.id));
         });
+        for (const item of bulkTiItems) {
+          if (item.warehouseId && item.productId && item.qty) {
+            await upsertWarehouseStockLevel(existing.companyId, item.productId, item.warehouseId, Number(item.qty));
+          }
+        }
         logActivity({ companyId: existing.companyId, userId: user.id, userName: user.username, action: "delete", entityType: "tax_invoice", entityId: String(existing.id), entityName: existing.taxInvoiceNo }).catch(() => {});
         deleted++;
       } catch (e: any) { errors.push(`#${id}: ${e.message}`); }

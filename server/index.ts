@@ -1067,6 +1067,73 @@ async function runMigrationsInBackground() {
       else log(`[sub-perms] Sequence synced OK`);
     } catch (e: any) { console.warn("[sub-perms-fix] skip:", e.message?.slice(0, 200)); }
 
+    try {
+      await db.execute(sql.raw(`ALTER TABLE goods_receivings ADD COLUMN IF NOT EXISTS warehouse_id INTEGER`));
+      await db.execute(sql.raw(`ALTER TABLE goods_receiving_items ADD COLUMN IF NOT EXISTS warehouse_id INTEGER`));
+      await db.execute(sql.raw(`ALTER TABLE sales_credit_notes ADD COLUMN IF NOT EXISTS return_to_stock BOOLEAN DEFAULT FALSE`));
+      await db.execute(sql.raw(`ALTER TABLE sales_credit_notes ADD COLUMN IF NOT EXISTS return_warehouse_id INTEGER`));
+      log("[migration] warehouse inventory columns ensured");
+    } catch (e: any) { console.warn("[migration] warehouse columns skip:", e.message?.slice(0, 100)); }
+
+    try {
+      const backfillCheck = await db.execute(sql.raw(`SELECT config_value FROM system_config WHERE config_key = 'WAREHOUSE_STOCK_BACKFILL_DONE' LIMIT 1`));
+      if (!((backfillCheck as any).rows || []).length) {
+        await db.execute(sql.raw(`
+          INSERT INTO warehouse_stock_levels (warehouse_id, product_id, company_id, quantity, reserved_qty, updated_at)
+          SELECT
+            ii.warehouse_id,
+            ii.product_id,
+            pi.company_id,
+            SUM(ii.qty)::numeric AS quantity,
+            0 AS reserved_qty,
+            NOW()
+          FROM purchase_invoice_items ii
+          JOIN purchase_invoices pi ON pi.id = ii.purchase_invoice_id
+          WHERE ii.warehouse_id IS NOT NULL AND ii.product_id IS NOT NULL
+          GROUP BY ii.warehouse_id, ii.product_id, pi.company_id
+          ON CONFLICT (warehouse_id, product_id, company_id) DO UPDATE
+            SET quantity = warehouse_stock_levels.quantity + EXCLUDED.quantity,
+                updated_at = NOW()
+        `));
+        await db.execute(sql.raw(`
+          INSERT INTO warehouse_stock_levels (warehouse_id, product_id, company_id, quantity, reserved_qty, updated_at)
+          SELECT
+            ii.warehouse_id,
+            ii.product_id,
+            inv.company_id,
+            -SUM(ii.qty)::numeric AS quantity,
+            0 AS reserved_qty,
+            NOW()
+          FROM invoice_items ii
+          JOIN invoices inv ON inv.id = ii.invoice_id
+          WHERE ii.warehouse_id IS NOT NULL AND ii.product_id IS NOT NULL
+          GROUP BY ii.warehouse_id, ii.product_id, inv.company_id
+          ON CONFLICT (warehouse_id, product_id, company_id) DO UPDATE
+            SET quantity = warehouse_stock_levels.quantity + EXCLUDED.quantity,
+                updated_at = NOW()
+        `));
+        await db.execute(sql.raw(`
+          INSERT INTO warehouse_stock_levels (warehouse_id, product_id, company_id, quantity, reserved_qty, updated_at)
+          SELECT
+            ii.warehouse_id,
+            ii.product_id,
+            ti.company_id,
+            -SUM(ii.qty)::numeric AS quantity,
+            0 AS reserved_qty,
+            NOW()
+          FROM tax_invoice_items ii
+          JOIN tax_invoices ti ON ti.id = ii.tax_invoice_id
+          WHERE ii.warehouse_id IS NOT NULL AND ii.product_id IS NOT NULL
+          GROUP BY ii.warehouse_id, ii.product_id, ti.company_id
+          ON CONFLICT (warehouse_id, product_id, company_id) DO UPDATE
+            SET quantity = warehouse_stock_levels.quantity + EXCLUDED.quantity,
+                updated_at = NOW()
+        `));
+        await db.execute(sql.raw(`INSERT INTO system_config (config_key, config_value) VALUES ('WAREHOUSE_STOCK_BACKFILL_DONE', 'true') ON CONFLICT DO NOTHING`));
+        log("[migration] warehouseStockLevels historical backfill done");
+      }
+    } catch (e: any) { console.warn("[migration] backfill skip:", e.message?.slice(0, 200)); }
+
     migrationReady = true;
     log("Background migrations complete - API ready");
 

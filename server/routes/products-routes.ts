@@ -1609,8 +1609,12 @@ app.post("/api/goods-receivings", requireAuth, requireModule("inventory"), async
       createdBy: (req.user as any)?.id,
     }).returning();
 
+    if (req.body.warehouseId) {
+      await db.execute(sql`UPDATE goods_receivings SET warehouse_id = ${Number(req.body.warehouseId)} WHERE id = ${gr.id}`);
+    }
+
     for (const item of items) {
-      await db.insert(goodsReceivingItems).values({
+      const [insertedItem] = await db.insert(goodsReceivingItems).values({
         goodsReceivingId: gr.id,
         productId: item.productId,
         productName: item.productName,
@@ -1622,7 +1626,10 @@ app.post("/api/goods-receivings", requireAuth, requireModule("inventory"), async
         lotNumber: item.lotNumber || null,
         manufacturingDate: item.manufacturingDate || null,
         expiryDate: item.expiryDate || null,
-      });
+      }).returning();
+      if (req.body.warehouseId) {
+        await db.execute(sql`UPDATE goods_receiving_items SET warehouse_id = ${Number(req.body.warehouseId)} WHERE id = ${insertedItem.id}`);
+      }
     }
 
     const savedItems = await db.select().from(goodsReceivingItems).where(eq(goodsReceivingItems.goodsReceivingId, gr.id));
@@ -1656,16 +1663,21 @@ app.patch("/api/goods-receivings/:id", requireAuth, requireModule("inventory"), 
     }
 
     const totalAmount = items ? items.reduce((sum: number, it: any) => sum + (Number(it.quantity) * Number(it.unitCost || 0)), 0) : existing.totalAmount;
+    const warehouseId = req.body.warehouseId ? Number(req.body.warehouseId) : null;
 
     const [gr] = await db.update(goodsReceivings).set({
       grDate: grDate || existing.grDate, vendorId, vendorName, poReference, poId: validatedPoId, notes,
       totalAmount: String(totalAmount),
     }).where(eq(goodsReceivings.id, id)).returning();
 
+    if (warehouseId) {
+      await db.execute(sql`UPDATE goods_receivings SET warehouse_id = ${warehouseId} WHERE id = ${id}`);
+    }
+
     if (items && items.length > 0) {
       await db.delete(goodsReceivingItems).where(eq(goodsReceivingItems.goodsReceivingId, id));
       for (const item of items) {
-        await db.insert(goodsReceivingItems).values({
+        const [insertedItem] = await db.insert(goodsReceivingItems).values({
           goodsReceivingId: id,
           productId: item.productId,
           productName: item.productName,
@@ -1677,7 +1689,10 @@ app.patch("/api/goods-receivings/:id", requireAuth, requireModule("inventory"), 
           lotNumber: item.lotNumber || null,
           manufacturingDate: item.manufacturingDate || null,
           expiryDate: item.expiryDate || null,
-        });
+        }).returning();
+        if (warehouseId) {
+          await db.execute(sql`UPDATE goods_receiving_items SET warehouse_id = ${warehouseId} WHERE id = ${insertedItem.id}`);
+        }
       }
     }
 
@@ -1697,6 +1712,9 @@ app.post("/api/goods-receivings/:id/approve", requireAuth, requireModule("invent
     if (items.length === 0) return res.status(400).json({ message: "ไม่มีรายการสินค้า" });
 
     const [grCompany] = await db.select({ stockEntrySource: companies.stockEntrySource }).from(companies).where(eq(companies.id, gr.companyId));
+    const grWarehouseRaw = await db.execute(sql`SELECT warehouse_id FROM goods_receivings WHERE id = ${id}`);
+    const grWarehouseId: number | null = (grWarehouseRaw as any).rows?.[0]?.warehouse_id ?? null;
+
     if (grCompany?.stockEntrySource !== "purchase_invoice") {
       for (const item of items) {
         const uc = String(item.unitCost || "0");
@@ -1744,6 +1762,10 @@ app.post("/api/goods-receivings/:id/approve", requireAuth, requireModule("invent
             eq(stockMovements.referenceId, gr.id),
             eq(stockMovements.productId, item.productId),
           ));
+        }
+
+        if (grWarehouseId && item.productId) {
+          await upsertWarehouseStockLevel(gr.companyId, item.productId, grWarehouseId, Number(item.quantity));
         }
       }
     }
