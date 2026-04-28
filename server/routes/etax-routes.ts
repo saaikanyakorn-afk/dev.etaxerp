@@ -511,7 +511,8 @@ export function registerEtaxRoutes(app: Express) {
       }
       const docTypeLabel = DOC_LABEL[data.typeCode];
 
-      const htmlBody = `
+      // Email body ส่ง ETDA (มี PDF attachment)
+      const htmlBodyEtda = `
         <div style="font-family: 'Sarabun', Arial, sans-serif; max-width: 600px; margin: 0 auto;">
           <div style="background: #fb9678; color: white; padding: 20px; border-radius: 8px 8px 0 0;">
             <h2 style="margin: 0;">e-Tax Invoice Submission</h2>
@@ -525,6 +526,30 @@ export function registerEtaxRoutes(app: Express) {
               <tr><td style="padding: 6px 0; color: #666;">จำนวนเงินรวม:</td><td style="padding: 6px 0; font-weight: 600;">฿${parseFloat(String(tiv.totalAmount || "0")).toLocaleString("th-TH", { minimumFractionDigits: 2 })}</td></tr>
             </table>
             <p style="font-size: 13px; color: #888;">ไฟล์แนบ: ${pdfFilename} (PDF/A-3 พร้อม XML ตามมาตรฐาน สพธอ.)</p>
+            <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 15px 0;">
+            <p style="font-size: 12px; color: #999;">
+              เอกสารนี้จัดทำและส่งข้อมูลให้แก่กรมสรรพากรด้วยวิธีการทางอิเล็กทรอนิกส์<br>
+              ตามประกาศอธิบดีกรมสรรพากร
+            </p>
+          </div>
+        </div>
+      `;
+      // Email body แจ้งผู้ซื้อ (ไม่มี PDF — ETDA จะส่ง timestamped PDF ให้ผู้ซื้อเอง)
+      const htmlBodyBuyer = `
+        <div style="font-family: 'Sarabun', Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <div style="background: #fb9678; color: white; padding: 20px; border-radius: 8px 8px 0 0;">
+            <h2 style="margin: 0;">แจ้งการส่ง${docTypeLabel}อิเล็กทรอนิกส์</h2>
+            <p style="margin: 5px 0 0; opacity: 0.9;">${comp.name}</p>
+          </div>
+          <div style="padding: 20px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
+            <p>เรียน ท่านผู้รับ${docTypeLabel},</p>
+            <p>${comp.name} ได้จัดทำและส่ง${docTypeLabel}อิเล็กทรอนิกส์ให้แก่ท่านเรียบร้อยแล้ว</p>
+            <table style="width: 100%; border-collapse: collapse; margin: 15px 0;">
+              <tr><td style="padding: 6px 0; color: #666;">ประเภทเอกสาร:</td><td style="padding: 6px 0; font-weight: 600;">${docTypeLabel}</td></tr>
+              <tr><td style="padding: 6px 0; color: #666;">เลขที่เอกสาร:</td><td style="padding: 6px 0; font-weight: 600;">${tiv.taxInvoiceNo}</td></tr>
+              <tr><td style="padding: 6px 0; color: #666;">จำนวนเงินรวม:</td><td style="padding: 6px 0; font-weight: 600;">฿${parseFloat(String(tiv.totalAmount || "0")).toLocaleString("th-TH", { minimumFractionDigits: 2 })}</td></tr>
+            </table>
+            <p style="color: #374151;">ท่านจะได้รับ${docTypeLabel}ที่ผ่านการประทับรับรองเวลา (Time Stamp) จากระบบ สพธอ. (ETDA) โดยตรงทางอีเมลอีกครั้งหนึ่ง</p>
             <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 15px 0;">
             <p style="font-size: 12px; color: #999;">
               เอกสารนี้จัดทำและส่งข้อมูลให้แก่กรมสรรพากรด้วยวิธีการทางอิเล็กทรอนิกส์<br>
@@ -560,17 +585,28 @@ export function registerEtaxRoutes(app: Express) {
           auth: { user: comp.smtpUser, pass: comp.smtpPass },
         };
         const transporter = nodemailer.default.createTransport(smtpConfig);
-        const mailOptions: any = {
+        // Email 1: ส่งไปที่ ETDA พร้อม PDF/A-3 (ETDA จะ timestamp แล้วส่งให้ buyer เอง)
+        const etdaMail: any = {
           from: `"${comp.name}" <${comp.smtpUser}>`,
-          to: data.buyerEmail,
-          cc: timestampEmail,
+          to: timestampEmail,
           subject,
-          html: htmlBody,
+          html: htmlBodyEtda,
           attachments: [{ filename: pdfFilename, content: pdfA3Buffer, contentType: "application/pdf" }],
         };
-        const info = await transporter.sendMail(mailOptions);
+        const info = await transporter.sendMail(etdaMail);
         messageId = info.messageId || null;
-        dlog(`[EMAIL] SMTP sent | to: ${data.buyerEmail} | cc: ${timestampEmail} | msgId: ${messageId}`);
+        dlog(`[EMAIL] SMTP→ETDA sent | to: ${timestampEmail} | msgId: ${messageId}`);
+        // Email 2: แจ้งผู้ซื้อ (ไม่มี PDF — รอรับจาก ETDA โดยตรง)
+        if (data.buyerEmail && data.buyerEmail !== timestampEmail) {
+          const buyerMail: any = {
+            from: `"${comp.name}" <${comp.smtpUser}>`,
+            to: data.buyerEmail,
+            subject: `แจ้งการส่ง${docTypeLabel}อิเล็กทรอนิกส์ ${tiv.taxInvoiceNo}`,
+            html: htmlBodyBuyer,
+          };
+          await transporter.sendMail(buyerMail);
+          dlog(`[EMAIL] SMTP→Buyer notify sent | to: ${data.buyerEmail}`);
+        }
       } else {
         if (!process.env.RESEND_API_KEY) {
           return res.status(400).json({ message: "ยังไม่ได้ตั้งค่า RESEND_API_KEY" });
@@ -580,22 +616,33 @@ export function registerEtaxRoutes(app: Express) {
         const rawFrom = process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev";
         const isTestEmail = rawFrom.includes("onboarding@resend.dev");
         const fromEmail = rawFrom.includes("<") ? rawFrom : (isTestEmail ? rawFrom : `${comp.name.slice(0, 200)} <${rawFrom}>`);
-        const emailPayload: any = {
+        // Email 1: ส่งไปที่ ETDA พร้อม PDF/A-3
+        const etdaPayload: any = {
           from: fromEmail,
-          to: [data.buyerEmail],
-          cc: [timestampEmail],
+          to: [timestampEmail],
           subject,
-          html: htmlBody,
+          html: htmlBodyEtda,
           attachments: [{ filename: pdfFilename, content: pdfA3Buffer.toString("base64") }],
         };
-        const sendResult = await resend.emails.send(emailPayload) as any;
+        const sendResult = await resend.emails.send(etdaPayload) as any;
         if (sendResult?.error || !sendResult?.data?.id) {
           const errMsg = sendResult?.error?.message || "ส่งอีเมลไม่สำเร็จ (Resend error)";
           dlog(`[EMAIL] Resend error: ${errMsg}`);
           return res.status(500).json({ message: errMsg, debugInfo: debugLogs });
         }
         messageId = sendResult.data.id;
-        dlog(`[EMAIL] Resend sent | to: ${data.buyerEmail} | cc: ${timestampEmail} | msgId: ${messageId}`);
+        dlog(`[EMAIL] Resend→ETDA sent | to: ${timestampEmail} | msgId: ${messageId}`);
+        // Email 2: แจ้งผู้ซื้อ (ไม่มี PDF)
+        if (data.buyerEmail && data.buyerEmail !== timestampEmail) {
+          const buyerPayload: any = {
+            from: fromEmail,
+            to: [data.buyerEmail],
+            subject: `แจ้งการส่ง${docTypeLabel}อิเล็กทรอนิกส์ ${tiv.taxInvoiceNo}`,
+            html: htmlBodyBuyer,
+          };
+          await resend.emails.send(buyerPayload);
+          dlog(`[EMAIL] Resend→Buyer notify sent | to: ${data.buyerEmail}`);
+        }
       }
 
       await db.update(taxInvoices).set({
