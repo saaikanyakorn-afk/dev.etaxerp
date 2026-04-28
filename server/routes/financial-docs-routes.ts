@@ -1035,10 +1035,22 @@ app.post("/api/sales-credit-notes/bulk-delete", requireAuth, requireAnyModule("s
       try {
         const [existing] = await db.select().from(salesCreditNotes).where(eq(salesCreditNotes.id, Number(id)));
         if (!existing) { errors.push(`#${id}: ไม่พบ`); continue; }
+        const bulkCnMetaRaw = await db.execute(sql`SELECT return_to_stock, return_warehouse_id FROM sales_credit_notes WHERE id = ${existing.id}`);
+        const bulkCnMeta = (bulkCnMetaRaw as any).rows?.[0] || {};
+        const bulkReturnToStock = bulkCnMeta.return_to_stock === true;
+        const bulkReturnWarehouseId = bulkCnMeta.return_warehouse_id ? Number(bulkCnMeta.return_warehouse_id) : null;
+        const bulkCnItems = bulkReturnToStock && bulkReturnWarehouseId
+          ? await db.select().from(salesCreditNoteItems).where(eq(salesCreditNoteItems.creditNoteId, existing.id))
+          : [];
         await db.transaction(async (tx) => {
           await tx.delete(salesCreditNoteItems).where(eq(salesCreditNoteItems.creditNoteId, existing.id));
           await tx.delete(salesCreditNotes).where(eq(salesCreditNotes.id, existing.id));
         });
+        for (const item of bulkCnItems) {
+          if (item.productId && item.qty && bulkReturnWarehouseId) {
+            await upsertWarehouseStockLevel(existing.companyId, item.productId, bulkReturnWarehouseId, -Number(item.qty));
+          }
+        }
         logActivity({ companyId: existing.companyId, userId: user.id, userName: user.username, action: "delete", entityType: "sales_credit_note", entityId: String(existing.id), entityName: existing.creditNoteNo }).catch(() => {});
         deleted++;
       } catch (e: any) { errors.push(`#${id}: ${e.message}`); }

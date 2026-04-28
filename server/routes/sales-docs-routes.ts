@@ -929,6 +929,15 @@ app.post("/api/invoices", requireAuth, requireAnyModule("sales", "ecommerce"), a
     } catch (e: any) { console.error(`[Invoice] Auto journal error:`, e.message); }
     console.log(`[Invoice] t4 journal=${Date.now()-t0}ms`);
 
+    if (result.status === "approved" || result.status === "debtor") {
+      const deductItems = savedItems
+        .filter((i: any) => i.productId && parseFloat(String(i.qty || "0")) > 0)
+        .map((i: any) => ({ productId: i.productId, qty: parseFloat(String(i.qty)), warehouseId: i.warehouseId || null, unitPrice: String(i.unitPrice || "0"), productName: i.productName || i.description }));
+      if (deductItems.length > 0) {
+        const docLabel = `ขายสินค้า ${result.invoiceNo}${result.customerName ? ` (${result.customerName})` : ""}`;
+        await deductStockBundleAware(deductItems, result.companyId, docLabel, "invoice", result.id, user.id).catch(() => {});
+      }
+    }
     logActivity({ companyId, userId: user.id, userName: user.username, action: "create", entityType: "invoice", entityId: String(result.id), entityName: invoiceNo }).catch(() => {});
     console.log(`[Invoice] TOTAL=${Date.now()-t0}ms`);
     res.status(201).json({ ...result, items: savedItems, journalResult });
@@ -1853,6 +1862,15 @@ app.post("/api/tax-invoices", requireAuth, requireAnyModule("sales", "ecommerce"
       });
     } catch (e) {}
 
+    if (result.status === "approved") {
+      const deductTiItems = savedItems
+        .filter((i: any) => i.productId && parseFloat(String(i.qty || "0")) > 0)
+        .map((i: any) => ({ productId: i.productId, qty: parseFloat(String(i.qty)), warehouseId: i.warehouseId || null, unitPrice: String(i.unitPrice || "0"), productName: i.productName || i.description }));
+      if (deductTiItems.length > 0) {
+        const docLabelTi = `ขายสินค้า ${result.taxInvoiceNo}${result.customerName ? ` (${result.customerName})` : ""}`;
+        await deductStockBundleAware(deductTiItems, result.companyId, docLabelTi, "tax_invoice", result.id, user.id).catch(() => {});
+      }
+    }
     logActivity({ companyId, userId: user.id, userName: user.username, action: "create", entityType: "tax_invoice", entityId: String(result.id), entityName: taxInvoiceNo }).catch(() => {});
     res.status(201).json({ ...result, items: savedItems, journalResult });
   } catch (err: any) { res.status(400).json({ message: err.message }); }
