@@ -1149,6 +1149,7 @@ export default function WarehousePage(props: { Wrapper?: React.ComponentType<{ c
           products={products}
           selectedProductId={selectedProductId}
           companyId={companyId}
+          warehouses={warehouseList}
           onSubmit={(data) => adjustMutation.mutate(data)}
           isPending={adjustMutation.isPending}
         />
@@ -1160,6 +1161,7 @@ export default function WarehousePage(props: { Wrapper?: React.ComponentType<{ c
           selectedProductId={selectedProductId}
           companyId={companyId}
           stockMap={stockMap}
+          warehouses={warehouseList}
           onSubmit={(data) => adjustMutation.mutate(data)}
           isPending={adjustMutation.isPending}
         />
@@ -1563,18 +1565,20 @@ function ImportStockDialog({ open, onClose, products, companyId, onSubmit, isPen
   );
 }
 
-function ReceiveStockDialog({ open, onClose, products, selectedProductId, companyId, onSubmit, isPending }: {
+function ReceiveStockDialog({ open, onClose, products, selectedProductId, companyId, warehouses, onSubmit, isPending }: {
   open: boolean;
   onClose: () => void;
   products: Product[];
   selectedProductId: number | null;
   companyId: number | undefined;
+  warehouses: any[];
   onSubmit: (data: any) => void;
   isPending: boolean;
 }) {
   const [productId, setProductId] = useState<string>("");
   const [quantity, setQuantity] = useState("");
   const [notes, setNotes] = useState("");
+  const [warehouseId, setWarehouseId] = useState<string>("");
 
   const activeProductId = selectedProductId ? String(selectedProductId) : productId;
 
@@ -1586,10 +1590,12 @@ function ReceiveStockDialog({ open, onClose, products, selectedProductId, compan
       quantity: quantity,
       movementType: "receive",
       notes: notes || "รับสินค้าเข้าคลัง",
+      ...(warehouseId ? { warehouseId: Number(warehouseId) } : {}),
     });
     setProductId("");
     setQuantity("");
     setNotes("");
+    setWarehouseId("");
     onClose();
   };
 
@@ -1636,6 +1642,22 @@ function ReceiveStockDialog({ open, onClose, products, selectedProductId, compan
               data-testid="input-receive-qty"
             />
           </div>
+          {warehouses.length > 0 && (
+            <div>
+              <Label className="text-xs">คลังสินค้า (ไม่บังคับ)</Label>
+              <Select value={warehouseId} onValueChange={setWarehouseId}>
+                <SelectTrigger className="h-9 mt-1" data-testid="select-receive-warehouse">
+                  <SelectValue placeholder="เลือกคลัง..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">ไม่ระบุคลัง</SelectItem>
+                  {warehouses.map((wh: any) => (
+                    <SelectItem key={wh.id} value={String(wh.id)}>{wh.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           <div>
             <Label className="text-xs">หมายเหตุ</Label>
             <Textarea
@@ -1662,13 +1684,14 @@ function ReceiveStockDialog({ open, onClose, products, selectedProductId, compan
   );
 }
 
-function AdjustStockDialog({ open, onClose, products, selectedProductId, companyId, stockMap, onSubmit, isPending }: {
+function AdjustStockDialog({ open, onClose, products, selectedProductId, companyId, stockMap, warehouses, onSubmit, isPending }: {
   open: boolean;
   onClose: () => void;
   products: Product[];
   selectedProductId: number | null;
   companyId: number | undefined;
   stockMap: Map<number, ProductStock>;
+  warehouses: any[];
   onSubmit: (data: any) => void;
   isPending: boolean;
 }) {
@@ -1676,6 +1699,7 @@ function AdjustStockDialog({ open, onClose, products, selectedProductId, company
   const [adjustType, setAdjustType] = useState<string>("adjust_in");
   const [quantity, setQuantity] = useState("");
   const [notes, setNotes] = useState("");
+  const [warehouseId, setWarehouseId] = useState<string>("");
 
   const activeProductId = selectedProductId ? String(selectedProductId) : productId;
   const currentStock = activeProductId ? parseFloat(stockMap.get(Number(activeProductId))?.quantity || "0") : 0;
@@ -1689,10 +1713,12 @@ function AdjustStockDialog({ open, onClose, products, selectedProductId, company
       quantity: delta,
       movementType: adjustType,
       notes: notes || (adjustType === "adjust_in" ? "ปรับเพิ่มสต๊อก" : "ปรับลดสต๊อก"),
+      ...(warehouseId ? { warehouseId: Number(warehouseId) } : {}),
     });
     setProductId("");
     setQuantity("");
     setNotes("");
+    setWarehouseId("");
     setAdjustType("adjust_in");
     onClose();
   };
@@ -1768,6 +1794,22 @@ function AdjustStockDialog({ open, onClose, products, selectedProductId, company
               </p>
             )}
           </div>
+          {warehouses.length > 0 && (
+            <div>
+              <Label className="text-xs">คลังสินค้า (ไม่บังคับ)</Label>
+              <Select value={warehouseId} onValueChange={setWarehouseId}>
+                <SelectTrigger className="h-9 mt-1" data-testid="select-adjust-warehouse">
+                  <SelectValue placeholder="เลือกคลัง..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">ไม่ระบุคลัง</SelectItem>
+                  {warehouses.map((wh: any) => (
+                    <SelectItem key={wh.id} value={String(wh.id)}>{wh.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           <div>
             <Label className="text-xs">หมายเหตุ</Label>
             <Textarea

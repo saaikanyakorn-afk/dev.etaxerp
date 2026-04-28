@@ -4,7 +4,7 @@ import { storage } from "../storage";
 import { eq, desc, asc, and, or, ilike, inArray, count, sum , sql } from "drizzle-orm";
 import { products, productBundles, documentImportBatches, stockMovements, promotions, companies, productLots, goodsRequisitions, goodsRequisitionItems, journalEntries, journalLines, stockTransfers, stockTransferItems, warehouses, warehouseStockLevels, branches } from "@shared/schema";
 import { requireAuth, requireModule, requireAnyModule, checkDocOwnership } from "../route-middleware";
-import { getNextJournalEntryNo, logActivity, deleteStockMovementsForDoc, deductStockBundleAware } from "../route-helpers";
+import { getNextJournalEntryNo, logActivity, deleteStockMovementsForDoc, deductStockBundleAware, upsertWarehouseStockLevel } from "../route-helpers";
 import { parsePagination, paginatedResponse } from "./pagination";
 import * as XLSX from "xlsx";
 import path from "path";
@@ -1351,11 +1351,14 @@ app.get("/api/product-stock", requireAuth, requireModule("inventory"), async (re
 
 app.post("/api/product-stock/adjust", requireAuth, requireModule("inventory"), async (req, res) => {
   try {
-    const { companyId, productId, quantity, movementType, notes, referenceType, referenceId } = req.body;
+    const { companyId, productId, quantity, movementType, notes, referenceType, referenceId, warehouseId } = req.body;
     if (!companyId || !productId || !quantity || !movementType) {
       return res.status(400).json({ message: "companyId, productId, quantity, movementType required" });
     }
     const result = await storage.adjustStock(companyId, productId, quantity, movementType, notes, referenceType, referenceId);
+    if (warehouseId) {
+      await upsertWarehouseStockLevel(companyId, productId, Number(warehouseId), Number(quantity));
+    }
     res.json(result);
   } catch (err: any) { res.status(400).json({ message: err.message }); }
 });

@@ -6,7 +6,7 @@ import { eq, and, desc, or, sql, count, not, ilike, inArray } from "drizzle-orm"
 import { purchaseRequests, purchaseRequestItems, bidComparisons, bidComparisonItems, bidVendors, purchaseOrders, purchaseOrderItems, purchaseInvoices, purchaseInvoiceItems, companies, accounts, contacts, products, journalEntries, journalLines, productStock, stockMovements, expenses, expenseItems, withholdingTaxCerts, whtCertItems, documentImportBatches, firmClients, clientUploadLinks, clientUploadFiles, purchaseDebitNotes, purchaseDebitNoteItems, accountingFormulas, accountingFormulaLines } from "@shared/schema";
 import { expenseDailyBatches, pdfImportTemplates } from "@shared/schema-extra";
 import { requireAuth, requireModule, requireRole, checkDocOwnership } from "../route-middleware";
-import { getNextDocNo, validateDocNo, createAutoJournalEntry, resolvePaymentMethodAccountCode, getNextJournalEntryNo, checkDocumentLimit, deleteStockMovementsForDoc, deleteJournalEntriesForDoc, logActivity } from "../route-helpers";
+import { getNextDocNo, validateDocNo, createAutoJournalEntry, resolvePaymentMethodAccountCode, getNextJournalEntryNo, checkDocumentLimit, deleteStockMovementsForDoc, deleteJournalEntriesForDoc, logActivity, upsertWarehouseStockLevel } from "../route-helpers";
 import { parsePagination, paginatedResponse } from "./pagination";
 import { invalidateCompanyReports } from "./report-cache";
 import { recalcBundleStock, recalcBomStock } from "../inventory-recalc";
@@ -1113,6 +1113,9 @@ export function registerPurchaseRoutes(app: Express) {
             } else {
               await db.insert(productStock).values({ companyId, productId: item.productId, quantity: String(qty) });
             }
+            if ((item as any).warehouseId) {
+              await upsertWarehouseStockLevel(companyId, item.productId, Number((item as any).warehouseId), qty);
+            }
           }
           await recalcBundleStock(companyId);
           await recalcBomStock(companyId);
@@ -1335,6 +1338,14 @@ export function registerPurchaseRoutes(app: Express) {
         try {
           const [piCompany] = await db.select({ stockEntrySource: companies.stockEntrySource }).from(companies).where(eq(companies.id, existing.companyId));
           if (piCompany?.stockEntrySource === "purchase_invoice") {
+            // Reverse old warehouseStockLevels contributions before deleting movements
+            const oldItems = await db.execute(sql`SELECT product_id, qty, warehouse_id FROM purchase_invoice_items WHERE purchase_invoice_id = ${existing.id}`);
+            for (const oi of oldItems.rows as any[]) {
+              if (oi.warehouse_id && oi.product_id) {
+                const oldQty = parseFloat(oi.qty || "0") || 0;
+                if (oldQty > 0) await upsertWarehouseStockLevel(existing.companyId, oi.product_id, oi.warehouse_id, -oldQty);
+              }
+            }
             await deleteStockMovementsForDoc(db, "purchase_invoice", existing.id);
             for (const item of savedItems) {
               if (!item.productId) continue;
@@ -1359,6 +1370,9 @@ export function registerPurchaseRoutes(app: Express) {
                 await db.update(productStock).set({ quantity: sql`CAST(${productStock.quantity} AS numeric) + ${qty}` }).where(eq(productStock.id, existingStock.id));
               } else {
                 await db.insert(productStock).values({ companyId: existing.companyId, productId: item.productId, quantity: String(qty) });
+              }
+              if ((item as any).warehouseId) {
+                await upsertWarehouseStockLevel(existing.companyId, item.productId, Number((item as any).warehouseId), qty);
               }
             }
             await recalcBundleStock(existing.companyId);

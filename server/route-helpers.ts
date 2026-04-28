@@ -2,7 +2,7 @@ import { db } from "./db";
 import { ecomDb } from "./ecom-db";
 import { storage } from "./storage";
 import { eq, desc, and, sql, inArray } from "drizzle-orm";
-import { documentSettings, companies, accounts, accountingFormulas, accountingFormulaLines, journalEntries, journalLines, taxInvoices, taxInvoiceItems, ecommerceOrders, paymentMethods, activityLogs, vatProductDictionary, stockMovements, productStock, closedPeriods, employees, invoices, receipts, receiptLinkedDocs, purchaseInvoices, expenses, paymentVoucherLinkedDocs, products, productBundles } from "@shared/schema";
+import { documentSettings, companies, accounts, accountingFormulas, accountingFormulaLines, journalEntries, journalLines, taxInvoices, taxInvoiceItems, ecommerceOrders, paymentMethods, activityLogs, vatProductDictionary, stockMovements, productStock, closedPeriods, employees, invoices, receipts, receiptLinkedDocs, purchaseInvoices, expenses, paymentVoucherLinkedDocs, products, productBundles, warehouseStockLevels } from "@shared/schema";
 import { formatDocNumber, validateDocNumberFormat, type DocNumberFormat, type DateEra } from "@shared/document-types";
 
 export async function checkClosedPeriod(companyId: number, entryDate: string): Promise<{ blocked: boolean; message: string }> {
@@ -1200,8 +1200,36 @@ export async function deleteCompaniesCascade(companyIds: number[]): Promise<{ de
   return { deleted, errors };
 }
 
+// Upsert warehouseStockLevels: เพิ่ม/ลด stock ใน warehouse cลัง cถ้า warehouseId มีค่า
+export async function upsertWarehouseStockLevel(
+  companyId: number, productId: number, warehouseId: number, delta: number, dbInst?: any
+): Promise<void> {
+  const useDb = dbInst || db;
+  try {
+    const [existing] = await useDb.select().from(warehouseStockLevels).where(
+      and(
+        eq(warehouseStockLevels.companyId, companyId),
+        eq(warehouseStockLevels.productId, productId),
+        eq(warehouseStockLevels.warehouseId, warehouseId),
+      )
+    );
+    if (existing) {
+      const newQty = String(Number(existing.quantity) + delta);
+      await useDb.update(warehouseStockLevels)
+        .set({ quantity: newQty, updatedAt: new Date() })
+        .where(eq(warehouseStockLevels.id, existing.id));
+    } else {
+      await useDb.insert(warehouseStockLevels).values({
+        companyId, productId, warehouseId, quantity: String(delta), reservedQty: "0",
+      });
+    }
+  } catch (e: any) {
+    console.error(`[warehouseStock] upsert failed cid=${companyId} pid=${productId} wid=${warehouseId} delta=${delta}:`, e.message);
+  }
+}
+
 export async function deductStockBundleAware(
-  items: { productId: number | null; qty: number; unitPrice?: string; productName?: string }[],
+  items: { productId: number | null; qty: number; warehouseId?: number | null; unitPrice?: string; productName?: string }[],
   companyId: number,
   docNo: string,
   referenceType: string,
@@ -1234,6 +1262,7 @@ export async function deductStockBundleAware(
   for (const item of validItems) {
     const pid = Number(item.productId);
     const pType = typeMap[pid] || "simple";
+    const wid = item.warehouseId ? Number(item.warehouseId) : null;
 
     if (pType === "bundle" && compMap[pid]?.length > 0) {
       for (const comp of compMap[pid]) {
@@ -1245,6 +1274,7 @@ export async function deductStockBundleAware(
             referenceType, referenceId,
             { referenceNo: docNo, createdBy }
           );
+          if (wid) await upsertWarehouseStockLevel(companyId, comp.componentProductId, wid, -compQty);
           results.push({ productId: comp.componentProductId, deducted: String(-compQty), stock });
         } catch (e: any) {
           console.error(`Bundle stock deduction failed for component ${comp.componentProductId}:`, e.message);
@@ -1259,6 +1289,7 @@ export async function deductStockBundleAware(
           docNo, referenceType, referenceId,
           { unitCost: unitPrice, totalCost, referenceNo: docNo, createdBy }
         );
+        if (wid) await upsertWarehouseStockLevel(companyId, pid, wid, -item.qty);
         results.push({ productId: pid, deducted: String(-item.qty), stock });
       } catch (e: any) {
         console.error(`Stock deduction failed for product ${pid}:`, e.message);

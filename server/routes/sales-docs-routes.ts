@@ -1027,7 +1027,7 @@ app.patch("/api/invoices/:id", requireAuth, requireAnyModule("sales", "ecommerce
 
       const deductItems = savedItems
         .filter((i: any) => i.productId && parseFloat(String(i.qty || "0")) > 0)
-        .map((i: any) => ({ productId: i.productId, qty: parseFloat(String(i.qty)), unitPrice: String(i.unitPrice || "0"), productName: i.productName || i.description }));
+        .map((i: any) => ({ productId: i.productId, qty: parseFloat(String(i.qty)), warehouseId: i.warehouseId || null, unitPrice: String(i.unitPrice || "0"), productName: i.productName || i.description }));
       const docLabel = `ขายสินค้า ${updated.invoiceNo}${updated.customerName ? ` (${updated.customerName})` : ""}`;
       const deductions = await deductStockBundleAware(deductItems, updated.companyId, docLabel, "invoice", updated.id, user.id);
       stockDeductions.push(...deductions);
@@ -2029,7 +2029,7 @@ app.patch("/api/tax-invoices/:id", requireAuth, requireAnyModule("sales", "ecomm
 
       const deductItems2 = savedItems
         .filter((i: any) => i.productId && parseFloat(String(i.qty || "0")) > 0)
-        .map((i: any) => ({ productId: i.productId, qty: parseFloat(String(i.qty)), unitPrice: String(i.unitPrice || "0"), productName: i.productName || i.description }));
+        .map((i: any) => ({ productId: i.productId, qty: parseFloat(String(i.qty)), warehouseId: i.warehouseId || null, unitPrice: String(i.unitPrice || "0"), productName: i.productName || i.description }));
       const docLabel2 = `ขายสินค้า ${updated.taxInvoiceNo}${updated.customerName ? ` (${updated.customerName})` : ""}`;
       await deductStockBundleAware(deductItems2, updated.companyId, docLabel2, "tax_invoice", updated.id, user.id);
     }
