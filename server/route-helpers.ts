@@ -1200,6 +1200,43 @@ export async function deleteCompaniesCascade(companyIds: number[]): Promise<{ de
   return { deleted, errors };
 }
 
+// Reverse warehouse stock for bundle-aware items (used in DELETE routes to undo deductStockBundleAware)
+export async function reverseWarehouseStockBundleAware(
+  items: { productId: number | null; qty: number | string; warehouseId?: number | null }[],
+  companyId: number,
+): Promise<void> {
+  const validItems = items.filter(i => i.productId && Number(i.qty) > 0 && i.warehouseId);
+  if (validItems.length === 0) return;
+  const productIds = [...new Set(validItems.map(i => Number(i.productId)))];
+  const prods = await db.select({ id: products.id, productType: products.productType })
+    .from(products).where(inArray(products.id, productIds));
+  const typeMap: Record<number, string> = {};
+  for (const p of prods) typeMap[p.id] = p.productType || "simple";
+  const bundleIds = prods.filter(p => p.productType === "bundle").map(p => p.id);
+  const compMap: Record<number, { componentProductId: number; qty: string }[]> = {};
+  if (bundleIds.length > 0) {
+    const comps = await db.select().from(productBundles).where(inArray(productBundles.bundleProductId, bundleIds));
+    for (const c of comps) {
+      if (!compMap[c.bundleProductId]) compMap[c.bundleProductId] = [];
+      compMap[c.bundleProductId].push({ componentProductId: c.componentProductId, qty: c.qty });
+    }
+  }
+  for (const item of validItems) {
+    const pid = Number(item.productId);
+    const pType = typeMap[pid] || "simple";
+    const wid = Number(item.warehouseId);
+    const qty = Number(item.qty);
+    if (pType === "bundle" && compMap[pid]?.length > 0) {
+      for (const comp of compMap[pid]) {
+        const compQty = qty * parseFloat(comp.qty || "1");
+        await upsertWarehouseStockLevel(companyId, comp.componentProductId, wid, compQty);
+      }
+    } else {
+      await upsertWarehouseStockLevel(companyId, pid, wid, qty);
+    }
+  }
+}
+
 // Upsert warehouseStockLevels: เพิ่ม/ลด stock ใน warehouse cลัง cถ้า warehouseId มีค่า
 export async function upsertWarehouseStockLevel(
   companyId: number, productId: number, warehouseId: number, delta: number, dbInst?: any

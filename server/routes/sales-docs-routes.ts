@@ -5,7 +5,7 @@ import { eq, desc, and, inArray, count, sql, isNull } from "drizzle-orm";
 import { salesOrders, invoices, salesOrderItems, quotations, companies, documentSettings, quotationItems, users, invoiceItems, journalEntries, journalLines, accounts, products, contacts, documentImportBatches, taxInvoices, taxInvoiceItems, receipts, receiptItems, purchaseInvoices, expenses, commissionRules, commissionRecords, employees, liveCfOrders, salesCreditNotes, billingNotes, billingNoteLinkedDocs, purchaseRequests, bidComparisons, purchaseOrders, productBundles, purchaseDebitNotes } from "@shared/schema";
 import { gte, lte, or } from "drizzle-orm";
 import { requireAuth, requireRole, requireAnyModule, getCompanyTenantId, checkDocOwnership } from "../route-middleware";
-import { getNextDocNo, validateDocNo, getNextJournalEntryNo, createAutoJournalEntry, resolvePaymentMethodAccountCode, logActivity, checkDocumentLimit, deleteStockMovementsForDoc, deleteJournalEntriesForDoc, recomputePaymentStatus, deductStockBundleAware, upsertWarehouseStockLevel } from "../route-helpers";
+import { getNextDocNo, validateDocNo, getNextJournalEntryNo, createAutoJournalEntry, resolvePaymentMethodAccountCode, logActivity, checkDocumentLimit, deleteStockMovementsForDoc, deleteJournalEntriesForDoc, recomputePaymentStatus, deductStockBundleAware, upsertWarehouseStockLevel, reverseWarehouseStockBundleAware } from "../route-helpers";
 import { parsePagination, paginatedResponse } from "./pagination";
 import multer from "multer";
 import * as XLSX from "xlsx";
@@ -1058,11 +1058,7 @@ app.delete("/api/invoices/:id", requireAuth, requireAnyModule("sales", "ecommerc
       await tx.delete(invoiceItems).where(eq(invoiceItems.invoiceId, existing.id));
       await tx.delete(invoices).where(eq(invoices.id, existing.id));
     });
-    for (const item of invItems) {
-      if (item.warehouseId && item.productId && item.qty) {
-        await upsertWarehouseStockLevel(existing.companyId, item.productId, item.warehouseId, Number(item.qty));
-      }
-    }
+    await reverseWarehouseStockBundleAware(invItems, existing.companyId);
     res.json({ success: true });
   } catch (err: any) { res.status(500).json({ message: err.message }); }
 });
@@ -1090,11 +1086,7 @@ app.post("/api/invoices/bulk-delete", requireAuth, requireAnyModule("sales", "ec
           await tx.delete(invoiceItems).where(eq(invoiceItems.invoiceId, existing.id));
           await tx.delete(invoices).where(eq(invoices.id, existing.id));
         });
-        for (const item of bulkInvItems) {
-          if (item.warehouseId && item.productId && item.qty) {
-            await upsertWarehouseStockLevel(existing.companyId, item.productId, item.warehouseId, Number(item.qty));
-          }
-        }
+        await reverseWarehouseStockBundleAware(bulkInvItems, existing.companyId);
         logActivity({ companyId: existing.companyId, userId: user.id, userName: user.username, action: "delete", entityType: "invoice", entityId: String(existing.id), entityName: existing.invoiceNo }).catch(() => {});
         deleted++;
       } catch (e: any) {
@@ -2188,11 +2180,7 @@ app.delete("/api/tax-invoices/:id", requireAuth, requireAnyModule("sales", "ecom
       await tx.delete(taxInvoiceItems).where(eq(taxInvoiceItems.taxInvoiceId, existing.id));
       await tx.delete(taxInvoices).where(eq(taxInvoices.id, existing.id));
     });
-    for (const item of tiItems) {
-      if (item.warehouseId && item.productId && item.qty) {
-        await upsertWarehouseStockLevel(existing.companyId, item.productId, item.warehouseId, Number(item.qty));
-      }
-    }
+    await reverseWarehouseStockBundleAware(tiItems, existing.companyId);
     const user = req.user as any;
     logActivity({ companyId: existing.companyId, userId: user.id, userName: user.username, action: "delete", entityType: "tax_invoice", entityId: String(existing.id), entityName: existing.taxInvoiceNo }).catch(() => {});
     res.json({ success: true });
@@ -2220,11 +2208,7 @@ app.post("/api/tax-invoices/bulk-delete", requireAuth, requireAnyModule("sales",
           await tx.delete(taxInvoiceItems).where(eq(taxInvoiceItems.taxInvoiceId, existing.id));
           await tx.delete(taxInvoices).where(eq(taxInvoices.id, existing.id));
         });
-        for (const item of bulkTiItems) {
-          if (item.warehouseId && item.productId && item.qty) {
-            await upsertWarehouseStockLevel(existing.companyId, item.productId, item.warehouseId, Number(item.qty));
-          }
-        }
+        await reverseWarehouseStockBundleAware(bulkTiItems, existing.companyId);
         logActivity({ companyId: existing.companyId, userId: user.id, userName: user.username, action: "delete", entityType: "tax_invoice", entityId: String(existing.id), entityName: existing.taxInvoiceNo }).catch(() => {});
         deleted++;
       } catch (e: any) { errors.push(`#${id}: ${e.message}`); }
