@@ -167,7 +167,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSessionToken(data.sessionToken);
     }
     queryClient.clear();
-    localStorage.removeItem("etax_selected_company");
     setUser(data);
     const returnTo = sessionStorage.getItem("returnTo");
     if (data.role === "client_external") {
