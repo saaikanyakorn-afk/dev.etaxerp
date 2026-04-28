@@ -124,6 +124,7 @@ export default function EcommerceOrders() {
   const [lineDialogOpen, setLineDialogOpen] = useState(false);
   const [lineUserId, setLineUserId] = useState("");
   const [bulkStatusValue, setBulkStatusValue] = useState("");
+  const [orderWarehouseMap, setOrderWarehouseMap] = useState<Record<number, string>>({});
 
   const { data: company } = useQuery<Company>({
     queryKey: ["/api/companies", selectedCompanyId],
@@ -136,6 +137,32 @@ export default function EcommerceOrders() {
     enabled: !!selectedCompanyId,
   });
   const isFullAccounting = company?.accountingMode === "full_accounting";
+
+  const { data: warehouses = [] } = useQuery<any[]>({
+    queryKey: ["/api/warehouses", selectedCompanyId],
+    queryFn: async () => {
+      const r = await fetch(`/api/warehouses?companyId=${selectedCompanyId}`, { credentials: "include" });
+      if (!r.ok) return [];
+      return r.json();
+    },
+    enabled: !!selectedCompanyId,
+  });
+
+  const setOrderWarehouseMutation = useMutation({
+    mutationFn: async ({ orderId, warehouseId }: { orderId: number; warehouseId: number | null }) => {
+      const r = await fetch(`/api/ecommerce/orders/${orderId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ warehouseId }),
+      });
+      if (!r.ok) throw new Error((await r.json()).message);
+      return r.json();
+    },
+    onSuccess: (_, vars) => {
+      setOrderWarehouseMap(prev => ({ ...prev, [vars.orderId]: vars.warehouseId ? String(vars.warehouseId) : "" }));
+    },
+  });
 
   const FOOD_PLATFORMS = ["grab_food", "line_man", "robinhood"];
 
@@ -1435,10 +1462,25 @@ export default function EcommerceOrders() {
                                       <span className="text-xs text-muted-foreground block">เลขพัสดุ</span>
                                       <span className="text-sm font-mono">{o.trackingNo || "-"}</span>
                                     </div>
-                                    <div>
-                                      <span className="text-xs text-muted-foreground block">คลังสินค้า</span>
-                                      <span className="text-sm">{o.warehouseCode || "ค่าเริ่มต้น"}</span>
-                                    </div>
+                                    {warehouses.length > 0 && (
+                                      <div>
+                                        <span className="text-xs text-muted-foreground block">คลังสินค้า (หัก stock เมื่อส่ง)</span>
+                                        <Select
+                                          value={orderWarehouseMap[o.id] ?? ((o as any).warehouseId ? String((o as any).warehouseId) : "none")}
+                                          onValueChange={v => setOrderWarehouseMutation.mutate({ orderId: o.id, warehouseId: v === "none" ? null : Number(v) })}
+                                        >
+                                          <SelectTrigger className="h-7 text-xs mt-0.5" data-testid={`select-order-warehouse-${o.id}`}>
+                                            <SelectValue placeholder="-- ไม่ระบุ --" />
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                            <SelectItem value="none">-- ไม่ระบุ --</SelectItem>
+                                            {warehouses.map((w: any) => (
+                                              <SelectItem key={w.id} value={String(w.id)}>{w.code} — {w.name}</SelectItem>
+                                            ))}
+                                          </SelectContent>
+                                        </Select>
+                                      </div>
+                                    )}
                                   </div>
 
                                   {o.notes && (

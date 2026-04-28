@@ -57,6 +57,8 @@ export default function ManufacturingForm() {
   const [lines, setLines] = useState<MOLine[]>([]);
   const [moStatus, setMoStatus] = useState("draft");
   const [moData, setMoData] = useState<any>(null);
+  const [sourceWarehouseId, setSourceWarehouseId] = useState<string>("");
+  const [targetWarehouseId, setTargetWarehouseId] = useState<string>("");
 
   const [completeDialogOpen, setCompleteDialogOpen] = useState(false);
   const [completedQty, setCompletedQty] = useState("");
@@ -68,6 +70,16 @@ export default function ManufacturingForm() {
     queryKey: ["/api/bom", selectedCompanyId],
     queryFn: async () => {
       const r = await fetch(`/api/bom?companyId=${selectedCompanyId}`, { credentials: "include" });
+      if (!r.ok) return [];
+      return r.json();
+    },
+    enabled: !!selectedCompanyId,
+  });
+
+  const { data: warehouses = [] } = useQuery<any[]>({
+    queryKey: ["/api/warehouses", selectedCompanyId],
+    queryFn: async () => {
+      const r = await fetch(`/api/warehouses?companyId=${selectedCompanyId}`, { credentials: "include" });
       if (!r.ok) return [];
       return r.json();
     },
@@ -106,6 +118,8 @@ export default function ManufacturingForm() {
       setNotes(moDetail.notes || "");
       setMoStatus(moDetail.status);
       setMoData(moDetail);
+      setSourceWarehouseId(moDetail.sourceWarehouseId ? String(moDetail.sourceWarehouseId) : "");
+      setTargetWarehouseId(moDetail.targetWarehouseId ? String(moDetail.targetWarehouseId) : "");
       if (moDetail.lines) {
         setLines(moDetail.lines.map((l: any) => ({
           componentProductId: l.componentProductId,
@@ -167,6 +181,8 @@ export default function ManufacturingForm() {
         manufacturingDate: mfgDate || null,
         expiryDate: expiryDate || null,
         notes: notes || null,
+        sourceWarehouseId: sourceWarehouseId ? Number(sourceWarehouseId) : null,
+        targetWarehouseId: targetWarehouseId ? Number(targetWarehouseId) : null,
         lines: lines.map(l => ({
           componentProductId: l.componentProductId,
           requiredQty: l.requiredQty,
@@ -388,6 +404,38 @@ export default function ManufacturingForm() {
                 <Label className="text-xs">หมายเหตุ</Label>
                 <Textarea value={notes} onChange={e => setNotes(e.target.value)} disabled={isReadOnly} rows={2} data-testid="input-notes" />
               </div>
+              {warehouses.length > 0 && (
+                <div className="grid grid-cols-2 gap-3 pt-1 border-t">
+                  <div>
+                    <Label className="text-xs text-blue-700">คลังวัตถุดิบ (ต้นทาง)</Label>
+                    <Select value={sourceWarehouseId || "none"} onValueChange={v => setSourceWarehouseId(v === "none" ? "" : v)} disabled={isReadOnly}>
+                      <SelectTrigger className="mt-1 text-xs" data-testid="select-source-warehouse">
+                        <SelectValue placeholder="-- ไม่ระบุ --" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">-- ไม่ระบุ --</SelectItem>
+                        {warehouses.map((w: any) => (
+                          <SelectItem key={w.id} value={String(w.id)}>{w.code} — {w.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className="text-xs text-green-700">คลังสินค้าสำเร็จรูป (ปลายทาง)</Label>
+                    <Select value={targetWarehouseId || "none"} onValueChange={v => setTargetWarehouseId(v === "none" ? "" : v)} disabled={isReadOnly}>
+                      <SelectTrigger className="mt-1 text-xs" data-testid="select-target-warehouse">
+                        <SelectValue placeholder="-- ไม่ระบุ --" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">-- ไม่ระบุ --</SelectItem>
+                        {warehouses.map((w: any) => (
+                          <SelectItem key={w.id} value={String(w.id)}>{w.code} — {w.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
 

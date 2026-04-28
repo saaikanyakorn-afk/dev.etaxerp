@@ -3,9 +3,9 @@ import { db } from "../db";
 import { ecomDb } from "../ecom-db";
 import { storage } from "../storage";
 import { eq, desc, and, or, isNull, asc, ilike, inArray, notInArray, gte, lte, count, sum , sql } from "drizzle-orm";
-import { companies, ecommerceOrders, productStock, products, ecommerceReturns, taxInvoices, taxInvoiceItems, accounts, journalEntries, journalLines, ecommerceOrderItems, workBoards, workBoardColumns, workBoardItems, firmFolders, receipts, oauthStates, syncLogs, facebookChatOrders, chatOrderKeywords, chatOrders, productBundles, ecommerceReturnItems, salesCreditNotes, salesCreditNoteItems, paymentMethods, facebookPages, platformChatThreads, ecommerceConnections, ecommerceProductMappings, deliveryNotes, stockTransfers, warehouses, fulfillmentBatches, fulfillmentItems, ecommerceTeamMembers, users } from "@shared/schema";
+import { companies, ecommerceOrders, productStock, products, ecommerceReturns, taxInvoices, taxInvoiceItems, accounts, journalEntries, journalLines, ecommerceOrderItems, workBoards, workBoardColumns, workBoardItems, firmFolders, receipts, oauthStates, syncLogs, facebookChatOrders, chatOrderKeywords, chatOrders, productBundles, ecommerceReturnItems, salesCreditNotes, salesCreditNoteItems, paymentMethods, facebookPages, platformChatThreads, ecommerceConnections, ecommerceProductMappings, deliveryNotes, stockTransfers, warehouses, warehouseStockLevels, fulfillmentBatches, fulfillmentItems, ecommerceTeamMembers, users } from "@shared/schema";
 import { requireAuth, requireModule, requireAnyModule, checkDocOwnership } from "../route-middleware";
-import { getNextDocNo, getNextJournalEntryNo, createAutoJournalEntry, generateTivFromEcommerceOrder, PLATFORM_DOC_PREFIX, PLATFORM_DISPLAY_NAME, logActivity, checkClosedPeriod } from "../route-helpers";
+import { getNextDocNo, getNextJournalEntryNo, createAutoJournalEntry, generateTivFromEcommerceOrder, PLATFORM_DOC_PREFIX, PLATFORM_DISPLAY_NAME, logActivity, checkClosedPeriod, upsertWarehouseStockLevel, deductStockBundleAware } from "../route-helpers";
 import { parsePagination, paginatedResponse } from "./pagination";
 import multer from "multer";
 import crypto from "crypto";
@@ -270,6 +270,12 @@ app.patch("/api/ecommerce/orders/:id", requireAuth, requireModule("ecommerce"), 
     const order = await storage.updateEcommerceOrder(orderId, req.body);
     if (!order) return res.status(404).json({ message: "ไม่พบออเดอร์" });
 
+    if (req.body.warehouseId !== undefined) {
+      const wid = req.body.warehouseId ? Number(req.body.warehouseId) : null;
+      await db.execute(sql.raw(`UPDATE ecommerce_orders SET warehouse_id = ${wid === null ? "NULL" : wid} WHERE id = ${orderId}`));
+      (order as any).warehouseId = wid;
+    }
+
     const isStatusChangedToShipped = req.body.status === "shipping" && existingOrder.status !== "shipping";
 
     if (isStatusChangedToShipped && !order.taxInvoiceId) {
@@ -298,6 +304,23 @@ app.patch("/api/ecommerce/orders/:id", requireAuth, requireModule("ecommerce"), 
           }
         } catch (autoTivErr) {
           console.error("Auto-TIV error:", autoTivErr);
+        }
+      }
+    }
+
+    if (isStatusChangedToShipped) {
+      const ecomWarehouseId = (order as any).warehouseId ? Number((order as any).warehouseId) : null;
+      if (ecomWarehouseId) {
+        try {
+          const orderItems = await ecomDb.select().from(ecommerceOrderItems).where(eq(ecommerceOrderItems.orderId, orderId));
+          const deductItems = orderItems
+            .filter(i => i.productId && Number(i.qty) > 0)
+            .map(i => ({ productId: i.productId!, qty: Number(i.qty), warehouseId: ecomWarehouseId, productName: i.name }));
+          if (deductItems.length > 0) {
+            await deductStockBundleAware(deductItems, order.companyId, order.orderNo || `EC-${orderId}`, "ecommerce_order", orderId, user.id);
+          }
+        } catch (ecomDeductErr) {
+          console.error("[ecommerce] warehouse stock deduction error:", ecomDeductErr);
         }
       }
     }

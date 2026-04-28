@@ -661,10 +661,54 @@ export function registerPosRoutes(app: Express) {
 
       if (txn.status === "voided") return res.status(400).json({ message: "รายการนี้ถูกยกเลิกแล้ว" });
 
+      const voidItems = await posDb.select().from(posTransactionItems).where(eq(posTransactionItems.transactionId, id));
+      const [voidSession] = await posDb.select().from(posSessions).where(eq(posSessions.id, txn.sessionId));
+      const sessionWarehouseId = voidSession?.warehouseId;
+
       await posDb.update(posTransactions).set({ status: "voided" }).where(eq(posTransactions.id, id));
 
       if (txn.taxInvoiceId) {
         await posDb.update(taxInvoices).set({ status: "cancelled" }).where(eq(taxInvoices.id, txn.taxInvoiceId));
+      }
+
+      if (sessionWarehouseId && voidItems.length > 0) {
+        const voidProductIds = [...new Set(voidItems.map(i => i.productId).filter(Boolean))] as number[];
+        const voidProds = await posDb.select({ id: products.id, productType: products.productType })
+          .from(products).where(inArray(products.id, voidProductIds));
+        const voidTypeMap: Record<number, string> = {};
+        for (const p of voidProds) voidTypeMap[p.id] = p.productType || "simple";
+        const voidBundleIds = voidProds.filter(p => p.productType === "bundle").map(p => p.id);
+        const voidCompMap: Record<number, { componentProductId: number; qty: string }[]> = {};
+        if (voidBundleIds.length > 0) {
+          const comps = await posDb.select().from(productBundles).where(inArray(productBundles.bundleProductId, voidBundleIds));
+          for (const c of comps) {
+            if (!voidCompMap[c.bundleProductId]) voidCompMap[c.bundleProductId] = [];
+            voidCompMap[c.bundleProductId].push({ componentProductId: c.componentProductId, qty: c.qty });
+          }
+        }
+        const restoreWarehouseStock = async (productId: number, qty: number) => {
+          const [wsl] = await posDb.select().from(warehouseStockLevels)
+            .where(and(eq(warehouseStockLevels.warehouseId, sessionWarehouseId), eq(warehouseStockLevels.productId, productId)));
+          if (wsl) {
+            await posDb.update(warehouseStockLevels).set({ quantity: String(Number(wsl.quantity || "0") + qty) }).where(eq(warehouseStockLevels.id, wsl.id));
+          } else {
+            await posDb.insert(warehouseStockLevels).values({ companyId: txn.companyId, productId, warehouseId: sessionWarehouseId, quantity: String(qty), reservedQty: "0" }).catch(() => {});
+          }
+        };
+        for (const item of voidItems) {
+          if (!item.productId || !item.quantity) continue;
+          const pid = Number(item.productId);
+          const qty = parseFloat(String(item.quantity || "0"));
+          if (qty <= 0) continue;
+          const pType = voidTypeMap[pid] || "simple";
+          if (pType === "bundle" && voidCompMap[pid]?.length > 0) {
+            for (const comp of voidCompMap[pid]) {
+              await restoreWarehouseStock(comp.componentProductId, qty * parseFloat(comp.qty || "1"));
+            }
+          } else {
+            await restoreWarehouseStock(pid, qty);
+          }
+        }
       }
 
       res.json({ message: "ยกเลิกรายการสำเร็จ" });

@@ -2,9 +2,9 @@ import type { Express } from "express";
 import { db } from "../db";
 import { storage } from "../storage";
 import { eq, and, asc, desc, sql } from "drizzle-orm";
-import { manufacturingOrders, manufacturingOrderLines, bomHeaders, bomLines, products, productLots, stockMovements, productStock, journalEntries, journalLines, accounts } from "@shared/schema";
+import { manufacturingOrders, manufacturingOrderLines, bomHeaders, bomLines, products, productLots, stockMovements, productStock, journalEntries, journalLines, accounts, warehouseStockLevels } from "@shared/schema";
 import { requireAuth, requireModule , checkDocOwnership} from "../route-middleware";
-import { getNextJournalEntryNo } from "../route-helpers";
+import { getNextJournalEntryNo, upsertWarehouseStockLevel } from "../route-helpers";
 
 export function registerManufacturingRoutes(app: Express) {
 
@@ -90,6 +90,8 @@ export function registerManufacturingRoutes(app: Express) {
         }
       }
 
+      const rawWh = await db.execute(sql.raw(`SELECT source_warehouse_id, target_warehouse_id FROM manufacturing_orders WHERE id = ${id}`));
+      const rawWhRow = (rawWh as any).rows?.[0] || {};
       res.json({
         ...mo,
         productName: prodMap.get(mo.productId)?.name || "",
@@ -97,6 +99,8 @@ export function registerManufacturingRoutes(app: Express) {
         totalCost,
         unitCost,
         lines: linesWithNames,
+        sourceWarehouseId: rawWhRow.source_warehouse_id || null,
+        targetWarehouseId: rawWhRow.target_warehouse_id || null,
       });
     } catch (err: any) { res.status(400).json({ message: err.message }); }
   });
@@ -141,7 +145,16 @@ export function registerManufacturingRoutes(app: Express) {
         );
       }
 
-      res.status(201).json(mo);
+      const srcWid = req.body.sourceWarehouseId ? Number(req.body.sourceWarehouseId) : null;
+      const tgtWid = req.body.targetWarehouseId ? Number(req.body.targetWarehouseId) : null;
+      if (srcWid || tgtWid) {
+        const parts: string[] = [];
+        if (srcWid) parts.push(`source_warehouse_id = ${srcWid}`);
+        if (tgtWid) parts.push(`target_warehouse_id = ${tgtWid}`);
+        await db.execute(sql.raw(`UPDATE manufacturing_orders SET ${parts.join(", ")} WHERE id = ${mo.id}`));
+      }
+
+      res.status(201).json({ ...mo, sourceWarehouseId: srcWid, targetWarehouseId: tgtWid });
     } catch (err: any) { res.status(400).json({ message: err.message }); }
   });
 
@@ -179,9 +192,21 @@ export function registerManufacturingRoutes(app: Express) {
         }
       }
 
-      const [updated] = await db.update(manufacturingOrders).set(updates)
-        .where(eq(manufacturingOrders.id, id)).returning();
-      res.json(updated);
+      if (Object.keys(updates).length > 0) {
+        await db.update(manufacturingOrders).set(updates).where(eq(manufacturingOrders.id, id));
+      }
+      const srcWid = req.body.sourceWarehouseId != null ? Number(req.body.sourceWarehouseId) || null : undefined;
+      const tgtWid = req.body.targetWarehouseId != null ? Number(req.body.targetWarehouseId) || null : undefined;
+      if (srcWid !== undefined || tgtWid !== undefined) {
+        const parts: string[] = [];
+        if (srcWid !== undefined) parts.push(`source_warehouse_id = ${srcWid === null ? "NULL" : srcWid}`);
+        if (tgtWid !== undefined) parts.push(`target_warehouse_id = ${tgtWid === null ? "NULL" : tgtWid}`);
+        await db.execute(sql.raw(`UPDATE manufacturing_orders SET ${parts.join(", ")} WHERE id = ${id}`));
+      }
+      const [updated] = await db.select().from(manufacturingOrders).where(eq(manufacturingOrders.id, id));
+      const rawRow = await db.execute(sql.raw(`SELECT source_warehouse_id, target_warehouse_id FROM manufacturing_orders WHERE id = ${id}`));
+      const rawExtra = (rawRow as any).rows?.[0] || {};
+      res.json({ ...updated, sourceWarehouseId: rawExtra.source_warehouse_id, targetWarehouseId: rawExtra.target_warehouse_id });
     } catch (err: any) { res.status(400).json({ message: err.message }); }
   });
 
@@ -217,6 +242,9 @@ export function registerManufacturingRoutes(app: Express) {
       if (!mo) return res.status(404).json({ message: "ไม่พบใบสั่งผลิต" });
       if (mo.status === "completed") return res.status(400).json({ message: "ใบสั่งผลิตเสร็จสิ้นแล้ว" });
       if (mo.status === "cancelled") return res.status(400).json({ message: "ใบสั่งผลิตถูกยกเลิก" });
+
+      const moSourceWarehouseId = (mo as any).sourceWarehouseId ? Number((mo as any).sourceWarehouseId) : null;
+      const moTargetWarehouseId = (mo as any).targetWarehouseId ? Number((mo as any).targetWarehouseId) : null;
 
       const completedQty = Number(req.body.completedQty || mo.plannedQty);
       if (!isFinite(completedQty) || completedQty <= 0) {
@@ -322,6 +350,9 @@ export function registerManufacturingRoutes(app: Express) {
           } else {
             await tx.insert(productStock).values({ companyId, productId: line.componentProductId, quantity: newQty });
           }
+          if (moSourceWarehouseId) {
+            await upsertWarehouseStockLevel(companyId, line.componentProductId, moSourceWarehouseId, -deductQty, tx);
+          }
         }
 
         const consumeMovements = await tx.select().from(stockMovements)
@@ -368,6 +399,9 @@ export function registerManufacturingRoutes(app: Express) {
           await tx.update(productStock).set({ quantity: fgNewQty }).where(eq(productStock.id, existingFgStock.id));
         } else {
           await tx.insert(productStock).values({ companyId, productId: mo.productId, quantity: fgNewQty });
+        }
+        if (moTargetWarehouseId) {
+          await upsertWarehouseStockLevel(companyId, mo.productId, moTargetWarehouseId, completedQty, tx);
         }
 
         await tx.update(manufacturingOrders).set({
