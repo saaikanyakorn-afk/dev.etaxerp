@@ -21,6 +21,17 @@ import type { Contact } from "@shared/schema";
 type SortKey = "code" | "name" | "type" | "taxId" | "phone" | "email" | "contactPerson" | "creditDays";
 type SortDir = "asc" | "desc";
 
+async function downloadWithAuth(url: string, filename: string) {
+  const res = await fetch(url, { credentials: "include" });
+  if (!res.ok) throw new Error("ดาวน์โหลดไม่สำเร็จ");
+  const blob = await res.blob();
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
 export default function ContactList() {
   const { selectedCompanyId } = useCompany();
   const { toast } = useToast();
@@ -339,7 +350,7 @@ export default function ContactList() {
           </div>
           <div className="flex items-center gap-2">
           <Button data-testid="button-export-contacts" variant="outline" className="gap-2"
-            onClick={() => { window.open(`/api/contacts/export?companyId=${selectedCompanyId}`, "_blank"); }}>
+            onClick={() => downloadWithAuth(`/api/contacts/export?companyId=${selectedCompanyId}`, "contacts_export.xlsx")}>
             <Download className="h-4 w-4" /> ดาวน์โหลด
           </Button>
           {contacts.length > 0 && contacts.length <= 20 && (
@@ -833,7 +844,7 @@ export default function ContactList() {
               data-testid="button-bulk-export"
               onClick={() => {
                 const ids = Array.from(selectedIds).join(",");
-                window.open(`/api/contacts/export?companyId=${selectedCompanyId}&ids=${ids}`, "_blank");
+                downloadWithAuth(`/api/contacts/export?companyId=${selectedCompanyId}&ids=${ids}`, "contacts_export.xlsx");
               }}
             >
               <FileDown className="h-4.5 w-4.5" />
