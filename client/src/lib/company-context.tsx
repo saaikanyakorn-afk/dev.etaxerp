@@ -145,13 +145,17 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    const empCo = user?.empCompanyId && companies.find(c => c.id === user.empCompanyId);
-    const primary = companies.find(c => c.isPrimary);
-    const fallback = empCo ? empCo.id : primary ? primary.id : companies[0].id;
-    idRef.current = fallback;
-    setRaw(fallback);
-    writeSaved(fallback);
-    syncUrlCompanyId(fallback);
+    if (user?.empCompanyId && companies.some(c => c.id === user.empCompanyId)) {
+      idRef.current = user.empCompanyId;
+      setRaw(user.empCompanyId);
+      writeSaved(user.empCompanyId);
+      syncUrlCompanyId(user.empCompanyId);
+      return;
+    }
+
+    idRef.current = null;
+    setRaw(null);
+    syncUrlCompanyId(null);
   }, [user, companies, companiesFetched]);
 
   const selectedCompany = selectedCompanyId != null
