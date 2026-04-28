@@ -6,7 +6,7 @@ import { eq, and, desc, or, sql, count, not, ilike, inArray } from "drizzle-orm"
 import { purchaseRequests, purchaseRequestItems, bidComparisons, bidComparisonItems, bidVendors, purchaseOrders, purchaseOrderItems, purchaseInvoices, purchaseInvoiceItems, companies, accounts, contacts, products, journalEntries, journalLines, productStock, stockMovements, expenses, expenseItems, withholdingTaxCerts, whtCertItems, documentImportBatches, firmClients, clientUploadLinks, clientUploadFiles, purchaseDebitNotes, purchaseDebitNoteItems, accountingFormulas, accountingFormulaLines } from "@shared/schema";
 import { expenseDailyBatches, pdfImportTemplates } from "@shared/schema-extra";
 import { requireAuth, requireModule, requireRole, checkDocOwnership } from "../route-middleware";
-import { getNextDocNo, validateDocNo, createAutoJournalEntry, resolvePaymentMethodAccountCode, getNextJournalEntryNo, checkDocumentLimit, deleteStockMovementsForDoc, deleteJournalEntriesForDoc, logActivity, upsertWarehouseStockLevel } from "../route-helpers";
+import { getNextDocNo, validateDocNo, createAutoJournalEntry, resolvePaymentMethodAccountCode, getNextJournalEntryNo, checkDocumentLimit, deleteStockMovementsForDoc, deleteJournalEntriesForDoc, logActivity, upsertWarehouseStockLevel, getInventoryTriggers } from "../route-helpers";
 import { parsePagination, paginatedResponse } from "./pagination";
 import { invalidateCompanyReports } from "./report-cache";
 import { recalcBundleStock, recalcBomStock } from "../inventory-recalc";
@@ -1113,7 +1113,8 @@ export function registerPurchaseRoutes(app: Express) {
             } else {
               await db.insert(productStock).values({ companyId, productId: item.productId, quantity: String(qty) });
             }
-            if ((item as any).warehouseId) {
+            const piCreateTriggers = await getInventoryTriggers(companyId);
+            if ((item as any).warehouseId && piCreateTriggers.purchase_invoice_stock) {
               await upsertWarehouseStockLevel(companyId, item.productId, Number((item as any).warehouseId), qty);
             }
           }
@@ -1338,10 +1339,11 @@ export function registerPurchaseRoutes(app: Express) {
         try {
           const [piCompany] = await db.select({ stockEntrySource: companies.stockEntrySource }).from(companies).where(eq(companies.id, existing.companyId));
           if (piCompany?.stockEntrySource === "purchase_invoice") {
+            const piUpdateTriggers = await getInventoryTriggers(existing.companyId);
             // Reverse old warehouseStockLevels contributions before deleting movements
             const oldItems = await db.execute(sql`SELECT product_id, qty, warehouse_id FROM purchase_invoice_items WHERE purchase_invoice_id = ${existing.id}`);
             for (const oi of oldItems.rows as any[]) {
-              if (oi.warehouse_id && oi.product_id) {
+              if (oi.warehouse_id && oi.product_id && piUpdateTriggers.purchase_invoice_stock) {
                 const oldQty = parseFloat(oi.qty || "0") || 0;
                 if (oldQty > 0) await upsertWarehouseStockLevel(existing.companyId, oi.product_id, oi.warehouse_id, -oldQty);
               }
@@ -1371,7 +1373,7 @@ export function registerPurchaseRoutes(app: Express) {
               } else {
                 await db.insert(productStock).values({ companyId: existing.companyId, productId: item.productId, quantity: String(qty) });
               }
-              if ((item as any).warehouseId) {
+              if ((item as any).warehouseId && piUpdateTriggers.purchase_invoice_stock) {
                 await upsertWarehouseStockLevel(existing.companyId, item.productId, Number((item as any).warehouseId), qty);
               }
             }
@@ -1398,8 +1400,9 @@ export function registerPurchaseRoutes(app: Express) {
         await tx.delete(purchaseInvoiceItems).where(eq(purchaseInvoiceItems.purchaseInvoiceId, existing.id));
         await tx.delete(purchaseInvoices).where(eq(purchaseInvoices.id, existing.id));
       });
+      const piDelTriggers = await getInventoryTriggers(existing.companyId);
       for (const item of piItems) {
-        if (item.warehouseId && item.productId && item.qty) {
+        if (item.warehouseId && item.productId && item.qty && piDelTriggers.purchase_invoice_stock) {
           await upsertWarehouseStockLevel(existing.companyId, item.productId, item.warehouseId, -Number(item.qty));
         }
       }
@@ -1426,8 +1429,9 @@ export function registerPurchaseRoutes(app: Express) {
             await tx.delete(purchaseInvoiceItems).where(eq(purchaseInvoiceItems.purchaseInvoiceId, existing.id));
             await tx.delete(purchaseInvoices).where(eq(purchaseInvoices.id, existing.id));
           });
+          const bulkPiDelTriggers = await getInventoryTriggers(existing.companyId);
           for (const item of bulkPiItems) {
-            if (item.warehouseId && item.productId && item.qty) {
+            if (item.warehouseId && item.productId && item.qty && bulkPiDelTriggers.purchase_invoice_stock) {
               await upsertWarehouseStockLevel(existing.companyId, item.productId, item.warehouseId, -Number(item.qty));
             }
           }

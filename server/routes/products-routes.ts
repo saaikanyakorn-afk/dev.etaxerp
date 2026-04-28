@@ -4,7 +4,7 @@ import { storage } from "../storage";
 import { eq, desc, asc, and, or, ilike, inArray, count, sum , sql } from "drizzle-orm";
 import { products, productBundles, documentImportBatches, stockMovements, promotions, companies, productLots, goodsRequisitions, goodsRequisitionItems, journalEntries, journalLines, stockTransfers, stockTransferItems, warehouses, warehouseStockLevels, branches } from "@shared/schema";
 import { requireAuth, requireModule, requireAnyModule, checkDocOwnership } from "../route-middleware";
-import { getNextJournalEntryNo, logActivity, deleteStockMovementsForDoc, deductStockBundleAware, upsertWarehouseStockLevel } from "../route-helpers";
+import { getNextJournalEntryNo, logActivity, deleteStockMovementsForDoc, deductStockBundleAware, upsertWarehouseStockLevel, getInventoryTriggers } from "../route-helpers";
 import { parsePagination, paginatedResponse } from "./pagination";
 import * as XLSX from "xlsx";
 import path from "path";
@@ -1716,6 +1716,7 @@ app.post("/api/goods-receivings/:id/approve", requireAuth, requireModule("invent
     const grWarehouseId: number | null = (grWarehouseRaw as any).rows?.[0]?.warehouse_id ?? null;
 
     if (grCompany?.stockEntrySource !== "purchase_invoice") {
+      const grTriggers = await getInventoryTriggers(gr.companyId);
       for (const item of items) {
         const uc = String(item.unitCost || "0");
         const tc = String(Number(item.quantity) * Number(item.unitCost || 0));
@@ -1764,7 +1765,7 @@ app.post("/api/goods-receivings/:id/approve", requireAuth, requireModule("invent
           ));
         }
 
-        if (grWarehouseId && item.productId) {
+        if (grWarehouseId && item.productId && grTriggers.gr_approve) {
           await upsertWarehouseStockLevel(gr.companyId, item.productId, grWarehouseId, Number(item.quantity));
         }
       }
@@ -2033,7 +2034,10 @@ app.post("/api/goods-requisitions/:id/approve", requireAuth, requireModule("inve
       productName: item.productName || undefined,
     }));
     const giqDocLabel = `เบิกสินค้า ${giq.giqNo}${giq.departmentName ? ` (${giq.departmentName})` : ""}${giq.requestedBy ? ` - ${giq.requestedBy}` : ""}`;
-    await deductStockBundleAware(giqDeductItems, giq.companyId, giqDocLabel, "goods_requisition", giq.id, user?.id);
+    const giqTriggers = await getInventoryTriggers(giq.companyId);
+    if (giqTriggers.goods_requisition_deduct) {
+      await deductStockBundleAware(giqDeductItems, giq.companyId, giqDocLabel, "goods_requisition", giq.id, user?.id);
+    }
 
     let journalEntryId: number | null = null;
     try {

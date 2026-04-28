@@ -4,6 +4,7 @@ import { storage } from "../storage";
 import { eq } from "drizzle-orm";
 import { generalSettings, documentSettings } from "@shared/schema";
 import { requireAuth, requireAdmin, requireRole } from "../route-middleware";
+import { getInventoryTriggers } from "../route-helpers";
 import { z } from "zod";
 
 export function registerDocSettingsRoutes(app: Express) {
@@ -50,6 +51,34 @@ app.put("/api/settings/general", requireAuth, async (req, res) => {
   } catch (e: any) {
     res.status(500).json({ message: e.message });
   }
+});
+
+app.get("/api/settings/inventory-triggers", requireAuth, async (req, res) => {
+  try {
+    const companyId = Number(req.query.companyId);
+    if (!companyId) return res.status(400).json({ message: "กรุณาระบุ companyId" });
+    const triggers = await getInventoryTriggers(companyId);
+    res.json(triggers);
+  } catch (e: any) { res.status(500).json({ message: e.message }); }
+});
+
+app.put("/api/settings/inventory-triggers", requireAuth, requireRole("admin", "super_admin"), async (req, res) => {
+  try {
+    const companyId = Number(req.query.companyId);
+    if (!companyId) return res.status(400).json({ message: "กรุณาระบุ companyId" });
+    const triggers = req.body;
+    const [existing] = await db.select({ id: generalSettings.id }).from(generalSettings).where(eq(generalSettings.companyId, companyId)).limit(1);
+    if (existing) {
+      await db.execute(
+        (await import("drizzle-orm")).sql.raw(`UPDATE general_settings SET inventory_triggers = '${JSON.stringify(triggers)}'::jsonb WHERE company_id = ${companyId}`)
+      );
+    } else {
+      await db.execute(
+        (await import("drizzle-orm")).sql.raw(`INSERT INTO general_settings (company_id, inventory_triggers) VALUES (${companyId}, '${JSON.stringify(triggers)}'::jsonb)`)
+      );
+    }
+    res.json({ success: true });
+  } catch (e: any) { res.status(500).json({ message: e.message }); }
 });
 
 app.get("/api/document-settings", requireAuth, async (req, res) => {

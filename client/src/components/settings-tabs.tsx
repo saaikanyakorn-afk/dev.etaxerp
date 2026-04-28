@@ -5,7 +5,7 @@ import { useCompany } from "@/lib/company-context";
 import { useQuery } from "@tanstack/react-query";
 import {
   UserCircle, Users, Building2, FileText, Banknote,
-  Palette, HardDrive, Receipt, Sliders, MessageCircle, GitBranch, Lock, Printer, Package
+  Palette, HardDrive, Receipt, Sliders, MessageCircle, GitBranch, Lock, Printer, Package, Warehouse
 } from "lucide-react";
 import {
   Tooltip,
@@ -35,6 +35,7 @@ const SETTINGS_TABS: SettingsTab[] = [
   { label: "LINE", href: "/settings/line", icon: MessageCircle, adminOnly: true },
   { label: "ฟอร์มพิมพ์", href: "/settings/custom-forms", icon: Printer, adminOnly: true },
   { label: "ทั่วไป", href: "/settings/general", icon: Sliders, adminOnly: true },
+  { label: "ทริกเกอร์สต๊อก", href: "/settings/inventory-triggers", icon: Warehouse, adminOnly: true },
   { label: "แพ็คเกจโมดูล", href: "/settings/module-pricing", icon: Package, adminOnly: true },
 ];
 

@@ -5,7 +5,7 @@ import { eq, desc, and, or, inArray, count } from "drizzle-orm";
 import { receipts, depositReceipts, contacts, users, purchaseDeposits, taxInvoices, taxInvoiceItems, salesCreditNotes, salesCreditNoteItems, purchaseInvoices, purchaseInvoiceItems, purchaseDebitNotes, purchaseDebitNoteItems, purchaseDepositDeductions, depositDeductions } from "@shared/schema";
 import { requireAuth, requireModule, requireRole, requireAnyModule, checkDocOwnership } from "../route-middleware";
 import { sql } from "drizzle-orm";
-import { getNextDocNo, createAutoJournalEntry, resolvePaymentMethodAccountCode, logActivity, upsertWarehouseStockLevel } from "../route-helpers";
+import { getNextDocNo, createAutoJournalEntry, resolvePaymentMethodAccountCode, logActivity, upsertWarehouseStockLevel, getInventoryTriggers } from "../route-helpers";
 import { parsePagination, paginatedResponse } from "./pagination";
 
 export function registerFinancialDocsRoutes(app: Express) {
@@ -861,9 +861,12 @@ app.post("/api/sales-credit-notes", requireAuth, requireAnyModule("sales", "ecom
     const returnWarehouseId = body.returnWarehouseId ? Number(body.returnWarehouseId) : null;
     if (returnToStock && returnWarehouseId) {
       await db.execute(sql`UPDATE sales_credit_notes SET return_to_stock = TRUE, return_warehouse_id = ${returnWarehouseId} WHERE id = ${result.id}`);
-      for (const item of savedItems) {
-        if (item.productId && item.qty) {
-          await upsertWarehouseStockLevel(result.companyId, item.productId, returnWarehouseId, Number(item.qty));
+      const cnCreateTriggers = await getInventoryTriggers(result.companyId);
+      if (cnCreateTriggers.credit_note_return) {
+        for (const item of savedItems) {
+          if (item.productId && item.qty) {
+            await upsertWarehouseStockLevel(result.companyId, item.productId, returnWarehouseId, Number(item.qty));
+          }
         }
       }
     } else {
@@ -978,17 +981,20 @@ app.patch("/api/sales-credit-notes/:id", requireAuth, requireAnyModule("sales", 
     const returnToStock = body.returnToStock === true || body.returnToStock === "true";
     const returnWarehouseId = body.returnWarehouseId ? Number(body.returnWarehouseId) : null;
 
+    const cnPatchTriggers = await getInventoryTriggers(existing.companyId);
     for (const item of oldItemsForRevert) {
-      if (item.productId && item.qty && oldReturnWarehouseId) {
+      if (item.productId && item.qty && oldReturnWarehouseId && cnPatchTriggers.credit_note_return) {
         await upsertWarehouseStockLevel(existing.companyId, item.productId, oldReturnWarehouseId, -Number(item.qty));
       }
     }
 
     if (returnToStock && returnWarehouseId) {
       await db.execute(sql`UPDATE sales_credit_notes SET return_to_stock = TRUE, return_warehouse_id = ${returnWarehouseId} WHERE id = ${result.id}`);
-      for (const item of savedItems) {
-        if (item.productId && item.qty) {
-          await upsertWarehouseStockLevel(result.companyId, item.productId, returnWarehouseId, Number(item.qty));
+      if (cnPatchTriggers.credit_note_return) {
+        for (const item of savedItems) {
+          if (item.productId && item.qty) {
+            await upsertWarehouseStockLevel(result.companyId, item.productId, returnWarehouseId, Number(item.qty));
+          }
         }
       }
     } else {
@@ -1016,8 +1022,9 @@ app.delete("/api/sales-credit-notes/:id", requireAuth, requireAnyModule("sales",
       await tx.delete(salesCreditNoteItems).where(eq(salesCreditNoteItems.creditNoteId, existing.id));
       await tx.delete(salesCreditNotes).where(eq(salesCreditNotes.id, existing.id));
     });
+    const cnDelTriggers = await getInventoryTriggers(existing.companyId);
     for (const item of cnItemsToRevert) {
-      if (item.productId && item.qty && delReturnWarehouseId) {
+      if (item.productId && item.qty && delReturnWarehouseId && cnDelTriggers.credit_note_return) {
         await upsertWarehouseStockLevel(existing.companyId, item.productId, delReturnWarehouseId, -Number(item.qty));
       }
     }
@@ -1046,8 +1053,9 @@ app.post("/api/sales-credit-notes/bulk-delete", requireAuth, requireAnyModule("s
           await tx.delete(salesCreditNoteItems).where(eq(salesCreditNoteItems.creditNoteId, existing.id));
           await tx.delete(salesCreditNotes).where(eq(salesCreditNotes.id, existing.id));
         });
+        const bulkCnDelTriggers = await getInventoryTriggers(existing.companyId);
         for (const item of bulkCnItems) {
-          if (item.productId && item.qty && bulkReturnWarehouseId) {
+          if (item.productId && item.qty && bulkReturnWarehouseId && bulkCnDelTriggers.credit_note_return) {
             await upsertWarehouseStockLevel(existing.companyId, item.productId, bulkReturnWarehouseId, -Number(item.qty));
           }
         }

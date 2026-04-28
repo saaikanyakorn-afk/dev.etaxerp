@@ -1075,6 +1075,7 @@ async function runMigrationsInBackground() {
       await db.execute(sql.raw(`ALTER TABLE ecommerce_orders ADD COLUMN IF NOT EXISTS warehouse_id INTEGER`));
       await db.execute(sql.raw(`ALTER TABLE manufacturing_orders ADD COLUMN IF NOT EXISTS source_warehouse_id INTEGER`));
       await db.execute(sql.raw(`ALTER TABLE manufacturing_orders ADD COLUMN IF NOT EXISTS target_warehouse_id INTEGER`));
+      await db.execute(sql.raw(`ALTER TABLE general_settings ADD COLUMN IF NOT EXISTS inventory_triggers JSONB DEFAULT '{}'`));
       log("[migration] warehouse inventory columns ensured");
     } catch (e: any) { console.warn("[migration] warehouse columns skip:", e.message?.slice(0, 100)); }
 

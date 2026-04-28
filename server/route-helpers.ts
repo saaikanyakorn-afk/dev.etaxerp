@@ -1200,6 +1200,43 @@ export async function deleteCompaniesCascade(companyIds: number[]): Promise<{ de
   return { deleted, errors };
 }
 
+// ============ Inventory Trigger Settings ============
+
+export interface InventoryTriggers {
+  gr_approve: boolean;
+  purchase_invoice_stock: boolean;
+  invoice_deduct: boolean;
+  credit_note_return: boolean;
+  pos_sale_deduct: boolean;
+  pos_void_restore: boolean;
+  ecommerce_shipping_out: boolean;
+  manufacturing_complete: boolean;
+  goods_requisition_deduct: boolean;
+}
+
+const DEFAULT_TRIGGERS: InventoryTriggers = {
+  gr_approve: true,
+  purchase_invoice_stock: true,
+  invoice_deduct: true,
+  credit_note_return: true,
+  pos_sale_deduct: true,
+  pos_void_restore: true,
+  ecommerce_shipping_out: true,
+  manufacturing_complete: true,
+  goods_requisition_deduct: true,
+};
+
+export async function getInventoryTriggers(companyId: number): Promise<InventoryTriggers> {
+  try {
+    const result = await db.execute(sql.raw(`SELECT inventory_triggers FROM general_settings WHERE company_id = ${companyId} LIMIT 1`));
+    const row = (result as any).rows?.[0];
+    if (row?.inventory_triggers && typeof row.inventory_triggers === "object") {
+      return { ...DEFAULT_TRIGGERS, ...row.inventory_triggers };
+    }
+  } catch {}
+  return { ...DEFAULT_TRIGGERS };
+}
+
 // Reverse warehouse stock for bundle-aware items (used in DELETE routes to undo deductStockBundleAware)
 export async function reverseWarehouseStockBundleAware(
   items: { productId: number | null; qty: number | string; warehouseId?: number | null }[],

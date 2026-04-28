@@ -4,7 +4,7 @@ import { storage } from "../storage";
 import { eq, and, asc, desc, sql } from "drizzle-orm";
 import { manufacturingOrders, manufacturingOrderLines, bomHeaders, bomLines, products, productLots, stockMovements, productStock, journalEntries, journalLines, accounts, warehouseStockLevels } from "@shared/schema";
 import { requireAuth, requireModule , checkDocOwnership} from "../route-middleware";
-import { getNextJournalEntryNo, upsertWarehouseStockLevel } from "../route-helpers";
+import { getNextJournalEntryNo, upsertWarehouseStockLevel, getInventoryTriggers } from "../route-helpers";
 
 export function registerManufacturingRoutes(app: Express) {
 
@@ -267,6 +267,8 @@ export function registerManufacturingRoutes(app: Express) {
       const lines = await db.select().from(manufacturingOrderLines)
         .where(eq(manufacturingOrderLines.moId, id));
 
+      const mfgTriggers = await getInventoryTriggers(companyId);
+
       await db.transaction(async (tx) => {
         let bomYieldQty = 1;
         if (mo.bomId) {
@@ -350,7 +352,7 @@ export function registerManufacturingRoutes(app: Express) {
           } else {
             await tx.insert(productStock).values({ companyId, productId: line.componentProductId, quantity: newQty });
           }
-          if (moSourceWarehouseId) {
+          if (moSourceWarehouseId && mfgTriggers.manufacturing_complete) {
             await upsertWarehouseStockLevel(companyId, line.componentProductId, moSourceWarehouseId, -deductQty, tx);
           }
         }
@@ -400,7 +402,7 @@ export function registerManufacturingRoutes(app: Express) {
         } else {
           await tx.insert(productStock).values({ companyId, productId: mo.productId, quantity: fgNewQty });
         }
-        if (moTargetWarehouseId) {
+        if (moTargetWarehouseId && mfgTriggers.manufacturing_complete) {
           await upsertWarehouseStockLevel(companyId, mo.productId, moTargetWarehouseId, completedQty, tx);
         }
 

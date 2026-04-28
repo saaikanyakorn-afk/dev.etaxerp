@@ -5,7 +5,7 @@ import { eq, desc, and, inArray, count, sql, isNull } from "drizzle-orm";
 import { salesOrders, invoices, salesOrderItems, quotations, companies, documentSettings, quotationItems, users, invoiceItems, journalEntries, journalLines, accounts, products, contacts, documentImportBatches, taxInvoices, taxInvoiceItems, receipts, receiptItems, purchaseInvoices, expenses, commissionRules, commissionRecords, employees, liveCfOrders, salesCreditNotes, billingNotes, billingNoteLinkedDocs, purchaseRequests, bidComparisons, purchaseOrders, productBundles, purchaseDebitNotes } from "@shared/schema";
 import { gte, lte, or } from "drizzle-orm";
 import { requireAuth, requireRole, requireAnyModule, getCompanyTenantId, checkDocOwnership } from "../route-middleware";
-import { getNextDocNo, validateDocNo, getNextJournalEntryNo, createAutoJournalEntry, resolvePaymentMethodAccountCode, logActivity, checkDocumentLimit, deleteStockMovementsForDoc, deleteJournalEntriesForDoc, recomputePaymentStatus, deductStockBundleAware, upsertWarehouseStockLevel, reverseWarehouseStockBundleAware } from "../route-helpers";
+import { getNextDocNo, validateDocNo, getNextJournalEntryNo, createAutoJournalEntry, resolvePaymentMethodAccountCode, logActivity, checkDocumentLimit, deleteStockMovementsForDoc, deleteJournalEntriesForDoc, recomputePaymentStatus, deductStockBundleAware, upsertWarehouseStockLevel, reverseWarehouseStockBundleAware, getInventoryTriggers } from "../route-helpers";
 import { parsePagination, paginatedResponse } from "./pagination";
 import multer from "multer";
 import * as XLSX from "xlsx";
@@ -934,8 +934,11 @@ app.post("/api/invoices", requireAuth, requireAnyModule("sales", "ecommerce"), a
         .filter((i: any) => i.productId && parseFloat(String(i.qty || "0")) > 0)
         .map((i: any) => ({ productId: i.productId, qty: parseFloat(String(i.qty)), warehouseId: i.warehouseId || null, unitPrice: String(i.unitPrice || "0"), productName: i.productName || i.description }));
       if (deductItems.length > 0) {
-        const docLabel = `ขายสินค้า ${result.invoiceNo}${result.customerName ? ` (${result.customerName})` : ""}`;
-        await deductStockBundleAware(deductItems, result.companyId, docLabel, "invoice", result.id, user.id).catch(() => {});
+        const invCreateTriggers = await getInventoryTriggers(result.companyId);
+        if (invCreateTriggers.invoice_deduct) {
+          const docLabel = `ขายสินค้า ${result.invoiceNo}${result.customerName ? ` (${result.customerName})` : ""}`;
+          await deductStockBundleAware(deductItems, result.companyId, docLabel, "invoice", result.id, user.id).catch(() => {});
+        }
       }
     }
     logActivity({ companyId, userId: user.id, userName: user.username, action: "create", entityType: "invoice", entityId: String(result.id), entityName: invoiceNo }).catch(() => {});
@@ -1037,9 +1040,12 @@ app.patch("/api/invoices/:id", requireAuth, requireAnyModule("sales", "ecommerce
       const deductItems = savedItems
         .filter((i: any) => i.productId && parseFloat(String(i.qty || "0")) > 0)
         .map((i: any) => ({ productId: i.productId, qty: parseFloat(String(i.qty)), warehouseId: i.warehouseId || null, unitPrice: String(i.unitPrice || "0"), productName: i.productName || i.description }));
-      const docLabel = `ขายสินค้า ${updated.invoiceNo}${updated.customerName ? ` (${updated.customerName})` : ""}`;
-      const deductions = await deductStockBundleAware(deductItems, updated.companyId, docLabel, "invoice", updated.id, user.id);
-      stockDeductions.push(...deductions);
+      const invPatchTriggers = await getInventoryTriggers(updated.companyId);
+      if (invPatchTriggers.invoice_deduct) {
+        const docLabel = `ขายสินค้า ${updated.invoiceNo}${updated.customerName ? ` (${updated.customerName})` : ""}`;
+        const deductions = await deductStockBundleAware(deductItems, updated.companyId, docLabel, "invoice", updated.id, user.id);
+        stockDeductions.push(...deductions);
+      }
     }
 
     res.json({ ...updated, items: savedItems, journalResult, stockDeductions });
@@ -1058,7 +1064,8 @@ app.delete("/api/invoices/:id", requireAuth, requireAnyModule("sales", "ecommerc
       await tx.delete(invoiceItems).where(eq(invoiceItems.invoiceId, existing.id));
       await tx.delete(invoices).where(eq(invoices.id, existing.id));
     });
-    await reverseWarehouseStockBundleAware(invItems, existing.companyId);
+    const invDelTriggers = await getInventoryTriggers(existing.companyId);
+    if (invDelTriggers.invoice_deduct) await reverseWarehouseStockBundleAware(invItems, existing.companyId);
     res.json({ success: true });
   } catch (err: any) { res.status(500).json({ message: err.message }); }
 });
@@ -1086,7 +1093,8 @@ app.post("/api/invoices/bulk-delete", requireAuth, requireAnyModule("sales", "ec
           await tx.delete(invoiceItems).where(eq(invoiceItems.invoiceId, existing.id));
           await tx.delete(invoices).where(eq(invoices.id, existing.id));
         });
-        await reverseWarehouseStockBundleAware(bulkInvItems, existing.companyId);
+        const bulkInvDelTriggers = await getInventoryTriggers(existing.companyId);
+        if (bulkInvDelTriggers.invoice_deduct) await reverseWarehouseStockBundleAware(bulkInvItems, existing.companyId);
         logActivity({ companyId: existing.companyId, userId: user.id, userName: user.username, action: "delete", entityType: "invoice", entityId: String(existing.id), entityName: existing.invoiceNo }).catch(() => {});
         deleted++;
       } catch (e: any) {
@@ -1859,8 +1867,11 @@ app.post("/api/tax-invoices", requireAuth, requireAnyModule("sales", "ecommerce"
         .filter((i: any) => i.productId && parseFloat(String(i.qty || "0")) > 0)
         .map((i: any) => ({ productId: i.productId, qty: parseFloat(String(i.qty)), warehouseId: i.warehouseId || null, unitPrice: String(i.unitPrice || "0"), productName: i.productName || i.description }));
       if (deductTiItems.length > 0) {
-        const docLabelTi = `ขายสินค้า ${result.taxInvoiceNo}${result.customerName ? ` (${result.customerName})` : ""}`;
-        await deductStockBundleAware(deductTiItems, result.companyId, docLabelTi, "tax_invoice", result.id, user.id).catch(() => {});
+        const tiCreateTriggers = await getInventoryTriggers(result.companyId);
+        if (tiCreateTriggers.invoice_deduct) {
+          const docLabelTi = `ขายสินค้า ${result.taxInvoiceNo}${result.customerName ? ` (${result.customerName})` : ""}`;
+          await deductStockBundleAware(deductTiItems, result.companyId, docLabelTi, "tax_invoice", result.id, user.id).catch(() => {});
+        }
       }
     }
     logActivity({ companyId, userId: user.id, userName: user.username, action: "create", entityType: "tax_invoice", entityId: String(result.id), entityName: taxInvoiceNo }).catch(() => {});
@@ -2052,8 +2063,11 @@ app.patch("/api/tax-invoices/:id", requireAuth, requireAnyModule("sales", "ecomm
       const deductItems2 = savedItems
         .filter((i: any) => i.productId && parseFloat(String(i.qty || "0")) > 0)
         .map((i: any) => ({ productId: i.productId, qty: parseFloat(String(i.qty)), warehouseId: i.warehouseId || null, unitPrice: String(i.unitPrice || "0"), productName: i.productName || i.description }));
-      const docLabel2 = `ขายสินค้า ${updated.taxInvoiceNo}${updated.customerName ? ` (${updated.customerName})` : ""}`;
-      await deductStockBundleAware(deductItems2, updated.companyId, docLabel2, "tax_invoice", updated.id, user.id);
+      const tiPatchTriggers = await getInventoryTriggers(updated.companyId);
+      if (tiPatchTriggers.invoice_deduct) {
+        const docLabel2 = `ขายสินค้า ${updated.taxInvoiceNo}${updated.customerName ? ` (${updated.customerName})` : ""}`;
+        await deductStockBundleAware(deductItems2, updated.companyId, docLabel2, "tax_invoice", updated.id, user.id);
+      }
     }
 
     res.json({ ...updated, items: savedItems, journalResult });
@@ -2180,7 +2194,8 @@ app.delete("/api/tax-invoices/:id", requireAuth, requireAnyModule("sales", "ecom
       await tx.delete(taxInvoiceItems).where(eq(taxInvoiceItems.taxInvoiceId, existing.id));
       await tx.delete(taxInvoices).where(eq(taxInvoices.id, existing.id));
     });
-    await reverseWarehouseStockBundleAware(tiItems, existing.companyId);
+    const tiDelTriggers = await getInventoryTriggers(existing.companyId);
+    if (tiDelTriggers.invoice_deduct) await reverseWarehouseStockBundleAware(tiItems, existing.companyId);
     const user = req.user as any;
     logActivity({ companyId: existing.companyId, userId: user.id, userName: user.username, action: "delete", entityType: "tax_invoice", entityId: String(existing.id), entityName: existing.taxInvoiceNo }).catch(() => {});
     res.json({ success: true });
@@ -2208,7 +2223,8 @@ app.post("/api/tax-invoices/bulk-delete", requireAuth, requireAnyModule("sales",
           await tx.delete(taxInvoiceItems).where(eq(taxInvoiceItems.taxInvoiceId, existing.id));
           await tx.delete(taxInvoices).where(eq(taxInvoices.id, existing.id));
         });
-        await reverseWarehouseStockBundleAware(bulkTiItems, existing.companyId);
+        const bulkTiDelTriggers = await getInventoryTriggers(existing.companyId);
+        if (bulkTiDelTriggers.invoice_deduct) await reverseWarehouseStockBundleAware(bulkTiItems, existing.companyId);
         logActivity({ companyId: existing.companyId, userId: user.id, userName: user.username, action: "delete", entityType: "tax_invoice", entityId: String(existing.id), entityName: existing.taxInvoiceNo }).catch(() => {});
         deleted++;
       } catch (e: any) { errors.push(`#${id}: ${e.message}`); }

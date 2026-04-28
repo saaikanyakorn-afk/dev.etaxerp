@@ -5,7 +5,7 @@ import { storage } from "../storage";
 import { eq, and, desc, asc, sql, count, ilike, inArray, or, isNull } from "drizzle-orm";
 import { posSessions, posTransactions, posTransactionItems, products, productBundles, companies, taxInvoices, taxInvoiceItems, documentSettings, branches, warehouses, warehouseStockLevels, paymentMethods, users, commissionRules, commissionRecords, employees } from "@shared/schema";
 import { requireAuth, requireModule , checkDocOwnership} from "../route-middleware";
-import { getNextDocNo, createAutoJournalEntry, deductStockBundleAware } from "../route-helpers";
+import { getNextDocNo, createAutoJournalEntry, deductStockBundleAware, getInventoryTriggers } from "../route-helpers";
 import { hashPassword } from "../auth";
 import multer from "multer";
 import * as XLSX from "xlsx";
@@ -539,10 +539,13 @@ export function registerPosRoutes(app: Express) {
         const posDeductItems = processedItems
           .filter(pi => pi.productId && parseFloat(String(pi.quantity || "0")) > 0)
           .map(pi => ({ productId: Number(pi.productId), qty: parseFloat(String(pi.quantity || "0")), unitPrice: pi.unitPrice, productName: pi.productName }));
+        const posSaleTriggers = await getInventoryTriggers(Number(companyId));
         const docLabel = `POS ${result.transaction.transactionNo}`;
-        const deductions = await deductStockBundleAware(posDeductItems, Number(companyId), docLabel, "tax_invoice", result.taxInvoice.id, user.id, posDb);
+        const deductions = posSaleTriggers.pos_sale_deduct
+          ? await deductStockBundleAware(posDeductItems, Number(companyId), docLabel, "tax_invoice", result.taxInvoice.id, user.id, posDb)
+          : [];
 
-        if (sessionWarehouseId && deductions.length > 0) {
+        if (posSaleTriggers.pos_sale_deduct && sessionWarehouseId && deductions.length > 0) {
           for (const d of deductions) {
             try {
               const [wsl] = await posDb.select().from(warehouseStockLevels)
@@ -671,7 +674,8 @@ export function registerPosRoutes(app: Express) {
         await posDb.update(taxInvoices).set({ status: "cancelled" }).where(eq(taxInvoices.id, txn.taxInvoiceId));
       }
 
-      if (sessionWarehouseId && voidItems.length > 0) {
+      const posVoidTriggers = await getInventoryTriggers(txn.companyId);
+      if (posVoidTriggers.pos_void_restore && sessionWarehouseId && voidItems.length > 0) {
         const voidProductIds = [...new Set(voidItems.map(i => i.productId).filter(Boolean))] as number[];
         const voidProds = await posDb.select({ id: products.id, productType: products.productType })
           .from(products).where(inArray(products.id, voidProductIds));

@@ -5,7 +5,7 @@ import { storage } from "../storage";
 import { eq, desc, and, or, isNull, asc, ilike, inArray, notInArray, gte, lte, count, sum , sql } from "drizzle-orm";
 import { companies, ecommerceOrders, productStock, products, ecommerceReturns, taxInvoices, taxInvoiceItems, accounts, journalEntries, journalLines, ecommerceOrderItems, workBoards, workBoardColumns, workBoardItems, firmFolders, receipts, oauthStates, syncLogs, facebookChatOrders, chatOrderKeywords, chatOrders, productBundles, ecommerceReturnItems, salesCreditNotes, salesCreditNoteItems, paymentMethods, facebookPages, platformChatThreads, ecommerceConnections, ecommerceProductMappings, deliveryNotes, stockTransfers, warehouses, warehouseStockLevels, fulfillmentBatches, fulfillmentItems, ecommerceTeamMembers, users } from "@shared/schema";
 import { requireAuth, requireModule, requireAnyModule, checkDocOwnership } from "../route-middleware";
-import { getNextDocNo, getNextJournalEntryNo, createAutoJournalEntry, generateTivFromEcommerceOrder, PLATFORM_DOC_PREFIX, PLATFORM_DISPLAY_NAME, logActivity, checkClosedPeriod, upsertWarehouseStockLevel, deductStockBundleAware } from "../route-helpers";
+import { getNextDocNo, getNextJournalEntryNo, createAutoJournalEntry, generateTivFromEcommerceOrder, PLATFORM_DOC_PREFIX, PLATFORM_DISPLAY_NAME, logActivity, checkClosedPeriod, upsertWarehouseStockLevel, deductStockBundleAware, getInventoryTriggers } from "../route-helpers";
 import { parsePagination, paginatedResponse } from "./pagination";
 import multer from "multer";
 import crypto from "crypto";
@@ -317,7 +317,10 @@ app.patch("/api/ecommerce/orders/:id", requireAuth, requireModule("ecommerce"), 
             .filter(i => i.productId && Number(i.qty) > 0)
             .map(i => ({ productId: i.productId!, qty: Number(i.qty), warehouseId: ecomWarehouseId, productName: i.name }));
           if (deductItems.length > 0) {
-            await deductStockBundleAware(deductItems, order.companyId, order.orderNo || `EC-${orderId}`, "ecommerce_order", orderId, user.id);
+            const ecTriggers = await getInventoryTriggers(order.companyId);
+            if (ecTriggers.ecommerce_shipping_out) {
+              await deductStockBundleAware(deductItems, order.companyId, order.orderNo || `EC-${orderId}`, "ecommerce_order", orderId, user.id);
+            }
           }
         } catch (ecomDeductErr) {
           console.error("[ecommerce] warehouse stock deduction error:", ecomDeductErr);
