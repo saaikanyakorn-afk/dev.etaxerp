@@ -1379,7 +1379,7 @@ Once Stage 3 begins, revisit the JOIN inventory below and add appropriate indexe
 - **Apache DocumentRoot:** `D:\Server\Websites\etaxerp` (static files served from here — separate from app path)
 - **maintenance.html:** Lives at `D:\Server\Websites\etaxerp\maintenance.html` — served automatically by Apache when pm2 is stopped (503 ErrorDocument). After cherry-picking from repo, must manually copy: `copy C:\GitApp\etaxcenter\maintenance.html D:\Server\Websites\etaxerp\maintenance.html`
 
-**httpd-ssl.conf actual content (VirtualHost for etaxerp.com — transcribed 2026-04-29):**
+**httpd-ssl.conf actual content (VirtualHost for etaxerp.com — updated 2026-04-29 with change history):**
 ```apache
 SSLPassPhraseDialog builtin
 
@@ -1392,9 +1392,36 @@ SSLPassPhraseDialog builtin
     SSLEngine on
     SSLCertificateFile "D:\Server\Apache24\conf\ssl\etaxerp.com-chain.pem"
     SSLCertificateKeyFile "D:\Server\Apache24\conf\ssl\etaxerp.com-key.pem"
-    # Kai add start
+
+    # === CHANGE #1 — 2026-03 (Kai) ===
+    # Purpose: Reverse proxy Apache → Node.js (PM2 port 5000)
+    #   - ProxyPreserveHost: ส่ง Host header จริงไปให้ Node.js (ไม่ใช่ localhost)
+    #   - ProxyErrorOverride On: เพิ่มเข้ามาเพื่อหวังให้ Apache แสดง custom error page
+    #     เวลา backend error แต่ยังไม่รู้ว่ามี side effect (ดู Change #2)
+    #   - ErrorDocument 503 + ProxyPass /maintenance.html !: แสดง maintenance.html
+    #     อัตโนมัติเมื่อ PM2 หยุดทำงาน
+    #   - RewriteRule WebSocket: รองรับ ws:// สำหรับ real-time features
+
     ProxyPreserveHost On
-    ProxyErrorOverride On   ← ⚠️ BUG: replaces Node.js JSON errors (4xx/5xx) with Apache HTML — must REMOVE
+
+    # === CHANGE #2 — 2026-04-29 (Kai) ===
+    # REMOVED: ProxyErrorOverride On
+    #
+    # ทำไมถึงเคยมี (Change #1):
+    #   ตั้งใจให้ Apache intercept error จาก backend แล้วแสดง custom HTML page
+    #   คิดว่าจะช่วยให้ maintenance.html ทำงานได้ในทุก error case
+    #
+    # ทำไมต้องลบออก:
+    #   ProxyErrorOverride On ทำให้ Apache "แย่ง" response ทุก 4xx/5xx จาก Node.js
+    #   แล้วแทนที่ด้วย Apache HTML page — ทำให้ frontend อ่าน JSON error ไม่ได้เลย
+    #   ตัวอย่าง: POST /api/products คืน 400 {"message":"..."} → Apache แปลงเป็น HTML
+    #   ทำให้ error message หายหมด ผู้ใช้เห็นแค่หน้าขาว/error ที่ไม่มีความหมาย
+    #
+    # ทำไม maintenance.html ยังทำงานได้โดยไม่ต้องมี ProxyErrorOverride:
+    #   เมื่อ PM2 หยุด → Apache ได้รับ "connection refused" จาก proxy
+    #   → Apache generate 503 เอง (ไม่ใช่จาก Node.js) → ErrorDocument 503 catch ได้ปกติ
+    #   → แสดง maintenance.html ตามเดิม ไม่กระทบเลย
+
     ErrorDocument 503 /maintenance.html
     ProxyPass /maintenance.html !
     ProxyPass / http://localhost:5000/
@@ -1404,7 +1431,8 @@ SSLPassPhraseDialog builtin
     RewriteCond %{HTTP:Upgrade} websocket [NC]
     RewriteCond %{HTTP:Connection} upgrade [NC]
     RewriteRule ^/?(.*) ws://localhost:5000/$1 [P,L]
-    # Kai add end
+    # === END CHANGE #1 / #2 ===
+
 </VirtualHost>
 
 <VirtualHost _default_:443>
@@ -1412,7 +1440,6 @@ SSLPassPhraseDialog builtin
     ...
 </VirtualHost>
 ```
-**Fix needed:** Remove `ProxyErrorOverride On` — พี่ช้าง แก้บน server โดยตรง (ไม่ต้อง push code)
 
 **⚙️ DOMAIN NAME CHANGE CHECKLIST (when etaxerp.com → new domain):**
 In `httpd-ssl.conf`:
