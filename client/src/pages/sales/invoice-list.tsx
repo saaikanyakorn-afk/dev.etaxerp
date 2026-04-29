@@ -532,10 +532,14 @@ export default function InvoiceList() {
                                     </DropdownMenuItem>
                                   </>
                                 )}
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem onClick={() => navigate(`/sales/tax-invoice/new?fromInvoice=${inv.id}`)} className="flex gap-2 text-emerald-600">
-                                  <FileOutput className="h-3.5 w-3.5" /> ออกใบกำกับภาษี
-                                </DropdownMenuItem>
+                                {selectedCompany?.vatRegistered && (
+                                  <>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem onClick={() => navigate(`/sales/tax-invoice/new?fromInvoice=${inv.id}`)} className="flex gap-2 text-emerald-600">
+                                      <FileOutput className="h-3.5 w-3.5" /> ออกใบกำกับภาษี
+                                    </DropdownMenuItem>
+                                  </>
+                                )}
                                 <DropdownMenuItem onClick={() => navigate(`/sales/receipt/new?fromInvoice=${inv.id}`)} className="flex gap-2 text-[var(--theme-primary)]">
                                   <FileOutput className="h-3.5 w-3.5" /> ออกใบเสร็จรับเงิน
                                 </DropdownMenuItem>
