@@ -1552,6 +1552,35 @@ app.post("/api/journal-preview", requireAuth, async (req, res) => {
       }
     }
 
+    if (isSalesDoc && lineItemAccounts && (lineItemAccounts as any[]).length > 0) {
+      const grouped = new Map<string, { accountCode: string; accountName: string; total: number }>();
+      for (const la of lineItemAccounts as any[]) {
+        const existing = grouped.get(la.accountCode);
+        if (existing) existing.total += la.amount;
+        else grouped.set(la.accountCode, { accountCode: la.accountCode, accountName: la.accountName, total: la.amount });
+      }
+      const revLineIdx = previewLines.findIndex((l: any) => parseFloat(l.credit) > 0 && l.accountCode.startsWith("4"));
+      if (revLineIdx >= 0) {
+        const origAmount = parseFloat(previewLines[revLineIdx].credit);
+        const rawTotal = Array.from(grouped.values()).reduce((s, g) => s + Math.abs(g.total), 0);
+        const scale = rawTotal > 0 ? origAmount / rawTotal : 1;
+        const replacementLines: any[] = [];
+        let placed = 0;
+        const groupedArr = Array.from(grouped.values());
+        for (let gi = 0; gi < groupedArr.length; gi++) {
+          const g = groupedArr[gi];
+          const gAcc = accountMap.get(g.accountCode);
+          const isLast = gi === groupedArr.length - 1;
+          const amt = isLast ? Math.round((origAmount - placed) * 100) / 100 : Math.round(Math.abs(g.total) * scale * 100) / 100;
+          if (!isLast) placed += amt;
+          if (amt <= 0) continue;
+          const gName = gAcc ? (gAcc.nameTh && gAcc.name ? `${gAcc.nameTh} (${gAcc.name})` : gAcc.nameTh || gAcc.name) : g.accountName;
+          replacementLines.push({ accountCode: g.accountCode, accountName: gName, debit: "0.00", credit: amt.toFixed(2) });
+        }
+        if (replacementLines.length > 0) previewLines.splice(revLineIdx, 1, ...replacementLines);
+      }
+    }
+
     const sortedLines = previewLines.sort((a: any, b: any) => {
       const aIsDebit = parseFloat(a.debit) > 0;
       const bIsDebit = parseFloat(b.debit) > 0;

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation, useRoute, useSearch } from "wouter";
 import Layout from "@/components/layout";
@@ -196,6 +196,19 @@ export default function InvoiceForm() {
     },
     enabled: !!companyId,
   });
+
+  const lineItemAccounts = useMemo(() => {
+    const mapped: { accountCode: string; accountName: string; amount: number }[] = [];
+    for (const item of items) {
+      if (!item.productId) continue;
+      const product = (products as any[]).find((p: any) => p.id === item.productId);
+      if (!product?.accountCode) continue;
+      const amount = parseFloat(item.total || "0");
+      if (amount <= 0) continue;
+      mapped.push({ accountCode: product.accountCode, accountName: product.name || item.productName || "", amount });
+    }
+    return mapped.length > 0 ? mapped : undefined;
+  }, [items, products]);
 
   const { dateEra, dateFmt } = useDateSettings();
   const { data: docSettings } = useQuery<any>({
@@ -1332,7 +1345,8 @@ export default function InvoiceForm() {
                 withholdingTax={totals.withholdingTax?.toFixed(2) || "0"}
                 currencyCode={form.currencyCode}
                 exchangeRate={form.exchangeRate}
-                              onLinesChange={setJournalOverrideLines}
+                lineItemAccounts={lineItemAccounts}
+                onLinesChange={setJournalOverrideLines}
               />
             </div>
 
