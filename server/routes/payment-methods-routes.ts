@@ -4,21 +4,11 @@ import { eq } from "drizzle-orm";
 import { sql } from "drizzle-orm";
 import { paymentMethods, accounts, companies } from "@shared/schema";
 import { requireAuth, checkDocOwnership } from "../route-middleware";
+import { runBankInfoToPaymentMethodsMigration } from "@shared/schema-extra";
 
 export function registerPaymentMethodsRoutes(app: Express) {
 
-// --- one-time migration: add bank_name + bank_account_no columns ---
-(async () => {
-  try {
-    const flag = await db.execute(sql`SELECT 1 FROM system_config WHERE config_key = 'ADD_BANK_INFO_TO_PAYMENT_METHODS_2026-04-29' LIMIT 1`);
-    if ((flag.rows || []).length === 0) {
-      await db.execute(sql`ALTER TABLE payment_methods ADD COLUMN IF NOT EXISTS bank_name text`);
-      await db.execute(sql`ALTER TABLE payment_methods ADD COLUMN IF NOT EXISTS bank_account_no text`);
-      await db.execute(sql`INSERT INTO system_config (config_key, config_value) VALUES ('ADD_BANK_INFO_TO_PAYMENT_METHODS_2026-04-29', 'done') ON CONFLICT (config_key) DO NOTHING`);
-      console.log("[migration] bank_name + bank_account_no added to payment_methods");
-    }
-  } catch (e: any) { console.warn("[pm-migration]", e.message); }
-})();
+runBankInfoToPaymentMethodsMigration(db);
 
 // ========== Payment Methods ==========
 const DEFAULT_PAYMENT_METHODS = [
@@ -98,6 +88,7 @@ app.patch("/api/payment-methods/:id", requireAuth, async (req, res) => {
       if (co && co.tenantId && co.tenantId !== user.tenantId) return res.status(403).json({ message: "ไม่มีสิทธิ์" });
     }
     const { name, nameTh, accountCode, accountId, active, isDefault, sortOrder, bankName, bankAccountNo } = req.body;
+    console.log("[PATCH pm] id=%d bankName=%j bankAccountNo=%j", id, bankName, bankAccountNo);
     if (isDefault) {
       await db.update(paymentMethods).set({ isDefault: false }).where(eq(paymentMethods.companyId, existing.companyId!));
     }

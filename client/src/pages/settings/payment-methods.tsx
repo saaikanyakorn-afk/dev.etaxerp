@@ -132,9 +132,9 @@ export default function PaymentMethodSettings() {
   const handleAccountSelect = (code: string, isAdd: boolean) => {
     const acc = cashBankAccounts.find((a: any) => a.code === code);
     if (isAdd && addForm) {
-      setAddForm({ ...addForm, accountCode: code, accountId: acc?.id || null });
+      setAddForm(prev => prev ? { ...prev, accountCode: code, accountId: acc?.id || null } : prev);
     } else if (editForm) {
-      setEditForm({ ...editForm, accountCode: code, accountId: acc?.id || null });
+      setEditForm(prev => prev ? { ...prev, accountCode: code, accountId: acc?.id || null } : prev);
     }
   };
 
@@ -231,10 +231,10 @@ export default function PaymentMethodSettings() {
                           <>
                             <td className="px-3 py-2 text-slate-400">{idx + 1}</td>
                             <td className="px-3 py-2">
-                              <Input data-testid={`input-edit-name-${m.id}`} value={editForm.name} onChange={e => setEditForm({ ...editForm, name: e.target.value })} className="h-8 text-sm" />
+                              <Input data-testid={`input-edit-name-${m.id}`} value={editForm.name} onChange={e => { const v = e.target.value; setEditForm(prev => prev ? { ...prev, name: v } : prev); }} className="h-8 text-sm" />
                             </td>
                             <td className="px-3 py-2">
-                              <Input data-testid={`input-edit-name-th-${m.id}`} value={editForm.nameTh} onChange={e => setEditForm({ ...editForm, nameTh: e.target.value })} className="h-8 text-sm" />
+                              <Input data-testid={`input-edit-name-th-${m.id}`} value={editForm.nameTh} onChange={e => { const v = e.target.value; setEditForm(prev => prev ? { ...prev, nameTh: v } : prev); }} className="h-8 text-sm" />
                             </td>
                             <td className="px-3 py-2">
                               <Select value={editForm.accountCode} onValueChange={v => handleAccountSelect(v, false)}>
@@ -250,15 +250,15 @@ export default function PaymentMethodSettings() {
                             </td>
                             <td className="px-3 py-2">
                               <div className="flex flex-col gap-1">
-                                <Input data-testid={`input-edit-bank-name-${m.id}`} value={editForm.bankName || ""} onChange={e => setEditForm({ ...editForm, bankName: e.target.value })} placeholder="ชื่อธนาคาร" className="h-8 text-sm" />
-                                <Input data-testid={`input-edit-bank-account-no-${m.id}`} value={editForm.bankAccountNo || ""} onChange={e => setEditForm({ ...editForm, bankAccountNo: e.target.value })} placeholder="เลขที่บัญชี" className="h-8 text-sm" />
+                                <Input data-testid={`input-edit-bank-name-${m.id}`} value={editForm.bankName || ""} onChange={e => { const v = e.target.value; setEditForm(prev => prev ? { ...prev, bankName: v } : prev); }} placeholder="ชื่อธนาคาร" className="h-8 text-sm" />
+                                <Input data-testid={`input-edit-bank-account-no-${m.id}`} value={editForm.bankAccountNo || ""} onChange={e => { const v = e.target.value; setEditForm(prev => prev ? { ...prev, bankAccountNo: v } : prev); }} placeholder="เลขที่บัญชี" className="h-8 text-sm" />
                               </div>
                             </td>
                             <td className="px-3 py-2 text-center">
-                              <Switch checked={editForm.isDefault} onCheckedChange={v => setEditForm({ ...editForm, isDefault: v })} />
+                              <Switch checked={editForm.isDefault} onCheckedChange={v => setEditForm(prev => prev ? { ...prev, isDefault: v } : prev)} />
                             </td>
                             <td className="px-3 py-2 text-center">
-                              <Switch checked={editForm.active} onCheckedChange={v => setEditForm({ ...editForm, active: v })} />
+                              <Switch checked={editForm.active} onCheckedChange={v => setEditForm(prev => prev ? { ...prev, active: v } : prev)} />
                             </td>
                             <td className="px-3 py-2 text-center">
                               <div className="flex items-center justify-center gap-1">

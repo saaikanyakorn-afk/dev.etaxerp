@@ -296,3 +296,25 @@ export type TenantModuleSubscription = typeof tenantModuleSubscriptions.$inferSe
  *   }
  * }
  */
+
+// ── ADD bank_name + bank_account_no to payment_methods (2026-04-29) ────────
+const BANK_INFO_MIGRATION_KEY = "ADD_BANK_INFO_TO_PAYMENT_METHODS_2026-04-29";
+
+export async function runBankInfoToPaymentMethodsMigration(db: any) {
+  try {
+    const flagRows = await db.execute(sql`
+      SELECT 1 FROM system_config WHERE config_key = ${BANK_INFO_MIGRATION_KEY} LIMIT 1
+    `);
+    if ((flagRows.rows || []).length > 0) return;
+    await db.execute(sql`ALTER TABLE payment_methods ADD COLUMN IF NOT EXISTS bank_name text`);
+    await db.execute(sql`ALTER TABLE payment_methods ADD COLUMN IF NOT EXISTS bank_account_no text`);
+    await db.execute(sql`
+      INSERT INTO system_config (config_key, config_value)
+      VALUES (${BANK_INFO_MIGRATION_KEY}, 'done')
+      ON CONFLICT (config_key) DO NOTHING
+    `);
+    console.log("[migration] ✅ bank_name + bank_account_no added to payment_methods");
+  } catch (e: any) {
+    console.warn("[migration] bank_info:", e.message);
+  }
+}
