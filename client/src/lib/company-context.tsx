@@ -86,6 +86,20 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key !== STORAGE_KEY || e.newValue === null) return;
+      const newId = parseInt(e.newValue, 10);
+      if (!isNaN(newId) && newId !== idRef.current) {
+        idRef.current = newId;
+        setRaw(newId);
+        syncUrlCompanyId(newId);
+      }
+    };
+    window.addEventListener("storage", handleStorage);
+    return () => window.removeEventListener("storage", handleStorage);
+  }, []);
+
+  useEffect(() => {
     const wasLoggedIn = prevUserRef.current != null;
     prevUserRef.current = user;
 
@@ -134,6 +148,7 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
     if (user?.empCompanyId && companies.some(c => c.id === user.empCompanyId)) {
       idRef.current = user.empCompanyId;
       setRaw(user.empCompanyId);
+      writeSaved(user.empCompanyId);
       syncUrlCompanyId(user.empCompanyId);
       return;
     }
@@ -142,6 +157,7 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
     if (primary) {
       idRef.current = primary.id;
       setRaw(primary.id);
+      writeSaved(primary.id);
       syncUrlCompanyId(primary.id);
       return;
     }
