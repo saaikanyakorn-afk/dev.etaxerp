@@ -26,15 +26,15 @@ const CompanyContext = createContext<CompanyContextType>({
 
 function readSaved(): number | null {
   try {
-    const v = sessionStorage.getItem(STORAGE_KEY);
+    const v = localStorage.getItem(STORAGE_KEY);
     return v ? parseInt(v, 10) : null;
   } catch { return null; }
 }
 
 function writeSaved(id: number | null) {
   try {
-    if (id != null) sessionStorage.setItem(STORAGE_KEY, String(id));
-    else sessionStorage.removeItem(STORAGE_KEY);
+    if (id != null) localStorage.setItem(STORAGE_KEY, String(id));
+    else localStorage.removeItem(STORAGE_KEY);
   } catch {}
 }
 
