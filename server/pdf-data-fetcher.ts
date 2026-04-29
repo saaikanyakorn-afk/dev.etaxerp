@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import {
   companies, taxInvoices, taxInvoiceItems, invoices, invoiceItems,
   quotations, quotationItems, salesOrders, salesOrderItems,
@@ -344,6 +344,18 @@ async function buildPdfDataFromDoc(
     sellerBranchAddress: "",
     paymentMethod: doc.paymentMethod || null,
   };
+
+  // Look up payment method bank info for receipt PDFs
+  if (doc.paymentMethod && (doc as any).companyId) {
+    try {
+      const pmRows = await db.execute(sql`SELECT bank_name, bank_account_no FROM payment_methods WHERE company_id = ${(doc as any).companyId} AND account_code = ${doc.paymentMethod} AND active = true LIMIT 1`);
+      if (pmRows.rows && pmRows.rows.length > 0) {
+        const pm = pmRows.rows[0] as any;
+        if (pm.bank_name) (pdfDocument as any).paymentMethodBankName = pm.bank_name;
+        if (pm.bank_account_no) (pdfDocument as any).paymentMethodBankAccountNo = pm.bank_account_no;
+      }
+    } catch (e: any) { /* non-fatal */ }
+  }
 
   const etaxEnabled = !!(company as any).etaxEnabled;
   const etaxSent = !!(doc as any).etaxSentAt;

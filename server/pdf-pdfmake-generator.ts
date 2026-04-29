@@ -480,6 +480,14 @@ function buildDocDefinition(opts: GeneratePdfOptions): TDocumentDefinitions {
               columnGap: 24,
               margin: [0, 0, 0, 3],
             },
+            ...((isTransfer || isCheque) && ((doc as any).paymentMethodBankName || (doc as any).paymentMethodBankAccountNo) ? [{
+              text: [
+                (doc as any).paymentMethodBankName ? { text: `ธนาคาร ${(doc as any).paymentMethodBankName}`, fontSize: 7, color: "#374151" } : null,
+                (doc as any).paymentMethodBankName && (doc as any).paymentMethodBankAccountNo ? { text: "  |  ", fontSize: 7, color: "#9ca3af" } : null,
+                (doc as any).paymentMethodBankAccountNo ? { text: `เลขที่บัญชี ${(doc as any).paymentMethodBankAccountNo}`, fontSize: 7, color: "#374151" } : null,
+              ].filter(Boolean),
+              margin: [0, -1, 0, 2],
+            }] : []),
             { ...cbRow("เช็คธนาคาร / เลขที่ / ลงวันที่ / มูลค่าก่อนภาษี", isCheque), margin: [0, 0, 0, 3] },
             cbRow(otherLabel, isOther),
             ...(paymentDisclaimer ? [

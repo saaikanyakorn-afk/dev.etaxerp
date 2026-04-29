@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Banknote, Plus, Pencil, Trash2, Save, X, Star, Loader2, GripVertical } from "lucide-react";
+import { Banknote, Plus, Pencil, Trash2, Save, X, Star, Loader2 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
@@ -21,6 +21,8 @@ interface PaymentMethodRow {
   active: boolean;
   isDefault: boolean;
   sortOrder: number;
+  bankName?: string;
+  bankAccountNo?: string;
   isEditing?: boolean;
   isNew?: boolean;
 }
@@ -105,6 +107,8 @@ export default function PaymentMethodSettings() {
       active: m.active,
       isDefault: m.isDefault || false,
       sortOrder: m.sortOrder || 0,
+      bankName: m.bankName || "",
+      bankAccountNo: m.bankAccountNo || "",
     });
     setAddForm(null);
   };
@@ -118,6 +122,8 @@ export default function PaymentMethodSettings() {
       active: true,
       isDefault: false,
       sortOrder: (methods.length + 1) * 10,
+      bankName: "",
+      bankAccountNo: "",
     });
     setEditingId(null);
     setEditForm(null);
@@ -135,7 +141,7 @@ export default function PaymentMethodSettings() {
   return (
     <Layout>
       <SettingsTabs />
-      <div className="p-4 md:p-6 max-w-4xl mx-auto">
+      <div className="p-4 md:p-6 max-w-5xl mx-auto">
         <div className="flex items-center gap-3 mb-6">
           <div className="w-10 h-10 rounded-xl bg-[#fb9678]/15 flex items-center justify-center">
             <Banknote className="h-5 w-5 text-[#fb9678]" />
@@ -167,6 +173,7 @@ export default function PaymentMethodSettings() {
                       <th className="px-3 py-2 text-left font-medium text-slate-600">ชื่อ (EN)</th>
                       <th className="px-3 py-2 text-left font-medium text-slate-600">ชื่อ (TH)</th>
                       <th className="px-3 py-2 text-left font-medium text-slate-600">บัญชี</th>
+                      <th className="px-3 py-2 text-left font-medium text-slate-600">ธนาคาร / เลขที่บัญชี</th>
                       <th className="px-3 py-2 text-center font-medium text-slate-600 w-20">เริ่มต้น</th>
                       <th className="px-3 py-2 text-center font-medium text-slate-600 w-20">เปิดใช้</th>
                       <th className="px-3 py-2 text-center font-medium text-slate-600 w-24">จัดการ</th>
@@ -193,6 +200,12 @@ export default function PaymentMethodSettings() {
                               ))}
                             </SelectContent>
                           </Select>
+                        </td>
+                        <td className="px-3 py-2">
+                          <div className="flex flex-col gap-1">
+                            <Input data-testid="input-new-bank-name" value={addForm.bankName || ""} onChange={e => setAddForm({ ...addForm, bankName: e.target.value })} placeholder="ชื่อธนาคาร" className="h-8 text-sm" />
+                            <Input data-testid="input-new-bank-account-no" value={addForm.bankAccountNo || ""} onChange={e => setAddForm({ ...addForm, bankAccountNo: e.target.value })} placeholder="เลขที่บัญชี" className="h-8 text-sm" />
+                          </div>
                         </td>
                         <td className="px-3 py-2 text-center">
                           <Switch checked={addForm.isDefault} onCheckedChange={v => setAddForm({ ...addForm, isDefault: v })} />
@@ -235,6 +248,12 @@ export default function PaymentMethodSettings() {
                                 </SelectContent>
                               </Select>
                             </td>
+                            <td className="px-3 py-2">
+                              <div className="flex flex-col gap-1">
+                                <Input data-testid={`input-edit-bank-name-${m.id}`} value={editForm.bankName || ""} onChange={e => setEditForm({ ...editForm, bankName: e.target.value })} placeholder="ชื่อธนาคาร" className="h-8 text-sm" />
+                                <Input data-testid={`input-edit-bank-account-no-${m.id}`} value={editForm.bankAccountNo || ""} onChange={e => setEditForm({ ...editForm, bankAccountNo: e.target.value })} placeholder="เลขที่บัญชี" className="h-8 text-sm" />
+                              </div>
+                            </td>
                             <td className="px-3 py-2 text-center">
                               <Switch checked={editForm.isDefault} onCheckedChange={v => setEditForm({ ...editForm, isDefault: v })} />
                             </td>
@@ -266,6 +285,16 @@ export default function PaymentMethodSettings() {
                                 })()}
                               </span>
                             </td>
+                            <td className="px-3 py-2 text-slate-600 text-xs">
+                              {m.bankName || m.bankAccountNo ? (
+                                <div className="flex flex-col gap-0.5">
+                                  {m.bankName && <span data-testid={`text-bank-name-${m.id}`} className="text-slate-700">{m.bankName}</span>}
+                                  {m.bankAccountNo && <span data-testid={`text-bank-account-no-${m.id}`} className="font-mono text-slate-500">{m.bankAccountNo}</span>}
+                                </div>
+                              ) : (
+                                <span className="text-slate-300">-</span>
+                              )}
+                            </td>
                             <td className="px-3 py-2 text-center">
                               {m.isDefault && <Star className="h-4 w-4 text-yellow-500 mx-auto fill-yellow-500" />}
                             </td>
@@ -289,7 +318,7 @@ export default function PaymentMethodSettings() {
                       </tr>
                     ))}
                     {methods.length === 0 && !addForm && (
-                      <tr><td colSpan={7} className="text-center py-8 text-slate-400">ยังไม่มีวิธีการรับเงิน</td></tr>
+                      <tr><td colSpan={8} className="text-center py-8 text-slate-400">ยังไม่มีวิธีการรับเงิน</td></tr>
                     )}
                   </tbody>
                 </table>
