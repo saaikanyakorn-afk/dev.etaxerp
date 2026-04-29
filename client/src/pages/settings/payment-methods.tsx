@@ -39,7 +39,7 @@ export default function PaymentMethodSettings() {
   const { data: methods = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/payment-methods", selectedCompanyId],
     queryFn: async () => {
-      const r = await fetch(`/api/payment-methods?companyId=${selectedCompanyId}`, { credentials: "include" });
+      const r = await fetch(`/api/payment-methods?companyId=${selectedCompanyId}`, { credentials: "include", cache: "no-cache" });
       if (!r.ok) throw new Error("Failed");
       return r.json();
     },
