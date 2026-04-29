@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Banknote, Plus, Pencil, Trash2, Save, X, Star, Loader2 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useCompany } from "@/lib/company-context";
 import { useLanguage } from "@/hooks/use-language";
@@ -35,6 +35,8 @@ export default function PaymentMethodSettings() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editForm, setEditForm] = useState<PaymentMethodRow | null>(null);
   const [addForm, setAddForm] = useState<PaymentMethodRow | null>(null);
+  const editFormRef = useRef<PaymentMethodRow | null>(null);
+  useEffect(() => { editFormRef.current = editForm; }, [editForm]);
 
   const { data: methods = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/payment-methods", selectedCompanyId],
@@ -262,7 +264,7 @@ export default function PaymentMethodSettings() {
                             </td>
                             <td className="px-3 py-2 text-center">
                               <div className="flex items-center justify-center gap-1">
-                                <Button data-testid={`button-save-${m.id}`} size="icon" variant="ghost" className="h-7 w-7 text-green-600 hover:text-green-700" onClick={() => saveMutation.mutate(editForm)} disabled={saveMutation.isPending}>
+                                <Button data-testid={`button-save-${m.id}`} size="icon" variant="ghost" className="h-7 w-7 text-green-600 hover:text-green-700" onClick={() => { console.log("[save pm] editFormRef:", JSON.stringify(editFormRef.current)); saveMutation.mutate(editFormRef.current); }} disabled={saveMutation.isPending}>
                                   <Save className="h-4 w-4" />
                                 </Button>
                                 <Button data-testid={`button-cancel-${m.id}`} size="icon" variant="ghost" className="h-7 w-7 text-slate-400 hover:text-slate-600" onClick={() => { setEditingId(null); setEditForm(null); }}>
