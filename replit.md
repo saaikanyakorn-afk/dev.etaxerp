@@ -342,6 +342,7 @@ VALUES ('vXXX', 'What changed', 'alter_column|add_column|data_migration', 'etaxe
 - Files from unfinished features (security/infra) must NEVER appear here.
 - Production is NOT a debugging tool. Only cherry-pick solutions, never test code.
 - Kai must NEVER send wrong commands for production. Verify process names, paths, and syntax before sending.
+- **CROSS-CHECK ALL FILES IN CHERRY-PICK**: เมื่อ fix รวม backend + frontend ต้องมีทั้งสองใน cherry-pick command เสมอ ตรวจสอบ production DB + production code (git show github-production/main:...) ก่อนสรุปว่า fix ทำงาน — อย่าเชื่อว่า backend deploy แล้วถ้า cherry-pick command ไม่รวม backend file (Deploy #14 พลาด server/route-helpers.ts + server/routes/sales-docs-routes.ts)
 
 ---
 
@@ -363,7 +364,9 @@ VALUES ('vXXX', 'What changed', 'alter_column|add_column|data_migration', 'etaxe
 **The correct sequence for any production investigation:**
 ```
 1. SELECT from production DB → see real data/schema
-2. Read actual file from production (git or ask) → see real code
+2. Read actual FILE CONTENT from production branch:
+     git fetch github-production
+     git show github-production/main:path/to/file.ts
 3. Compare with dev → identify what actually differs
 4. THEN plan the fix
 5. THEN ask for authorization
@@ -371,6 +374,8 @@ VALUES ('vXXX', 'What changed', 'alter_column|add_column|data_migration', 'etaxe
 ```
 
 **Never write migration, code change, or deploy command based on assumption alone.**
+
+**Why code content matters:** Other agents cherry-pick files to production at any time. What Kai sees in dev may NOT be what production is running. The only way to know what production is running is to read the file from `github-production/main` directly.
 
 ---
 

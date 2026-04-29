@@ -315,6 +315,7 @@ async function _createAutoJournalEntryInner(params: AutoJournalParams): Promise<
 
   const isStandaloneTaxInvoice = documentType === "tax_invoice" && !linkedInvoiceId;
   const isStandaloneReceipt = documentType === "receipt" && !linkedInvoiceId;
+  const isLinkedReceipt = documentType === "receipt" && !!linkedInvoiceId;
   const isServiceType = businessType === "service" || businessType === "accounting" || businessType === "accounting_firm" || businessType === "mixed";
   const formulaBusinessType = overrideBusinessType || ((businessType === "accounting" || businessType === "accounting_firm") ? "service" : businessType);
 
@@ -378,6 +379,15 @@ async function _createAutoJournalEntryInner(params: AutoJournalParams): Promise<
         .orderBy(accountingFormulaLines.sortOrder);
       formulaLines = lines;
     }
+  } else if (isLinkedReceipt) {
+    const resolveFirstLR = (...codes: string[]) => codes.find(c => accountMap.has(c)) || codes[0];
+    const arCode = resolveFirstLR("1201000");
+    const cashCode = resolveFirstLR("1001000");
+    formulaLines = [
+      { accountCode: cashCode, accountName: "เงินสด/เงินฝากธนาคาร", direction: "debit", sortOrder: 1 },
+      { accountCode: arCode, accountName: "ลูกหนี้การค้า", direction: "credit", sortOrder: 2 },
+    ];
+    console.log(`[AutoJournal] isLinkedReceipt fallback: DR ${cashCode} CR ${arCode}`);
   } else {
     console.log(`[AutoJournal] No formula in DB for docType=${documentType}, bizType=${formulaBusinessType} — skipping (no hardcode fallback)`);
     return { journalEntryId: null, skipped: true, reason: `ไม่พบสูตรบัญชีใน DB สำหรับ ${documentType} (${formulaBusinessType}) — กรุณาไปที่หน้าสูตรบัญชีแล้วกดตรวจสอบสูตร` };

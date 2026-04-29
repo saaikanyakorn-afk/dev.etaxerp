@@ -26,15 +26,15 @@ const CompanyContext = createContext<CompanyContextType>({
 
 function readSaved(): number | null {
   try {
-    const v = localStorage.getItem(STORAGE_KEY);
+    const v = sessionStorage.getItem(STORAGE_KEY);
     return v ? parseInt(v, 10) : null;
   } catch { return null; }
 }
 
 function writeSaved(id: number | null) {
   try {
-    if (id != null) localStorage.setItem(STORAGE_KEY, String(id));
-    else localStorage.removeItem(STORAGE_KEY);
+    if (id != null) sessionStorage.setItem(STORAGE_KEY, String(id));
+    else sessionStorage.removeItem(STORAGE_KEY);
   } catch {}
 }
 
@@ -84,20 +84,6 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
     writeSaved(id);
     syncUrlCompanyId(id);
   }, []);
-
-  useEffect(() => {
-    const handler = (e: StorageEvent) => {
-      if (e.key !== STORAGE_KEY || e.newValue === null) return;
-      const newId = parseInt(e.newValue, 10);
-      if (isNaN(newId) || newId === idRef.current) return;
-      if (companies.length > 0 && !companies.some((c: any) => c.id === newId)) return;
-      idRef.current = newId;
-      setRaw(newId);
-      syncUrlCompanyId(newId);
-    };
-    window.addEventListener("storage", handler);
-    return () => window.removeEventListener("storage", handler);
-  }, [companies]);
 
   useEffect(() => {
     const wasLoggedIn = prevUserRef.current != null;
