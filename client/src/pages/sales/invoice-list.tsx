@@ -40,20 +40,31 @@ import ListExportButton from "@/components/list-export-button";
 import { parseAttachedUrl } from "@/components/multi-file-attachment";
 
 const STATUS_MAP: Record<string, { label: string; color: string; icon: any }> = {
-  overdue: { label: "ค้างชำระ", color: "bg-red-100 text-red-700 border-red-200", icon: AlertTriangle },
-  debtor: { label: "ลูกหนี้", color: "bg-orange-100 text-orange-700 border-orange-200", icon: AlertCircle },
-  billing_note: { label: "ใบวางบิล", color: "bg-blue-100 text-blue-700 border-blue-200", icon: FileText },
-  partial: { label: "ชำระบางส่วน", color: "bg-amber-100 text-amber-700 border-amber-200", icon: DollarSign },
-  paid: { label: "ชำระแล้ว", color: "bg-emerald-100 text-emerald-700 border-emerald-200", icon: CheckCircle2 },
-  cancel: { label: "ยกเลิก", color: "bg-slate-100 text-slate-500 border-slate-200", icon: XCircle },
   draft: { label: "ร่าง", color: "bg-slate-100 text-slate-700 border-slate-200", icon: Clock },
   sent: { label: "ส่งแล้ว", color: "bg-[var(--theme-primary-light)] text-[var(--theme-primary)] border-[var(--theme-primary)]/20", icon: Send },
+  debtor: { label: "ลูกหนี้", color: "bg-orange-100 text-orange-700 border-orange-200", icon: AlertCircle },
   partially_paid: { label: "ชำระบางส่วน", color: "bg-amber-100 text-amber-700 border-amber-200", icon: DollarSign },
+  paid: { label: "ชำระแล้ว", color: "bg-emerald-100 text-emerald-700 border-emerald-200", icon: CheckCircle2 },
+  cancelled: { label: "ยกเลิก", color: "bg-slate-100 text-slate-500 border-slate-200", icon: XCircle },
+  cancel: { label: "ยกเลิก", color: "bg-slate-100 text-slate-500 border-slate-200", icon: XCircle },
+  overdue: { label: "ค้างชำระ", color: "bg-red-100 text-red-700 border-red-200", icon: AlertTriangle },
   pending_approval: { label: "รออนุมัติ", color: "bg-amber-100 text-amber-700 border-amber-200", icon: Clock },
   rejected: { label: "ปฏิเสธ", color: "bg-red-100 text-red-700 border-red-200", icon: AlertCircle },
-  cancelled: { label: "ยกเลิก", color: "bg-slate-100 text-slate-500 border-slate-200", icon: XCircle },
   approved: { label: "อนุมัติ", color: "bg-emerald-100 text-emerald-700 border-emerald-200", icon: CheckCircle2 },
+  billing_note: { label: "ใบวางบิล", color: "bg-blue-100 text-blue-700 border-blue-200", icon: FileText },
+  partial: { label: "ชำระบางส่วน", color: "bg-amber-100 text-amber-700 border-amber-200", icon: DollarSign },
 };
+
+const FILTER_OPTIONS = [
+  { value: "all", label: "ทั้งหมด" },
+  { value: "draft", label: "ร่าง" },
+  { value: "sent", label: "ส่งแล้ว" },
+  { value: "debtor", label: "ลูกหนี้" },
+  { value: "partially_paid", label: "ชำระบางส่วน" },
+  { value: "overdue", label: "ค้างชำระ (เกินกำหนด)" },
+  { value: "paid", label: "ชำระแล้ว" },
+  { value: "cancelled", label: "ยกเลิก" },
+];
 
 const PAYMENT_STATUS_MAP: Record<string, { label: string; color: string }> = {
   unpaid: { label: "ยังไม่ชำระ", color: "bg-slate-100 text-slate-600 border-slate-200" },
@@ -136,8 +147,21 @@ export default function InvoiceList() {
     navigate(`/sales/invoice/new?copyFrom=${id}`);
   };
 
+  const today = new Date().toISOString().slice(0, 10);
   const filtered = invoices.filter((q: any) => {
-    if (filterStatus && filterStatus !== "all" && q.status !== filterStatus) return false;
+    if (filterStatus && filterStatus !== "all") {
+      if (filterStatus === "overdue") {
+        const isUnpaid = !["paid", "cancelled", "cancel"].includes(q.status);
+        const isOverdue = q.dueDate && q.dueDate < today;
+        if (!isUnpaid || !isOverdue) return false;
+      } else if (filterStatus === "cancelled") {
+        if (q.status !== "cancelled" && q.status !== "cancel") return false;
+      } else if (filterStatus === "paid") {
+        if (q.status !== "paid" && q.paymentStatus !== "paid") return false;
+      } else {
+        if (q.status !== filterStatus) return false;
+      }
+    }
     if (filterBranch !== "all" && q.sellerBranchId !== filterBranch) return false;
     if (dateFrom && q.invoiceDate && q.invoiceDate < dateFrom) return false;
     if (dateTo && q.invoiceDate && q.invoiceDate > dateTo) return false;
@@ -243,9 +267,8 @@ export default function InvoiceList() {
                     <SelectValue placeholder="ทั้งหมด" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">ทั้งหมด</SelectItem>
-                    {Object.entries(STATUS_MAP).map(([key, val]) => (
-                      <SelectItem key={key} value={key}>{val.label}</SelectItem>
+                    {FILTER_OPTIONS.map(opt => (
+                      <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
