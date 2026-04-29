@@ -12,3 +12,11 @@ export function getChromeIntentUrl(): string {
   const path = window.location.pathname + window.location.search;
   return `intent://${host}${path}#Intent;scheme=https;package=com.android.chrome;end`;
 }
+
+export function redirectToChrome(): boolean {
+  if (!isLineAndroid()) return false;
+  const host = window.location.hostname;
+  const path = window.location.pathname + window.location.search;
+  window.location.href = `intent://${host}${path}#Intent;scheme=https;package=com.android.chrome;end`;
+  return true;
+}
