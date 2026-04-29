@@ -46,6 +46,7 @@ export function registerCashFlowForecastRoutes(app: Express) {
       const balances = await getAccountBalances(companyId, null, todayStr);
       const balanceMap = new Map(balances.map(b => [b.accountId, b]));
 
+      // เงินสด: บัญชี 100xxx, 101xxx, 102xxx
       let currentCash = 0;
       for (const acct of companyAccounts) {
         if (acct.code && (acct.code.startsWith("100") || acct.code.startsWith("101") || acct.code.startsWith("102"))) {
@@ -56,6 +57,7 @@ export function registerCashFlowForecastRoutes(app: Express) {
         }
       }
 
+      // AR — กรอง RE (ใบเสร็จ) และเอกสาร paid ออก
       const arDocs = await db.execute(sql`
         SELECT 
           COALESCE(CAST(total_amount AS numeric), 0) AS amount,
@@ -63,8 +65,9 @@ export function registerCashFlowForecastRoutes(app: Express) {
           payment_status
         FROM tax_invoices
         WHERE company_id = ${companyId}
-          AND status != 'cancelled'
+          AND status NOT IN ('cancelled', 'paid')
           AND payment_status != 'paid'
+          AND tax_invoice_no NOT LIKE 'RE%'
         UNION ALL
         SELECT 
           COALESCE(CAST(total_amount AS numeric), 0) AS amount,
@@ -72,8 +75,9 @@ export function registerCashFlowForecastRoutes(app: Express) {
           payment_status
         FROM invoices
         WHERE company_id = ${companyId}
-          AND status != 'cancelled'
+          AND status NOT IN ('cancelled', 'paid')
           AND payment_status != 'paid'
+          AND invoice_no NOT LIKE 'RE%'
       `);
 
       const apDocs = await db.execute(sql`
@@ -104,6 +108,7 @@ export function registerCashFlowForecastRoutes(app: Express) {
       let runningExpected = currentCash;
       let runningWorst = currentCash;
 
+      // อัตราการเก็บเงิน: best=95%, expected=80%, worst=60%
       const arCollectionRate = { best: 0.95, expected: 0.80, worst: 0.60 };
       const apPaymentRate = { best: 0.90, expected: 1.00, worst: 1.00 };
 
@@ -118,6 +123,7 @@ export function registerCashFlowForecastRoutes(app: Express) {
         for (const row of arRows) {
           const dueDate = row.due_date ? String(row.due_date).split("T")[0] : null;
           if (d === 0) {
+            // วันแรก: รวมทุก AR ที่ครบกำหนดแล้ว (overdue) เข้าด้วย
             if (dueDate && dueDate <= dateStr) {
               arDue += Number(row.amount) || 0;
             }
@@ -157,6 +163,8 @@ export function registerCashFlowForecastRoutes(app: Express) {
       const totalAR = arRows.reduce((s: number, r: any) => s + (Number(r.amount) || 0), 0);
       const totalAP = apRows.reduce((s: number, r: any) => s + (Number(r.amount) || 0), 0);
 
+      // สินทรัพย์หมุนเวียน: บัญชี 1xxxx ทั้งหมดที่ < "150" (ไม่รวมสินทรัพย์ไม่หมุนเวียน)
+      // หนี้สินหมุนเวียน: บัญชี 2xxxx ที่ < "230"
       let currentAssets = 0;
       let currentLiabilities = 0;
       for (const acct of companyAccounts) {
@@ -165,7 +173,7 @@ export function registerCashFlowForecastRoutes(app: Express) {
         if (!bal) continue;
         const net = Number(bal.totalDebit) - Number(bal.totalCredit);
 
-        if (acct.code.startsWith("1") && acct.code < "140") {
+        if (acct.code.startsWith("1") && acct.code < "150") {
           currentAssets += net;
         }
         if (acct.code.startsWith("2") && acct.code < "230") {
@@ -176,6 +184,7 @@ export function registerCashFlowForecastRoutes(app: Express) {
       const wcRatio = currentLiabilities > 0 ? currentAssets / currentLiabilities : 0;
       const nwc = currentAssets - currentLiabilities;
 
+      // Revenue YTD สำหรับ DSO
       const revenueResult = await db.execute(sql`
         SELECT COALESCE(SUM(CAST(jl.credit AS numeric) - CAST(jl.debit AS numeric)), 0) AS revenue
         FROM journal_lines jl
@@ -191,6 +200,7 @@ export function registerCashFlowForecastRoutes(app: Express) {
       const daysElapsed = Math.max(1, Math.ceil((today.getTime() - new Date(yearStart).getTime()) / 86400000));
       const dailyRevenue = annualRevenue / daysElapsed;
 
+      // COGS YTD สำหรับ DIO/DPO
       const cogsResult = await db.execute(sql`
         SELECT COALESCE(SUM(CAST(jl.debit AS numeric) - CAST(jl.credit AS numeric)), 0) AS cogs
         FROM journal_lines jl
@@ -205,32 +215,35 @@ export function registerCashFlowForecastRoutes(app: Express) {
       const annualCOGS = Number((cogsResult.rows || cogsResult)[0]?.cogs || 0);
       const dailyCOGS = annualCOGS / daysElapsed;
 
+      // สินค้าคงคลัง: บัญชี 13xxx (1301000-1309000)
       let inventoryBalance = 0;
       for (const acct of companyAccounts) {
         if (!acct.code) continue;
         const bal = balanceMap.get(acct.id);
         if (!bal) continue;
-        if (acct.code.startsWith("120") || acct.code.startsWith("121") || acct.code.startsWith("115")) {
+        if (acct.code.startsWith("13")) {
           inventoryBalance += Number(bal.totalDebit) - Number(bal.totalCredit);
         }
       }
 
+      // ลูกหนี้การค้า: บัญชี 12xxx สำหรับ DSO
       let arBalance = 0;
       for (const acct of companyAccounts) {
         if (!acct.code) continue;
         const bal = balanceMap.get(acct.id);
         if (!bal) continue;
-        if (acct.code.startsWith("110") || acct.code.startsWith("111") || acct.code.startsWith("112")) {
+        if (acct.code.startsWith("12")) {
           arBalance += Number(bal.totalDebit) - Number(bal.totalCredit);
         }
       }
 
+      // เจ้าหนี้การค้า: บัญชี 21xxx สำหรับ DPO
       let apBalance = 0;
       for (const acct of companyAccounts) {
         if (!acct.code) continue;
         const bal = balanceMap.get(acct.id);
         if (!bal) continue;
-        if (acct.code.startsWith("200") || acct.code.startsWith("210") || acct.code.startsWith("211")) {
+        if (acct.code.startsWith("21")) {
           apBalance += Math.abs(Number(bal.totalDebit) - Number(bal.totalCredit));
         }
       }
@@ -240,16 +253,19 @@ export function registerCashFlowForecastRoutes(app: Express) {
       const dpo = dailyCOGS > 0 ? Math.round(apBalance / dailyCOGS) : 0;
       const ccc = dio + dso - dpo;
 
+      // Monthly Trend: คำนวณ 12 เดือนย้อนหลัง — ใช้รายได้เฉพาะเดือนนั้น (ไม่ใช่ YTD)
       const monthlyTrend: { month: string; ratio: number; nwc: number; ccc: number }[] = [];
       for (let m = 11; m >= 0; m--) {
-        const trendYear = today.getFullYear();
-        const trendMonth = today.getMonth() - m;
+        const trendDate = new Date(today.getFullYear(), today.getMonth() - m, 1);
+        const trendYear = trendDate.getFullYear();
+        const trendMonth = trendDate.getMonth(); // 0-indexed
         const lastDayOfMonth = new Date(trendYear, trendMonth + 1, 0);
         const endDate = m === 0 ? today : lastDayOfMonth;
         const trendEndStr = endDate.toISOString().split("T")[0];
-        const monthLabel = `${lastDayOfMonth.getFullYear()}-${String(lastDayOfMonth.getMonth() + 1).padStart(2, "0")}`;
+        // ต้นเดือนของเดือนนั้น (ไม่ใช่ต้นปี)
+        const monthStartStr = `${trendYear}-${String(trendMonth + 1).padStart(2, "0")}-01`;
+        const monthLabel = `${trendYear}-${String(trendMonth + 1).padStart(2, "0")}`;
 
-        const monthStart = `${lastDayOfMonth.getFullYear()}-01-01`;
         const trendBalances = await getAccountBalances(companyId, null, trendEndStr);
         const trendBalMap = new Map(trendBalances.map(b => [b.accountId, b]));
 
@@ -263,13 +279,19 @@ export function registerCashFlowForecastRoutes(app: Express) {
           const bal = trendBalMap.get(acct.id);
           if (!bal) continue;
           const net = Number(bal.totalDebit) - Number(bal.totalCredit);
-          if (acct.code.startsWith("1") && acct.code < "140") ca += net;
+          // สินทรัพย์หมุนเวียน < "150"
+          if (acct.code.startsWith("1") && acct.code < "150") ca += net;
+          // หนี้สินหมุนเวียน < "230"
           if (acct.code.startsWith("2") && acct.code < "230") cl += Math.abs(net);
-          if (acct.code.startsWith("110") || acct.code.startsWith("111") || acct.code.startsWith("112")) tAr += net;
-          if (acct.code.startsWith("200") || acct.code.startsWith("210") || acct.code.startsWith("211")) tAp += Math.abs(net);
-          if (acct.code.startsWith("120") || acct.code.startsWith("121") || acct.code.startsWith("115")) tInv += net;
+          // ลูกหนี้ 12xxx
+          if (acct.code.startsWith("12")) tAr += net;
+          // เจ้าหนี้ 21xxx
+          if (acct.code.startsWith("21")) tAp += Math.abs(net);
+          // สินค้าคงคลัง 13xxx
+          if (acct.code.startsWith("13")) tInv += net;
         }
 
+        // Revenue และ COGS เฉพาะเดือนนั้น
         const trendRevResult = await db.execute(sql`
           SELECT COALESCE(SUM(CAST(jl.credit AS numeric) - CAST(jl.debit AS numeric)), 0) AS revenue
           FROM journal_lines jl
@@ -277,7 +299,7 @@ export function registerCashFlowForecastRoutes(app: Express) {
           INNER JOIN accounts a ON a.id = jl.account_id
           WHERE je.company_id = ${companyId}
             AND je.status IN ('posted','approved')
-            AND je.entry_date >= ${monthStart}
+            AND je.entry_date >= ${monthStartStr}
             AND je.entry_date <= ${trendEndStr}
             AND a.code LIKE '4%'
         `);
@@ -288,16 +310,16 @@ export function registerCashFlowForecastRoutes(app: Express) {
           INNER JOIN accounts a ON a.id = jl.account_id
           WHERE je.company_id = ${companyId}
             AND je.status IN ('posted','approved')
-            AND je.entry_date >= ${monthStart}
+            AND je.entry_date >= ${monthStartStr}
             AND je.entry_date <= ${trendEndStr}
             AND (a.code LIKE '500%' OR a.code LIKE '510%')
         `);
 
         const tRev = Number((trendRevResult.rows || trendRevResult)[0]?.revenue || 0);
         const tCogs = Number((trendCogsResult.rows || trendCogsResult)[0]?.cogs || 0);
-        const tDaysElapsed = Math.max(1, Math.ceil((endDate.getTime() - new Date(monthStart).getTime()) / 86400000));
-        const tDailyRev = tRev / tDaysElapsed;
-        const tDailyCogs = tCogs / tDaysElapsed;
+        const tDaysInMonth = Math.max(1, Math.ceil((endDate.getTime() - new Date(monthStartStr).getTime()) / 86400000));
+        const tDailyRev = tRev / tDaysInMonth;
+        const tDailyCogs = tCogs / tDaysInMonth;
 
         const tDso = tDailyRev > 0 ? Math.round(tAr / tDailyRev) : 0;
         const tDio = tDailyCogs > 0 ? Math.round(tInv / tDailyCogs) : 0;
