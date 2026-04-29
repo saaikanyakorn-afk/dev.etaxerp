@@ -348,9 +348,10 @@ async function buildPdfDataFromDoc(
   // Look up payment method bank info for receipt PDFs
   if (doc.paymentMethod && (doc as any).companyId) {
     try {
-      const pmRows = await db.execute(sql`SELECT bank_name, bank_account_no FROM payment_methods WHERE company_id = ${(doc as any).companyId} AND account_code = ${doc.paymentMethod} AND active = true LIMIT 1`);
+      const pmRows = await db.execute(sql`SELECT name, bank_name, bank_account_no FROM payment_methods WHERE company_id = ${(doc as any).companyId} AND account_code = ${doc.paymentMethod} AND active = true LIMIT 1`);
       if (pmRows.rows && pmRows.rows.length > 0) {
         const pm = pmRows.rows[0] as any;
+        if (pm.name) (pdfDocument as any).paymentMethodName = pm.name;
         if (pm.bank_name) (pdfDocument as any).paymentMethodBankName = pm.bank_name;
         if (pm.bank_account_no) (pdfDocument as any).paymentMethodBankAccountNo = pm.bank_account_no;
       }

@@ -457,9 +457,10 @@ function buildDocDefinition(opts: GeneratePdfOptions): TDocumentDefinitions {
       columnGap: 0,
     });
     const pm = doc.paymentMethod || "";
-    const isCash = pm === "cash" || pm === "เงินสด" || pm === "1001000";
-    const isTransfer = pm === "transfer" || pm === "เงินโอน" || pm === "โอนเงิน" || pm.toLowerCase().includes("transfer") || /^101[0-9]{4}$/.test(pm);
-    const isCheque = pm === "cheque" || pm === "check" || pm === "เช็ค" || pm.includes("เช็ค") || /^102[0-9]{4}$/.test(pm);
+    const pmName = ((doc as any).paymentMethodName || "").toLowerCase();
+    const isCash = pm === "cash" || pm === "เงินสด" || pm === "1001000" || pmName.includes("cash") || pmName.includes("เงินสด");
+    const isTransfer = pm === "transfer" || pm === "เงินโอน" || pm === "โอนเงิน" || pm.toLowerCase().includes("transfer") || /^101[0-9]{4}$/.test(pm) || pmName.includes("transfer") || pmName.includes("โอน") || pmName.includes("promptpay") || pmName.includes("พร้อมเพย์") || pmName.includes("wallet") || pmName.includes("กระเป๋า");
+    const isCheque = pm === "cheque" || pm === "check" || pm === "เช็ค" || pm.includes("เช็ค") || /^102[0-9]{4}$/.test(pm) || pmName.includes("cheque") || pmName.includes("check") || pmName.includes("เช็ค");
     const isOther = !!pm && !isCash && !isTransfer && !isCheque;
     const otherLabel = isOther && !/^[0-9]{7}$/.test(pm) ? `อื่นๆ ${pm}` : "อื่นๆ _______________";
     const paymentDisclaimer = ["receipt", "tax_invoice_receipt", "deposit"].includes(documentType)
