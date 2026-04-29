@@ -398,7 +398,29 @@ for (const item of items) {
 }
 ```
 
-**The rule:** Every `if` that guards an operation MUST have an `else` that throws (or returns an explicit error) when the guard fails. Every loop that encounters an unexpected value MUST throw — not `continue`. Every `switch` MUST have `default: throw new Error(...)`.
+**The rule — no exceptions:**
+- Every `if` that guards an operation MUST have an `else` that throws when the guard fails
+- Every loop that encounters an unexpected value MUST throw — not `continue`
+- Every `switch/case` MUST end with `default: throw new Error(...)` — no exception, no matter how "obvious" the cases seem
+- A `switch` without `default: throw` is a production bug waiting to happen — treated as a violation same as `|| fallback`
+
+**switch/case pattern (MANDATORY):**
+```ts
+// BAD — no default
+switch (docType) {
+  case "invoice": return handleInvoice();
+  case "receipt": return handleReceipt();
+  // ❌ what if docType = "tax_invoice"? silent pass-through, returns undefined
+}
+
+// GOOD — default always throws
+switch (docType) {
+  case "invoice": return handleInvoice();
+  case "receipt": return handleReceipt();
+  default:
+    throw new Error(`[JOURNAL] Unexpected docType="${docType}" — not handled. Add case or fix caller.`);
+}
+```
 
 If something unexpected happens → **stop immediately, report with enough info to trace, never silently continue.**
 
