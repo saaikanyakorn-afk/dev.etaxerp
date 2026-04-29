@@ -471,4 +471,11 @@ export async function fullSchemaSync(): Promise<void> {
     if (!e.message?.includes("already exists")) console.log("[schema-sync] v88 migration skip:", e.message?.slice(0, 100));
   }
 
+  try {
+    const { runOneTimeSchemaV89Migration } = await import("./one-time-schema-migration");
+    await runOneTimeSchemaV89Migration();
+  } catch (e: any) {
+    if (!e.message?.includes("already exists")) console.log("[schema-sync] v89 migration skip:", e.message?.slice(0, 100));
+  }
+
 }

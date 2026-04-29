@@ -151,6 +151,29 @@ if (process.argv[1]?.includes("one-time-schema-migration")) {
   runOneTimeSchemaV85Migration().then(() => process.exit(0)).catch(() => process.exit(1));
 }
 
+const MIGRATION_KEY_V89 = "ADD_ACCOUNT_CODE_TO_PRODUCTS_2026-04-29";
+
+export async function runOneTimeSchemaV89Migration() {
+  try {
+    const flagRows = await db.execute(sql`SELECT config_value FROM system_config WHERE config_key = ${MIGRATION_KEY_V89} LIMIT 1`);
+    if ((flagRows.rows || []).length > 0) { return; }
+    console.log("[OneTimeMigration] Starting schema v89 — account_code column on products...");
+    try {
+      await db.execute(sql.raw(`ALTER TABLE products ADD COLUMN IF NOT EXISTS account_code TEXT`));
+      console.log("[OneTimeMigration] ✓ products.account_code");
+    } catch (e: any) {
+      if (!e.message?.includes("already exists")) throw e;
+      console.log("[OneTimeMigration] products.account_code already exists — skip");
+    }
+    await db.execute(sql`
+      INSERT INTO system_config (config_key, config_value, description)
+      VALUES (${MIGRATION_KEY_V89}, ${"done_" + new Date().toISOString()}, 'Add account_code column to products table for per-product journal account mapping')
+      ON CONFLICT (config_key) DO NOTHING
+    `);
+    console.log("[OneTimeMigration] ✅ Schema v89 complete");
+  } catch (err: any) { console.error("[OneTimeMigration] ❌ Error v89:", err.message); }
+}
+
 const MIGRATION_KEY_V88 = "CREATE_EMPLOYEE_HOUR_SETTINGS_2026-04-24";
 
 export async function runOneTimeSchemaV88Migration() {
