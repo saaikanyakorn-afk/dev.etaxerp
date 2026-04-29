@@ -1392,6 +1392,7 @@ export default function InvoiceForm() {
                   เชื่อมโยงเอกสาร — ออกเอกสารต่อจากใบแจ้งหนี้นี้
                 </div>
                 <div className="flex flex-wrap gap-2">
+                  {selectedCompany?.vatRegistered && (
                   <Button
                     data-testid="button-create-tax"
                     variant="outline"
@@ -1402,6 +1403,7 @@ export default function InvoiceForm() {
                     <FileText className="h-3.5 w-3.5" />
                     ออกใบกำกับภาษี
                   </Button>
+                  )}
                   <Button
                     data-testid="button-create-rc"
                     variant="outline"

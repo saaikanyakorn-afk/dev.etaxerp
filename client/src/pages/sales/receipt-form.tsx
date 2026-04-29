@@ -265,6 +265,7 @@ export default function ReceiptForm() {
               refDoc: inv.invoiceNo || "",
               withholdingTax: String(inv.withholdingTax || "0"),
               discountBeforeVat: inv.discountType === "percent" ? `${cleanDecimal(inv.discountAmount, "0")}%` : cleanDecimal(inv.discountAmount, "0"),
+              paymentMethod: inv.paymentMethod || "",
               paymentTerms: inv.paymentTerms || "",
               notes: inv.notes || "",
               currencyCode: inv.currencyCode || "THB",
