@@ -302,7 +302,10 @@ VALUES ('vXXX', 'What changed', 'alter_column|add_column|data_migration', 'etaxe
 3. **NEVER push these files**: shared/schema.ts, server/index.ts, client/src/App.tsx
 4. **NEVER cherry-pick to etaxerp**: server/db.ts, server/ecom-db.ts, server/pos-db.ts, server/db-schema-sync.ts (uses encryption — production-specific), server/route-middleware.ts, server/routes.ts, server/storage.ts, server/routes/pos-routes.ts, server/routes/line-routes.ts, client/src/pages/platform/*
 4. **NEVER checkout `client/` as folder** — cherry-pick individual files only
-5. **NEVER `pm2 restart all`** — always `pm2 restart etax-center`
+5. **NEVER `pm2 restart all`** — the ONLY correct command is `pm2 restart etax-center`
+   - ⚠️ Process name is `etax-center` — NOT `etax`, NOT `etaxcenter`, NOT `app`, NOT `server`
+   - Before writing any deploy command, verify the name here. Do NOT guess.
+   - Wrong name = error on server, deploy fails, new server admin cannot fix it without knowing the correct name
 6. **Production deploy = cherry-pick only** — list every file explicitly, no folder-level checkout
 7. **DB structure changes = one-time migration file** — never modify schema.ts for production
 8. **New table definitions for production = shared/schema-extra.ts** — not schema.ts
