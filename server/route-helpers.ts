@@ -655,8 +655,7 @@ async function _createAutoJournalEntryInner(params: AutoJournalParams): Promise<
       for (const [, g] of grouped) {
         const gAcc = accountMap.get(g.accountCode);
         if (!gAcc) {
-          console.warn(`[AutoJournal] isSalesDoc lineItemAccounts: accountCode "${g.accountCode}" ไม่พบใน chart of accounts — line ถูกข้าม journal อาจไม่สมดุล`);
-          continue;
+          throw new Error(`[AutoJournal] product accountCode "${g.accountCode}" ไม่พบใน chart of accounts — กรุณาตรวจสอบรหัสบัญชีในสินค้า`);
         }
         const amt = Math.round(g.total * 100) / 100;
         if (amt <= 0.004) continue;
