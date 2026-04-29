@@ -347,26 +347,58 @@ VALUES ('vXXX', 'What changed', 'alter_column|add_column|data_migration', 'etaxe
 
 ## MANDATORY RULES — VIOLATIONS WILL BREAK PRODUCTION
 
-### Rule 0a: No Fallback on Production Code (ABSOLUTE)
-**Taught by พี่ช้าง — 2026-04-27. Also enforced via `RULE_NO_FALLBACK` in system_config (printed every server startup).**
+### Rule 0a: No Fallback, No Silent Branch — EVERY if/case MUST have an explicit otherwise (ABSOLUTE)
+**Taught by พี่ช้าง — 2026-04-27 (expanded 2026-04-29). Also enforced via `RULE_NO_FALLBACK` in system_config (printed every server startup).**
 
-**NEVER use `|| default` fallback on production code.** This includes:
+**Two forms of this problem — both are equally forbidden:**
+
+**Form 1 — `|| default` fallback:**
 - `const x = value || "default"` — if `value` is unexpected, code silently uses wrong default
 - `someMap[key] || "fallback"` — if `key` is unknown, code moves on without anyone knowing
 
-**Why it's dangerous:** Another agent (or future change) may alter a field's type or meaning. Fallback silently accepts the wrong value and continues. No one knows. Damage accumulates quietly.
+**Form 2 — if/case/switch without explicit otherwise:**
+- An `if` block that runs but has no `else` that throws = the else path is silently ignored
+- A `for` loop that hits an unexpected condition and `continue`s = silent skip, nobody knows
+- A `switch` with no `default: throw` = unexpected case passes through silently
+- These are **just as dangerous as `|| fallback`** — no error is thrown, no trace, damage accumulates
 
-**The correct pattern — explicit case, unexpected goes to otherwise:**
+**Why it's dangerous:** Another agent (or future change) may alter a field's type or meaning. Code silently accepts or skips the wrong value and continues. No one knows. Damage accumulates quietly.
+
+**The correct pattern — every branch must be explicit:**
 ```ts
-// BAD
+// BAD — fallback
 const prefix = SUBJECT_PREFIX[typeCode] || "INV";
 
-// GOOD
+// BAD — silent continue in loop
+for (const item of items) {
+  const acc = accountMap.get(item.accountCode);
+  if (!acc) continue; // ❌ silent skip — journal becomes unbalanced, nobody knows
+  ...
+}
+
+// BAD — if without else
+if (someCondition) {
+  doSomething();
+}
+// ❌ no else — what happens when condition is false? silent pass-through
+
+// GOOD — explicit throw on unexpected
 if (!SUBJECT_PREFIX[typeCode]) {
   throw new Error(`[ETAX-TYPECODE] Unexpected typeCode="${typeCode}" — taxInvoiceId=${id}. Check SUBJECT_PREFIX map.`);
 }
 const prefix = SUBJECT_PREFIX[typeCode];
+
+// GOOD — throw in loop, stops immediately
+for (const item of items) {
+  const acc = accountMap.get(item.accountCode);
+  if (!acc) {
+    throw new Error(`[AutoJournal] accountCode "${item.accountCode}" not found in chart of accounts — fix product config`);
+  }
+  ...
+}
 ```
+
+**The rule:** Every `if` that guards an operation MUST have an `else` that throws (or returns an explicit error) when the guard fails. Every loop that encounters an unexpected value MUST throw — not `continue`. Every `switch` MUST have `default: throw new Error(...)`.
 
 If something unexpected happens → **stop immediately, report with enough info to trace, never silently continue.**
 
