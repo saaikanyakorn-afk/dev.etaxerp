@@ -36,8 +36,6 @@ export default function PaymentMethodSettings() {
   const [editForm, setEditForm] = useState<PaymentMethodRow | null>(null);
   const [addForm, setAddForm] = useState<PaymentMethodRow | null>(null);
   const editFormRef = useRef<PaymentMethodRow | null>(null);
-  const bankNameDomRef = useRef<HTMLInputElement>(null);
-  const bankAccountNoDomRef = useRef<HTMLInputElement>(null);
   useEffect(() => { editFormRef.current = editForm; }, [editForm]);
 
   const { data: methods = [], isLoading } = useQuery<any[]>({
@@ -258,11 +256,11 @@ export default function PaymentMethodSettings() {
                               <div className="flex flex-col gap-1">
                                 <div className="flex items-center gap-1">
                                   <span className="text-xs text-slate-400 w-10 shrink-0">ธนาคาร</span>
-                                  <Input data-testid={`input-edit-bank-name-${m.id}`} ref={bankNameDomRef} key={`bnk-${editingId}`} defaultValue={editForm.bankName || ""} placeholder="เช่น ธนาคารกสิกร" className="h-8 text-sm" />
+                                  <Input data-testid={`input-edit-bank-name-${m.id}`} value={editForm.bankName || ""} onChange={e => { const v = e.target.value; if (editFormRef.current) editFormRef.current = { ...editFormRef.current, bankName: v }; setEditForm(prev => prev ? { ...prev, bankName: v } : prev); }} placeholder="เช่น ธนาคารกสิกร" className="h-8 text-sm" />
                                 </div>
                                 <div className="flex items-center gap-1">
                                   <span className="text-xs text-slate-400 w-10 shrink-0">เลขที่</span>
-                                  <Input data-testid={`input-edit-bank-account-no-${m.id}`} ref={bankAccountNoDomRef} key={`bno-${editingId}`} defaultValue={editForm.bankAccountNo || ""} placeholder="เช่น 123-4-56789-0" className="h-8 text-sm" />
+                                  <Input data-testid={`input-edit-bank-account-no-${m.id}`} value={editForm.bankAccountNo || ""} onChange={e => { const v = e.target.value; if (editFormRef.current) editFormRef.current = { ...editFormRef.current, bankAccountNo: v }; setEditForm(prev => prev ? { ...prev, bankAccountNo: v } : prev); }} placeholder="เช่น 123-4-56789-0" className="h-8 text-sm" />
                                 </div>
                               </div>
                             </td>
@@ -274,7 +272,7 @@ export default function PaymentMethodSettings() {
                             </td>
                             <td className="px-3 py-2 text-center">
                               <div className="flex items-center justify-center gap-1">
-                                <Button data-testid={`button-save-${m.id}`} size="icon" variant="ghost" className="h-7 w-7 text-green-600 hover:text-green-700" onClick={() => { const data = { ...editFormRef.current, bankName: bankNameDomRef.current?.value ?? "", bankAccountNo: bankAccountNoDomRef.current?.value ?? "" }; console.log("[save pm]", { bankName: data.bankName, bankAccountNo: data.bankAccountNo }); saveMutation.mutate(data); }} disabled={saveMutation.isPending}>
+                                <Button data-testid={`button-save-${m.id}`} size="icon" variant="ghost" className="h-7 w-7 text-green-600 hover:text-green-700" onClick={() => { saveMutation.mutate(editFormRef.current); }} disabled={saveMutation.isPending}>
                                   <Save className="h-4 w-4" />
                                 </Button>
                                 <Button data-testid={`button-cancel-${m.id}`} size="icon" variant="ghost" className="h-7 w-7 text-slate-400 hover:text-slate-600" onClick={() => { setEditingId(null); setEditForm(null); }}>

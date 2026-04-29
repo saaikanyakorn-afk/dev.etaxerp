@@ -88,7 +88,6 @@ app.patch("/api/payment-methods/:id", requireAuth, async (req, res) => {
       if (co && co.tenantId && co.tenantId !== user.tenantId) return res.status(403).json({ message: "ไม่มีสิทธิ์" });
     }
     const { name, nameTh, accountCode, accountId, active, isDefault, sortOrder, bankName, bankAccountNo } = req.body;
-    console.log("[PATCH pm] id=%d bankName=%j bankAccountNo=%j", id, bankName, bankAccountNo);
     if (isDefault) {
       await db.update(paymentMethods).set({ isDefault: false }).where(eq(paymentMethods.companyId, existing.companyId!));
     }
