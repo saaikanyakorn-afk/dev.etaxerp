@@ -1379,10 +1379,8 @@ Once Stage 3 begins, revisit the JOIN inventory below and add appropriate indexe
 - **Apache DocumentRoot:** `D:\Server\Websites\etaxerp` (static files served from here — separate from app path)
 - **maintenance.html:** Lives at `D:\Server\Websites\etaxerp\maintenance.html` — served automatically by Apache when pm2 is stopped (503 ErrorDocument). After cherry-picking from repo, must manually copy: `copy C:\GitApp\etaxcenter\maintenance.html D:\Server\Websites\etaxerp\maintenance.html`
 
-**httpd-ssl.conf — current clean config on server (VirtualHost etaxerp.com):**
+**httpd-ssl.conf — current config on server (VirtualHost etaxerp.com only):**
 ```apache
-SSLPassPhraseDialog builtin
-
 <VirtualHost _default_:443>
     DocumentRoot "D:/Server/Websites/etaxerp"
     ServerName etaxerp.com:443
@@ -1392,6 +1390,7 @@ SSLPassPhraseDialog builtin
     SSLEngine on
     SSLCertificateFile "D:\Server\Apache24\conf\ssl\etaxerp.com-chain.pem"
     SSLCertificateKeyFile "D:\Server\Apache24\conf\ssl\etaxerp.com-key.pem"
+    # Kai add start
     ProxyPreserveHost On
     ErrorDocument 503 /maintenance.html
     ProxyPass /maintenance.html !
@@ -1401,13 +1400,10 @@ SSLPassPhraseDialog builtin
     RewriteCond %{HTTP:Upgrade} websocket [NC]
     RewriteCond %{HTTP:Connection} upgrade [NC]
     RewriteRule ^/?(.*) ws://localhost:5000/$1 [P,L]
-</VirtualHost>
-
-<VirtualHost _default_:443>
-    DocumentRoot "D:/Server/Websites/factory2u"
-    ...
+    # Kai add end
 </VirtualHost>
 ```
+Note: `# Kai add start` / `# Kai add end` marks the application-specific lines — lines above/below are standard Apache defaults. Keep this marker structure for all future changes.
 
 **httpd-ssl.conf change history (developer reference — NOT in config file):**
 
