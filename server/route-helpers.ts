@@ -630,6 +630,54 @@ async function _createAutoJournalEntryInner(params: AutoJournalParams): Promise<
     }
     }
 
+    if (isSalesDoc && params.lineItemAccounts && params.lineItemAccounts.length > 0) {
+      const grouped = new Map<string, { accountCode: string; accountName: string; total: number }>();
+      for (const la of params.lineItemAccounts) {
+        const existing = grouped.get(la.accountCode);
+        if (existing) existing.total += la.amount;
+        else grouped.set(la.accountCode, { accountCode: la.accountCode, accountName: la.accountName, total: la.amount });
+      }
+
+      const customTotal = Math.round(Array.from(grouped.values()).reduce((s, g) => s + g.total, 0) * 100) / 100;
+
+      const isRevCreditLine = (l: typeof pendingLines[0]) => parseFloat(l.credit) > 0 && l.accountCode.startsWith("4");
+      const firstRevIdx = pendingLines.findIndex(isRevCreditLine);
+      // บันทึก formula revenue line แรกก่อน delete — ใช้สำหรับ items ที่ไม่มี accountCode
+      const formulaRevLine = firstRevIdx >= 0 ? { ...pendingLines[firstRevIdx] } : null;
+
+      for (let i = pendingLines.length - 1; i >= 0; i--) {
+        if (isRevCreditLine(pendingLines[i])) pendingLines.splice(i, 1);
+      }
+
+      const remainingForFormula = Math.round((sub - customTotal) * 100) / 100;
+      const newRevLines: typeof pendingLines = [];
+
+      for (const [, g] of grouped) {
+        const gAcc = accountMap.get(g.accountCode);
+        if (!gAcc) {
+          console.warn(`[AutoJournal] isSalesDoc lineItemAccounts: accountCode "${g.accountCode}" ไม่พบใน chart of accounts — line ถูกข้าม journal อาจไม่สมดุล`);
+          continue;
+        }
+        const amt = Math.round(g.total * 100) / 100;
+        if (amt <= 0.004) continue;
+        newRevLines.push({
+          accountId: gAcc.id,
+          description: gAcc.nameTh && gAcc.name ? `${gAcc.nameTh} (${gAcc.name})` : gAcc.nameTh || gAcc.name || g.accountName,
+          debit: "0",
+          credit: amt.toFixed(2),
+          accountCode: g.accountCode,
+        });
+      }
+
+      // items ที่ไม่ได้ตั้ง accountCode → ใช้ formula revenue account (explicit, ไม่ใช่ fallback)
+      if (remainingForFormula > 0.004 && formulaRevLine) {
+        newRevLines.push({ ...formulaRevLine, credit: remainingForFormula.toFixed(2) });
+      }
+
+      const insertPos = firstRevIdx >= 0 ? firstRevIdx : pendingLines.length;
+      pendingLines.splice(insertPos, 0, ...newRevLines);
+    }
+
     if ((isReceipt || isTaxInvoice) && wht > 0) {
       const whtAcc = accountMap.get("1307") || accountMap.get("1434000") || accountMap.get("1301000");
       if (whtAcc) {

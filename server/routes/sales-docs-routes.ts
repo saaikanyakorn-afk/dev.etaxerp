@@ -908,6 +908,25 @@ app.post("/api/invoices", requireAuth, requireAnyModule("sales", "ecommerce"), a
     let journalResult = null;
     try {
       console.log(`[Invoice] Auto journal for IV#${result.id} status=${result.status}`);
+      // Build lineItemAccounts จาก accountCode ที่กำหนดไว้ในสินค้า
+      let invoiceLineItemAccounts: { accountCode: string; accountName: string; amount: number }[] | undefined;
+      const itemsWithProduct = savedItems.filter((i: any) => i.productId);
+      if (itemsWithProduct.length > 0) {
+        const productIds = [...new Set(itemsWithProduct.map((i: any) => i.productId))] as number[];
+        const productRows = await db.select({ id: products.id, accountCode: products.accountCode, name: products.name })
+          .from(products).where(inArray(products.id, productIds));
+        const productMap = new Map(productRows.map(p => [p.id, p]));
+        const mapped: { accountCode: string; accountName: string; amount: number }[] = [];
+        for (const item of savedItems) {
+          if (!item.productId) continue;
+          const prod = productMap.get(item.productId);
+          if (!prod?.accountCode) continue; // ไม่มี accountCode → formula จัดการทั้งจำนวน
+          const amount = Math.round(parseFloat(String(item.total || "0")) * 100) / 100;
+          if (amount <= 0) continue;
+          mapped.push({ accountCode: prod.accountCode, accountName: prod.name || "", amount });
+        }
+        if (mapped.length > 0) invoiceLineItemAccounts = mapped;
+      }
       journalResult = await createAutoJournalEntry({
         companyId: result.companyId,
         documentType: "invoice",
@@ -923,6 +942,7 @@ app.post("/api/invoices", requireAuth, requireAnyModule("sales", "ecommerce"), a
         exchangeRate: String(result.exchangeRate || "1"),
         userId: user.id,
         customerName: result.customerName,
+        lineItemAccounts: invoiceLineItemAccounts,
         overrideLines: body?.journalOverrideLines || undefined,
       });
       console.log(`[Invoice] Journal result:`, JSON.stringify(journalResult));
@@ -1016,6 +1036,24 @@ app.patch("/api/invoices/:id", requireAuth, requireAnyModule("sales", "ecommerce
     const shouldCreateInvJournal = (statusChanged && invoiceJournalStatuses.includes(body.status)) || invoiceJournalStatuses.includes(updated.status);
     if (shouldCreateInvJournal) {
       try {
+        let updatedLineItemAccounts: { accountCode: string; accountName: string; amount: number }[] | undefined;
+        const updItemsWithProduct = savedItems.filter((i: any) => i.productId);
+        if (updItemsWithProduct.length > 0) {
+          const updProductIds = [...new Set(updItemsWithProduct.map((i: any) => i.productId))] as number[];
+          const updProductRows = await db.select({ id: products.id, accountCode: products.accountCode, name: products.name })
+            .from(products).where(inArray(products.id, updProductIds));
+          const updProductMap = new Map(updProductRows.map(p => [p.id, p]));
+          const updMapped: { accountCode: string; accountName: string; amount: number }[] = [];
+          for (const item of savedItems) {
+            if (!item.productId) continue;
+            const prod = updProductMap.get(item.productId);
+            if (!prod?.accountCode) continue;
+            const amount = Math.round(parseFloat(String(item.total || "0")) * 100) / 100;
+            if (amount <= 0) continue;
+            updMapped.push({ accountCode: prod.accountCode, accountName: prod.name || "", amount });
+          }
+          if (updMapped.length > 0) updatedLineItemAccounts = updMapped;
+        }
         journalResult = await createAutoJournalEntry({
           companyId: updated.companyId,
           documentType: "invoice",
@@ -1031,6 +1069,7 @@ app.patch("/api/invoices/:id", requireAuth, requireAnyModule("sales", "ecommerce
           exchangeRate: String(updated.exchangeRate || "1"),
           userId: user.id,
           customerName: updated.customerName,
+          lineItemAccounts: updatedLineItemAccounts,
           overrideLines: body?.journalOverrideLines || undefined,
         });
       } catch (e: any) {
