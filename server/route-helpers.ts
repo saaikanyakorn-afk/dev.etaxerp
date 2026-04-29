@@ -658,7 +658,7 @@ async function _createAutoJournalEntryInner(params: AutoJournalParams): Promise<
           throw new Error(`[AutoJournal] product accountCode "${g.accountCode}" ไม่พบใน chart of accounts — กรุณาตรวจสอบรหัสบัญชีในสินค้า`);
         }
         const amt = Math.round(g.total * 100) / 100;
-        if (amt <= 0.004) continue;
+        if (amt <= 0) continue; // zero-amount line — ข้ามโดยตั้งใจ ไม่ใช่ error
         newRevLines.push({
           accountId: gAcc.id,
           description: gAcc.nameTh && gAcc.name ? `${gAcc.nameTh} (${gAcc.name})` : gAcc.nameTh || gAcc.name || g.accountName,
@@ -669,7 +669,12 @@ async function _createAutoJournalEntryInner(params: AutoJournalParams): Promise<
       }
 
       // items ที่ไม่ได้ตั้ง accountCode → ใช้ formula revenue account (explicit, ไม่ใช่ fallback)
-      if (remainingForFormula > 0.004 && formulaRevLine) {
+      if (remainingForFormula > 0.004) {
+        if (!formulaRevLine) {
+          throw new Error(
+            `[AutoJournal] lineItemAccounts: เหลือ ${remainingForFormula} ที่ยังไม่มี revenue account — formula ไม่มี credit line บัญชี "4xxx" กรุณาตรวจสอบ chart of accounts หรือ formula config`
+          );
+        }
         newRevLines.push({ ...formulaRevLine, credit: remainingForFormula.toFixed(2) });
       }
 
