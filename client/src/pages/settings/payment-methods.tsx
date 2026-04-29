@@ -99,8 +99,7 @@ export default function PaymentMethodSettings() {
   });
 
   const startEdit = (m: any) => {
-    setEditingId(m.id);
-    setEditForm({
+    const form = {
       id: m.id,
       name: m.name,
       nameTh: m.nameTh || "",
@@ -111,7 +110,10 @@ export default function PaymentMethodSettings() {
       sortOrder: m.sortOrder || 0,
       bankName: m.bankName || "",
       bankAccountNo: m.bankAccountNo || "",
-    });
+    };
+    editFormRef.current = form;
+    setEditingId(m.id);
+    setEditForm(form);
     setAddForm(null);
   };
 
@@ -233,10 +235,10 @@ export default function PaymentMethodSettings() {
                           <>
                             <td className="px-3 py-2 text-slate-400">{idx + 1}</td>
                             <td className="px-3 py-2">
-                              <Input data-testid={`input-edit-name-${m.id}`} value={editForm.name} onChange={e => { const v = e.target.value; setEditForm(prev => prev ? { ...prev, name: v } : prev); }} className="h-8 text-sm" />
+                              <Input data-testid={`input-edit-name-${m.id}`} value={editForm.name} onChange={e => { const v = e.target.value; if (editFormRef.current) editFormRef.current = { ...editFormRef.current, name: v }; setEditForm(prev => prev ? { ...prev, name: v } : prev); }} className="h-8 text-sm" />
                             </td>
                             <td className="px-3 py-2">
-                              <Input data-testid={`input-edit-name-th-${m.id}`} value={editForm.nameTh} onChange={e => { const v = e.target.value; setEditForm(prev => prev ? { ...prev, nameTh: v } : prev); }} className="h-8 text-sm" />
+                              <Input data-testid={`input-edit-name-th-${m.id}`} value={editForm.nameTh} onChange={e => { const v = e.target.value; if (editFormRef.current) editFormRef.current = { ...editFormRef.current, nameTh: v }; setEditForm(prev => prev ? { ...prev, nameTh: v } : prev); }} className="h-8 text-sm" />
                             </td>
                             <td className="px-3 py-2">
                               <Select value={editForm.accountCode} onValueChange={v => handleAccountSelect(v, false)}>
@@ -252,8 +254,8 @@ export default function PaymentMethodSettings() {
                             </td>
                             <td className="px-3 py-2">
                               <div className="flex flex-col gap-1">
-                                <Input data-testid={`input-edit-bank-name-${m.id}`} value={editForm.bankName || ""} onChange={e => { const v = e.target.value; setEditForm(prev => prev ? { ...prev, bankName: v } : prev); }} placeholder="ชื่อธนาคาร" className="h-8 text-sm" />
-                                <Input data-testid={`input-edit-bank-account-no-${m.id}`} value={editForm.bankAccountNo || ""} onChange={e => { const v = e.target.value; setEditForm(prev => prev ? { ...prev, bankAccountNo: v } : prev); }} placeholder="เลขที่บัญชี" className="h-8 text-sm" />
+                                <Input data-testid={`input-edit-bank-name-${m.id}`} value={editForm.bankName || ""} onChange={e => { const v = e.target.value; if (editFormRef.current) editFormRef.current = { ...editFormRef.current, bankName: v }; setEditForm(prev => prev ? { ...prev, bankName: v } : prev); }} placeholder="ชื่อธนาคาร" className="h-8 text-sm" />
+                                <Input data-testid={`input-edit-bank-account-no-${m.id}`} value={editForm.bankAccountNo || ""} onChange={e => { const v = e.target.value; if (editFormRef.current) editFormRef.current = { ...editFormRef.current, bankAccountNo: v }; setEditForm(prev => prev ? { ...prev, bankAccountNo: v } : prev); }} placeholder="เลขที่บัญชี" className="h-8 text-sm" />
                               </div>
                             </td>
                             <td className="px-3 py-2 text-center">
