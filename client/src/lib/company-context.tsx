@@ -134,7 +134,6 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
     if (user?.empCompanyId && companies.some(c => c.id === user.empCompanyId)) {
       idRef.current = user.empCompanyId;
       setRaw(user.empCompanyId);
-      writeSaved(user.empCompanyId);
       syncUrlCompanyId(user.empCompanyId);
       return;
     }
@@ -143,7 +142,6 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
     if (primary) {
       idRef.current = primary.id;
       setRaw(primary.id);
-      writeSaved(primary.id);
       syncUrlCompanyId(primary.id);
       return;
     }
