@@ -515,6 +515,8 @@ export default function ReceiptForm() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/receipts"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tax-invoices"] });
       toast({ title: "สร้างใบเสร็จรับเงินสำเร็จ", variant: "success" as any });
       navigate("/sales/receipt");
     },
@@ -528,6 +530,8 @@ export default function ReceiptForm() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/receipts"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tax-invoices"] });
       toast({ title: "อัพเดทใบเสร็จรับเงินสำเร็จ", variant: "success" as any });
       navigate("/sales/receipt");
     },

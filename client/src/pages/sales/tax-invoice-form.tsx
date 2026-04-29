@@ -735,6 +735,7 @@ export default function TaxInvoiceForm() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/tax-invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/invoices"] });
       queryClient.invalidateQueries({ queryKey: ["/api/deposit-receipts/available"] });
       toast({ title: "สร้างใบกำกับภาษีสำเร็จ", variant: "success" as any });
       navigate("/sales/tax-invoice");
@@ -759,6 +760,7 @@ export default function TaxInvoiceForm() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/tax-invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/invoices"] });
       queryClient.invalidateQueries({ queryKey: ["/api/deposit-receipts/available"] });
       toast({ title: "อัพเดทใบกำกับภาษีสำเร็จ", variant: "success" as any });
       setDepositDeductions([]);
