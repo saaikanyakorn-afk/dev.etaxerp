@@ -1101,50 +1101,26 @@ export class DatabaseStorage implements IStorage {
       : await db.select({ count: sql<number>`count(*)` }).from(invoices).where(eq(invoices.status, "draft"));
 
     const companyFilter = companyId ? sql`AND je.company_id = ${companyId}` : sql``;
-    const companyFilterSimple = companyId ? sql`AND company_id = ${companyId}` : sql``;
 
-    const arInvoiceResult = await db.execute(sql`
-      SELECT coalesce(sum(i.total_amount::numeric), 0) as invoice_total,
-        coalesce((SELECT sum(r.total_amount::numeric) FROM receipts r WHERE r.invoice_id IN (SELECT id FROM invoices WHERE status = 'approved' ${companyFilterSimple}) AND r.status != 'cancelled'), 0) as receipt_total
-      FROM invoices i
-      WHERE i.status = 'approved' ${companyFilterSimple}
-    `);
-    const arFromInvoices = Math.max(0, Number((arInvoiceResult.rows?.[0] as any)?.invoice_total || 0) - Number((arInvoiceResult.rows?.[0] as any)?.receipt_total || 0));
-
+    // AR — ใช้ยอดจาก journal entries ตรงๆ เหมือนงบทดลอง (บัญชีกลุ่ม 12xxx ลูกหนี้การค้า)
     const arJournalResult = await db.execute(sql`
       SELECT coalesce(sum(jl.debit::numeric) - sum(jl.credit::numeric), 0) as balance
       FROM journal_lines jl
       JOIN journal_entries je ON je.id = jl.journal_entry_id
       JOIN accounts a ON a.id = jl.account_id
-      WHERE (a.code LIKE '110%' OR a.code LIKE '111%' OR a.code LIKE '112%' OR a.code LIKE '120%' OR a.code LIKE '121%') AND a.is_header = false AND a.type = 'asset' AND je.status IN ('posted','approved') ${companyFilter}
+      WHERE a.code LIKE '12%' AND a.is_header = false AND a.type = 'asset' AND je.status IN ('posted','approved') ${companyFilter}
     `);
-    const arFromJournal = Math.max(0, Number((arJournalResult.rows?.[0] as any)?.balance || 0));
-    const outstandingReceivables = arFromInvoices + arFromJournal > 0 ? Math.max(arFromInvoices, arFromJournal) : 0;
+    const outstandingReceivables = Math.max(0, Number((arJournalResult.rows?.[0] as any)?.balance || 0));
 
-    const apResult = await db.execute(sql`
-      SELECT coalesce(sum(total_amount::numeric), 0) as total
-      FROM purchase_invoices
-      WHERE status = 'approved' AND (payment_status IS NULL OR payment_status != 'paid') ${companyFilterSimple}
-    `);
-    const apFromPurchases = Math.max(0, Number((apResult.rows?.[0] as any)?.total || 0));
-
-    const apExpResult = await db.execute(sql`
-      SELECT coalesce(sum(total_amount::numeric), 0) as total
-      FROM expenses
-      WHERE status = 'approved' AND (payment_status IS NULL OR payment_status != 'paid') ${companyFilterSimple}
-    `);
-    const apFromExpenses = Math.max(0, Number((apExpResult.rows?.[0] as any)?.total || 0));
-    const apFromDocs = apFromPurchases + apFromExpenses;
-
+    // AP — ใช้ยอดจาก journal entries ตรงๆ เหมือนงบทดลอง (บัญชีกลุ่ม 21xxx เจ้าหนี้การค้า)
     const apJournalResult = await db.execute(sql`
       SELECT coalesce(sum(jl.credit::numeric) - sum(jl.debit::numeric), 0) as balance
       FROM journal_lines jl
       JOIN journal_entries je ON je.id = jl.journal_entry_id
       JOIN accounts a ON a.id = jl.account_id
-      WHERE (a.code LIKE '200%' OR a.code LIKE '210%' OR a.code LIKE '211%') AND a.is_header = false AND a.type = 'liability' AND je.status IN ('posted','approved') ${companyFilter}
+      WHERE a.code LIKE '21%' AND a.is_header = false AND a.type = 'liability' AND je.status IN ('posted','approved') ${companyFilter}
     `);
-    const apFromJournal = Math.max(0, Number((apJournalResult.rows?.[0] as any)?.balance || 0));
-    const outstandingPayables = apFromDocs + apFromJournal > 0 ? Math.max(apFromDocs, apFromJournal) : 0;
+    const outstandingPayables = Math.max(0, Number((apJournalResult.rows?.[0] as any)?.balance || 0));
 
     const revenueThisMonthResult = await db.execute(sql`
       SELECT coalesce(sum(jl.credit) - sum(jl.debit), 0) as total
