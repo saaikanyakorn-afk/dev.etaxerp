@@ -574,7 +574,8 @@ app.get("/api/finance/due-calendar", requireAuth, async (req, res) => {
       sql`${invoices.dueDate} IS NOT NULL`,
       sql`${invoices.dueDate} >= ${startDate}`,
       sql`${invoices.dueDate} <= ${endDate}`,
-      sql`${invoices.status} NOT IN ('cancelled', 'cancel')`,
+      sql`${invoices.status} NOT IN ('cancelled', 'cancel', 'paid')`,
+      sql`invoice_no NOT LIKE 'RE%'`,
     ));
 
     const arTaxInvoices = await db.select({
@@ -591,7 +592,8 @@ app.get("/api/finance/due-calendar", requireAuth, async (req, res) => {
       sql`${taxInvoices.dueDate} IS NOT NULL`,
       sql`${taxInvoices.dueDate} >= ${startDate}`,
       sql`${taxInvoices.dueDate} <= ${endDate}`,
-      sql`${taxInvoices.status} NOT IN ('cancelled', 'cancel')`,
+      sql`${taxInvoices.status} NOT IN ('cancelled', 'cancel', 'paid')`,
+      sql`tax_invoice_no NOT LIKE 'RE%'`,
     ));
 
     const apInvoices = await db.select({
