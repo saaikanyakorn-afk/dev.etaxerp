@@ -1375,9 +1375,55 @@ Once Stage 3 begins, revisit the JOIN inventory below and add appropriate indexe
 - **PM2 port:** 5000
 - **Domain:** etaxerp.com (SSL certificate installed)
 - **SSL cert:** `D:\Server\Apache24\conf\ssl\etaxerp.com-chain.pem` / `etaxerp.com-key.pem`
-- **Apache config:** `httpd-vhosts.conf` (HTTP→HTTPS redirect), `httpd-ssl.conf` (SSL VirtualHost with reverse proxy to localhost:5000)
+- **Apache config files:** `D:\Server\Apache24\conf\extra\httpd-vhosts.conf` (HTTP→HTTPS redirect), `D:\Server\Apache24\conf\extra\httpd-ssl.conf` (SSL VirtualHost with reverse proxy to localhost:5000)
 - **Apache DocumentRoot:** `D:\Server\Websites\etaxerp` (static files served from here — separate from app path)
 - **maintenance.html:** Lives at `D:\Server\Websites\etaxerp\maintenance.html` — served automatically by Apache when pm2 is stopped (503 ErrorDocument). After cherry-picking from repo, must manually copy: `copy C:\GitApp\etaxcenter\maintenance.html D:\Server\Websites\etaxerp\maintenance.html`
+
+**httpd-ssl.conf actual content (VirtualHost for etaxerp.com — transcribed 2026-04-29):**
+```apache
+SSLPassPhraseDialog builtin
+
+<VirtualHost _default_:443>
+    DocumentRoot "D:/Server/Websites/etaxerp"
+    ServerName etaxerp.com:443
+    ServerAdmin admin@deepimpact.co.th
+    ErrorLog "${SRVROOT}/logs/etaxerp.com-error.log"
+    TransferLog "${SRVROOT}/logs/etaxerp.com-access.log"
+    SSLEngine on
+    SSLCertificateFile "D:\Server\Apache24\conf\ssl\etaxerp.com-chain.pem"
+    SSLCertificateKeyFile "D:\Server\Apache24\conf\ssl\etaxerp.com-key.pem"
+    # Kai add start
+    ProxyPreserveHost On
+    ProxyErrorOverride On   ← ⚠️ BUG: replaces Node.js JSON errors (4xx/5xx) with Apache HTML — must REMOVE
+    ErrorDocument 503 /maintenance.html
+    ProxyPass /maintenance.html !
+    ProxyPass / http://localhost:5000/
+    ProxyPassReverse / http://localhost:5000/
+
+    RewriteEngine On
+    RewriteCond %{HTTP:Upgrade} websocket [NC]
+    RewriteCond %{HTTP:Connection} upgrade [NC]
+    RewriteRule ^/?(.*) ws://localhost:5000/$1 [P,L]
+    # Kai add end
+</VirtualHost>
+
+<VirtualHost _default_:443>
+    DocumentRoot "D:/Server/Websites/factory2u"
+    ...
+</VirtualHost>
+```
+**Fix needed:** Remove `ProxyErrorOverride On` — พี่ช้าง แก้บน server โดยตรง (ไม่ต้อง push code)
+
+**⚙️ DOMAIN NAME CHANGE CHECKLIST (when etaxerp.com → new domain):**
+In `httpd-ssl.conf`:
+1. `ServerName` → new domain:443
+2. `SSLCertificateFile` → new cert path (new domain)
+3. `SSLCertificateKeyFile` → new cert key path
+4. `ErrorLog` / `TransferLog` → rename log files (optional)
+Other:
+5. reCAPTCHA → register new domain in Google reCAPTCHA admin console
+6. SSL cert → obtain new cert for new domain and install at Apache24/conf/ssl/
+7. Apache restart after config change: `httpd -k restart`
 - **Deploy pipeline:** Replit → GitHub → git pull on server → `npm run build` → `pm2 restart all`
 - **Env vars:** `.env` file at project root must have `VITE_RECAPTCHA_SITE_KEY` set BEFORE `npm run build` (Vite bakes it at build time)
 - **TODO (deploy day):** `git pull` → `npm run build` → `pm2 restart all` (reCAPTCHA will work after rebuild with .env in place)

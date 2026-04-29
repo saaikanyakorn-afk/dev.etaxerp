@@ -295,12 +295,17 @@ export default function TaxInvoicePdf() {
     return () => { if (objUrlRef.current) URL.revokeObjectURL(objUrlRef.current); };
   }, []);
 
+  useEffect(() => {
+    const taxNo = data?.taxInvoiceNo;
+    if (!taxNo) return;
+    const prev = document.title;
+    document.title = taxNo;
+    return () => { document.title = prev; };
+  }, [data?.taxInvoiceNo]);
+
   const handlePrint = () => {
     if (printType === "abbreviated_tax_invoice") {
-      const prev = document.title;
-      document.title = data?.taxInvoiceNo || "tax-invoice";
       window.print();
-      setTimeout(() => { document.title = prev; }, 1000);
     } else {
       iframeRef.current?.contentWindow?.print();
     }
