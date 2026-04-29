@@ -350,6 +350,30 @@ VALUES ('vXXX', 'What changed', 'alter_column|add_column|data_migration', 'etaxe
 
 ## MANDATORY RULES — VIOLATIONS WILL BREAK PRODUCTION
 
+### Rule 0: LOOK BEFORE YOU TOUCH — Query Production First (ABSOLUTE)
+**Taught by พี่ช้าง — 2026-04-29. Violation: Kai wrote a DB migration without checking if the column already existed on production.**
+
+**You cannot trust what you think is on production. Other agents touch code and DB without your knowledge at any time.**
+
+**Before planning OR writing ANY fix for a production bug:**
+1. **Query production DB first** — use `pg` client with `DB_PROD_URL` from system_config to verify actual table structure, column existence, and real data values. Never assume.
+2. **Read actual production code** — if you need to know what code is running, check the production git branch or ask พี่ช้าง. Do not assume dev = production.
+3. **Only ONE source of truth you can always trust:** พี่ช้าง never manipulates code or data directly. His statements about decisions and approvals are reliable. Everything else (DB state, code state) must be verified by looking.
+
+**The correct sequence for any production investigation:**
+```
+1. SELECT from production DB → see real data/schema
+2. Read actual file from production (git or ask) → see real code
+3. Compare with dev → identify what actually differs
+4. THEN plan the fix
+5. THEN ask for authorization
+6. THEN implement
+```
+
+**Never write migration, code change, or deploy command based on assumption alone.**
+
+---
+
 ### Rule 0a: No Fallback, No Silent Branch — EVERY if/case MUST have an explicit otherwise (ABSOLUTE)
 **Taught by พี่ช้าง — 2026-04-27 (expanded 2026-04-29). Also enforced via `RULE_NO_FALLBACK` in system_config (printed every server startup).**
 
