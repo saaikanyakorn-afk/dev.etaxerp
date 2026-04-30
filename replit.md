@@ -99,6 +99,14 @@ Dev HEAD at deploy: `9e96b8d8` | Production cherry-pick commit: `2adc257c`
 
 ## ⏳ PENDING DEPLOY (production server currently STOPPED — safe window)
 Production is at commit `a1c6996c` on github-production. The following batches are queued.
+
+**DEPLOY RULES — apply to every batch, every time:**
+1. **DB manipulation = its own isolated loop.** Never mix with code batch. Verify DB before closing loop.
+2. **Stop server immediately after verifying each step's log.** Half-baked upgrade running = users can log in and hit broken state. `pm2 stop etax-center` the moment you have what you need from that restart.
+3. **Between batches, server must be STOPPED.** Only start again when the next batch is fully ready to run.
+4. **BATCH 1 must complete its full loop before BATCH 2 begins.** No exceptions.
+5. **NEVER deploy `client/src/App.tsx`, `server/index.ts`, `shared/schema.ts`.**
+
 **Rule: DB manipulation runs its own loop FIRST, before any code batch.**
 
 ### BATCH 1 — DB Migration loop: payment_methods bank columns
@@ -122,29 +130,37 @@ git fetch origin && git checkout origin/main -- server/routes/payment-methods-ro
 [migration] ✅ bank_name + bank_account_no added to payment_methods
 ```
 
-**STEP 3 — Verify DB with eyes:**
+**STEP 2b — ⚠️ STOP SERVER IMMEDIATELY after seeing the log above:**
+```
+pm2 stop etax-center
+```
+Server must NOT stay running between steps. Half-baked upgrade = user data risk.
+Do NOT proceed to STEP 3 until server is confirmed stopped.
+
+**STEP 3 — Verify DB with eyes (server is stopped — DB query is safe):**
 ```
 PGPASSWORD=nJKsyhE4583Hz psql -h deep-main.hopto.org -p 20541 -U etaxusr -d etax-production -c "SELECT column_name FROM information_schema.columns WHERE table_name='payment_methods' AND column_name IN ('bank_name','bank_account_no');"
 ```
 Must see 2 rows. Stop and tell Kai if not.
 
-**STEP 4 — Restart 2 (clean — no migration this time):**
+**STEP 4 — Restart clean (migration will NOT run again — flag is set):**
 ```
-pm2 restart etax-center
+pm2 start etax-center
 ```
 
 **STEP 5 — Verify clean log (migration must NOT appear again):**
 ```
 [express] Background migrations complete - API ready
 ```
-If migration log appears again → stop, tell Kai.
+If migration log appears again → `pm2 stop etax-center` immediately, tell Kai.
 
 - [ ] STEP 0: backup done
 - [ ] STEP 1: deployed + started
 - [ ] STEP 2: migration log seen ✅
+- [ ] STEP 2b: server STOPPED immediately
 - [ ] STEP 3: DB verified — bank_name + bank_account_no present
 - [ ] STEP 4: restarted clean
-- [ ] STEP 5: clean log confirmed
+- [ ] STEP 5: clean log confirmed — no migration repeat
 - [ ] BATCH 1 LOOP CLOSED → proceed to BATCH 2
 
 ---
@@ -230,13 +246,17 @@ git fetch origin && git checkout origin/main -- \
 [express] Core schema ready - API enabled
 [express] Background migrations complete - API ready
 ```
-No migration log expected. If seen → stop, tell Kai.
+No migration log expected. If seen → `pm2 stop etax-center` immediately, tell Kai.
 
-- [ ] BATCH 1 loop closed (prerequisite)
-- [ ] Command run — build succeeded
-- [ ] Server started — API ready log seen
+**This is the FINAL batch.** After verifying the log above, server stays running — users may log in.
+Do NOT stop the server after BATCH 2 unless there is a problem.
+
+- [ ] BATCH 1 loop closed (prerequisite — do not skip)
+- [ ] Command run — build succeeded (no build errors)
+- [ ] Server started — "Core schema ready" + "API ready" seen
 - [ ] No unexpected migration log
 - [ ] พี่ทราย verify all features
+- [ ] ✅ DEPLOY COMPLETE — update cherry-pick history in replit.md with bundle sizes
 
 ## 🔴 GOLDEN RULE — PULL-BEFORE-TOUCH (MANDATORY for any protected/sensitive file)
 
