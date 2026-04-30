@@ -156,7 +156,7 @@ export default function CreditNoteForm() {
     if (!editingId && activePaymentMethods.length > 0 && !form.paymentMethod) {
       const defaultPm = activePaymentMethods.find((m: any) => m.isDefault);
       if (defaultPm) {
-        setForm(p => ({ ...p, paymentMethod: defaultPm.name }));
+        setForm(p => ({ ...p, paymentMethod: defaultPm.accountCode || defaultPm.name || defaultPm.nameTh || "" }));
       }
     }
   }, [activePaymentMethods, editingId]);
@@ -187,7 +187,7 @@ export default function CreditNoteForm() {
     if (isNew && activePaymentMethods.length > 0 && (form.paymentMethod === "transfer" || form.paymentMethod === "")) {
       const defaultMethod = activePaymentMethods.find((m: any) => m.isDefault) || activePaymentMethods[0];
       if (defaultMethod) {
-        setForm(p => ({ ...p, paymentMethod: defaultMethod.accountCode }));
+        setForm(p => ({ ...p, paymentMethod: defaultMethod.accountCode || defaultMethod.name || defaultMethod.nameTh || "transfer" }));
       }
     }
   }, [activePaymentMethods, isNew, form.paymentMethod]);
@@ -421,7 +421,7 @@ export default function CreditNoteForm() {
       refTaxInvoiceId: null,
       reason: "return",
       reasonDetail: "",
-      paymentMethod: activePaymentMethods.find((m: any) => m.isDefault)?.accountCode || activePaymentMethods[0]?.accountCode || "transfer",
+      paymentMethod: (() => { const dm = activePaymentMethods.find((m: any) => m.isDefault) || activePaymentMethods[0]; return dm ? (dm.accountCode || dm.name || dm.nameTh || "transfer") : "transfer"; })(),
       currencyCode: "THB",
       notes: "",
       status: "approved",
@@ -640,8 +640,8 @@ export default function CreditNoteForm() {
                         <SelectContent>
                           {activePaymentMethods.length > 0 ? (
                             activePaymentMethods.map((m: any) => (
-                              <SelectItem key={m.id} value={m.accountCode}>
-                                {acctName(m)} ({m.accountCode})
+                              <SelectItem key={m.id} value={m.accountCode || m.name || m.nameTh || String(m.id)}>
+                                {acctName(m)} ({m.accountCode || m.name || m.nameTh})
                               </SelectItem>
                             ))
                           ) : (

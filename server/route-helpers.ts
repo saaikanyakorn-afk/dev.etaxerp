@@ -817,14 +817,32 @@ const PAYMENT_METHOD_ALIASES: Record<string, string[]> = {
   ewallet: ["ewallet", "e-wallet", "อีวอลเล็ท"],
 };
 
+async function resolveAccountCodeFromPaymentMethodRecord(pm: { accountCode: string; accountId: number | null; name: string; nameTh: string | null }): Promise<string | undefined> {
+  if (pm.accountCode) return migrateAccountCode(pm.accountCode) || undefined;
+  if (pm.accountId) {
+    const rows = await db.select({ code: accounts.accountCode }).from(accounts).where(eq(accounts.id, pm.accountId)).limit(1);
+    if (rows[0]?.code) return migrateAccountCode(rows[0].code) || undefined;
+  }
+  const nm = (pm.name || pm.nameTh || "").toLowerCase();
+  if (nm.includes("cash") || nm.includes("เงินสด")) return "1001000";
+  if (nm.includes("transfer") || nm.includes("โอน") || nm.includes("bank")) return "1002000";
+  return undefined;
+}
+
 export async function resolvePaymentMethodAccountCode(companyId: number, paymentMethodName: string | null | undefined): Promise<string | undefined> {
   if (!paymentMethodName || paymentMethodName === "เครดิต") return undefined;
   const allPm = await db.select().from(paymentMethods)
     .where(eq(paymentMethods.companyId, companyId));
   const byCode = allPm.find(p => p.accountCode === paymentMethodName);
-  if (byCode) return migrateAccountCode(byCode.accountCode) || undefined;
+  if (byCode) {
+    const resolved = await resolveAccountCodeFromPaymentMethodRecord(byCode);
+    if (resolved) return resolved;
+  }
   const exact = allPm.find(p => p.name === paymentMethodName || p.nameTh === paymentMethodName);
-  if (exact) return migrateAccountCode(exact.accountCode) || undefined;
+  if (exact) {
+    const resolved = await resolveAccountCodeFromPaymentMethodRecord(exact);
+    if (resolved) return resolved;
+  }
 
   const aliases = PAYMENT_METHOD_ALIASES[paymentMethodName.toLowerCase()] || [paymentMethodName];
   for (const alias of aliases) {
@@ -834,7 +852,10 @@ export async function resolvePaymentMethodAccountCode(companyId: number, payment
       (p.name && p.name.toLowerCase().includes(alias.toLowerCase())) ||
       (p.nameTh && p.nameTh.includes(alias))
     );
-    if (matched) return migrateAccountCode(matched.accountCode) || undefined;
+    if (matched) {
+      const resolved = await resolveAccountCodeFromPaymentMethodRecord(matched);
+      if (resolved) return resolved;
+    }
   }
 
   const partial = allPm.find(p =>
@@ -843,7 +864,8 @@ export async function resolvePaymentMethodAccountCode(companyId: number, payment
     (p.name && paymentMethodName.toLowerCase().includes(p.name.toLowerCase())) ||
     (p.nameTh && paymentMethodName.includes(p.nameTh))
   );
-  return migrateAccountCode(partial?.accountCode) || undefined;
+  if (partial) return await resolveAccountCodeFromPaymentMethodRecord(partial);
+  return undefined;
 }
 
 function migrateAccountCode(code: string | null | undefined): string | undefined {

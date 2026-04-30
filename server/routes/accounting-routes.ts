@@ -1371,6 +1371,7 @@ app.post("/api/journal-preview", requireAuth, async (req, res) => {
     const isSalesDoc = documentType === "tax_invoice" || documentType === "invoice";
     const isPurchaseDoc = documentType === "purchase" || documentType === "expense";
     const isDepositDoc = documentType === "deposit_receipt" || documentType === "deposit" || documentType === "purchase_deposit";
+    const isCreditNote = documentType === "credit_note";
 
     let pmAccCode: string | undefined;
     let pmDisplayName: string | undefined;
@@ -1381,10 +1382,25 @@ app.post("/api/journal-preview", requireAuth, async (req, res) => {
         allPm.find(p => p.name === paymentMethod || p.nameTh === paymentMethod) ||
         allPm.find(p =>
           (p.nameTh && p.nameTh.includes(paymentMethod)) ||
-          (p.nameTh && paymentMethod.includes(p.nameTh))
+          (p.nameTh && paymentMethod.includes(p.nameTh)) ||
+          (p.name && p.name.toLowerCase().includes(paymentMethod.toLowerCase())) ||
+          (p.name && paymentMethod.toLowerCase().includes(p.name.toLowerCase()))
         );
-      pmAccCode = matched?.accountCode || undefined;
-      pmDisplayName = matched ? (matched.nameTh || matched.name || undefined) : undefined;
+      if (matched) {
+        pmDisplayName = matched.nameTh || matched.name || undefined;
+        if (matched.accountCode) {
+          pmAccCode = matched.accountCode;
+        } else if (matched.accountId) {
+          const accRow = await db.select({ code: accounts.accountCode })
+            .from(accounts).where(eq(accounts.id, matched.accountId)).limit(1);
+          pmAccCode = accRow[0]?.code || undefined;
+        }
+        if (!pmAccCode) {
+          const nm = (matched.name || matched.nameTh || "").toLowerCase();
+          if (nm.includes("cash") || nm.includes("เงินสด")) pmAccCode = "1001000";
+          else if (nm.includes("transfer") || nm.includes("โอน") || nm.includes("bank")) pmAccCode = "1002000";
+        }
+      }
     }
 
     const netCashTHB = (isReceipt || isTaxInvoice || isPaymentVoucher || isPurchaseDoc) ? grossTotalTHB - whtTHB : grossTotalTHB;
@@ -1416,6 +1432,9 @@ app.post("/api/journal-preview", requireAuth, async (req, res) => {
         effectiveCode = pmAccCode;
       }
       if (isPurchaseDoc && !isCreditPayment && pmAccCode && isAPLine) {
+        effectiveCode = pmAccCode;
+      }
+      if (isCreditNote && !isCreditPayment && pmAccCode && isARLine) {
         effectiveCode = pmAccCode;
       }
       if (isDepositDoc && pmAccCode && isCashBankLine) {
