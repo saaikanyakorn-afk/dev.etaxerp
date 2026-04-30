@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useCompany } from "@/lib/company-context";
-import { FileText, Receipt, FileCheck, BookOpen, ShoppingCart, ClipboardList, Loader2, ExternalLink, ShoppingBag, Scale, Paperclip } from "lucide-react";
+import { FileText, Receipt, FileCheck, BookOpen, ShoppingCart, ClipboardList, Loader2, ExternalLink, ShoppingBag, Scale, Paperclip, FileX } from "lucide-react";
 
 interface RelatedDoc {
   type: string;
@@ -28,6 +28,7 @@ const docTypeConfig: Record<string, { label: string; icon: any; color: string; l
   expense: { label: "รายจ่ายอื่น", icon: Receipt, color: "#03c9d7", listPath: "/purchases/expense", searchParam: "expNo" },
   purchase_debit_note: { label: "ใบลดหนี้ซื้อ", icon: FileText, color: "#f94d4d", listPath: "/purchases/debit-note", searchParam: "debitNoteNo" },
   billing_note: { label: "ใบวางบิล", icon: FileText, color: "#fec90f", listPath: "/finance/billing-notes", searchParam: "billingNo" },
+  credit_note: { label: "ใบลดหนี้", icon: FileX, color: "#dc2626", listPath: "/sales/credit-note", searchParam: "creditNoteNo" },
 };
 
 const statusLabels: Record<string, { label: string; color: string }> = {

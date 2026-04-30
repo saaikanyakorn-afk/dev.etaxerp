@@ -450,8 +450,8 @@ export default function InvoiceList() {
                           <TableCell className="text-right tabular-nums pt-2.5">
                             {(() => {
                               const total = parseFloat(String(inv.totalAmount || 0));
-                              const paid = parseFloat(String(inv.paidAmount || 0));
-                              const outstanding = Math.max(0, total - paid);
+                              const paidAmt = parseFloat(String(inv.paidAmount ?? 0));
+                              const outstanding = inv.status === "paid" ? 0 : Math.max(0, total - paidAmt);
                               return (
                                 <>
                                   <div className="text-xs text-muted-foreground">{fmt(outstanding)}</div>
