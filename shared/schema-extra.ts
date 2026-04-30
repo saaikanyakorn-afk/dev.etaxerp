@@ -3,48 +3,65 @@
 // =============================================================================
 // PRIMARY USE: Table definitions that cannot go in schema.ts (cherry-pick safe).
 //
-// SECONDARY USE: Batch operations via one-time migration pattern.
-//   When a task requires calling an existing function on many records (e.g.
-//   re-generating hundreds of PDFs, bulk-sending emails, recalculating totals)
+// SECONDARY USE: Batch operations that TOUCH existing data content.
+//   When a task requires modifying existing rows (UPDATE, recalculate, re-generate)
 //   and it is too much for พี่ทราย to click manually — Kai can write a one-time
-//   startup block here that calls the existing working functions in a loop.
+//   block here. Because this CHANGES existing data, the procedure is stricter:
 //
-//   Pattern (same as schema migrations):
-//     1. Write the batch block with a unique system_config flag key.
-//     2. Deploy → server runs it once on startup → flag is set → never runs again.
-//     3. Comment out the block → push clean in the next cycle.
+//   Procedure (must follow in order — no shortcuts):
+//     1. BACKUP first — dump the target table(s) to a .sql file BEFORE any change.
+//        File naming: db/backups/YYYY-MM-DD_<table>_before_<reason>.sql
+//     2. UPDATE HISTORY — before the manipulation closes (before flagging done),
+//        write an entry to db/schema-history.md recording:
+//          - What changed (which table, which columns, what transformation)
+//          - Where the backup file is (path)
+//          - When it ran (datetime)
+//          - Why it was needed (reason/ticket)
+//     3. FLAG COMPLETED — only after backup exists and history is updated,
+//        insert the system_config flag to prevent re-run.
+//     4. Comment out the block → push clean in the next cycle.
 //
 //   Example skeleton:
 //     const FLAG = "BATCH_REGENERATE_PDF_2026_XX_XX";
 //     const done = await db.query.systemConfig.findFirst({ where: eq(..., FLAG) });
 //     if (!done) {
+//       // Step 1: backup is done MANUALLY before deploying this block
 //       const invoices = await db.select().from(invoices).where(...);
 //       for (const inv of invoices) { await generatePdf(inv.id); }
+//       // Step 2: history entry written to db/schema-history.md before this line
 //       await db.insert(systemConfig).values({ configKey: FLAG, configValue: "done" });
 //     }
 //
+//   Rule: NEVER flag completed before backup .sql exists and history is updated.
 //   Rule: NEVER leave an active batch block in production after it has run.
 //   Rule: Always guard with system_config flag — idempotent, runs exactly once.
 //
 // TERTIARY USE: ADD COLUMN migrations for feature-specific tables.
 //   When a feature needs new columns on existing tables and MUST NOT touch
-//   index.ts, use this pattern (same safety as SECONDARY, no index.ts change):
+//   index.ts, use this pattern (no index.ts change needed):
 //
 //   Pattern:
 //     1. Export a migration function from this file.
 //     2. Call it top-level from the most relevant route file (fires on first load).
 //     3. Pure DDL (ADD COLUMN IF NOT EXISTS) needs no flag — already idempotent.
-//     4. Data backfill inside the same function MUST use a system_config flag.
+//        Pure DDL also does NOT need a backup — it only adds structure, no data loss.
+//     4. If the function also does a data backfill (UPDATE existing rows), that part
+//        MUST follow the full SECONDARY USE procedure:
+//          a. Backup target table to db/backups/YYYY-MM-DD_<table>_before_<reason>.sql
+//          b. Update db/schema-history.md (what/where/when/why)
+//          c. THEN insert the system_config flag to close the backfill.
 //     5. After production verified: comment out the block with date/time/reason.
 //
 //   Example skeleton:
 //     export async function runXxxColumnsMigration(db: any) {
-//       // Pure DDL — IF NOT EXISTS makes it safe to run every time
+//       // Pure DDL — no flag, no backup needed
 //       await db.execute(sql.raw(`ALTER TABLE xxx ADD COLUMN IF NOT EXISTS col TEXT`));
-//       // Data backfill — guard with flag so it runs exactly once
+//       // Data backfill — backup + history MUST exist before this block runs
 //       const FLAG = "BACKFILL_XXX_YYYY-MM-DD";
 //       const done = await db.execute(sql`SELECT 1 FROM system_config WHERE config_key = ${FLAG}`);
 //       if (!(done.rows || []).length) {
+//         // backup: db/backups/YYYY-MM-DD_xxx_before_backfill_col.sql ✓
+//         // history: db/schema-history.md updated ✓
 //         await db.execute(sql.raw(`UPDATE xxx SET col = ... WHERE col IS NULL`));
 //         await db.execute(sql.raw(`INSERT INTO system_config(config_key,config_value) VALUES('${FLAG}','done')`));
 //       }
@@ -56,6 +73,7 @@
 //
 //   Rule: NEVER use DROP COLUMN, ALTER TYPE, or RENAME — additive only.
 //   Rule: NEVER touch index.ts for feature column additions.
+//   Rule: Backfill = data change = same backup+history rules as SECONDARY USE.
 //
 // =============================================================================
 // MASTER RULE: Production Database Manipulation Checklist
@@ -64,11 +82,23 @@
 //
 //   1. VERIFY FIRST — query production DB to confirm current state before coding.
 //      (Another agent may have already made the change behind your back.)
+//   ── If the change will TOUCH existing data content (UPDATE/backfill) ──────────
+//   1b. BACKUP TARGET TABLE — dump to db/backups/YYYY-MM-DD_<table>_before_<reason>.sql
+//       BEFORE writing any migration code. No backup = no proceed.
+//   ────────────────────────────────────────────────────────────────────────────
 //   2. DEPLOY DB-ONLY FIRST — push ONLY the schema-extra migration function and
 //      its route-file caller. No other changes in the same deploy.
 //   3. CONFIRM IT RAN ONCE — check server logs that the migration function fired.
 //      Then ask พี่ช้าง to STOP the production server.
 //   4. VERIFY PRODUCTION DB — query production to confirm columns/data are correct.
+//   ── If the change touched existing data content ───────────────────────────────
+//   4b. UPDATE HISTORY — write entry to db/schema-history.md:
+//         - What changed (table, columns, transformation)
+//         - Backup file path
+//         - Datetime it ran
+//         - Reason / ticket
+//       This MUST happen before flagging complete.
+//   ────────────────────────────────────────────────────────────────────────────
 //   5. COMMENT OUT THE BLOCK — in schema-extra.ts, comment out the migration block
 //      with the date/time it ran and the reason (e.g., // Ran 2026-05-01 14:30 UTC).
 //   6. PUSH CLEAN — push the commented-out schema-extra.ts to production, rebuild.
