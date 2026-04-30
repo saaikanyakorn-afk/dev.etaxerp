@@ -372,16 +372,29 @@ export default function CreditNoteForm() {
 
   function calcTotals() {
     const discRaw = form.discountAmount || "0";
-    const vatItemsTotal = items.filter(it => it.vatType === "vat7").reduce((s, it) => s + parseFloat(it.total || "0"), 0);
-    const nonVatItemsTotal = items.filter(it => it.vatType !== "vat7").reduce((s, it) => s + parseFloat(it.total || "0"), 0);
-    const rawTotal = vatItemsTotal + nonVatItemsTotal;
     const discAmount = parseFloat(discRaw) || 0;
+
+    const vatItemsFromItems = items.filter(it => it.vatType === "vat7").reduce((s, it) => s + parseFloat(it.total || "0"), 0);
+    const nonVatItemsFromItems = items.filter(it => it.vatType !== "vat7").reduce((s, it) => s + parseFloat(it.total || "0"), 0);
+    const rawTotalFromItems = vatItemsFromItems + nonVatItemsFromItems;
+
+    // ถ้ากรอกมูลค่าเดิม+ถูกต้อง → ผลต่างเป็น rawTotal override
+    const origAmt = parseFloat(form.originalInvoiceAmount || "0");
+    const corrAmt = parseFloat(form.correctInvoiceAmount || "0");
+    const hasOverride = form.originalInvoiceAmount !== "" && (origAmt > 0 || form.correctInvoiceAmount !== "");
+    const diffRaw = hasOverride ? Math.max(origAmt - corrAmt, 0) : null;
+
+    const rawTotal = diffRaw !== null ? diffRaw : rawTotalFromItems;
+    // หาสัดส่วน VAT จาก line items (ถ้าไม่มี items ให้ assume vat7 ทั้งหมด)
+    const vatRatio = rawTotalFromItems > 0 ? vatItemsFromItems / rawTotalFromItems : 1;
+    const vatItemsTotal = diffRaw !== null ? rawTotal * vatRatio : vatItemsFromItems;
 
     if (priceMode === "included") {
       const vatIncluded = Math.max(vatItemsTotal - discAmount, 0);
       const vatBase = vatIncluded / 1.07;
       const vatAmount = vatIncluded - vatBase;
-      const afterDiscount = vatBase + Math.max(nonVatItemsTotal - Math.max(discAmount - vatItemsTotal, 0), 0);
+      const nonVatPart = diffRaw !== null ? rawTotal * (1 - vatRatio) : nonVatItemsFromItems;
+      const afterDiscount = vatBase + Math.max(nonVatPart - Math.max(discAmount - vatItemsTotal, 0), 0);
       return { rawTotal, discountAmount: discAmount, afterDiscount, vatAmount, totalAmount: afterDiscount + vatAmount };
     } else {
       const afterDiscount = Math.max(rawTotal - discAmount, 0);
