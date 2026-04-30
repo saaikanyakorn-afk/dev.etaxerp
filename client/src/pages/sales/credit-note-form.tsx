@@ -901,7 +901,7 @@ export default function CreditNoteForm() {
                     {filteredInvoices.map((inv: any) => (
                       <TableRow key={inv.id} className="hover:bg-[var(--theme-primary-light)]/50 cursor-pointer" data-testid={`row-ref-invoice-${inv.id}`}>
                         <TableCell className="text-sm font-medium text-[var(--theme-primary)]">{inv.taxInvoiceNo || "-"}</TableCell>
-                        <TableCell className="text-sm">{formatDate(inv.taxInvoiceDate, dateEra, dateFormat)}</TableCell>
+                        <TableCell className="text-sm">{formatDate(inv.taxInvoiceDate, dateEra, dateFmt)}</TableCell>
                         <TableCell className="text-sm">{inv.customerName}</TableCell>
                         <TableCell className="text-sm text-right tabular-nums">{fmt(inv.totalAmount)}</TableCell>
                         <TableCell>
