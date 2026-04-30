@@ -44,6 +44,7 @@ When พี่ทราย reports a layout issue on ANY document:
 | ใบเสนอราคา | `GET /api/documents/quotation/:id/pdf` | `GET /api/share/quotation/:token/pdf` |
 | ใบสั่งขาย | `GET /api/documents/sales_order/:id/pdf` | `GET /api/share/sales-order/:token/pdf` |
 | ใบวางบิล | `GET /api/documents/billing_note/:id/pdf` | — |
+| ใบลดหนี้ขาย | `GET /api/documents/credit_note/:id/pdf` | `GET /api/share/credit-note/:token/pdf` (ต้องรอ share_token migration บน production) |
 
 **Exception (only one):** ใบกำกับภาษีอย่างย่อ (80mm thermal) stays as HTML — it is a thermal receipt format not an A4 document.
 
@@ -53,8 +54,8 @@ When พี่ทราย reports a layout issue on ANY document:
 - `server/routes/pdf-routes.ts` — all PDF endpoints
 - `server/pdf-data-fetcher.ts` — data preparation for PDF
 - `server/fonts/Niramit-*.ttf` — Thai font files
-- `client/src/pages/sales/*-pdf.tsx` — ALL use iframe + blob, NO DocumentRenderer
-- `client/src/pages/sales/*-share.tsx` — ALL use iframe + blob, NO DocumentRenderer
+- `client/src/pages/sales/*-pdf.tsx` — ALL use iframe + blob, NO DocumentRenderer (incl. credit-note-pdf.tsx)
+- `client/src/pages/sales/*-share.tsx` — ALL use iframe + blob, NO DocumentRenderer (incl. credit-note-share.tsx)
 - `client/src/pages/finance/billing-note-pdf.tsx` — uses iframe + blob
 
 ---

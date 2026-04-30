@@ -130,3 +130,56 @@ Last columns: return_to_stock (boolean), return_warehouse_id (integer)
 - buildCreditNotePdfData() (in pdf-data-fetcher.ts)
 - PdfDocumentData CN fields (in pdf-react-generator.tsx)
 - CN PDF endpoint (in pdf-routes.ts)
+
+---
+
+## Afternoon Session — งานที่ complete แล้ว (30 Apr 2026)
+
+### ✅ 1. CN PDF generation — COMPLETE
+- `buildCreditNotePdfData(cnId)` ใน `server/pdf-data-fetcher.ts` — สร้างแล้ว
+- CN fields ใน `PdfDocumentData` ใน `server/pdf-react-generator.tsx` — เพิ่มแล้ว
+- pdfmake template ใน `server/pdf-pdfmake-generator.ts`:
+  - Summary table พิเศษ: มูลค่าเดิม (1) / มูลค่าที่ถูกต้อง (2) / ส่วนต่าง / VAT / ยอดสุทธิ
+  - Notes: อ้างอิงใบกำกับภาษีเลขที่ + วันที่ + เหตุผล
+- `server/routes/pdf-routes.ts` — import `buildCreditNotePdfData` + routing branch เพิ่มแล้ว
+- ทดสอบแล้ว: `GET /api/documents/credit_note/1/pdf` → 200 ✅
+
+### ✅ 2. CN ในรายงานภาษีขาย — COMPLETE
+- Backend มีอยู่แล้ว: CN ถูก query และค่าตัวเลขติดลบอัตโนมัติ (`isCreditNote: true`)
+- Frontend เพิ่ม visual highlight:
+  - Row background ชมพูอ่อน (`bg-rose-50/50`)
+  - ตัวเลขสีแดง (`text-rose-600 font-semibold`)
+  - ทำทั้ง: ตารางหน้าจอ, Print HTML (Excel), Preview modal
+
+### ✅ 3. Fix bug `/api/invoices` + `/api/tax-invoices` — COMPLETE
+- Bug: `ANY(${array})` ใน SQL template ไม่รับ JS array โดยตรง
+- Fix: เปลี่ยนเป็น `sql.raw(\`'{1,2,3}'::int[]\`)`
+- ทั้ง `computeInvoicePaidAmounts` และ `computeTaxInvoicePaidAmounts` — fix แล้ว
+
+### ✅ 4. CN Delete — COMPLETE
+- Backend (`financial-docs-routes.ts`):
+  - เอา status guard (`status !== "draft"`) ออก → ลบ CN ได้ทุก status
+  - Cascade delete: journalLines → journalEntries ที่ `sourceDocType='sales_credit_note'`
+  - ทำทั้ง single delete และ bulk-delete
+- Frontend (`credit-note-list.tsx`):
+  - ปุ่มลบแสดงทุก CN ทุก status (ไม่เฉพาะ draft)
+  - เพิ่ม `!res.ok` check → throw error ถ้า server return 4xx/5xx
+  - `removeQueries` + `invalidateQueries` → list refresh ทันที
+  - Confirm message บอกว่าจะลบทุกอย่างที่เกี่ยวข้อง
+
+---
+
+## Files changed (afternoon session) — dev only, NOT pushed to production
+- `server/pdf-data-fetcher.ts` — buildCreditNotePdfData() สร้างแล้ว
+- `server/pdf-react-generator.tsx` — CN fields ใน PdfDocumentData
+- `server/pdf-pdfmake-generator.ts` — CN summary template + notes
+- `server/routes/pdf-routes.ts` — import + routing สำหรับ credit_note
+- `client/src/pages/sales/tax-report.tsx` — CN visual highlight (red rows)
+- `server/routes/sales-docs-routes.ts` — fix ANY/ALL array syntax bug
+- `server/routes/financial-docs-routes.ts` — CN delete cascade journals
+- `client/src/pages/sales/credit-note-list.tsx` — delete button + error handling
+
+## Still pending
+- replit.md Document-to-API mapping table ต้องเพิ่ม credit_note
+- share_token migration ยังไม่ deploy production
+- Batch IV recompute — ON HOLD
