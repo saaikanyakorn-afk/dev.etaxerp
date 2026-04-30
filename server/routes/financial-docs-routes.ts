@@ -7,10 +7,11 @@ import { requireAuth, requireModule, requireRole, requireAnyModule, checkDocOwne
 import { sql } from "drizzle-orm";
 import { getNextDocNo, createAutoJournalEntry, resolvePaymentMethodAccountCode, logActivity, upsertWarehouseStockLevel, getInventoryTriggers } from "../route-helpers";
 import { parsePagination, paginatedResponse } from "./pagination";
-import { runCreditNoteShareTokenMigration } from "@shared/schema-extra";
+import { runCreditNoteShareTokenMigration, runCreditNoteOriginalAmountMigration } from "@shared/schema-extra";
 
 export function registerFinancialDocsRoutes(app: Express) {
 runCreditNoteShareTokenMigration(db);
+runCreditNoteOriginalAmountMigration(db);
 
 // ========== Deposit Receipt Routes (ใบรับเงินมัดจำ) ==========
 
@@ -831,6 +832,7 @@ app.post("/api/sales-credit-notes", requireAuth, requireAnyModule("sales", "ecom
         exchangeRate: body.exchangeRate || "1",
         docPrefix: prefix,
         notes: body.notes || null,
+        originalInvoiceAmount: body.originalInvoiceAmount ? String(body.originalInvoiceAmount) : null,
         createdBy: user.id,
       }).returning();
 

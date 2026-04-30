@@ -117,6 +117,7 @@ export default function CreditNoteForm() {
     notes: "",
     status: "approved",
     discountAmount: "0",
+    originalInvoiceAmount: "",
     sellerBranchId: selectedCompany?.sellerBranchId || "00000",
   });
   const [items, setItems] = useState<CreditNoteItemForm[]>([emptyItem()]);
@@ -211,6 +212,7 @@ export default function CreditNoteForm() {
               refTaxInvoiceId: tiv.id,
               currencyCode: tiv.currencyCode || "THB",
               sellerBranchId: tiv.sellerBranchId || p.sellerBranchId,
+              originalInvoiceAmount: cleanDecimal(tiv.subtotal || tiv.totalAmount, ""),
             }));
             if (tiv.items && tiv.items.length > 0) {
               setItems(tiv.items.map((it: any) => ({
@@ -259,6 +261,7 @@ export default function CreditNoteForm() {
               notes: data.notes || "",
               status: data.status || "draft",
               discountAmount: cleanDecimal(data.discountAmount, "0"),
+              originalInvoiceAmount: cleanDecimal(data.originalInvoiceAmount, ""),
               sellerBranchId: data.sellerBranchId || selectedCompany?.sellerBranchId || "00000",
             });
             if (data.items && data.items.length > 0) {
@@ -405,6 +408,7 @@ export default function CreditNoteForm() {
       notes: "",
       status: "approved",
       discountAmount: "0",
+      originalInvoiceAmount: "",
       sellerBranchId: selectedCompany?.sellerBranchId || "00000",
     });
     setItems([{ ...emptyItem(), vatType: defaultVatType }]);
@@ -827,6 +831,25 @@ export default function CreditNoteForm() {
 
             <div className="flex flex-col sm:flex-row items-start gap-4 sm:gap-6 doc-summary-section">
               <div className="flex-1 space-y-3">
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <div className="flex-1">
+                    <label className="text-xs text-slate-500 mb-1 block font-medium">มูลค่าตามใบกำกับเดิม:</label>
+                    <input
+                      data-testid="input-original-invoice-amount"
+                      inputMode="decimal"
+                      className="h-8 w-full text-sm border border-slate-300 rounded px-2 outline-none focus:ring-1 focus:ring-[var(--theme-primary)] bg-white text-right"
+                      placeholder="0.00"
+                      value={form.originalInvoiceAmount}
+                      onChange={e => { const v = e.target.value; if (/^\d*\.?\d*$/.test(v)) setForm(p => ({ ...p, originalInvoiceAmount: v })); }}
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <label className="text-xs text-slate-500 mb-1 block font-medium">มูลค่าที่ถูกต้อง:</label>
+                    <div className="h-8 w-full text-sm border border-slate-200 rounded px-2 bg-slate-50 text-right flex items-center justify-end text-slate-700">
+                      {fmt(String(Math.max(0, parseFloat(form.originalInvoiceAmount || "0") - totals.afterDiscount)))}
+                    </div>
+                  </div>
+                </div>
                 <div>
                   <Textarea data-testid="input-notes" value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} rows={3} className="text-xs border-dashed" placeholder="หมายเหตุ..." />
                 </div>

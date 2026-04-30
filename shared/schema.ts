@@ -3769,6 +3769,7 @@ export const salesCreditNotes = pgTable("sales_credit_notes", {
   exchangeRate: decimal("exchange_rate", { precision: 15, scale: 6 }).default("1"),
   docPrefix: text("doc_prefix").default("CN"),
   notes: text("notes"),
+  originalInvoiceAmount: decimal("original_invoice_amount", { precision: 15, scale: 2 }),
   linkJournal: boolean("link_journal").default(false),
   shareToken: text("share_token"),
   createdBy: integer("created_by").references(() => users.id),

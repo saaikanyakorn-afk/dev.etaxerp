@@ -419,6 +419,16 @@ export type TenantModuleSubscription = typeof tenantModuleSubscriptions.$inferSe
  * }
  */
 
+// ── ADD original_invoice_amount to sales_credit_notes (2026-04-30) ────────
+export async function runCreditNoteOriginalAmountMigration(db: any) {
+  try {
+    await db.execute(sql`ALTER TABLE sales_credit_notes ADD COLUMN IF NOT EXISTS original_invoice_amount DECIMAL(15,2)`);
+    console.log("[migration] ✅ original_invoice_amount added to sales_credit_notes");
+  } catch (e: any) {
+    console.warn("[migration] cn_original_amount:", e.message);
+  }
+}
+
 // ── ADD share_token to sales_credit_notes (2026-04-30) ────────────────────
 const CN_SHARE_TOKEN_KEY = "ADD_SHARE_TOKEN_TO_SALES_CREDIT_NOTES_2026-04-30";
 
