@@ -6,7 +6,7 @@ import {
   receipts, receiptItems, purchaseInvoices, purchaseInvoiceItems,
   expenses, expenseItems, documentSettings, contacts,
   purchaseRequests, purchaseRequestItems, purchaseOrders, purchaseOrderItems,
-  billingNotes, billingNoteLinkedDocs,
+  billingNotes, billingNoteLinkedDocs, salesCreditNotes, salesCreditNoteItems,
 } from "@shared/schema";
 import { storage } from "./storage";
 import type { GeneratePdfOptions, PdfCompany, PdfSettings, PdfDocumentData, PdfLineItem, PdfSignature } from "./pdf-react-generator";
@@ -154,6 +154,10 @@ const DOC_CONFIGS: Record<string, DocTableConfig> = {
   purchase_order: {
     table: purchaseOrders, itemsTable: purchaseOrderItems, itemsFkColumn: "purchaseOrderId",
     noField: "poNo", dateField: "poDate", displayDocType: "purchase_order",
+  },
+  credit_note: {
+    table: salesCreditNotes, itemsTable: salesCreditNoteItems, itemsFkColumn: "creditNoteId",
+    noField: "creditNoteNo", dateField: "creditNoteDate", displayDocType: "credit_note",
   },
 };
 

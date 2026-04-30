@@ -12,7 +12,7 @@ import { useCompany } from "@/lib/company-context";
 import {
   Search, Plus, FileText, Edit2, Trash2, Eye,
   CheckCircle2, Clock, MoreHorizontal, Calendar as CalendarIcon,
-  AlertCircle, XCircle
+  AlertCircle, XCircle, Printer, Link2, MessageSquare
 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
@@ -22,7 +22,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, getShareBaseUrl } from "@/lib/queryClient";
 import { invalidateDocCaches } from "@/lib/invalidate-doc-caches";
 import { useBulkDelete } from "@/hooks/use-bulk-delete";
 import { BulkDeleteButton, BulkDeleteConfirmDialog, SelectAllCheckbox, RowCheckbox } from "@/components/bulk-delete-bar";
@@ -30,6 +30,7 @@ import { formatDate } from "@/lib/format";
 import ThaiDateInput from "@/components/thai-date-input";
 import { useDateSettings } from "@/hooks/use-date-settings";
 import { toLocalDateStr } from "@/lib/utils";
+import LineSendDialog from "@/components/line-send-dialog";
 
 const STATUS_MAP: Record<string, { label: string; color: string; icon: any }> = {
   draft: { label: "ร่าง", color: "bg-slate-100 text-slate-700 border-slate-200", icon: Clock },
@@ -61,6 +62,7 @@ export default function CreditNoteList() {
   const todayStr = toLocalDateStr(now);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [lineDialog, setLineDialog] = useState<{ open: boolean; url: string; docNo: string; customerName: string }>({ open: false, url: "", docNo: "", customerName: "" });
 
   const bulk = useBulkDelete({ endpoint: "/api/sales-credit-notes/bulk-delete", queryKey: "/api/sales-credit-notes", docLabel: "ใบลดหนี้", companyId });
   const { dateEra, dateFmt } = useDateSettings();
@@ -244,10 +246,42 @@ export default function CreditNoteList() {
                                 <MoreHorizontal className="h-4 w-4" />
                               </Button>
                             </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="w-48 text-sm">
+                            <DropdownMenuContent align="end" className="w-56 text-sm">
                               <DropdownMenuItem onClick={() => navigate(`/sales/credit-note/edit/${cn.id}`)} className="flex gap-2">
-                                  <Edit2 className="h-3.5 w-3.5" /> แก้ไข
-                                </DropdownMenuItem>
+                                <Edit2 className="h-3.5 w-3.5" /> แก้ไข
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => navigate(`/sales/credit-note/pdf/${cn.id}`)} className="flex gap-2">
+                                <Printer className="h-3.5 w-3.5 text-purple-500" /> ดูตัวอย่าง / สั่งพิมพ์
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={async () => {
+                                try {
+                                  const res = await apiRequest("POST", `/api/sales-credit-notes/${cn.id}/share`);
+                                  const data = await res.json();
+                                  const base = await getShareBaseUrl();
+                                  const url = `${base}/share/credit-note/${data.shareToken}`;
+                                  try {
+                                    await navigator.clipboard.writeText(url);
+                                    toast({ title: "คัดลอกลิงก์แชร์แล้ว", description: url });
+                                  } catch {
+                                    window.prompt("คัดลอกลิงก์ด้านล่าง:", url);
+                                  }
+                                } catch (err: any) {
+                                  toast({ title: "สร้างลิงก์ไม่สำเร็จ", description: err.message, variant: "destructive" });
+                                }
+                              }} className="flex gap-2">
+                                <Link2 className="h-3.5 w-3.5" /> ลิงก์สำหรับแชร์
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={async () => {
+                                try {
+                                  const res = await apiRequest("POST", `/api/sales-credit-notes/${cn.id}/share`);
+                                  const data = await res.json();
+                                  const base = await getShareBaseUrl();
+                                  const url = `${base}/share/credit-note/${data.shareToken}`;
+                                  setTimeout(() => setLineDialog({ open: true, url, docNo: cn.creditNoteNo, customerName: cn.customerName || "" }), 150);
+                                } catch {}
+                              }} className="flex gap-2 text-green-600">
+                                <MessageSquare className="h-3.5 w-3.5" /> ส่งผ่าน LINE
+                              </DropdownMenuItem>
                               {cn.status === "draft" && (
                                 <>
                                   <DropdownMenuSeparator />
@@ -276,6 +310,15 @@ export default function CreditNoteList() {
         </Card>
       </div>
       <BulkDeleteConfirmDialog open={bulk.showConfirm} onOpenChange={bulk.setShowConfirm} count={bulk.selectedIds.size} docLabel="ใบลดหนี้" onConfirm={bulk.confirmDelete} />
+      <LineSendDialog
+        open={lineDialog.open}
+        onOpenChange={(open) => setLineDialog(prev => ({ ...prev, open }))}
+        shareUrl={lineDialog.url}
+        docType="ใบลดหนี้"
+        docNo={lineDialog.docNo}
+        customerName={lineDialog.customerName}
+        companyId={companyId}
+      />
     </Layout>
   );
 }

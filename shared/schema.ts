@@ -3770,6 +3770,7 @@ export const salesCreditNotes = pgTable("sales_credit_notes", {
   docPrefix: text("doc_prefix").default("CN"),
   notes: text("notes"),
   linkJournal: boolean("link_journal").default(false),
+  shareToken: text("share_token"),
   createdBy: integer("created_by").references(() => users.id),
   updatedBy: integer("updated_by").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow(),

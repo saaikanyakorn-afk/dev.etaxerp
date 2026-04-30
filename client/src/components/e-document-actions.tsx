@@ -48,6 +48,7 @@ const DOC_LABELS: Record<string, string> = {
   receipt: "ใบเสร็จรับเงิน",
   quotation: "ใบเสนอราคา",
   sales_order: "ใบสั่งขาย",
+  credit_note: "ใบลดหนี้",
 };
 
 type PdfErrorType = "network" | "timeout" | "server" | "unknown";

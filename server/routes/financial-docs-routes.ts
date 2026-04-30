@@ -2,7 +2,7 @@ import type { Express, Request, Response } from "express";
 import { db } from "../db";
 import { storage } from "../storage";
 import { eq, desc, and, or, inArray, count } from "drizzle-orm";
-import { receipts, depositReceipts, contacts, users, purchaseDeposits, taxInvoices, taxInvoiceItems, salesCreditNotes, salesCreditNoteItems, purchaseInvoices, purchaseInvoiceItems, purchaseDebitNotes, purchaseDebitNoteItems, purchaseDepositDeductions, depositDeductions } from "@shared/schema";
+import { receipts, depositReceipts, contacts, users, purchaseDeposits, taxInvoices, taxInvoiceItems, salesCreditNotes, salesCreditNoteItems, purchaseInvoices, purchaseInvoiceItems, purchaseDebitNotes, purchaseDebitNoteItems, purchaseDepositDeductions, depositDeductions, companies, documentSettings } from "@shared/schema";
 import { requireAuth, requireModule, requireRole, requireAnyModule, checkDocOwnership } from "../route-middleware";
 import { sql } from "drizzle-orm";
 import { getNextDocNo, createAutoJournalEntry, resolvePaymentMethodAccountCode, logActivity, upsertWarehouseStockLevel, getInventoryTriggers } from "../route-helpers";
@@ -1323,6 +1323,41 @@ app.post("/api/purchase-debit-notes/bulk-delete", requireAuth, requireModule("pu
       } catch (e: any) { errors.push(`#${id}: ${e.message}`); }
     }
     res.json({ deleted, errors, total: ids.length });
+  } catch (err: any) { res.status(500).json({ message: err.message }); }
+});
+
+// ========== Credit Note Share Routes ==========
+
+app.post("/api/sales-credit-notes/:id/share", requireAuth, requireAnyModule("sales"), async (req, res) => {
+  try {
+    const [doc] = await db.select().from(salesCreditNotes).where(eq(salesCreditNotes.id, Number(req.params.id)));
+    if (!doc) return res.status(404).json({ message: "ไม่พบใบลดหนี้" });
+    const ac = await checkDocOwnership(doc.companyId, req.user);
+    if (!ac.allowed) return res.status(403).json({ message: ac.message });
+    let token = doc.shareToken;
+    if (!token) {
+      const { randomBytes } = await import("crypto");
+      token = randomBytes(24).toString("hex");
+      await db.update(salesCreditNotes).set({ shareToken: token }).where(eq(salesCreditNotes.id, doc.id));
+    }
+    res.json({ shareToken: token });
+  } catch (err: any) { res.status(500).json({ message: err.message }); }
+});
+
+app.get("/api/share/credit-note/:token", async (req, res) => {
+  try {
+    const [doc] = await db.select().from(salesCreditNotes).where(eq(salesCreditNotes.shareToken, req.params.token));
+    if (!doc) return res.status(404).json({ message: "ไม่พบเอกสาร" });
+    const items = await db.select().from(salesCreditNoteItems).where(eq(salesCreditNoteItems.creditNoteId, doc.id));
+    const [company] = await db.select().from(companies).where(eq(companies.id, doc.companyId));
+    let docSetting = null;
+    let userSignature = null;
+    try { const [ds] = await db.select().from(documentSettings).where(eq(documentSettings.companyId, doc.companyId)); docSetting = ds || null; } catch {}
+    if (doc.createdBy) {
+      try { const u = await storage.getUser(doc.createdBy); if (u) userSignature = { signatureUrl: u.signatureUrl || null, signatureName: u.signatureName || u.fullName, signatureTitle: u.signatureTitle || null }; } catch {}
+    }
+    const { shareToken, createdBy, updatedBy, ...publicDoc } = doc;
+    res.json({ ...publicDoc, items, company: company || null, documentSettings: docSetting, userSignature });
   } catch (err: any) { res.status(500).json({ message: err.message }); }
 });
 

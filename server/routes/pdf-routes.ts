@@ -1,7 +1,7 @@
 import type { Express, Request, Response } from "express";
 import { db } from "../db";
-import { eq, desc, and } from "drizzle-orm";
-import { invoices, taxInvoices, receipts, quotations, salesOrders, purchaseInvoices, expenses, companies, purchaseRequests, purchaseOrders, documentDeliveryLogs } from "@shared/schema";
+import { eq, desc, and, sql } from "drizzle-orm";
+import { invoices, taxInvoices, receipts, quotations, salesOrders, purchaseInvoices, expenses, companies, purchaseRequests, purchaseOrders, documentDeliveryLogs, salesCreditNotes, salesCreditNoteItems } from "@shared/schema";
 import { requireAuth, checkDocOwnership } from "../route-middleware";
 import { buildPdfDataById, buildPdfDataByToken, buildBillingNotePdfData } from "../pdf-data-fetcher";
 import { generatePdfMake } from "../pdf-pdfmake-generator";
@@ -149,6 +149,13 @@ async function ensureShareToken(docType: string, docId: number): Promise<string>
     const token = randomBytes(24).toString("hex");
     await db.update(expenses).set({ shareToken: token }).where(eq(expenses.id, docId));
     return token;
+  } else if (docType === "credit_note") {
+    const [doc] = await db.select().from(salesCreditNotes).where(eq(salesCreditNotes.id, docId));
+    if (!doc) throw new Error("ไม่พบเอกสาร");
+    if (doc.shareToken) return doc.shareToken;
+    const token = randomBytes(24).toString("hex");
+    await db.update(salesCreditNotes).set({ shareToken: token }).where(eq(salesCreditNotes.id, docId));
+    return token;
   }
   throw new Error("ประเภทเอกสารไม่รองรับ");
 }
@@ -164,6 +171,7 @@ function getSharePath(docType: string): string {
     purchase_order: "/share/purchase-order",
     purchase_invoice: "/share/purchase-invoice",
     expense: "/share/expense",
+    credit_note: "/share/credit-note",
   };
   return paths[docType] || "/share/invoice";
 }
@@ -179,6 +187,7 @@ function getDocNoByType(docType: string, doc: any): string {
     purchase_order: "poNo",
     purchase_invoice: "apNo",
     expense: "expNo",
+    credit_note: "creditNoteNo",
   };
   return doc[fields[docType] || "invoiceNo"] || "document";
 }
@@ -235,7 +244,7 @@ app.get("/api/share/:docType/:token/pdf", async (req, res) => {
   try {
     const docType = String(req.params.docType).replace(/-/g, "_");
     const token = String(req.params.token);
-    const validDocTypes = ["invoice", "tax_invoice", "receipt", "quotation", "sales_order"];
+    const validDocTypes = ["invoice", "tax_invoice", "receipt", "quotation", "sales_order", "credit_note"];
     if (!validDocTypes.includes(docType)) return res.status(400).json({ message: "ประเภทเอกสารไม่ถูกต้อง" });
 
     const printType = String(req.query.printType || "");
@@ -313,6 +322,10 @@ app.post("/api/documents/:docType/:id/send-email", requireAuth, async (req, res)
         const [d] = await db.select().from(expenses).where(eq(expenses.id, docId));
         if (d) docNo = d.expNo;
         docLabel = "รายจ่าย";
+      } else if (docType === "credit_note") {
+        const [d] = await db.select().from(salesCreditNotes).where(eq(salesCreditNotes.id, docId));
+        if (d) docNo = d.creditNoteNo;
+        docLabel = "ใบลดหนี้";
       }
     } catch {}
 
