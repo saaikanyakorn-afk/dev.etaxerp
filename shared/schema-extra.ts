@@ -25,6 +25,54 @@
 //
 //   Rule: NEVER leave an active batch block in production after it has run.
 //   Rule: Always guard with system_config flag — idempotent, runs exactly once.
+//
+// TERTIARY USE: ADD COLUMN migrations for feature-specific tables.
+//   When a feature needs new columns on existing tables and MUST NOT touch
+//   index.ts, use this pattern (same safety as SECONDARY, no index.ts change):
+//
+//   Pattern:
+//     1. Export a migration function from this file.
+//     2. Call it top-level from the most relevant route file (fires on first load).
+//     3. Pure DDL (ADD COLUMN IF NOT EXISTS) needs no flag — already idempotent.
+//     4. Data backfill inside the same function MUST use a system_config flag.
+//     5. After production verified: comment out the block with date/time/reason.
+//
+//   Example skeleton:
+//     export async function runXxxColumnsMigration(db: any) {
+//       // Pure DDL — IF NOT EXISTS makes it safe to run every time
+//       await db.execute(sql.raw(`ALTER TABLE xxx ADD COLUMN IF NOT EXISTS col TEXT`));
+//       // Data backfill — guard with flag so it runs exactly once
+//       const FLAG = "BACKFILL_XXX_YYYY-MM-DD";
+//       const done = await db.execute(sql`SELECT 1 FROM system_config WHERE config_key = ${FLAG}`);
+//       if (!(done.rows || []).length) {
+//         await db.execute(sql.raw(`UPDATE xxx SET col = ... WHERE col IS NULL`));
+//         await db.execute(sql.raw(`INSERT INTO system_config(config_key,config_value) VALUES('${FLAG}','done')`));
+//       }
+//     }
+//
+//   Caller side (in the relevant route file, NOT index.ts):
+//     import { runXxxColumnsMigration } from "@shared/schema-extra";
+//     runXxxColumnsMigration(db);  // top-level call, fires when route module loads
+//
+//   Rule: NEVER use DROP COLUMN, ALTER TYPE, or RENAME — additive only.
+//   Rule: NEVER touch index.ts for feature column additions.
+//
+// =============================================================================
+// MASTER RULE: Production Database Manipulation Checklist
+// =============================================================================
+//   ANY change to production DB — no matter how small — must follow this order:
+//
+//   1. VERIFY FIRST — query production DB to confirm current state before coding.
+//      (Another agent may have already made the change behind your back.)
+//   2. DEPLOY DB-ONLY FIRST — push ONLY the schema-extra migration function and
+//      its route-file caller. No other changes in the same deploy.
+//   3. CONFIRM IT RAN ONCE — check server logs that the migration function fired.
+//      Then ask พี่ช้าง to STOP the production server.
+//   4. VERIFY PRODUCTION DB — query production to confirm columns/data are correct.
+//   5. COMMENT OUT THE BLOCK — in schema-extra.ts, comment out the migration block
+//      with the date/time it ran and the reason (e.g., // Ran 2026-05-01 14:30 UTC).
+//   6. PUSH CLEAN — push the commented-out schema-extra.ts to production, rebuild.
+//   7. CONTINUE CHECKLIST — proceed with the remaining steps of the full fix batch.
 // =============================================================================
 
 import { pgTable, serial, integer, text, varchar, decimal, date, timestamp, boolean, jsonb } from "drizzle-orm/pg-core";
