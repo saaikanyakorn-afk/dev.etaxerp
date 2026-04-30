@@ -1591,7 +1591,6 @@ export function registerExpenseRoutes(app: Express) {
     try {
       const [doc] = await db.select().from(withholdingTaxCerts).where(eq(withholdingTaxCerts.shareToken, req.params.token));
       if (!doc) return res.status(404).json({ message: "ไม่พบเอกสาร" });
-      { const ac = await checkDocOwnership(doc.companyId, req.user); if (!ac.allowed) return res.status(403).json({ message: ac.message }); }
       const [company] = await db.select().from(companies).where(eq(companies.id, doc.companyId));
       let createdByName = "";
       let createdBySignatureName = "";
