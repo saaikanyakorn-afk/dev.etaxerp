@@ -142,18 +142,22 @@ export default function SalesTaxReport() {
       <td style="border:1px solid ${themeColor};padding:4px 6px">จำนวนเงินภาษีมูลค่าเพิ่ม</td>
       <td style="border:1px solid ${themeColor};padding:4px 6px">จำนวนเงินรวมทั้งสิ้น</td>
     </tr>`;
-    const dataRows = rows.map((r: any) => `<tr>
+    const dataRows = rows.map((r: any) => {
+      const cnStyle = r.isCreditNote ? "background:#fff5f5;color:#dc2626;font-weight:600" : "";
+      const numStyle = r.isCreditNote ? "border:1px solid #ccc;padding:3px 6px;text-align:right;color:#dc2626;font-weight:600" : "border:1px solid #ccc;padding:3px 6px;text-align:right";
+      return `<tr style="${cnStyle}">
       <td style="border:1px solid #ccc;padding:3px 6px;text-align:center">${r.no}</td>
       <td style="border:1px solid #ccc;padding:3px 6px">${formatDate(r.date, dateEra, dateFmt)}</td>
-      <td style="border:1px solid #ccc;padding:3px 6px">${r.taxInvoiceNo}${r.isCreditNote ? " (ลดหนี้)" : ""}${r.isDebitNote ? " (เพิ่มหนี้)" : ""}</td>
+      <td style="border:1px solid #ccc;padding:3px 6px">${r.taxInvoiceNo}${r.isCreditNote ? ' <span style="color:#dc2626;font-size:10px">(ลดหนี้)</span>' : ""}${r.isDebitNote ? " (เพิ่มหนี้)" : ""}</td>
       <td style="border:1px solid #ccc;padding:3px 6px">${r.customerName}</td>
       <td style="border:1px solid #ccc;padding:3px 6px">${r.customerTaxId ? "'" + r.customerTaxId : ""}</td>
       <td style="border:1px solid #ccc;padding:3px 6px;text-align:center">${r.branch ? "'" + r.branch : ""}</td>
-      <td style="border:1px solid #ccc;padding:3px 6px;text-align:right">${fmt(r.subtotal)}</td>
-      <td style="border:1px solid #ccc;padding:3px 6px;text-align:right">${fmt(r.subtotal)}</td>
-      <td style="border:1px solid #ccc;padding:3px 6px;text-align:right">${fmt(r.vatAmount)}</td>
-      <td style="border:1px solid #ccc;padding:3px 6px;text-align:right">${fmt(r.subtotal + r.vatAmount)}</td>
-    </tr>`).join("");
+      <td style="${numStyle}">${fmt(r.subtotal)}</td>
+      <td style="${numStyle}">${fmt(r.subtotal)}</td>
+      <td style="${numStyle}">${fmt(r.vatAmount)}</td>
+      <td style="${numStyle}">${fmt(r.subtotal + r.vatAmount)}</td>
+    </tr>`;
+    }).join("");
     const totalRow = `<tr style="font-weight:bold;background:#f1f5f9">
       <td colspan="6" style="border:1px solid #ccc;padding:4px 8px;text-align:right;border-top:2px solid #333">รวมทั้งสิ้น</td>
       <td style="border:1px solid #ccc;padding:4px 8px;text-align:right;border-top:2px solid #333">${fmt(totalSubtotal)}</td>
@@ -250,17 +254,19 @@ export default function SalesTaxReport() {
         pageSubtotal += r.subtotal || 0;
         pageVat += r.vatAmount || 0;
         pageTotal += (r.subtotal || 0) + (r.vatAmount || 0);
-        return `<tr>
+        const rowBg = r.isCreditNote ? "background:#fff5f5" : "";
+        const numColor = r.isCreditNote ? "color:#dc2626;font-weight:600" : "";
+        return `<tr style="${rowBg}">
           <td style="text-align:center;border:1px solid #ccc;padding:2px 4px;font-size:11px">${r.no}</td>
           <td style="border:1px solid #ccc;padding:2px 4px;font-size:11px;white-space:nowrap">${formatDate(r.date, dateEra, dateFmt)}</td>
-          <td style="border:1px solid #ccc;padding:2px 4px;font-size:11px">${r.taxInvoiceNo}${r.isCreditNote ? ' <span style="color:#e11d48;font-size:9px">(ลดหนี้)</span>' : ""}${r.isDebitNote ? ' <span style="color:#d97706;font-size:9px">(เพิ่มหนี้)</span>' : ""}</td>
+          <td style="border:1px solid #ccc;padding:2px 4px;font-size:11px">${r.taxInvoiceNo}${r.isCreditNote ? ' <span style="color:#dc2626;font-size:9px;font-weight:600">(ลดหนี้)</span>' : ""}${r.isDebitNote ? ' <span style="color:#d97706;font-size:9px">(เพิ่มหนี้)</span>' : ""}</td>
           <td style="border:1px solid #ccc;padding:2px 4px;font-size:11px">${r.customerName}</td>
           <td style="border:1px solid #ccc;padding:2px 4px;font-size:11px">${r.customerTaxId || ""}</td>
           <td style="border:1px solid #ccc;padding:2px 4px;font-size:11px;text-align:center">${r.branch || ""}</td>
-          <td style="text-align:right;border:1px solid #ccc;padding:2px 4px;font-size:11px">${fmt(r.subtotal)}</td>
-          <td style="text-align:right;border:1px solid #ccc;padding:2px 4px;font-size:11px">${fmt(r.subtotal)}</td>
-          <td style="text-align:right;border:1px solid #ccc;padding:2px 4px;font-size:11px">${fmt(r.vatAmount)}</td>
-          <td style="text-align:right;border:1px solid #ccc;padding:2px 4px;font-size:11px">${fmt(r.subtotal + r.vatAmount)}</td>
+          <td style="text-align:right;border:1px solid #ccc;padding:2px 4px;font-size:11px;${numColor}">${fmt(r.subtotal)}</td>
+          <td style="text-align:right;border:1px solid #ccc;padding:2px 4px;font-size:11px;${numColor}">${fmt(r.subtotal)}</td>
+          <td style="text-align:right;border:1px solid #ccc;padding:2px 4px;font-size:11px;${numColor}">${fmt(r.vatAmount)}</td>
+          <td style="text-align:right;border:1px solid #ccc;padding:2px 4px;font-size:11px;${numColor}">${fmt(r.subtotal + r.vatAmount)}</td>
         </tr>`;
       }).join("");
 
@@ -540,7 +546,7 @@ export default function SalesTaxReport() {
                     </TableRow>
                   ) : (
                     rows.map((row: any, idx: number) => (
-                      <TableRow key={idx} className="text-sm hover:bg-slate-50/50" data-testid={`row-tax-${idx}`}>
+                      <TableRow key={idx} className={`text-sm ${row.isCreditNote ? "bg-rose-50/50 hover:bg-rose-50" : "hover:bg-slate-50/50"}`} data-testid={`row-tax-${idx}`}>
                         <TableCell className="text-center text-xs text-muted-foreground">{row.no}</TableCell>
                         <TableCell className="text-xs whitespace-nowrap min-w-[90px]">{formatDate(row.date, dateEra, dateFmt)}</TableCell>
                         <TableCell className="text-xs font-medium">
@@ -551,10 +557,10 @@ export default function SalesTaxReport() {
                         <TableCell className="text-xs">{row.customerName}</TableCell>
                         <TableCell className="text-xs font-mono text-center">{row.customerTaxId}</TableCell>
                         <TableCell className="text-xs text-center">{row.branch}</TableCell>
-                        <TableCell className="text-right text-xs font-mono">{fmt(row.subtotal)}</TableCell>
-                        <TableCell className="text-right text-xs font-mono">{fmt(row.subtotal)}</TableCell>
-                        <TableCell className="text-right text-xs font-mono">{fmt(row.vatAmount)}</TableCell>
-                        <TableCell className="text-right text-xs font-mono">{fmt(row.subtotal + row.vatAmount)}</TableCell>
+                        <TableCell className={`text-right text-xs font-mono ${row.isCreditNote ? "text-rose-600 font-semibold" : ""}`}>{fmt(row.subtotal)}</TableCell>
+                        <TableCell className={`text-right text-xs font-mono ${row.isCreditNote ? "text-rose-600 font-semibold" : ""}`}>{fmt(row.subtotal)}</TableCell>
+                        <TableCell className={`text-right text-xs font-mono ${row.isCreditNote ? "text-rose-600 font-semibold" : ""}`}>{fmt(row.vatAmount)}</TableCell>
+                        <TableCell className={`text-right text-xs font-mono ${row.isCreditNote ? "text-rose-600 font-semibold" : ""}`}>{fmt(row.subtotal + row.vatAmount)}</TableCell>
                       </TableRow>
                     ))
                   )}
