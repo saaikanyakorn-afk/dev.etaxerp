@@ -195,9 +195,10 @@ export default function CreditNoteForm() {
     if (isNew && fromTaxInvoiceId) {
       (async () => {
         try {
-          const res = await fetch(`/api/tax-invoices/${fromTaxInvoiceId}`, { credentials: "include" });
+          const res = await fetch(`/api/sales-credit-notes/ref-invoice/${fromTaxInvoiceId}`, { credentials: "include" });
           if (res.ok) {
             const tiv = await res.json();
+            setPriceMode(tiv.priceMode || "excluded");
             setForm(p => ({
               ...p,
               customerId: tiv.customerId || undefined,
@@ -211,6 +212,20 @@ export default function CreditNoteForm() {
               currencyCode: tiv.currencyCode || "THB",
               sellerBranchId: tiv.sellerBranchId || p.sellerBranchId,
             }));
+            if (tiv.items && tiv.items.length > 0) {
+              setItems(tiv.items.map((it: any) => ({
+                productId: it.productId,
+                productCode: it.productCode || "",
+                productName: it.productName || "",
+                description: it.description || "",
+                qty: cleanDecimal(it.qty, "1"),
+                unit: it.unit || "ชิ้น",
+                unitPrice: cleanDecimal(it.unitPrice, "0"),
+                discount: cleanDecimal(it.discount, "0"),
+                total: cleanDecimal(it.total, "0"),
+                vatType: it.vatType || "vat7",
+              })));
+            }
           }
         } catch {}
         setLoaded(true);
