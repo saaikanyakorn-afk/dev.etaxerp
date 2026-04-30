@@ -94,6 +94,149 @@ Dev HEAD at deploy: `9e96b8d8` | Production cherry-pick commit: `2adc257c`
 | 2026-04-23 | v105 | sales-docs-routes.ts, purchase-routes.ts, invoice-form.tsx, purchase-invoice.tsx, replit.md | 7.4 MB | index-BoOQHVbf.js 360.46 kB | Warehouse selector Parts 2+3+4: save + fetch + UI. Build 42.96s, pm2 83.0mb |
 | 2026-04-27 | v106 r1 | schema-extra.ts, index.ts, etax-routes.ts, etax-send-dialog.tsx | — | — | DATA FIX ACTIVE: clear etax_sent_to=csemail on invoice 459 RE2604250044. Backup: backup_tax_invoices_20260426. etax-routes: validation block (TO≠csemail) + debugInfo. etax-send-dialog: debug panel + no-auto-close. |
 | 2026-04-27 | v106 r2 | schema-extra.ts, index.ts | — | — | DATA FIX DONE (loop close). FLAG=done_2026-04-27T00:28:27.087Z. invoice 459 etax_sent_to=null ✅ Migration commented out, hook removed. |
+| 2026-04-30 | v107 r1 | schema-extra.ts | 7.5 MB | index-DWEFVmOj.js ~360 kB | WAREHOUSE MIGRATION ACTIVE: 8 columns (goods_receivings.warehouse_id, goods_receiving_items.warehouse_id, sales_credit_notes.return_to_stock/return_warehouse_id, ecommerce_orders.warehouse_id, manufacturing_orders.source/target_warehouse_id, general_settings.inventory_triggers) + unique index wsl_unique_warehouse_product_company. Backfill: 1,094 rows. Flag WAREHOUSE_STOCK_BACKFILL_DONE=done ✅ |
+| 2026-04-30 | v107 r2 | schema-extra.ts, warehouse-bin-routes.ts | 7.5 MB | — | WAREHOUSE MIGRATION COMMENTED OUT (loop close). runWarehouseColumnsMigration wrapped in /* */. Caller import+call commented out. Clean. commit a1c6996c ✅ |
+
+## ⏳ PENDING DEPLOY (production server currently STOPPED — safe window)
+Production is at commit `a1c6996c` on github-production. The following batches are queued.
+**Rule: DB manipulation runs its own loop FIRST, before any code batch.**
+
+### BATCH 1 — DB Migration loop: payment_methods bank columns
+**WHY:** `payment-methods-routes.ts` calls `runBankInfoToPaymentMethodsMigration(db)` on startup.
+This does `ALTER TABLE payment_methods ADD COLUMN IF NOT EXISTS bank_name text` and `bank_account_no text`.
+Must run isolated — verify DB before deploying anything else.
+
+**STEP 0 — Backup (run on production server):**
+```
+PGPASSWORD=nJKsyhE4583Hz pg_dump -h deep-main.hopto.org -p 20541 -U etaxusr -d etax-production -t payment_methods --schema-only > payment_methods_backup_before_bank_cols.sql
+```
+Confirm file exists before continuing.
+
+**STEP 1 — Deploy ONLY this file:**
+```
+git fetch origin && git checkout origin/main -- server/routes/payment-methods-routes.ts && npm run build && npm start
+```
+
+**STEP 2 — Watch for this log (⚠️ STOP if not seen):**
+```
+[migration] ✅ bank_name + bank_account_no added to payment_methods
+```
+
+**STEP 3 — Verify DB with eyes:**
+```
+PGPASSWORD=nJKsyhE4583Hz psql -h deep-main.hopto.org -p 20541 -U etaxusr -d etax-production -c "SELECT column_name FROM information_schema.columns WHERE table_name='payment_methods' AND column_name IN ('bank_name','bank_account_no');"
+```
+Must see 2 rows. Stop and tell Kai if not.
+
+**STEP 4 — Restart 2 (clean — no migration this time):**
+```
+pm2 restart etax-center
+```
+
+**STEP 5 — Verify clean log (migration must NOT appear again):**
+```
+[express] Background migrations complete - API ready
+```
+If migration log appears again → stop, tell Kai.
+
+- [ ] STEP 0: backup done
+- [ ] STEP 1: deployed + started
+- [ ] STEP 2: migration log seen ✅
+- [ ] STEP 3: DB verified — bank_name + bank_account_no present
+- [ ] STEP 4: restarted clean
+- [ ] STEP 5: clean log confirmed
+- [ ] BATCH 1 LOOP CLOSED → proceed to BATCH 2
+
+---
+
+### BATCH 2 — Code deploy (no DB manipulation)
+**WHY:** All พี่ทราย business fixes, PDF/payment/warehouse/dashboard/company-selection code updates accumulated since Deploy #8 baseline reset. No ALTER TABLE. Single restart.
+
+**Files (64 files — run as one command):**
+```
+git fetch origin && git checkout origin/main -- \
+  server/db-schema-sync.ts \
+  server/etax-pdf-a3.ts \
+  server/index-extra.ts \
+  server/one-time-schema-migration.ts \
+  server/pdf-data-fetcher.ts \
+  server/pdf-html-renderer.ts \
+  server/pdf-pdfmake-generator.ts \
+  server/pdf-react-generator.tsx \
+  server/route-helpers.ts \
+  server/routes/accounting-routes.ts \
+  server/routes/cash-flow-forecast.ts \
+  server/routes/doc-settings-routes.ts \
+  server/routes/ecommerce-routes.ts \
+  server/routes/etax-routes.ts \
+  server/routes/financial-docs-routes.ts \
+  server/routes/line-routes.ts \
+  server/routes/manufacturing-routes.ts \
+  server/routes/pdf-routes.ts \
+  server/routes/petty-cash-routes.ts \
+  server/routes/pos-routes.ts \
+  server/routes/products-routes.ts \
+  server/routes/purchase-routes.ts \
+  server/routes/sales-docs-routes.ts \
+  server/routes/warehouse-bin-routes.ts \
+  server/storage.ts \
+  server/utils/pdf-invoice-parser.ts \
+  shared/etax-xml.ts \
+  client/src/components/document-renderer.tsx \
+  client/src/components/e-document-actions.tsx \
+  client/src/components/etax-send-dialog.tsx \
+  client/src/components/pdf-iframe-viewer.tsx \
+  client/src/components/settings-tabs.tsx \
+  client/src/components/tax-invoice-hover-preview.tsx \
+  client/src/lib/auth.tsx \
+  client/src/lib/company-context.tsx \
+  client/src/lib/line-android-redirect.ts \
+  client/src/pages/contacts/contact-list.tsx \
+  client/src/pages/ecommerce/ecommerce-orders.tsx \
+  client/src/pages/finance/billing-note-pdf.tsx \
+  client/src/pages/hr/payroll-tax.tsx \
+  client/src/pages/inventory/goods-receiving-form.tsx \
+  client/src/pages/inventory/manufacturing-form.tsx \
+  client/src/pages/inventory/warehouse.tsx \
+  client/src/pages/pos/pos-invoice.tsx \
+  client/src/pages/pos/pos-receipt.tsx \
+  client/src/pages/purchases/pdf-bulk-import.tsx \
+  client/src/pages/sales/credit-note-form.tsx \
+  client/src/pages/sales/etax-sent-list.tsx \
+  client/src/pages/sales/invoice-form.tsx \
+  client/src/pages/sales/invoice-list.tsx \
+  client/src/pages/sales/invoice-pdf.tsx \
+  client/src/pages/sales/invoice-share.tsx \
+  client/src/pages/sales/quotation-pdf.tsx \
+  client/src/pages/sales/quotation-share.tsx \
+  client/src/pages/sales/receipt-form.tsx \
+  client/src/pages/sales/receipt-pdf.tsx \
+  client/src/pages/sales/receipt-share.tsx \
+  client/src/pages/sales/sales-order-pdf.tsx \
+  client/src/pages/sales/sales-order-share.tsx \
+  client/src/pages/sales/tax-invoice-batch-print.tsx \
+  client/src/pages/sales/tax-invoice-form.tsx \
+  client/src/pages/sales/tax-invoice-list.tsx \
+  client/src/pages/sales/tax-invoice-pdf.tsx \
+  client/src/pages/sales/tax-invoice-share.tsx \
+  client/src/pages/settings/inventory-triggers.tsx \
+  client/src/pages/settings/payment-methods.tsx \
+  && npm run build && npm start
+```
+**NOT included (NEVER deploy):** `client/src/App.tsx`, `server/index.ts`, `shared/schema.ts`
+
+**After start — verify:**
+```
+[express] Core schema ready - API enabled
+[express] Background migrations complete - API ready
+```
+No migration log expected. If seen → stop, tell Kai.
+
+- [ ] BATCH 1 loop closed (prerequisite)
+- [ ] Command run — build succeeded
+- [ ] Server started — API ready log seen
+- [ ] No unexpected migration log
+- [ ] พี่ทราย verify all features
 
 ## 🔴 GOLDEN RULE — PULL-BEFORE-TOUCH (MANDATORY for any protected/sensitive file)
 
