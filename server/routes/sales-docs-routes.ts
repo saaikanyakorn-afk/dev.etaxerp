@@ -751,6 +751,16 @@ app.post("/api/quotations/:id/send-email", requireAuth, requireAnyModule("sales"
 
 // ========== Invoice Routes ==========
 
+async function computeInvoicePaidAmounts(invoiceIds: number[]): Promise<Record<number, number>> {
+  const paidMap: Record<number, number> = {};
+  if (invoiceIds.length === 0) return paidMap;
+  const directPaid = await db.execute(sql`SELECT invoice_id, SUM(total_amount) AS paid FROM receipts WHERE invoice_id = ANY(${invoiceIds}) GROUP BY invoice_id`);
+  const batchPaid = await db.execute(sql`SELECT doc_id, SUM(amount) AS paid FROM receipt_linked_docs WHERE doc_type = 'IV' AND doc_id = ANY(${invoiceIds}) GROUP BY doc_id`);
+  for (const r of (directPaid as any).rows || []) paidMap[r.invoice_id] = (paidMap[r.invoice_id] || 0) + parseFloat(r.paid || 0);
+  for (const r of (batchPaid as any).rows || []) paidMap[r.doc_id] = (paidMap[r.doc_id] || 0) + parseFloat(r.paid || 0);
+  return paidMap;
+}
+
 app.get("/api/invoices", requireAuth, requireAnyModule("sales", "ecommerce"), async (req, res) => {
   try {
     const companyId = Number(req.query.companyId);
@@ -767,7 +777,8 @@ app.get("/api/invoices", requireAuth, requireAnyModule("sales", "ecommerce"), as
         const userRows = await db.select({ id: users.id, fullName: users.fullName }).from(users).where(inArray(users.id, userIds));
         for (const u of userRows) userMap[u.id] = u.fullName;
       }
-      const result = rows.map((r: any) => ({ ...r, createdByName: r.createdBy ? userMap[r.createdBy] || "-" : "-", updatedByName: r.updatedBy ? userMap[r.updatedBy] || "-" : "-" }));
+      const paidMap = await computeInvoicePaidAmounts(rows.map((r: any) => r.id));
+      const result = rows.map((r: any) => ({ ...r, createdByName: r.createdBy ? userMap[r.createdBy] || "-" : "-", updatedByName: r.updatedBy ? userMap[r.updatedBy] || "-" : "-", paidAmount: paidMap[r.id] || 0 }));
       return res.json(paginatedResponse(result, Number(total), { page, pageSize, offset }));
     }
     rows = await db.select().from(invoices).where(whereClause).orderBy(desc(invoices.invoiceDate), desc(invoices.id));
@@ -777,7 +788,8 @@ app.get("/api/invoices", requireAuth, requireAnyModule("sales", "ecommerce"), as
       const userRows = await db.select({ id: users.id, fullName: users.fullName }).from(users).where(inArray(users.id, userIds));
       for (const u of userRows) userMap[u.id] = u.fullName;
     }
-    const result = rows.map((r: any) => ({ ...r, createdByName: r.createdBy ? userMap[r.createdBy] || "-" : "-", updatedByName: r.updatedBy ? userMap[r.updatedBy] || "-" : "-" }));
+    const paidMap = await computeInvoicePaidAmounts(rows.map((r: any) => r.id));
+    const result = rows.map((r: any) => ({ ...r, createdByName: r.createdBy ? userMap[r.createdBy] || "-" : "-", updatedByName: r.updatedBy ? userMap[r.updatedBy] || "-" : "-", paidAmount: paidMap[r.id] || 0 }));
     res.json(result);
   } catch (err: any) { console.error("[invoices] list error:", err); res.status(500).json({ message: err.message }); }
 });

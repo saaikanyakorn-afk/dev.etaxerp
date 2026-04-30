@@ -448,13 +448,22 @@ export default function InvoiceList() {
                             })()}
                           </TableCell>
                           <TableCell className="text-right tabular-nums pt-2.5">
-                            <div className="text-xs text-muted-foreground">{fmt(inv.paidAmount || 0)}</div>
-                            <div className="text-sm font-medium">
-                              {fmt(inv.totalAmount)}
-                              {inv.currencyCode && inv.currencyCode !== "THB" && (
-                                <span className="text-[10px] ml-1 text-[var(--theme-primary)]">{inv.currencyCode}</span>
-                              )}
-                            </div>
+                            {(() => {
+                              const total = parseFloat(String(inv.totalAmount || 0));
+                              const paid = parseFloat(String(inv.paidAmount || 0));
+                              const outstanding = Math.max(0, total - paid);
+                              return (
+                                <>
+                                  <div className="text-xs text-muted-foreground">{fmt(outstanding)}</div>
+                                  <div className="text-sm font-medium">
+                                    {fmt(total)}
+                                    {inv.currencyCode && inv.currencyCode !== "THB" && (
+                                      <span className="text-[10px] ml-1 text-[var(--theme-primary)]">{inv.currencyCode}</span>
+                                    )}
+                                  </div>
+                                </>
+                              );
+                            })()}
                           </TableCell>
                           <TableCell className="text-center pt-3">
                             <Badge data-testid={`badge-payment-${inv.id}`} className={`${ps.color} border text-xs py-0.5 px-2.5 font-normal h-6`}>
