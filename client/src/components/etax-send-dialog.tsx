@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useCompany } from "@/lib/company-context";
 import { useQueryClient } from "@tanstack/react-query";
-import { Send, Loader2, Mail, ChevronDown, ChevronUp, CheckCircle2, AlertCircle } from "lucide-react";
+import { Send, Loader2, Mail, ChevronDown, ChevronUp, CheckCircle2, AlertCircle, Bug } from "lucide-react";
 
 type FormType = "tax_invoice" | "tax_invoice_receipt" | "receipt";
 

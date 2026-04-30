@@ -248,8 +248,19 @@ Do NOT stop the server after BATCH 2 unless there is a problem.
 - [x] Command run — build succeeded ✅ (Done in 413ms)
 - [x] Server started — no red output, running clean ✅
 - [x] No unexpected migration log ✅
-- [ ] พี่ทราย verify all features
-- [ ] ✅ DEPLOY COMPLETE — update cherry-pick history in replit.md with bundle sizes
+- [x] พี่ทราย verify — ❌ HOTFIX NEEDED (see below)
+- [ ] ✅ DEPLOY COMPLETE — pending hotfix
+
+### 🔥 HOTFIX — etax-send-dialog.tsx (Bug icon missing import)
+**Error:** `Bug is not defined` — หน้า /sales/tax-invoice crash ทันที
+**Fix:** เพิ่ม `Bug` ใน lucide-react import — `etax-send-dialog.tsx` line 10 ✅ fixed in dev
+**Deploy command (พี่ช้าง รัน 2 บรรทัด):**
+```
+pm2 stop etax-center
+```
+```
+git fetch origin && git checkout origin/main -- client/src/components/etax-send-dialog.tsx && npm run build && npm start
+```
 
 ## 🔴 GOLDEN RULE — PULL-BEFORE-TOUCH (MANDATORY for any protected/sensitive file)
 
