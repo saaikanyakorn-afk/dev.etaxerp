@@ -249,7 +249,7 @@ Do NOT stop the server after BATCH 2 unless there is a problem.
 - [x] Server started — no red output, running clean ✅
 - [x] No unexpected migration log ✅
 - [x] พี่ทราย verify — ❌ HOTFIX NEEDED (see below)
-- [ ] ✅ DEPLOY COMPLETE — pending hotfix
+- [x] ✅ DEPLOY COMPLETE 2026-04-30 — hotfix included
 
 ### 🔥 HOTFIX — etax-send-dialog.tsx (Bug icon missing import)
 **Error:** `Bug is not defined` — หน้า /sales/tax-invoice crash ทันที
