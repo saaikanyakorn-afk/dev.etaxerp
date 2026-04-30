@@ -1935,6 +1935,7 @@ app.post("/api/tax-invoices", requireAuth, requireAnyModule("sales", "ecommerce"
       }
     }
     logActivity({ companyId, userId: user.id, userName: user.username, action: "create", entityType: "tax_invoice", entityId: String(result.id), entityName: taxInvoiceNo }).catch(() => {});
+    if (result.invoiceId) await recomputePaymentStatus("invoice", result.invoiceId).catch(() => {});
     res.status(201).json({ ...result, items: savedItems, journalResult });
   } catch (err: any) { res.status(400).json({ message: err.message }); }
 });
@@ -2130,6 +2131,8 @@ app.patch("/api/tax-invoices/:id", requireAuth, requireAnyModule("sales", "ecomm
       }
     }
 
+    if (updated.invoiceId) await recomputePaymentStatus("invoice", updated.invoiceId).catch(() => {});
+    else if (existing.invoiceId) await recomputePaymentStatus("invoice", existing.invoiceId).catch(() => {});
     res.json({ ...updated, items: savedItems, journalResult });
   } catch (err: any) { res.status(400).json({ message: err.message }); }
 });

@@ -1190,7 +1190,14 @@ export async function recomputePaymentStatus(docType: "taxInvoice" | "invoice", 
   const directSum = linkedReceipts.reduce((sum: number, r: any) => sum + parseFloat(r.totalAmount || "0"), 0);
   const linkedDocs = await db.select().from(receiptLinkedDocs).where(and(eq(receiptLinkedDocs.docType, rldDocType), eq(receiptLinkedDocs.docId, docId)));
   const batchSum = linkedDocs.reduce((sum: number, ld: any) => sum + parseFloat(ld.amount || "0"), 0);
-  const totalPaid = directSum + batchSum;
+  let tivSum = 0;
+  if (docType === "invoice") {
+    const nonCreditTIVs = await db.select({ totalAmount: taxInvoices.totalAmount })
+      .from(taxInvoices)
+      .where(sql`invoice_id = ${docId} AND payment_method IS NOT NULL AND payment_method <> '' AND payment_method <> 'เครดิต'`);
+    tivSum = nonCreditTIVs.reduce((sum: number, tiv: any) => sum + parseFloat(String(tiv.totalAmount || "0")), 0);
+  }
+  const totalPaid = directSum + batchSum + tivSum;
   let status: "unpaid" | "partial" | "paid" = "unpaid";
   if (totalPaid > 0 && totalPaid < docTotal - 0.01) status = "partial";
   else if (totalPaid >= docTotal - 0.01 && totalPaid > 0) status = "paid";
