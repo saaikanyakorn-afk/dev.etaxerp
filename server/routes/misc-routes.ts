@@ -134,7 +134,8 @@ app.get("/api/share-base-url", (req, res) => {
   if (!host) {
     throw new Error("Server cannot determine its own host — check reverse proxy Host header configuration");
   }
-  res.json({ url: `${req.protocol}://${host}` });
+  const proto = req.get("x-forwarded-proto") || req.protocol;
+  res.json({ url: `${proto}://${host}` });
 });
 
 app.get("/api/public-config", (_req, res) => {

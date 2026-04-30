@@ -26,7 +26,6 @@ process.exit = function(code?: number) {
 } as typeof process.exit;
 
 const app = express();
-app.set("trust proxy", true);
 const httpServer = createServer(app);
 
 app.get("/healthz", (_req, res) => res.status(200).send("ok"));
