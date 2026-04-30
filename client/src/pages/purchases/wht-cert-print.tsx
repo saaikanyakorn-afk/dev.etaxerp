@@ -395,9 +395,14 @@ export function WhtCertContent({ data, dateEra = "CE", dateFmt = "DD/MM/YYYY" }:
                   <td style={{ border: "none", paddingTop: "4px" }}></td>
                   <td style={{ textAlign: "left", whiteSpace: "nowrap", paddingLeft: "8px", paddingTop: "4px", fontSize: "9px", color: "#666", border: "none" }}>(ถ้ามี)</td>
                 </tr>
+                <tr>
+                  <td style={{ border: "none" }}></td>
+                  <td style={{ textAlign: "center", fontSize: "9px", color: "#666", border: "none", paddingTop: "1px" }}>(วัน เดือน ปี ที่ออกหนังสือรับรองฯ)</td>
+                  <td style={{ border: "none" }}></td>
+                  <td style={{ border: "none" }}></td>
+                </tr>
               </tbody>
             </table>
-            <div style={{ fontSize: "9px", color: "#666", marginTop: "2px" }}>(วัน เดือน ปี ที่ออกหนังสือรับรองฯ)</div>
           </div>
         </div>
 
