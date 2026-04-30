@@ -131,17 +131,16 @@ app.get("/api/version", (_req, res) => {
 
 app.get("/api/share-base-url", (req, res) => {
   const host = req.get("host") || "";
-  if (process.env.NODE_ENV === "production") {
+  if (process.env.SHARE_BASE_URL) {
+    res.json({ url: process.env.SHARE_BASE_URL.replace(/\/$/, "") });
+  } else if (process.env.NODE_ENV === "production") {
     res.json({ url: `https://${host}` });
   } else if (host.includes(".replit.app")) {
     res.json({ url: `https://${host}` });
+  } else if (process.env.PRODUCTION_APP_URL) {
+    res.json({ url: process.env.PRODUCTION_APP_URL.replace(/\/$/, "") });
   } else {
-    const replId = process.env.REPL_ID;
-    if (replId) {
-      res.json({ url: `https://${replId}.replit.app` });
-    } else {
-      res.json({ url: `${req.protocol}://${host}` });
-    }
+    res.json({ url: `${req.protocol}://${host}` });
   }
 });
 
