@@ -1574,6 +1574,47 @@ Other:
 - Security work lives ONLY on github-replit (and github-dev when approved). Never cherry-pick security commits to prod working dir.
 - Commit `73e7d519` (sysAdmin LINE ID 2FA requirement) — github-replit ONLY. DO NOT propagate.
 
+## /sys-k7x9 Security Work — PAUSED
+**Status: ⏸️ PAUSED** — รอ business side เสร็จก่อน ไม่มี new commits ไป security work จนกว่าพี่ช้างจะ resume
+**DO NOT** push any /sys-k7x9 or sysadmin-routes.ts to etaxerp (github-production) — security-only branch
+
+### What Is /sys-k7x9
+SysAdmin portal — separate login gate at `/sys-k7x9` URL — controls platform-level admin operations
+outside the normal user/company login flow. Completely isolated from regular app routes.
+
+### ✅ Implemented (in code, github-replit only — NOT on etaxerp production)
+| Feature | Files |
+|---------|-------|
+| Login + 2FA (email OTP, TOTP/Google Authenticator, LINE OTP) | `sysadmin-routes.ts`, `sysadmin-login.tsx` |
+| Bootstrap / first-time master account setup | `sysadmin-routes.ts` |
+| Password policy (min length, complexity, expiry) | `sysadmin-routes.ts` |
+| User management (CRUD, force-change-password, unlock, reset-2fa) | `sysadmin-routes.ts` |
+| Audit log (view, bulk delete) | `sysadmin-routes.ts` |
+| SMTP config + test | `sysadmin-routes.ts` |
+| Infrastructure management (locations, routers, domains, machines) | `sysadmin-routes.ts` |
+| Commit `73e7d519` — LINE ID required for 2FA | github-replit ONLY |
+
+### ❌ Unfinished (not yet implemented — blocked by pause)
+| Item | Why It Matters |
+|------|---------------|
+| **LAN connection security probe** | Current `probeLanConnection()` does TCP connect + `SELECT 1` only — does NOT verify DB identity, does NOT verify source IP is in authorized LAN range, no runtime re-probe if LAN drops mid-session. Active on production NOW with this incomplete probe. |
+| **IP whitelist for /sys-k7x9 access** | Anyone who can reach the URL can attempt login — no network-level restriction yet |
+| **Session lockout policy enforcement** | unlock endpoint exists but lockout trigger rules not fully defined |
+| **Authorized machine verification for LAN** | `DB_MAIN_LAN_URL` should only activate if app server's own IP is in a pre-approved LAN range — not implemented |
+
+### ⚠️ Current Production Risk (from unauthorized agent push 2026-04-29)
+- LAN feature is **active on etaxerp production** using incomplete `probeLanConnection()`
+- Risk: If LAN IP changes or rogue device takes that IP → app connects to wrong DB silently
+- Mitigation until security work resumes: monitor `lan-probe.log` manually after each server restart
+- **Do NOT add `DB_MAIN_LAN_URL` to any new server's config** until LAN security probe is complete
+
+### When Resuming
+1. Read this section first
+2. Implement proper LAN probe (verify DB identity fingerprint + source IP range check + runtime re-probe)
+3. Implement IP whitelist for `/sys-k7x9` route
+4. Then continue with remaining items above
+5. Only then cherry-pick to etaxerp production — one feature at a time with พี่ช้าง approval
+
 ## PRODUCTION SERVER KNOWN STATE BASELINE
 Last verified: **2026-04-30** (manually inspected this session — do not trust older notes)
 
