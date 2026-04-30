@@ -1586,11 +1586,10 @@ Commands issued to production server = **`git fetch origin` + `git checkout orig
 ### Deploying to Production (cherry-pick only)
 Always send these commands one step at a time. Never batch without พี่ช้าง confirming each step.
 
-**Step A — Push files to git repo FIRST (from dev environment):**
-Files must exist in the git remote before the production server can checkout them.
-Kai identifies the specific commit hash that contains ONLY the files for this step.
-พี่ช้าง (or authorized human operator) cherry-pushes ONLY that commit to github-production.
-AI agents cannot push to github-production directly — human authorization required always.
+**Step A — Cherry-push to github-production (Kai does this, no need to ask):**
+When พี่ช้าง approves the checklist, that approval also authorizes cherry-push for every
+step in that batch. Kai pushes ONLY the commit(s) for the current step to github-production.
+Kai notifies พี่ช้าง only when cherry-push is done — then พี่ช้าง runs the fetch command.
 
 **Step B — Production server command (after Step A confirmed):**
 ```
