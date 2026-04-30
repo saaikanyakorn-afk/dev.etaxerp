@@ -88,7 +88,10 @@
 //   ────────────────────────────────────────────────────────────────────────────
 //   2. DEPLOY DB-ONLY FIRST — push ONLY the schema-extra migration function and
 //      its route-file caller. No other changes in the same deploy.
-//   3. CONFIRM IT RAN ONCE — check server logs that the migration function fired.
+//   3. CONFIRM IT RAN ONCE — login to production DB and query system_config for
+//      the flag key. If the flag row exists, the migration ran successfully.
+//      Do NOT grep server logs. If Node.js logging is needed, write a temporary
+//      console.log block in code to display on screen, then remove it afterward.
 //      Then ask พี่ช้าง to STOP the production server.
 //   4. VERIFY PRODUCTION DB — query production to confirm columns/data are correct.
 //   ── If the change touched existing data content ───────────────────────────────
