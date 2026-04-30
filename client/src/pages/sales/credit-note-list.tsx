@@ -22,7 +22,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu";
-import { apiRequest, getShareBaseUrl } from "@/lib/queryClient";
+import { getShareBaseUrl } from "@/lib/queryClient";
 import { invalidateDocCaches } from "@/lib/invalidate-doc-caches";
 import { useBulkDelete } from "@/hooks/use-bulk-delete";
 import { BulkDeleteButton, BulkDeleteConfirmDialog, SelectAllCheckbox, RowCheckbox } from "@/components/bulk-delete-bar";
@@ -82,7 +82,7 @@ export default function CreditNoteList() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => {
-      await apiRequest("DELETE", `/api/sales-credit-notes/${id}`);
+      await fetch(`/api/sales-credit-notes/${id}`, { method: "DELETE", credentials: "include" });
     },
     onSuccess: () => {
       invalidateDocCaches(queryClient, [["/api/sales-credit-notes"]]);
@@ -255,7 +255,7 @@ export default function CreditNoteList() {
                               </DropdownMenuItem>
                               <DropdownMenuItem onClick={async () => {
                                 try {
-                                  const res = await apiRequest("POST", `/api/sales-credit-notes/${cn.id}/share`);
+                                  const res = await fetch(`/api/sales-credit-notes/${cn.id}/share`, { method: "POST", credentials: "include" });
                                   const data = await res.json();
                                   const base = await getShareBaseUrl();
                                   const url = `${base}/share/credit-note/${data.shareToken}`;
@@ -273,7 +273,7 @@ export default function CreditNoteList() {
                               </DropdownMenuItem>
                               <DropdownMenuItem onClick={async () => {
                                 try {
-                                  const res = await apiRequest("POST", `/api/sales-credit-notes/${cn.id}/share`);
+                                  const res = await fetch(`/api/sales-credit-notes/${cn.id}/share`, { method: "POST", credentials: "include" });
                                   const data = await res.json();
                                   const base = await getShareBaseUrl();
                                   const url = `${base}/share/credit-note/${data.shareToken}`;

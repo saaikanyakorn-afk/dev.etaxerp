@@ -7,8 +7,11 @@ import { requireAuth, requireModule, requireRole, requireAnyModule, checkDocOwne
 import { sql } from "drizzle-orm";
 import { getNextDocNo, createAutoJournalEntry, resolvePaymentMethodAccountCode, logActivity, upsertWarehouseStockLevel, getInventoryTriggers } from "../route-helpers";
 import { parsePagination, paginatedResponse } from "./pagination";
+import { runCreditNoteShareTokenMigration } from "@shared/schema-extra";
 
 export function registerFinancialDocsRoutes(app: Express) {
+runCreditNoteShareTokenMigration(db);
+
 // ========== Deposit Receipt Routes (ใบรับเงินมัดจำ) ==========
 
 app.get("/api/deposit-receipts/available", requireAuth, requireAnyModule("sales", "ecommerce"), async (req, res) => {

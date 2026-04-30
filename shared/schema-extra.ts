@@ -419,6 +419,27 @@ export type TenantModuleSubscription = typeof tenantModuleSubscriptions.$inferSe
  * }
  */
 
+// ── ADD share_token to sales_credit_notes (2026-04-30) ────────────────────
+const CN_SHARE_TOKEN_KEY = "ADD_SHARE_TOKEN_TO_SALES_CREDIT_NOTES_2026-04-30";
+
+export async function runCreditNoteShareTokenMigration(db: any) {
+  try {
+    const flagRows = await db.execute(sql`
+      SELECT 1 FROM system_config WHERE config_key = ${CN_SHARE_TOKEN_KEY} LIMIT 1
+    `);
+    if ((flagRows.rows || []).length > 0) return;
+    await db.execute(sql`ALTER TABLE sales_credit_notes ADD COLUMN IF NOT EXISTS share_token TEXT`);
+    await db.execute(sql`
+      INSERT INTO system_config (config_key, config_value)
+      VALUES (${CN_SHARE_TOKEN_KEY}, 'done')
+      ON CONFLICT (config_key) DO NOTHING
+    `);
+    console.log("[migration] ✅ share_token added to sales_credit_notes");
+  } catch (e: any) {
+    console.warn("[migration] cn_share_token:", e.message);
+  }
+}
+
 // ── ADD bank_name + bank_account_no to payment_methods (2026-04-29) ────────
 const BANK_INFO_MIGRATION_KEY = "ADD_BANK_INFO_TO_PAYMENT_METHODS_2026-04-29";
 
