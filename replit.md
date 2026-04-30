@@ -114,11 +114,7 @@ Production is at commit `a1c6996c` on github-production. The following batches a
 This does `ALTER TABLE payment_methods ADD COLUMN IF NOT EXISTS bank_name text` and `bank_account_no text`.
 Must run isolated — verify DB before deploying anything else.
 
-**STEP 0 — Backup (run on production server):**
-```
-PGPASSWORD=nJKsyhE4583Hz pg_dump -h deep-main.hopto.org -p 20541 -U etaxusr -d etax-production -t payment_methods --schema-only > payment_methods_backup_before_bank_cols.sql
-```
-Confirm file exists before continuing.
+**No backup needed** — both are `ADD COLUMN` nullable with no default that changes existing rows. Existing data is untouched. Revert = `DROP COLUMN`. (Rule: replit.md line 967)
 
 **STEP 1 — Deploy ONLY this file:**
 ```
@@ -154,7 +150,6 @@ pm2 start etax-center
 ```
 If migration log appears again → `pm2 stop etax-center` immediately, tell Kai.
 
-- [ ] STEP 0: backup done
 - [ ] STEP 1: deployed + started
 - [ ] STEP 2: migration log seen ✅
 - [ ] STEP 2b: server STOPPED immediately
