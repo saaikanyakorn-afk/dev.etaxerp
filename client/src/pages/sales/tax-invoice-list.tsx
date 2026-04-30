@@ -493,12 +493,14 @@ export default function TaxInvoiceList() {
                             {(() => {
                               const total = parseFloat(String(inv.totalAmount || 0));
                               const paid = parseFloat(String(inv.paidAmount || 0));
-                              const outstanding = Math.max(0, total - paid);
+                              const isPaid = inv.paymentStatus === "paid" || inv.paymentStatus === "success" || inv.status === "paid";
+                              const outstanding = isPaid ? 0 : Math.max(0, total - paid);
+                              const whtAmt = parseFloat(String(inv.withholdingTax || inv.whtAmount || 0));
                               return (
                                 <>
                                   <div className="text-xs text-muted-foreground">{fmt(outstanding)}</div>
-                                  {inv.whtAmount > 0 && (
-                                    <div className="text-xs text-blue-600">[WHT:{fmt(inv.whtAmount)}]</div>
+                                  {whtAmt > 0 && (
+                                    <div className="text-xs text-blue-600">[WHT:{fmt(whtAmt)}]</div>
                                   )}
                                   <div className="border-t border-gray-200 my-0.5" />
                                   <div className="text-sm font-medium">

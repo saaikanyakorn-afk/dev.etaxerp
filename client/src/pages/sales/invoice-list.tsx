@@ -451,7 +451,8 @@ export default function InvoiceList() {
                             {(() => {
                               const total = parseFloat(String(inv.totalAmount || 0));
                               const paidAmt = parseFloat(String(inv.paidAmount ?? 0));
-                              const outstanding = inv.status === "paid" ? 0 : Math.max(0, total - paidAmt);
+                              const isPaid = inv.status === "paid" || inv.paymentStatus === "paid" || inv.paymentStatus === "success";
+                              const outstanding = isPaid ? 0 : Math.max(0, total - paidAmt);
                               return (
                                 <>
                                   <div className="text-xs text-muted-foreground">{fmt(outstanding)}</div>
