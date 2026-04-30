@@ -148,7 +148,7 @@ export default function SalesTaxReport() {
       return `<tr style="${cnStyle}">
       <td style="border:1px solid #ccc;padding:3px 6px;text-align:center">${r.no}</td>
       <td style="border:1px solid #ccc;padding:3px 6px">${formatDate(r.date, dateEra, dateFmt)}</td>
-      <td style="border:1px solid #ccc;padding:3px 6px">${r.taxInvoiceNo}${r.isCreditNote ? ' <span style="color:#dc2626;font-size:10px">(ลดหนี้)</span>' : ""}${r.isDebitNote ? " (เพิ่มหนี้)" : ""}</td>
+      <td style="border:1px solid #ccc;padding:3px 6px">${r.taxInvoiceNo}${r.isDebitNote ? " (เพิ่มหนี้)" : ""}</td>
       <td style="border:1px solid #ccc;padding:3px 6px">${r.customerName}</td>
       <td style="border:1px solid #ccc;padding:3px 6px">${r.customerTaxId ? "'" + r.customerTaxId : ""}</td>
       <td style="border:1px solid #ccc;padding:3px 6px;text-align:center">${r.branch ? "'" + r.branch : ""}</td>
@@ -259,7 +259,7 @@ export default function SalesTaxReport() {
         return `<tr style="${rowBg}">
           <td style="text-align:center;border:1px solid #ccc;padding:2px 4px;font-size:11px">${r.no}</td>
           <td style="border:1px solid #ccc;padding:2px 4px;font-size:11px;white-space:nowrap">${formatDate(r.date, dateEra, dateFmt)}</td>
-          <td style="border:1px solid #ccc;padding:2px 4px;font-size:11px">${r.taxInvoiceNo}${r.isCreditNote ? ' <span style="color:#dc2626;font-size:9px;font-weight:600">(ลดหนี้)</span>' : ""}${r.isDebitNote ? ' <span style="color:#d97706;font-size:9px">(เพิ่มหนี้)</span>' : ""}</td>
+          <td style="border:1px solid #ccc;padding:2px 4px;font-size:11px">${r.taxInvoiceNo}${r.isDebitNote ? ' <span style="color:#d97706;font-size:9px">(เพิ่มหนี้)</span>' : ""}</td>
           <td style="border:1px solid #ccc;padding:2px 4px;font-size:11px">${r.customerName}</td>
           <td style="border:1px solid #ccc;padding:2px 4px;font-size:11px">${r.customerTaxId || ""}</td>
           <td style="border:1px solid #ccc;padding:2px 4px;font-size:11px;text-align:center">${r.branch || ""}</td>
@@ -551,7 +551,6 @@ export default function SalesTaxReport() {
                         <TableCell className="text-xs whitespace-nowrap min-w-[90px]">{formatDate(row.date, dateEra, dateFmt)}</TableCell>
                         <TableCell className="text-xs font-medium">
                           {row.taxInvoiceNo}
-                          {row.isCreditNote && <span className="ml-1 text-[10px] text-rose-500 font-medium">(ลดหนี้)</span>}
                           {row.isDebitNote && <span className="ml-1 text-[10px] text-amber-600 font-medium">(เพิ่มหนี้)</span>}
                         </TableCell>
                         <TableCell className="text-xs">{row.customerName}</TableCell>
