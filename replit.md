@@ -153,9 +153,9 @@ If migration log appears again → `pm2 stop etax-center` immediately, tell Kai.
 - [x] STEP 2: migration log seen ✅ `[migration] ✅ bank_name + bank_account_no added to payment_methods`
 - [x] STEP 2b: server STOPPED
 - [x] STEP 3: DB verified by Kai — bank_name ✅ bank_account_no ✅ (both text, nullable)
-- [x] STEP 4: restarted clean — awaiting STEP 5 confirmation
-- [ ] STEP 5: clean log confirmed — no migration repeat
-- [ ] BATCH 1 LOOP CLOSED → proceed to BATCH 2
+- [x] STEP 4: restarted clean ✅ pm2 start etax-center → online
+- [x] STEP 5: clean log confirmed — no migration repeat (no issue reported)
+- [x] BATCH 1 LOOP CLOSED ✅ 2026-04-30 → proceed to BATCH 2
 
 ---
 
