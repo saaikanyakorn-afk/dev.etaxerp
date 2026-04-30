@@ -4,11 +4,9 @@ import { ecomDb } from "../ecom-db";
 import { eq, desc, and, asc , sql } from "drizzle-orm";
 import { warehouseZones, warehouseBins, ecommerceOrders, ecommerceOrderItems } from "@shared/schema";
 import { requireAuth, requireModule } from "../route-middleware";
-import { runWarehouseColumnsMigration } from "@shared/schema-extra";
+// runWarehouseColumnsMigration — DONE 2026-04-30, columns verified in DB, comment out per TERTIARY USE rule
 
 export function registerWarehouseBinRoutes(app: Express) {
-// Run after DB is ready (inside function = called after migrationReady, not at module import time)
-runWarehouseColumnsMigration(db);
 
 // ========== Warehouse Bin Location System ==========
 

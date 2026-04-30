@@ -442,12 +442,12 @@ export async function runBankInfoToPaymentMethodsMigration(db: any) {
 }
 
 // =============================================================================
-// WAREHOUSE COLUMNS MIGRATION — from commits 3b274b63, c94edb4e, 78c5efa6
-// Moves ALTER TABLE blocks out of index.ts into schema-extra (TERTIARY USE).
+// WAREHOUSE COLUMNS MIGRATION — DONE 2026-04-30, comment out per TERTIARY USE rule
+// 8 columns verified in DB, backfill done (flag WAREHOUSE_STOCK_BACKFILL_DONE = done)
 // Backup: db/backups/2026-04-30_warehouse_stock_levels_before_backfill_v85.sql
 // History: db/schema-history.md
-// Called from: server/routes/warehouse-bin-routes.ts (top-level)
 // =============================================================================
+/*
 export async function runWarehouseColumnsMigration(db: any) {
   try {
     // --- Pure DDL — IF NOT EXISTS is idempotent, no flag needed ---
@@ -523,3 +523,4 @@ export async function runWarehouseColumnsMigration(db: any) {
     console.error(`[migration] Hint: check unique index wsl_unique_warehouse_product_company on warehouse_stock_levels, and check for duplicate (warehouse_id, product_id, company_id) rows`);
   }
 }
+*/
