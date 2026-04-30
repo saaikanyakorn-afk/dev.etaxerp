@@ -492,3 +492,134 @@ export async function buildBillingNotePdfData(billingNoteId: number): Promise<Ge
     etaxStampBase64: null,
   };
 }
+
+export async function buildCreditNotePdfData(cnId: number): Promise<GeneratePdfOptions> {
+  const [cn] = await db.select().from(salesCreditNotes).where(eq(salesCreditNotes.id, cnId));
+  if (!cn) throw new Error("ไม่พบใบลดหนี้");
+
+  const companyId = cn.companyId;
+  const [company] = await db.select().from(companies).where(eq(companies.id, companyId));
+  if (!company) throw new Error("ไม่พบบริษัท");
+
+  const rawItems = await db.select().from(salesCreditNoteItems).where(eq(salesCreditNoteItems.creditNoteId, cnId));
+
+  let docSetting: any = null;
+  try {
+    const [ds] = await db.select().from(documentSettings).where(eq(documentSettings.companyId, companyId));
+    docSetting = ds || null;
+  } catch {}
+
+  let userSig: PdfSignature | null = null;
+  if (cn.createdBy) {
+    try {
+      const u = await storage.getUser(cn.createdBy);
+      if (u) {
+        const sigBase64 = await fetchImageAsBase64(u.signatureUrl ? await resolveObjectStorageUrl(u.signatureUrl) : null);
+        userSig = { signatureBase64: sigBase64, signatureName: u.signatureName || u.fullName, signatureTitle: u.signatureTitle || null };
+      }
+    } catch {}
+  }
+
+  let logoBase64: string | null = null;
+  if (docSetting?.logoUrl) {
+    logoBase64 = await fetchImageAsBase64(await resolveObjectStorageUrl(docSetting.logoUrl));
+  }
+
+  let qrCodeBase64: string | null = null;
+  if (docSetting?.qrCodeUrl) {
+    qrCodeBase64 = await fetchImageAsBase64(await resolveObjectStorageUrl(docSetting.qrCodeUrl));
+  }
+
+  // ดึง subtotal ของ TIV ที่อ้างอิง เพื่อคำนวณ "มูลค่าตามใบกำกับภาษีเดิม"
+  let cnOriginalSubtotal: number | null = null;
+  if (cn.refTaxInvoiceId) {
+    try {
+      const [tiv] = await db.select().from(taxInvoices).where(eq(taxInvoices.id, cn.refTaxInvoiceId));
+      if (tiv) cnOriginalSubtotal = parseFloat(String(tiv.subtotal || "0"));
+    } catch {}
+  }
+
+  const cnSubtotal = parseFloat(String(cn.subtotal || "0"));
+  const cnCorrectSubtotal = cnOriginalSubtotal !== null ? cnOriginalSubtotal - cnSubtotal : null;
+
+  const pdfCompany: PdfCompany = {
+    id: company.id,
+    name: company.name,
+    nameEn: company.nameEn,
+    taxId: company.taxId || "",
+    address: company.address || "",
+    phone: company.phone || "",
+    email: company.email || null,
+    branch: company.branch || "สำนักงานใหญ่",
+    lineId: (company as any).lineId || null,
+    facebook: (company as any).facebook || null,
+    instagram: (company as any).instagram || null,
+    website: (company as any).website || null,
+  };
+
+  const pdfSettings: PdfSettings = {
+    logoBase64,
+    showLogo: docSetting?.showLogo !== false,
+    showSignature: docSetting?.showSignature !== false,
+    showTaxId: docSetting?.showTaxId !== false,
+    showBranch: docSetting?.showBranch !== false,
+    showProductCode: docSetting?.showProductCode !== false,
+    headerNote: docSetting?.headerNote || null,
+    footerNote: docSetting?.footerNote || null,
+    bankAccountName: docSetting?.bankAccountName || null,
+    bankAccountNumber: docSetting?.bankAccountNumber || null,
+    bankName: docSetting?.bankName || null,
+    qrCodeBase64,
+    promptpayQrBase64: null,
+    docTypeColors: docSetting?.docTypeColors || null,
+    colorMode: docSetting?.colorMode || null,
+    dateEra: docSetting?.dateEra || null,
+    dateFormat: docSetting?.dateFormat || null,
+    docFontSize: docSetting?.docFontSize || "medium",
+    showQrOnDoc: false,
+    qrBase64: null,
+  };
+
+  const pdfDocument: PdfDocumentData = {
+    docNo: cn.creditNoteNo,
+    docDate: cn.creditNoteDate ? String(cn.creditNoteDate) : null,
+    customerName: cn.customerName || "",
+    customerAddress: cn.customerAddress || "",
+    customerTaxId: cn.customerTaxId || "",
+    customerBranch: cn.branch || "",
+    sellerBranchCode: cn.sellerBranchId || "",
+    sellerBranchName: "",
+    sellerBranchAddress: "",
+    contactPerson: cn.contactPerson || "",
+    contactPhone: cn.contactPhone || "",
+    contactEmail: cn.contactEmail || "",
+    notes: cn.notes || "",
+    subtotal: cnSubtotal,
+    vatAmount: parseFloat(String(cn.vatAmount || "0")),
+    discountAmount: parseFloat(String(cn.discountAmount || "0")),
+    totalAmount: parseFloat(String(cn.totalAmount || "0")),
+    withholdingTax: 0,
+    priceMode: cn.priceMode || "excluded",
+    currencyCode: cn.currencyCode || "THB",
+    exchangeRate: cn.exchangeRate ? parseFloat(String(cn.exchangeRate)) : null,
+    paymentMethod: cn.paymentMethod || null,
+    items: mapItemsToPdfItems(rawItems),
+    // CN-specific
+    refTaxInvoiceNo: cn.refTaxInvoiceNo || null,
+    refTaxInvoiceDate: cn.refTaxInvoiceDate ? String(cn.refTaxInvoiceDate) : null,
+    cnReason: cn.reason || null,
+    cnReasonDetail: cn.reasonDetail || null,
+    cnOriginalSubtotal,
+    cnCorrectSubtotal,
+  };
+
+  return {
+    company: pdfCompany,
+    settings: pdfSettings,
+    document: pdfDocument,
+    documentType: "credit_note",
+    signature: userSig,
+    etaxEnabled: false,
+    etaxStampBase64: null,
+  };
+}

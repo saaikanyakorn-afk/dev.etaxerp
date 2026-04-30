@@ -387,7 +387,44 @@ function buildDocDefinition(opts: GeneratePdfOptions): TDocumentDefinitions {
   const netPayAmount = subtotal + vatAmount - withholdingTax;
   const thaiAmountText = isForeignCurrency ? `${fmtNum(netPayAmount)} ${currencyCode}` : numberToThaiText(netPayAmount);
 
+  // ── Credit Note special summary table ──────────────────────────────────────
+  const isCreditNote = documentType === "credit_note";
+  const cnOriginal = (doc as any).cnOriginalSubtotal ?? null;
+  const cnCorrect  = (doc as any).cnCorrectSubtotal  ?? null;
+  const cnDiff     = cnOriginal !== null ? cnOriginal - (cnCorrect ?? 0) : subtotal;
+
   const summaryBody: Content[][] = [];
+
+  if (isCreditNote) {
+    if (cnOriginal !== null) {
+      summaryBody.push([
+        { text: [{ text: "มูลค่าตามใบกำกับภาษีเดิม (1)\n", fontSize: 7.5 }, { text: "Original Tax Invoice Value", fontSize: 6, color: "#9ca3af" }] },
+        { text: fmtNum(cnOriginal), fontSize: 7.5, alignment: "right" },
+      ]);
+      summaryBody.push([
+        { text: [{ text: "มูลค่าที่ถูกต้อง (2)\n", fontSize: 7.5 }, { text: "Correct Value", fontSize: 6, color: "#9ca3af" }] },
+        { text: fmtNum(cnCorrect ?? 0), fontSize: 7.5, alignment: "right" },
+      ]);
+      summaryBody.push([
+        { text: [{ text: "ส่วนต่าง (1) – (2)\n", fontSize: 7.5 }, { text: "Difference", fontSize: 6, color: "#9ca3af" }] },
+        { text: fmtNum(cnDiff), fontSize: 7.5, alignment: "right" },
+      ]);
+    } else {
+      summaryBody.push([
+        { text: [{ text: "มูลค่าก่อนภาษี\n", fontSize: 7.5 }, { text: "Value Before VAT", fontSize: 6, color: "#9ca3af" }] },
+        { text: fmtNum(subtotal), fontSize: 7.5, alignment: "right" },
+      ]);
+    }
+    summaryBody.push([
+      { text: [{ text: "ภาษีมูลค่าเพิ่ม 7%\n", fontSize: 7.5 }, { text: "Value Added Tax", fontSize: 6, color: "#9ca3af" }] },
+      { text: fmtNum(vatAmount), fontSize: 7.5, alignment: "right" },
+    ]);
+    summaryBody.push([
+      { text: [{ text: "ยอดเงินสุทธิ\n", fontSize: 9, bold: true, color: "white" }, { text: "Net Total", fontSize: 6, color: "white" }], fillColor: primary },
+      { text: fmtNum(totalAmount), fontSize: 9, bold: true, color: "white", alignment: "right", fillColor: primary },
+    ]);
+  } else {
+  // ── Standard summary ────────────────────────────────────────────────────────
   summaryBody.push([
     { text: [{ text: "ยอดรวม\n", fontSize: 7.5 }, { text: "Sub Total", fontSize: 6, color: "#9ca3af" }] },
     { text: fmtNum(subtotal), fontSize: 7.5, alignment: "right" },
@@ -416,6 +453,7 @@ function buildDocDefinition(opts: GeneratePdfOptions): TDocumentDefinitions {
     { text: [{ text: `ยอดเงินสุทธิ ${isForeignCurrency ? `(${currencyCode})` : ""}\n`, fontSize: 9, bold: true, color: "white" }, { text: "Grand Total", fontSize: 6, color: "white" }], fillColor: primary },
     { text: fmtNum(netPayAmount), fontSize: 9, bold: true, color: "white", alignment: "right", fillColor: primary },
   ]);
+  } // end else (standard summary)
 
   const notesStack: Content[] = [];
   notesStack.push({
@@ -530,6 +568,16 @@ function buildDocDefinition(opts: GeneratePdfOptions): TDocumentDefinitions {
 
   if (doc.notes) notesStack.push({ text: doc.notes, fontSize: 7.5, color: "#6b7280", margin: [0, 4, 0, 0] });
   if (doc.paymentTerms) notesStack.push({ text: [{ text: "เงื่อนไขการชำระ: ", bold: true }, doc.paymentTerms], fontSize: 7.5, color: "#6b7280", margin: [0, 2, 0, 0] });
+  if (isCreditNote) {
+    if ((doc as any).refTaxInvoiceNo) notesStack.push({
+      text: [{ text: "อ้างอิงใบกำกับภาษีเลขที่: ", bold: true, fontSize: 7.5 }, { text: `${(doc as any).refTaxInvoiceNo}${(doc as any).refTaxInvoiceDate ? "  วันที่ " + fmtDate((doc as any).refTaxInvoiceDate) : ""}`, fontSize: 7.5 }],
+      color: "#374151", margin: [0, 4, 0, 0],
+    });
+    if ((doc as any).cnReason) notesStack.push({
+      text: [{ text: "เหตุผล: ", bold: true, fontSize: 7.5 }, { text: (doc as any).cnReason + ((doc as any).cnReasonDetail ? ` — ${(doc as any).cnReasonDetail}` : ""), fontSize: 7.5 }],
+      color: "#374151", margin: [0, 2, 0, 0],
+    });
+  }
   if (settings.footerNote) notesStack.push({ text: settings.footerNote, fontSize: 7.5, color: "#6b7280", margin: [0, 4, 0, 0] });
 
   content.push({

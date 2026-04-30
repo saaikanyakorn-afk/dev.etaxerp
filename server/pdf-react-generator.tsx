@@ -110,6 +110,13 @@ export interface PdfDocumentData {
   sellerBranchName?: string;
   sellerBranchAddress?: string;
   paymentMethod?: string | null;
+  // Credit Note specific fields
+  refTaxInvoiceNo?: string | null;
+  refTaxInvoiceDate?: string | null;
+  cnReason?: string | null;
+  cnReasonDetail?: string | null;
+  cnOriginalSubtotal?: number | null;
+  cnCorrectSubtotal?: number | null;
 }
 
 export interface PdfSignature {

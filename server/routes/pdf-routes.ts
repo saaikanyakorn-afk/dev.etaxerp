@@ -3,7 +3,7 @@ import { db } from "../db";
 import { eq, desc, and, sql } from "drizzle-orm";
 import { invoices, taxInvoices, receipts, quotations, salesOrders, purchaseInvoices, expenses, companies, purchaseRequests, purchaseOrders, documentDeliveryLogs, salesCreditNotes, salesCreditNoteItems } from "@shared/schema";
 import { requireAuth, checkDocOwnership } from "../route-middleware";
-import { buildPdfDataById, buildPdfDataByToken, buildBillingNotePdfData } from "../pdf-data-fetcher";
+import { buildPdfDataById, buildPdfDataByToken, buildBillingNotePdfData, buildCreditNotePdfData } from "../pdf-data-fetcher";
 import { generatePdfMake } from "../pdf-pdfmake-generator";
 
 export function registerPdfRoutes(app: Express) {
@@ -205,6 +205,8 @@ app.get("/api/documents/:docType/:id/pdf", requireAuth, async (req, res) => {
 
     let pdfOpts = docType === "billing_note"
       ? await buildBillingNotePdfData(docId)
+      : docType === "credit_note"
+      ? await buildCreditNotePdfData(docId)
       : await buildPdfDataById(docType, docId, pt);
 
     if (companyId && pdfOpts.company && Number(pdfOpts.company.id) !== Number(companyId)) {

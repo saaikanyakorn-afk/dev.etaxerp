@@ -71,16 +71,17 @@ The entire CN PDF feature is non-functional until this is built:
    - Thai legal CN format (mandatory by law)
    - Line items table (รหัส, สินค้า, จำนวน, ราคา/หน่วย, ส่วนลด, VAT, มูลค่า)
    - หมายเหตุ: ไม่มี column "รับคืน?" — ฟีเจอร์ return_to_stock ทำแยกไว้แล้ว ไม่ต้องแสดงใน PDF (พี่ทราย confirmed 30 Apr 2026)
-   - Special summary table:
+   - Special summary table (พี่ทราย confirmed 30 Apr 2026):
      ```
-     มูลค่าตามใบกำกับภาษีเดิม (1)    20,000.00
-     มูลค่าที่ถูกต้อง (2)               0.00
-     ส่วนต่าง (1) – (2)              20,000.00
-     ภาษีมูลค่าเพิ่ม                   1,400.00
-     ยอดเงินสุทธิ                     21,400.00
+     มูลค่าตามใบกำกับภาษีเดิม (1)  = refTaxInvoice.subtotal (ดึงจาก TIV ที่อ้างอิง)
+     มูลค่าที่ถูกต้อง (2)            = TIV.subtotal - CN.subtotal
+     ส่วนต่าง (1) – (2)             = CN.subtotal
+     ภาษีมูลค่าเพิ่ม                 = CN.vatAmount
+     ยอดเงินสุทธิ                    = CN.totalAmount
      ```
-   - Reference to original TIV (เลขที่/วันที่ใบกำกับภาษีอ้างอิง)
-   - Reason for CN (เหตุผลการลดหนี้)
+   - เหตุผลการออกใบลดหนี้ (cn.reason) — ต้องแสดงใน PDF
+   - เลขที่ใบกำกับภาษีอ้างอิง (cn.refTaxInvoiceNo) + วันที่ (cn.refTaxInvoiceDate) — ต้องแสดง
+   - ไม่มี column "รับคืน?" ใน line items
 
 4. **PDF endpoint** in `server/routes/pdf-routes.ts`
    - `GET /api/documents/credit_note/:id/pdf`
