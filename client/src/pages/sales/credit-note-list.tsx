@@ -12,7 +12,7 @@ import { useCompany } from "@/lib/company-context";
 import {
   Search, Plus, FileText, Edit2, Trash2, Eye,
   CheckCircle2, Clock, MoreHorizontal, Calendar as CalendarIcon,
-  AlertCircle, XCircle, Printer, Link2, MessageSquare
+  AlertCircle, XCircle, Printer, Link2, MessageSquare, BookOpen
 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
@@ -31,6 +31,7 @@ import ThaiDateInput from "@/components/thai-date-input";
 import { useDateSettings } from "@/hooks/use-date-settings";
 import { toLocalDateStr } from "@/lib/utils";
 import LineSendDialog from "@/components/line-send-dialog";
+import JournalViewDialog from "@/components/journal-view-dialog";
 
 const STATUS_MAP: Record<string, { label: string; color: string; icon: any }> = {
   draft: { label: "ร่าง", color: "bg-slate-100 text-slate-700 border-slate-200", icon: Clock },
@@ -63,6 +64,7 @@ export default function CreditNoteList() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [lineDialog, setLineDialog] = useState<{ open: boolean; url: string; docNo: string; customerName: string }>({ open: false, url: "", docNo: "", customerName: "" });
+  const [journalDoc, setJournalDoc] = useState<{ open: boolean; id: number | null }>({ open: false, id: null });
 
   const bulk = useBulkDelete({ endpoint: "/api/sales-credit-notes/bulk-delete", queryKey: "/api/sales-credit-notes", docLabel: "ใบลดหนี้", companyId });
   const { dateEra, dateFmt } = useDateSettings();
@@ -228,6 +230,14 @@ export default function CreditNoteList() {
                         <TableCell className="text-sm">{formatDate(cn.creditNoteDate, dateEra, dateFmt)}</TableCell>
                         <TableCell>
                           <div className="text-sm font-normal">{cn.customerName}</div>
+                          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5">
+                            <span
+                              className="flex items-center gap-0.5 text-xs text-slate-500 cursor-pointer hover:underline"
+                              onClick={(e) => { e.stopPropagation(); setJournalDoc({ open: true, id: cn.id }); }}
+                            >
+                              <BookOpen className="h-3 w-3" /> ดูบัญชี
+                            </span>
+                          </div>
                         </TableCell>
                         <TableCell className="text-sm">{cn.refTaxInvoiceNo || "-"}</TableCell>
                         <TableCell className="text-right tabular-nums">
@@ -320,6 +330,12 @@ export default function CreditNoteList() {
         docNo={lineDialog.docNo}
         customerName={lineDialog.customerName}
         companyId={companyId}
+      />
+      <JournalViewDialog
+        open={journalDoc.open}
+        onOpenChange={(open) => setJournalDoc(prev => ({ ...prev, open }))}
+        docType="credit_note"
+        docId={journalDoc.id ?? 0}
       />
     </Layout>
   );
