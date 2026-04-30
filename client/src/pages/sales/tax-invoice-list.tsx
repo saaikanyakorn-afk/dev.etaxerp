@@ -444,7 +444,11 @@ export default function TaxInvoiceList() {
                               <span className="font-semibold text-slate-800">{inv.customerName}</span>
                             </div>
                             <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1 text-xs text-muted-foreground">
-                              {inv.creditDays != null && <span className="text-green-600">Cash[BL-IV]</span>}
+                              {(inv.creditDays != null && inv.creditDays === 0) && (
+                                <span className="text-green-600">
+                                  {(inv.refDoc || inv.referenceNo) ? "Cash[BL-IV]" : "Cash[TIV]"}
+                                </span>
+                              )}
                               {inv.customerAddress && (
                                 <span className="flex items-center gap-0.5 text-blue-500 cursor-pointer hover:underline" onClick={() => window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(inv.customerAddress)}`, '_blank')}>
                                   <ExternalLink className="h-3 w-3" /> ดูแผนที่
@@ -493,7 +497,8 @@ export default function TaxInvoiceList() {
                             {(() => {
                               const total = parseFloat(String(inv.totalAmount || 0));
                               const paid = parseFloat(String(inv.paidAmount || 0));
-                              const isPaid = inv.paymentStatus === "paid" || inv.paymentStatus === "success" || inv.status === "paid";
+                              const PAID_STATUSES = ["paid", "cash", "credit_card", "cheque_done", "transfer_done", "paid_by_ar", "completed"];
+                              const isPaid = PAID_STATUSES.includes(inv.status) || inv.paymentStatus === "paid" || inv.paymentStatus === "success";
                               const outstanding = isPaid ? 0 : Math.max(0, total - paid);
                               const whtAmt = parseFloat(String(inv.withholdingTax || inv.whtAmount || 0));
                               return (
