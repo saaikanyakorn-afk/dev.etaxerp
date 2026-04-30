@@ -1448,7 +1448,7 @@ Once Stage 3 begins, revisit the JOIN inventory below and add appropriate indexe
 | # | Name | OS | Role | Hardware | Network |
 |---|------|-----|------|----------|---------|
 | 1 | **Replit (Neon)** | Cloud | Dev & Current Production | AMD EPYC 9B14 4C/8T @2.6GHz, 62GB RAM | US cloud |
-| 2 | **server-e5 (deep-main)** | Windows | DB Source of Truth | Xeon E5-2660 v2, 32GB RAM | deep-main.hopto.org, LAN 192.168.1.100, online 24/7 |
+| 2 | **server-e5 (deep-main)** | Windows | DB Source of Truth | Xeon E5-2660 v2, 32GB RAM | deep-main.hopto.org, LAN 192.168.10.201, online 24/7 |
 | 3 | **linux-test-01** | Linux | Testing | — | LAN 192.168.1.201, aaPanel |
 | 4 | **linux-prod-01** | Linux | Final Production (planned) | **Xeon E3-1230 v3** 4C/8T @3.3-3.7GHz, Motherboard **Asus H97M-E** (Intel H97, LGA1150), **32GB DDR3-1600** dual-channel, M.2 + 4×SATA III | LAN 192.168.1.202, aaPanel |
 | 5 | **server-backup** | Windows | Backup | — | LAN 192.168.1.150 |
@@ -1573,6 +1573,67 @@ Other:
 - **etaxerp is in FREEZE mode** waiting for พี่ทราย to confirm all business requirements complete. Only business/bug fixes may go to prod, and only with พี่ช้าง's explicit per-commit approval.
 - Security work lives ONLY on github-replit (and github-dev when approved). Never cherry-pick security commits to prod working dir.
 - Commit `73e7d519` (sysAdmin LINE ID 2FA requirement) — github-replit ONLY. DO NOT propagate.
+
+## PRODUCTION SERVER KNOWN STATE BASELINE
+Last verified: **2026-04-30** (manually inspected this session — do not trust older notes)
+
+### etaxerp.com — `.env` (verified from screenshot 2026-04-30)
+```
+NODE_ENV=production
+PORT=5000
+MACHINE_NAME=etaxerp.com
+MACHINE_DB_PORT=15064
+DB_MAIN_HOST=server-e5
+DB_MAIN_LAN=true
+UPLOAD_DIR=E:\etaxerp-uploads
+```
+No `DATABASE_URL` in `.env` — server derives connection from `etax-config.enc` only.
+
+### etaxerp.com — Actual DB Connection Method (verified from lan-probe.log 2026-04-30)
+```
+FQDN URL : postgresql://***@deep-main.hopto.org:20541/etax-production
+LAN  URL : postgresql://***@192.168.10.201:20541/etax-production
+Result   : LAN connected ✓ — using LAN URL   (every session since 2026-04-29)
+```
+- Production server connects via **LAN** — NOT FQDN.
+- LAN IP of DB server (server-e5): **`192.168.10.201`** (corrected — replit.md previously said 192.168.1.100, WRONG)
+- Port is **20541** on both FQDN and LAN paths (not 5432)
+
+### etaxerp.com — Where `DB_MAIN_LAN_URL` Comes From
+- NOT in `system_config` table of `etax-production` DB (confirmed by direct query — 18 rows, no LAN URL row)
+- Comes from **`etax-config.enc`** → decrypted using `MACHINE_NAME=etaxerp.com` + `MACHINE_DB_PORT=15064` → yields config DB URL → config DB has the LAN URL in its own `system_config`
+- Kai has NO direct access to that config DB
+
+### etaxerp.com — system_config in etax-production (verified 2026-04-30, 18 rows total)
+Key rows relevant to DB routing:
+```
+DB_MAIN_LABEL  = Dev (Thailand)                                          ← label mismatch (harmless)
+DB_MAIN_URL    = postgresql://***@deep-main.hopto.org:5432/etax-develop  ← DEV DB (fallback only)
+DB_PROD_LABEL  = Production (Thailand)
+DB_PROD_URL    = postgresql://***@deep-main.hopto.org:5432/etax-production
+```
+- `DB_PROD_URL` uses port **5432** (LAN internal port) — server routes through LAN for this too
+- `DB_MAIN_URL` points to dev DB — used ONLY if `DB_PROD_URL` is missing (fallback)
+
+### ⚠️ Unauthorized Changes by Other Agent (2026-04-29)
+- Agent pushed everything from dev → production without permission
+- `DB_MAIN_LAN=true` was uncommented in `.env` on production server
+- `DB_MAIN_LAN_URL` was set in config DB — activating LAN feature fully
+- **LAN security portion is UNFINISHED** — feature is active on production despite incomplete security
+- This was NOT authorized. Root cause of current unknown-state situation.
+
+### How to Re-Verify Baseline (commands from dev environment)
+```bash
+# 1. Query system_config in etax-production DB
+PGPASSWORD=nJKsyhE4583Hz psql -h deep-main.hopto.org -p 20541 -U etaxusr -d etax-production \
+  -c "SELECT config_key, config_value FROM system_config ORDER BY config_key;"
+
+# 2. Read LAN probe log (run ON production server — Windows)
+type C:\GitApp\etaxcenter\logs\lan-probe.log
+
+# 3. Read DB health log (run ON production server — Windows)
+type C:\GitApp\etaxcenter\logs\db-health.log
+```
 
 ## PRODUCTION OPS — AI MUST READ EVERY SESSION
 
