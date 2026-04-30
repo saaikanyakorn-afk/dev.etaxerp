@@ -298,6 +298,8 @@ const TaxInvoiceBatchPrint = lazy(() => import("@/pages/sales/tax-invoice-batch-
 const TaxInvoiceShare = lazy(() => import("@/pages/sales/tax-invoice-share"));
 const ReceiptPdf = lazy(() => import("@/pages/sales/receipt-pdf"));
 const ReceiptShare = lazy(() => import("@/pages/sales/receipt-share"));
+const CreditNotePdf = lazy(() => import("@/pages/sales/credit-note-pdf"));
+const CreditNoteShare = lazy(() => import("@/pages/sales/credit-note-share"));
 const InvoiceList = lazy(() => import("@/pages/sales/invoice-list"));
 const InvoiceForm = lazy(() => import("@/pages/sales/invoice-form"));
 const InvoiceImport = lazy(() => import("@/pages/sales/invoice-import"));
@@ -693,6 +695,8 @@ function Router() {
       <Route path="/sales/receipt/edit/:id" component={ReceiptForm} />
       <Route path="/sales/receipt/pdf/:id" component={ReceiptPdf} />
       <Route path="/share/receipt/:token" component={ReceiptShare} />
+      <Route path="/sales/credit-note/pdf/:id" component={CreditNotePdf} />
+      <Route path="/share/credit-note/:token" component={CreditNoteShare} />
       <Route path="/sales/credit-note" component={CreditNoteList} />
       <Route path="/sales/commission" component={SalesCommission} />
       <Route path="/sales/credit-note/new" component={CreditNoteForm} />
