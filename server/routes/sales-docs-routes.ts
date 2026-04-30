@@ -1121,6 +1121,27 @@ app.delete("/api/invoices/:id", requireAuth, requireAnyModule("sales", "ecommerc
   } catch (err: any) { res.status(500).json({ message: err.message }); }
 });
 
+app.post("/api/invoices/recompute-payment-statuses", requireAuth, requireRole("admin", "owner", "super_admin"), async (req, res) => {
+  try {
+    const companyId = req.body.companyId ? Number(req.body.companyId) : null;
+    const tivRows = await db.execute(sql`
+      SELECT DISTINCT invoice_id AS id FROM tax_invoices
+      WHERE invoice_id IS NOT NULL
+        AND payment_method IS NOT NULL
+        AND payment_method <> ''
+        AND payment_method <> 'เครดิต'
+        ${companyId ? sql`AND company_id = ${companyId}` : sql``}
+    `);
+    const invoiceIds = ((tivRows as any).rows || []).map((r: any) => Number(r.id)).filter(Boolean);
+    let updated = 0;
+    for (const id of invoiceIds) {
+      await recomputePaymentStatus("invoice", id).catch(() => {});
+      updated++;
+    }
+    res.json({ message: `อัพเดทสถานะ ${updated} ใบแจ้งหนี้เรียบร้อย`, updated });
+  } catch (err: any) { res.status(500).json({ message: err.message }); }
+});
+
 app.post("/api/invoices/bulk-delete", requireAuth, requireAnyModule("sales", "ecommerce"), requireRole("admin", "owner", "super_admin"), async (req, res) => {
   try {
     const { ids, companyId: reqCompanyId } = req.body;
