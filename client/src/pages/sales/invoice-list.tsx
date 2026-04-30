@@ -455,6 +455,7 @@ export default function InvoiceList() {
                               return (
                                 <>
                                   <div className="text-xs text-muted-foreground">{fmt(outstanding)}</div>
+                                  <div className="border-t border-gray-200 my-0.5" />
                                   <div className="text-sm font-medium">
                                     {fmt(total)}
                                     {inv.currencyCode && inv.currencyCode !== "THB" && (

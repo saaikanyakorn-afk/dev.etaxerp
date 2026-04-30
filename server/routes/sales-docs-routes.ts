@@ -1745,6 +1745,14 @@ app.post("/api/invoices/import/create", requireAuth, requireAnyModule("sales", "
 
 // ========== Tax Invoice Routes ==========
 
+async function computeTaxInvoicePaidAmounts(taxInvoiceIds: number[]): Promise<Record<number, number>> {
+  const paidMap: Record<number, number> = {};
+  if (taxInvoiceIds.length === 0) return paidMap;
+  const batchPaid = await db.execute(sql`SELECT doc_id, SUM(amount) AS paid FROM receipt_linked_docs WHERE doc_type = 'TIV' AND doc_id = ANY(${taxInvoiceIds}) GROUP BY doc_id`);
+  for (const r of (batchPaid as any).rows || []) paidMap[r.doc_id] = (paidMap[r.doc_id] || 0) + parseFloat(r.paid || 0);
+  return paidMap;
+}
+
 app.get("/api/tax-invoices", requireAuth, requireAnyModule("sales", "ecommerce"), async (req, res) => {
   try {
     const companyId = Number(req.query.companyId);
@@ -1754,7 +1762,8 @@ app.get("/api/tax-invoices", requireAuth, requireAnyModule("sales", "ecommerce")
       const userIds = Array.from(new Set(rows.map((r: any) => r.createdBy).concat(rows.map((r: any) => r.updatedBy)).filter(Boolean))) as number[];
       const userMap: Record<number, string> = {};
       if (userIds.length > 0) { const uu = await db.select({ id: users.id, fullName: users.fullName }).from(users).where(inArray(users.id, userIds)); for (const u of uu) userMap[u.id] = u.fullName; }
-      return rows.map((r: any) => ({ ...r, createdByName: r.createdBy ? userMap[r.createdBy] || "-" : "-", updatedByName: r.updatedBy ? userMap[r.updatedBy] || "-" : "-" }));
+      const paidMap = await computeTaxInvoicePaidAmounts(rows.map((r: any) => r.id));
+      return rows.map((r: any) => ({ ...r, createdByName: r.createdBy ? userMap[r.createdBy] || "-" : "-", updatedByName: r.updatedBy ? userMap[r.updatedBy] || "-" : "-", paidAmount: paidMap[r.id] || 0 }));
     };
     if (req.query.page) {
       const { page, pageSize, offset } = parsePagination(req, { pageSize: 50 });

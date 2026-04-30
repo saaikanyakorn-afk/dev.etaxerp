@@ -364,16 +364,26 @@ export default function ReceiptList() {
                             })()}
                           </TableCell>
                           <TableCell className="text-right tabular-nums pt-2.5">
-                            <div className="text-sm font-medium">
-                              {fmt(rc.totalAmount)}
-                              {rc.currencyCode && rc.currencyCode !== "THB" && (
-                                <span className="text-[10px] ml-1 text-[var(--theme-primary)]">{rc.currencyCode}</span>
-                              )}
-                            </div>
-                            {rc.whtAmount > 0 && (
-                              <div className="text-xs text-blue-600">[WHT:{fmt(rc.whtAmount)}]</div>
-                            )}
-                            <div className="text-xs text-muted-foreground">{fmt(rc.paidAmount || rc.totalAmount)}</div>
+                            {(() => {
+                              const total = parseFloat(String(rc.totalAmount || 0));
+                              const paid = parseFloat(String(rc.paidAmount || total));
+                              const outstanding = Math.max(0, total - paid);
+                              return (
+                                <>
+                                  <div className="text-xs text-muted-foreground">{fmt(outstanding)}</div>
+                                  {rc.whtAmount > 0 && (
+                                    <div className="text-xs text-blue-600">[WHT:{fmt(rc.whtAmount)}]</div>
+                                  )}
+                                  <div className="border-t border-gray-200 my-0.5" />
+                                  <div className="text-sm font-medium">
+                                    {fmt(total)}
+                                    {rc.currencyCode && rc.currencyCode !== "THB" && (
+                                      <span className="text-[10px] ml-1 text-[var(--theme-primary)]">{rc.currencyCode}</span>
+                                    )}
+                                  </div>
+                                </>
+                              );
+                            })()}
                           </TableCell>
                           <TableCell className="text-center pt-2.5">
                             <Badge data-testid={`badge-status-${rc.id}`} className={`${st.color} border text-xs py-0.5 px-2.5 font-normal h-6`}>
