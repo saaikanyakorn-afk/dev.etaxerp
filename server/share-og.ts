@@ -1,6 +1,6 @@
 import { type Request, type Response, type NextFunction } from "express";
 import { db } from "./db";
-import { quotations, invoices, taxInvoices, receipts, salesOrders, companies, whiteLabelSettings, contracts } from "@shared/schema";
+import { quotations, invoices, taxInvoices, receipts, salesOrders, companies, whiteLabelSettings, contracts, withholdingTaxCerts } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import sharp from "sharp";
 
@@ -16,6 +16,7 @@ const DOC_TYPE_COLORS: Record<string, { bg: string; accent: string; icon: string
   receipt:       { bg: "#e0f2fe", accent: "#0284c7", icon: "RC" },
   order:         { bg: "#fce7f3", accent: "#db2777", icon: "SO" },
   contract:      { bg: "#ede9fe", accent: "#7c3aed", icon: "CT" },
+  "wht-cert":    { bg: "#fdf2f8", accent: "#9333ea", icon: "50" },
 };
 
 function truncate(s: string, max: number): string {
@@ -105,6 +106,7 @@ const DOC_TYPE_LABELS: Record<string, string> = {
   receipt: "RECEIPT",
   order: "SALES ORDER",
   contract: "SERVICE CONTRACT",
+  "wht-cert": "WHT 50 THAWI",
 };
 
 const DOC_TYPE_LABELS_TH: Record<string, string> = {
@@ -114,6 +116,7 @@ const DOC_TYPE_LABELS_TH: Record<string, string> = {
   receipt: "ใบเสร็จรับเงิน",
   order: "ใบสั่งขาย",
   contract: "สัญญาบริการ",
+  "wht-cert": "หนังสือรับรองหักภาษี ณ ที่จ่าย",
 };
 
 async function lookupDoc(docType: string, token: string) {
@@ -152,6 +155,11 @@ async function lookupDoc(docType: string, token: string) {
     case "contract": {
       const [ct] = await db.select().from(contracts).where(eq(contracts.publicToken, token));
       if (ct) { docNo = ct.contractNo || ""; customerName = ct.clientName || ""; total = ct.serviceFee ? String(ct.serviceFee) : ""; companyId = ct.companyId; amountLabel = "FEE/MONTH"; }
+      break;
+    }
+    case "wht-cert": {
+      const [wht] = await db.select().from(withholdingTaxCerts).where(eq(withholdingTaxCerts.shareToken, token));
+      if (wht) { docNo = wht.certNo || ""; customerName = (wht as any).payeeName || ""; total = (wht as any).taxWithheld || ""; companyId = wht.companyId; amountLabel = "ภาษีที่หัก"; }
       break;
     }
   }

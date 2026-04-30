@@ -18,6 +18,7 @@ export function serveStatic(app: Express) {
   app.get("/share/tax-invoice/:token", (req, res, next) => { req.params.docType = "tax-invoice"; shareOgHandler(req, res, next); });
   app.get("/share/receipt/:token", (req, res, next) => { req.params.docType = "receipt"; shareOgHandler(req, res, next); });
   app.get("/share/order/:token", (req, res, next) => { req.params.docType = "order"; shareOgHandler(req, res, next); });
+  app.get("/share/wht-cert/:token", (req, res, next) => { req.params.docType = "wht-cert"; shareOgHandler(req, res, next); });
   app.get("/sign/:token", contractOgHandler);
 
   app.use("/{*path}", (_req, res) => {
