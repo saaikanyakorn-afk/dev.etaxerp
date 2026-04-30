@@ -51,6 +51,7 @@ SYNC_API_KEY = "46ae5b4efcdcd130de848dfc137b49fdebba0a197e032f6d937a5fe60304719d
 PRODUCTION_APP_URL = "https://etaxcenter.replit.app"
 
 [userenv.development]
+SHARE_BASE_URL = "https://etaxcenter.replit.app"
 
 [userenv.production]
 DB_PROD_URL = "postgresql://etaxusr:nJKsyhE4583Hz@deep-main.hopto.org:5432/etax-production"

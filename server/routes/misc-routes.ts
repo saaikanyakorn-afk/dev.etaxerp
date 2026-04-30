@@ -130,18 +130,11 @@ app.get("/api/version", (_req, res) => {
 });
 
 app.get("/api/share-base-url", (req, res) => {
-  const host = req.get("host") || "";
-  if (process.env.SHARE_BASE_URL) {
-    res.json({ url: process.env.SHARE_BASE_URL.replace(/\/$/, "") });
-  } else if (process.env.NODE_ENV === "production") {
-    res.json({ url: `https://${host}` });
-  } else if (host.includes(".replit.app")) {
-    res.json({ url: `https://${host}` });
-  } else if (process.env.PRODUCTION_APP_URL) {
-    res.json({ url: process.env.PRODUCTION_APP_URL.replace(/\/$/, "") });
-  } else {
-    res.json({ url: `${req.protocol}://${host}` });
+  const shareBaseUrl = process.env.SHARE_BASE_URL;
+  if (!shareBaseUrl) {
+    throw new Error("SHARE_BASE_URL environment variable is not configured");
   }
+  res.json({ url: shareBaseUrl.replace(/\/$/, "") });
 });
 
 app.get("/api/public-config", (_req, res) => {
