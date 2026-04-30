@@ -78,22 +78,42 @@
 // =============================================================================
 // MASTER RULE: Production Database Manipulation Checklist
 // =============================================================================
+//   SERVER COMMAND RULE (absolute):
+//     Commands issued to production servers = git pull + build + run ONLY.
+//     NO manual commands on the application server console.
+//     NO manual commands on the database server console.
+//     The DB server console is NEVER opened during the checklist.
+//     All verify / inspect / backup actions must be done through CODE deployed
+//     to the server, not through direct console interaction.
+//
 //   ANY change to production DB — no matter how small — must follow this order:
 //
-//   1. VERIFY FIRST — query production DB to confirm current state before coding.
-//      (Another agent may have already made the change behind your back.)
+//   1. VERIFY FIRST (via code) — write a temporary block or API endpoint that
+//      queries production DB and displays the result on screen (e.g., logs column
+//      list or row counts). Deploy it. Read the output. Remove it.
+//      Never assume — another agent may have already made the change.
+//
 //   ── If the change will TOUCH existing data content (UPDATE/backfill) ──────────
-//   1b. BACKUP TARGET TABLE — dump to db/backups/YYYY-MM-DD_<table>_before_<reason>.sql
-//       BEFORE writing any migration code. No backup = no proceed.
+//   1b. BACKUP TARGET TABLE (via code) — write a temporary function that SELECTs
+//       the full table and writes it as INSERT statements to
+//       db/backups/YYYY-MM-DD_<table>_before_<reason>.sql on the server filesystem.
+//       Deploy it. Confirm the file was written. Remove the backup code.
+//       No backup = no proceed.
 //   ────────────────────────────────────────────────────────────────────────────
+//
 //   2. DEPLOY DB-ONLY FIRST — push ONLY the schema-extra migration function and
 //      its route-file caller. No other changes in the same deploy.
-//   3. CONFIRM IT RAN ONCE — login to production DB and query system_config for
-//      the flag key. If the flag row exists, the migration ran successfully.
-//      Do NOT grep server logs. If Node.js logging is needed, write a temporary
-//      console.log block in code to display on screen, then remove it afterward.
-//      Then ask พี่ช้าง to STOP the production server.
-//   4. VERIFY PRODUCTION DB — query production to confirm columns/data are correct.
+//
+//   3. CONFIRM IT RAN ONCE (via code) — write a temporary API endpoint or startup
+//      log that reads system_config for the flag key and displays it on screen.
+//      If the flag row exists, the migration ran. Remove the temporary code.
+//      If Node.js logging is needed: add a temporary console.log block,
+//      deploy, read the screen output, then remove the block.
+//      Ask พี่ช้าง to STOP the production server after confirming.
+//
+//   4. VERIFY PRODUCTION DB (via code) — write a temporary block that queries
+//      column existence / row counts and displays results. Deploy. Read. Remove.
+//
 //   ── If the change touched existing data content ───────────────────────────────
 //   4b. UPDATE HISTORY — write entry to db/schema-history.md:
 //         - What changed (table, columns, transformation)
@@ -102,6 +122,7 @@
 //         - Reason / ticket
 //       This MUST happen before flagging complete.
 //   ────────────────────────────────────────────────────────────────────────────
+//
 //   5. COMMENT OUT THE BLOCK — in schema-extra.ts, comment out the migration block
 //      with the date/time it ran and the reason (e.g., // Ran 2026-05-01 14:30 UTC).
 //   6. PUSH CLEAN — push the commented-out schema-extra.ts to production, rebuild.
