@@ -13,55 +13,6 @@ import { eq } from "drizzle-orm";
 import { SUB_MODULES } from "@shared/permissions";
 
 export function registerIndexExtraRoutes(app: Express) {
-  // ===========================================================================
-  // TEMP PRE-FLIGHT VERIFY — remove after reading result
-  // Checks which warehouse columns exist in production + backfill flag status.
-  // ===========================================================================
-  app.get("/api/preflight/warehouse-columns", requireAuth, async (req: any, res) => {
-    try {
-      const { sql } = await import("drizzle-orm");
-      const cols = await db.execute(sql.raw(`
-        SELECT table_name, column_name
-        FROM information_schema.columns
-        WHERE (table_name = 'goods_receivings'      AND column_name = 'warehouse_id')
-           OR (table_name = 'goods_receiving_items' AND column_name = 'warehouse_id')
-           OR (table_name = 'sales_credit_notes'    AND column_name IN ('return_to_stock','return_warehouse_id'))
-           OR (table_name = 'ecommerce_orders'      AND column_name = 'warehouse_id')
-           OR (table_name = 'manufacturing_orders'  AND column_name IN ('source_warehouse_id','target_warehouse_id'))
-           OR (table_name = 'general_settings'      AND column_name = 'inventory_triggers')
-        ORDER BY table_name, column_name
-      `));
-      const flag = await db.execute(sql.raw(`
-        SELECT config_key, config_value
-        FROM system_config
-        WHERE config_key = 'WAREHOUSE_STOCK_BACKFILL_DONE'
-      `));
-      const expected = [
-        "goods_receivings.warehouse_id",
-        "goods_receiving_items.warehouse_id",
-        "sales_credit_notes.return_to_stock",
-        "sales_credit_notes.return_warehouse_id",
-        "ecommerce_orders.warehouse_id",
-        "manufacturing_orders.source_warehouse_id",
-        "manufacturing_orders.target_warehouse_id",
-        "general_settings.inventory_triggers",
-      ];
-      const found = (cols.rows as any[]).map((r) => `${r.table_name}.${r.column_name}`);
-      const missing = expected.filter((e) => !found.includes(e));
-      res.json({
-        found,
-        missing,
-        backfillFlag: (flag.rows as any[])[0] ?? null,
-        allColumnsExist: missing.length === 0,
-      });
-    } catch (e: any) {
-      res.status(500).json({ error: e.message });
-    }
-  });
-  // ===========================================================================
-  // END TEMP PRE-FLIGHT VERIFY
-  // ===========================================================================
-
   /**
    * Override /api/permissions/me — runs BEFORE the protected version in core-routes.ts.
    * Returns modules that include any module the user has explicit sub-permissions for,

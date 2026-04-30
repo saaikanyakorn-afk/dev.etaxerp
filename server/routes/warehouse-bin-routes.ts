@@ -4,6 +4,9 @@ import { ecomDb } from "../ecom-db";
 import { eq, desc, and, asc , sql } from "drizzle-orm";
 import { warehouseZones, warehouseBins, ecommerceOrders, ecommerceOrderItems } from "@shared/schema";
 import { requireAuth, requireModule } from "../route-middleware";
+import { runWarehouseColumnsMigration } from "@shared/schema-extra";
+
+runWarehouseColumnsMigration(db);
 
 export function registerWarehouseBinRoutes(app: Express) {
 // ========== Warehouse Bin Location System ==========

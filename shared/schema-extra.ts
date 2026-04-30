@@ -432,3 +432,78 @@ export async function runBankInfoToPaymentMethodsMigration(db: any) {
     console.warn("[migration] bank_info:", e.message);
   }
 }
+
+// =============================================================================
+// WAREHOUSE COLUMNS MIGRATION — from commits 3b274b63, c94edb4e, 78c5efa6
+// Moves ALTER TABLE blocks out of index.ts into schema-extra (TERTIARY USE).
+// Backup: db/backups/2026-04-30_warehouse_stock_levels_before_backfill_v85.sql
+// History: db/schema-history.md
+// Called from: server/routes/warehouse-bin-routes.ts (top-level)
+// =============================================================================
+export async function runWarehouseColumnsMigration(db: any) {
+  try {
+    // --- Pure DDL — IF NOT EXISTS is idempotent, no flag needed ---
+    await db.execute(sql.raw(`ALTER TABLE goods_receivings ADD COLUMN IF NOT EXISTS warehouse_id INTEGER`));
+    await db.execute(sql.raw(`ALTER TABLE goods_receiving_items ADD COLUMN IF NOT EXISTS warehouse_id INTEGER`));
+    await db.execute(sql.raw(`ALTER TABLE sales_credit_notes ADD COLUMN IF NOT EXISTS return_to_stock BOOLEAN DEFAULT FALSE`));
+    await db.execute(sql.raw(`ALTER TABLE sales_credit_notes ADD COLUMN IF NOT EXISTS return_warehouse_id INTEGER`));
+    await db.execute(sql.raw(`ALTER TABLE ecommerce_orders ADD COLUMN IF NOT EXISTS warehouse_id INTEGER`));
+    await db.execute(sql.raw(`ALTER TABLE manufacturing_orders ADD COLUMN IF NOT EXISTS source_warehouse_id INTEGER`));
+    await db.execute(sql.raw(`ALTER TABLE manufacturing_orders ADD COLUMN IF NOT EXISTS target_warehouse_id INTEGER`));
+    await db.execute(sql.raw(`ALTER TABLE general_settings ADD COLUMN IF NOT EXISTS inventory_triggers JSONB DEFAULT '{}'`));
+    console.log("[migration] ✅ warehouse columns ensured (8 columns)");
+  } catch (e: any) {
+    console.warn("[migration] warehouse columns DDL:", e.message);
+  }
+
+  // --- Data backfill — touches existing data, backup done 2026-04-30 ---
+  // Backup: db/backups/2026-04-30_warehouse_stock_levels_before_backfill_v85.sql
+  // History: db/schema-history.md entry added 2026-04-30
+  const BACKFILL_FLAG = "WAREHOUSE_STOCK_BACKFILL_DONE";
+  try {
+    const flagRows = await db.execute(sql.raw(
+      `SELECT config_value FROM system_config WHERE config_key = '${BACKFILL_FLAG}' LIMIT 1`
+    ));
+    if ((flagRows.rows || []).length > 0) return;
+
+    await db.execute(sql.raw(`
+      INSERT INTO warehouse_stock_levels (warehouse_id, product_id, company_id, quantity, reserved_qty, updated_at)
+      SELECT ii.warehouse_id, ii.product_id, pi.company_id,
+        SUM(ii.qty)::numeric, 0, NOW()
+      FROM purchase_invoice_items ii
+      JOIN purchase_invoices pi ON pi.id = ii.purchase_invoice_id
+      WHERE ii.warehouse_id IS NOT NULL AND ii.product_id IS NOT NULL
+      GROUP BY ii.warehouse_id, ii.product_id, pi.company_id
+      ON CONFLICT (warehouse_id, product_id, company_id) DO UPDATE
+        SET quantity = warehouse_stock_levels.quantity + EXCLUDED.quantity, updated_at = NOW()
+    `));
+    await db.execute(sql.raw(`
+      INSERT INTO warehouse_stock_levels (warehouse_id, product_id, company_id, quantity, reserved_qty, updated_at)
+      SELECT ii.warehouse_id, ii.product_id, inv.company_id,
+        -SUM(ii.qty)::numeric, 0, NOW()
+      FROM invoice_items ii
+      JOIN invoices inv ON inv.id = ii.invoice_id
+      WHERE ii.warehouse_id IS NOT NULL AND ii.product_id IS NOT NULL
+      GROUP BY ii.warehouse_id, ii.product_id, inv.company_id
+      ON CONFLICT (warehouse_id, product_id, company_id) DO UPDATE
+        SET quantity = warehouse_stock_levels.quantity + EXCLUDED.quantity, updated_at = NOW()
+    `));
+    await db.execute(sql.raw(`
+      INSERT INTO warehouse_stock_levels (warehouse_id, product_id, company_id, quantity, reserved_qty, updated_at)
+      SELECT ii.warehouse_id, ii.product_id, ti.company_id,
+        -SUM(ii.qty)::numeric, 0, NOW()
+      FROM tax_invoice_items ii
+      JOIN tax_invoices ti ON ti.id = ii.tax_invoice_id
+      WHERE ii.warehouse_id IS NOT NULL AND ii.product_id IS NOT NULL
+      GROUP BY ii.warehouse_id, ii.product_id, ti.company_id
+      ON CONFLICT (warehouse_id, product_id, company_id) DO UPDATE
+        SET quantity = warehouse_stock_levels.quantity + EXCLUDED.quantity, updated_at = NOW()
+    `));
+    await db.execute(sql.raw(
+      `INSERT INTO system_config (config_key, config_value) VALUES ('${BACKFILL_FLAG}', 'done') ON CONFLICT DO NOTHING`
+    ));
+    console.log("[migration] ✅ warehouse_stock_levels historical backfill done");
+  } catch (e: any) {
+    console.warn("[migration] warehouse backfill:", e.message);
+  }
+}
