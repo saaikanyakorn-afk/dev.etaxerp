@@ -69,7 +69,8 @@ The entire CN PDF feature is non-functional until this is built:
 
 3. **CN pdfmake template** in `server/pdf-pdfmake-generator.ts`
    - Thai legal CN format (mandatory by law)
-   - Line items table (รหัส, สินค้า, จำนวน, รับคืน, ราคา, VAT, มูลค่า)
+   - Line items table (รหัส, สินค้า, จำนวน, ราคา/หน่วย, ส่วนลด, VAT, มูลค่า)
+   - หมายเหตุ: ไม่มี column "รับคืน?" — ฟีเจอร์ return_to_stock ทำแยกไว้แล้ว ไม่ต้องแสดงใน PDF (พี่ทราย confirmed 30 Apr 2026)
    - Special summary table:
      ```
      มูลค่าตามใบกำกับภาษีเดิม (1)    20,000.00
