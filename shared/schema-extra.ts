@@ -423,7 +423,8 @@ export type TenantModuleSubscription = typeof tenantModuleSubscriptions.$inferSe
 export async function runCreditNoteOriginalAmountMigration(db: any) {
   try {
     await db.execute(sql`ALTER TABLE sales_credit_notes ADD COLUMN IF NOT EXISTS original_invoice_amount DECIMAL(15,2)`);
-    console.log("[migration] ✅ original_invoice_amount added to sales_credit_notes");
+    await db.execute(sql`ALTER TABLE sales_credit_notes ADD COLUMN IF NOT EXISTS correct_invoice_amount DECIMAL(15,2)`);
+    console.log("[migration] ✅ original_invoice_amount + correct_invoice_amount added to sales_credit_notes");
   } catch (e: any) {
     console.warn("[migration] cn_original_amount:", e.message);
   }
