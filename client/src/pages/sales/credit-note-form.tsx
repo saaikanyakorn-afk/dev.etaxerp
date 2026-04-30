@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useLocation, useRoute } from "wouter";
+import { useLocation, useRoute, useSearch } from "wouter";
 import Layout from "@/components/layout";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -84,6 +84,9 @@ export default function CreditNoteForm() {
   const [matchEdit, paramsEdit] = useRoute("/sales/credit-note/edit/:id");
   const editingId = matchEdit ? Number(paramsEdit?.id) : null;
   const isNew = !!matchNew;
+  const searchString = useSearch();
+  const cnSearchParams = isNew ? new URLSearchParams(searchString) : null;
+  const fromTaxInvoiceId = cnSearchParams?.get("fromTaxInvoice") || null;
 
   const { selectedCompany } = useCompany();
   const { branchList, acctName } = useDocDropdowns();
@@ -189,7 +192,30 @@ export default function CreditNoteForm() {
 
   useEffect(() => {
     if (loaded) return;
-    if (isNew) {
+    if (isNew && fromTaxInvoiceId) {
+      (async () => {
+        try {
+          const res = await fetch(`/api/tax-invoices/${fromTaxInvoiceId}`, { credentials: "include" });
+          if (res.ok) {
+            const tiv = await res.json();
+            setForm(p => ({
+              ...p,
+              customerId: tiv.customerId || undefined,
+              customerName: tiv.customerName || "",
+              customerAddress: tiv.customerAddress || "",
+              customerTaxId: tiv.customerTaxId || "",
+              branch: tiv.branch || "",
+              refTaxInvoiceNo: tiv.taxInvoiceNo || "",
+              refTaxInvoiceDate: tiv.taxInvoiceDate || "",
+              refTaxInvoiceId: tiv.id,
+              currencyCode: tiv.currencyCode || "THB",
+              sellerBranchId: tiv.sellerBranchId || p.sellerBranchId,
+            }));
+          }
+        } catch {}
+        setLoaded(true);
+      })();
+    } else if (isNew) {
       setLoaded(true);
     } else if (editingId) {
       (async () => {

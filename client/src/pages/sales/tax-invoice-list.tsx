@@ -12,7 +12,7 @@ import { useCompany } from "@/lib/company-context";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Search, Plus, FileText, Edit2, Trash2, Eye, ChevronRight, Download,
-  CheckCircle2, Clock, AlertCircle, XCircle, Minus, Copy, FileOutput, MoreHorizontal, Link2, MessageSquare, Printer,
+  CheckCircle2, Clock, AlertCircle, XCircle, Minus, Copy, FileOutput, FileMinus, MoreHorizontal, Link2, MessageSquare, Printer,
   BookOpen, ExternalLink, Calendar as CalendarIcon, CreditCard, DollarSign, FileCheck, Send, Mail, Loader2, Paperclip, FileDown
 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -629,6 +629,9 @@ export default function TaxInvoiceList() {
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem onClick={() => navigate(`/sales/receipt/new?fromTaxInvoice=${inv.id}`)} className="flex gap-2 text-[var(--theme-primary)]">
                                   <FileOutput className="h-3.5 w-3.5" /> ออกใบเสร็จรับเงิน
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => navigate(`/sales/credit-note/new?fromTaxInvoice=${inv.id}`)} className="flex gap-2 text-orange-600">
+                                  <FileMinus className="h-3.5 w-3.5" /> ออกใบลดหนี้
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem
