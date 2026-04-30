@@ -459,6 +459,10 @@ export async function runWarehouseColumnsMigration(db: any) {
     await db.execute(sql.raw(`ALTER TABLE manufacturing_orders ADD COLUMN IF NOT EXISTS source_warehouse_id INTEGER`));
     await db.execute(sql.raw(`ALTER TABLE manufacturing_orders ADD COLUMN IF NOT EXISTS target_warehouse_id INTEGER`));
     await db.execute(sql.raw(`ALTER TABLE general_settings ADD COLUMN IF NOT EXISTS inventory_triggers JSONB DEFAULT '{}'`));
+    await db.execute(sql.raw(`
+      CREATE UNIQUE INDEX IF NOT EXISTS wsl_unique_warehouse_product_company
+      ON warehouse_stock_levels (warehouse_id, product_id, company_id)
+    `));
     console.log("[migration] ✅ warehouse columns ensured (8 columns)");
   } catch (e: any) {
     console.warn("[migration] warehouse columns DDL:", e.message);
