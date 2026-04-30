@@ -311,6 +311,7 @@ export default function CreditNoteForm() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/sales-credit-notes"] });
       toast({ title: "อัพเดทใบลดหนี้สำเร็จ", variant: "success" as any });
+      navigate("/sales/credit-note");
     },
     onError: (err: any) => toast({ title: "เกิดข้อผิดพลาด", description: err.message, variant: "destructive" }),
   });
