@@ -1,5 +1,6 @@
 import type { Express, Request, Response } from "express";
 import { db } from "../db";
+import { storage } from "../storage";
 import { eq, and , sql } from "drizzle-orm";
 import { companies, pettyCashFunds, accounts, journalEntries, journalLines, pettyCashTransactions, expenses, invoices, taxInvoices, purchaseInvoices } from "@shared/schema";
 import { requireAuth, requireModule } from "../route-middleware";
@@ -13,7 +14,14 @@ async function verifyCompanyAccess(user: any, companyId: number): Promise<boolea
   if (user.role === "super_admin") return true;
   if (!user.tenantId) return false;
   const [company] = await db.select().from(companies).where(and(eq(companies.id, companyId), eq(companies.tenantId, user.tenantId)));
-  return !!company;
+  if (!company) return false;
+  const RESTRICTED_ROLES = ["client", "employee", "accountant", "manager", "cashier"];
+  if (RESTRICTED_ROLES.includes(user.role)) {
+    const userRecord = await storage.getUser(user.id);
+    const allowedIds = userRecord?.allowedCompanyIds;
+    if (allowedIds && allowedIds.length > 0 && !allowedIds.includes(companyId)) return false;
+  }
+  return true;
 }
 
 app.get("/api/petty-cash/funds", requireAuth, requireModule("petty-cash"), async (req, res) => {

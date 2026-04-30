@@ -227,7 +227,11 @@ export default function PettyCash() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...data, fundId: selectedFundId, companyId: selectedCompanyId, attachmentUrl }),
       });
-      if (!r.ok) { const e = await r.json(); throw new Error(e.message); }
+      if (!r.ok) {
+        let msg = `เกิดข้อผิดพลาด (${r.status})`;
+        try { const e = await r.json(); msg = e.message || msg; } catch { console.error("POST /api/petty-cash/transactions non-JSON", r.status); }
+        throw new Error(msg);
+      }
       return r.json();
     },
     onSuccess: () => {
@@ -254,7 +258,11 @@ export default function PettyCash() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...data, attachmentUrl: finalAttachmentUrl }),
       });
-      if (!r.ok) { const e = await r.json(); throw new Error(e.message); }
+      if (!r.ok) {
+        let msg = `เกิดข้อผิดพลาด (${r.status})`;
+        try { const e = await r.json(); msg = e.message || msg; } catch { console.error("PUT /api/petty-cash/transactions non-JSON", r.status); }
+        throw new Error(msg);
+      }
       return r.json();
     },
     onSuccess: () => {
