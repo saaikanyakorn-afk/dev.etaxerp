@@ -195,7 +195,6 @@ git fetch origin && git checkout origin/main -- \
   client/src/components/document-renderer.tsx \
   client/src/components/e-document-actions.tsx \
   client/src/components/etax-send-dialog.tsx \
-  client/src/components/pdf-iframe-viewer.tsx \
   client/src/components/settings-tabs.tsx \
   client/src/components/tax-invoice-hover-preview.tsx \
   client/src/lib/auth.tsx \
