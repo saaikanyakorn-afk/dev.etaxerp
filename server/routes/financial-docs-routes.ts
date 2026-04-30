@@ -2,7 +2,7 @@ import type { Express, Request, Response } from "express";
 import { db } from "../db";
 import { storage } from "../storage";
 import { eq, desc, and, or, inArray, count } from "drizzle-orm";
-import { receipts, depositReceipts, contacts, users, purchaseDeposits, taxInvoices, taxInvoiceItems, salesCreditNotes, salesCreditNoteItems, purchaseInvoices, purchaseInvoiceItems, purchaseDebitNotes, purchaseDebitNoteItems, purchaseDepositDeductions, depositDeductions, companies, documentSettings } from "@shared/schema";
+import { receipts, depositReceipts, contacts, users, purchaseDeposits, taxInvoices, taxInvoiceItems, salesCreditNotes, salesCreditNoteItems, purchaseInvoices, purchaseInvoiceItems, purchaseDebitNotes, purchaseDebitNoteItems, purchaseDepositDeductions, depositDeductions, companies, documentSettings, journalEntries, journalLines } from "@shared/schema";
 import { requireAuth, requireModule, requireRole, requireAnyModule, checkDocOwnership } from "../route-middleware";
 import { sql } from "drizzle-orm";
 import { getNextDocNo, createAutoJournalEntry, resolvePaymentMethodAccountCode, logActivity, upsertWarehouseStockLevel, getInventoryTriggers } from "../route-helpers";
@@ -1013,7 +1013,6 @@ app.delete("/api/sales-credit-notes/:id", requireAuth, requireAnyModule("sales",
     const [existing] = await db.select().from(salesCreditNotes).where(eq(salesCreditNotes.id, Number(req.params.id)));
     if (!existing) return res.status(404).json({ message: "ไม่พบใบลดหนี้" });
     { const ac = await checkDocOwnership(existing.companyId, req.user); if (!ac.allowed) return res.status(403).json({ message: ac.message }); }
-    if (existing.status !== "draft") return res.status(400).json({ message: "ลบได้เฉพาะใบลดหนี้สถานะแบบร่างเท่านั้น" });
     const cnMetaRaw = await db.execute(sql`SELECT return_to_stock, return_warehouse_id FROM sales_credit_notes WHERE id = ${existing.id}`);
     const cnMeta = (cnMetaRaw as any).rows?.[0] || {};
     const delReturnToStock = cnMeta.return_to_stock === true;
@@ -1021,7 +1020,14 @@ app.delete("/api/sales-credit-notes/:id", requireAuth, requireAnyModule("sales",
     const cnItemsToRevert = delReturnToStock && delReturnWarehouseId
       ? await db.select().from(salesCreditNoteItems).where(eq(salesCreditNoteItems.creditNoteId, existing.id))
       : [];
+    const relatedJournals = await db.select({ id: journalEntries.id }).from(journalEntries)
+      .where(and(eq(journalEntries.sourceDocType, "sales_credit_note"), eq(journalEntries.sourceDocId, existing.id)));
+    const relatedJournalIds = relatedJournals.map((j) => j.id);
     await db.transaction(async (tx) => {
+      if (relatedJournalIds.length > 0) {
+        await tx.delete(journalLines).where(inArray(journalLines.journalEntryId, relatedJournalIds));
+        await tx.delete(journalEntries).where(inArray(journalEntries.id, relatedJournalIds));
+      }
       await tx.delete(salesCreditNoteItems).where(eq(salesCreditNoteItems.creditNoteId, existing.id));
       await tx.delete(salesCreditNotes).where(eq(salesCreditNotes.id, existing.id));
     });
@@ -1052,7 +1058,14 @@ app.post("/api/sales-credit-notes/bulk-delete", requireAuth, requireAnyModule("s
         const bulkCnItems = bulkReturnToStock && bulkReturnWarehouseId
           ? await db.select().from(salesCreditNoteItems).where(eq(salesCreditNoteItems.creditNoteId, existing.id))
           : [];
+        const bulkRelatedJournals = await db.select({ id: journalEntries.id }).from(journalEntries)
+          .where(and(eq(journalEntries.sourceDocType, "sales_credit_note"), eq(journalEntries.sourceDocId, existing.id)));
+        const bulkRelatedJournalIds = bulkRelatedJournals.map((j) => j.id);
         await db.transaction(async (tx) => {
+          if (bulkRelatedJournalIds.length > 0) {
+            await tx.delete(journalLines).where(inArray(journalLines.journalEntryId, bulkRelatedJournalIds));
+            await tx.delete(journalEntries).where(inArray(journalEntries.id, bulkRelatedJournalIds));
+          }
           await tx.delete(salesCreditNoteItems).where(eq(salesCreditNoteItems.creditNoteId, existing.id));
           await tx.delete(salesCreditNotes).where(eq(salesCreditNotes.id, existing.id));
         });

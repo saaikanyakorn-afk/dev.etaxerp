@@ -282,21 +282,18 @@ export default function CreditNoteList() {
                               }} className="flex gap-2 text-green-600">
                                 <MessageSquare className="h-3.5 w-3.5" /> ส่งผ่าน LINE
                               </DropdownMenuItem>
-                              {cn.status === "draft" && (
-                                <>
-                                  <DropdownMenuSeparator />
-                                  <DropdownMenuItem
-                                    onClick={() => {
-                                      if (confirm("ยืนยันลบใบลดหนี้นี้?")) {
-                                        deleteMutation.mutate(cn.id);
-                                      }
-                                    }}
-                                    className="flex gap-2 text-red-500"
-                                  >
-                                    <Trash2 className="h-3.5 w-3.5" /> ลบเอกสาร
-                                  </DropdownMenuItem>
-                                </>
-                              )}
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                onClick={() => {
+                                  if (confirm(`ยืนยันลบใบลดหนี้ ${cn.creditNoteNo} ?\n\nระบบจะลบรายการสินค้า และบันทึกบัญชีที่เกี่ยวข้องทั้งหมดด้วย`)) {
+                                    deleteMutation.mutate(cn.id);
+                                  }
+                                }}
+                                className="flex gap-2 text-red-500"
+                                data-testid={`button-delete-cn-${cn.id}`}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" /> ลบเอกสาร
+                              </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
                         </TableCell>
