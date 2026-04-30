@@ -82,13 +82,18 @@ export default function CreditNoteList() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => {
-      await fetch(`/api/sales-credit-notes/${id}`, { method: "DELETE", credentials: "include" });
+      const res = await fetch(`/api/sales-credit-notes/${id}`, { method: "DELETE", credentials: "include" });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.message || `เกิดข้อผิดพลาด (${res.status})`);
+      }
     },
     onSuccess: () => {
+      queryClient.removeQueries({ queryKey: ["/api/sales-credit-notes"] });
       invalidateDocCaches(queryClient, [["/api/sales-credit-notes"]]);
       toast({ title: "ลบใบลดหนี้สำเร็จ", variant: "success" as any });
     },
-    onError: (err: any) => toast({ title: "เกิดข้อผิดพลาด", description: err.message, variant: "destructive" }),
+    onError: (err: any) => toast({ title: "ลบไม่สำเร็จ", description: err.message, variant: "destructive" }),
   });
 
   const filtered = creditNotes.filter((cn: any) => {
