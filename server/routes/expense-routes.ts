@@ -11,6 +11,7 @@ import multer from "multer";
 import crypto from "crypto";
 import * as XLSX from "xlsx";
 import * as path from "path";
+import { generateWhtCertPdf } from "../pdf-wht-cert";
 
 function isAllowedRedirectUrl(url: string): boolean {
   if (!url) return false;
@@ -1607,6 +1608,33 @@ export function registerExpenseRoutes(app: Express) {
       }
       res.json({ ...doc, company, createdByName, createdBySignatureName, createdBySignatureTitle, createdBySignatureUrl });
     } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.get("/api/share/wht-cert/:token/pdf", async (req, res) => {
+    try {
+      const [doc] = await db.select().from(withholdingTaxCerts).where(eq(withholdingTaxCerts.shareToken, req.params.token));
+      if (!doc) return res.status(404).json({ message: "ไม่พบเอกสาร" });
+      const [company] = await db.select().from(companies).where(eq(companies.id, doc.companyId));
+      let createdBySignatureName = "";
+      let createdByName = "";
+      if (doc.createdBy) {
+        const u = await storage.getUser(doc.createdBy);
+        if (u) {
+          createdByName = u.fullName;
+          createdBySignatureName = u.signatureName || u.fullName;
+        }
+      }
+      const items = await db.select().from(whtCertItems).where(eq(whtCertItems.whtCertId, doc.id));
+      const pdfData = { ...doc, company, items, createdByName, createdBySignatureName };
+      const pdfBuffer = await generateWhtCertPdf(pdfData);
+      const filename = `wht-cert-${doc.certNo || doc.id}.pdf`;
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", `inline; filename="${encodeURIComponent(filename)}"`);
+      res.send(pdfBuffer);
+    } catch (err: any) {
+      console.error("WHT cert PDF generation error:", err);
+      res.status(500).json({ message: err.message });
+    }
   });
 
   app.get("/api/reports/wht/export", requireAuth, requireModule("purchases"), async (req, res) => {

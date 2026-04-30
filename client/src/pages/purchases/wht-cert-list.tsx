@@ -212,7 +212,7 @@ export default function WhtCertList() {
       const res = await apiRequest("POST", `/api/wht-certs/${doc.id}/share`);
       const data = await res.json();
       const base = await getShareBaseUrl();
-      const url = `${base}/share/wht-cert/${data.shareToken}`;
+      const url = `${base}/api/share/wht-cert/${data.shareToken}/pdf`;
       await navigator.clipboard.writeText(url);
       toast({ title: "คัดลอกลิงก์แชร์แล้ว" });
     } catch {
