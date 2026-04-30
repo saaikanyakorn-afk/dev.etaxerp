@@ -918,6 +918,16 @@ app.patch("/api/sales-credit-notes/:id", requireAuth, requireAnyModule("sales", 
     if (body.refTaxInvoiceId === "" || body.refTaxInvoiceId === undefined) body.refTaxInvoiceId = null;
     else if (body.refTaxInvoiceId !== null) body.refTaxInvoiceId = Number(body.refTaxInvoiceId) || null;
 
+    const nullableDecimals = ["originalInvoiceAmount", "correctInvoiceAmount"];
+    for (const f of nullableDecimals) {
+      if (body[f] === "" || body[f] === undefined) body[f] = null;
+    }
+    const requiredDecimals = ["subtotal", "discountAmount", "vatAmount", "totalAmount", "exchangeRate"];
+    for (const f of requiredDecimals) {
+      if (body[f] === "" || body[f] === undefined) body[f] = "0";
+      else if (body[f] !== null) body[f] = String(parseFloat(String(body[f])) || 0);
+    }
+
     const statusChanged = body.status && body.status !== existing.status;
 
     const oldCnRaw = await db.execute(sql`SELECT return_to_stock, return_warehouse_id FROM sales_credit_notes WHERE id = ${existing.id}`);
