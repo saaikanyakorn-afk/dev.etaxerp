@@ -401,11 +401,13 @@ export function WhtCertContent({ data, dateEra = "CE", dateFmt = "DD/MM/YYYY" }:
           </div>
         </div>
 
-        <div style={{ marginTop: "4px", fontSize: "8.5px", color: "#666", borderTop: "1px solid #ccc", paddingTop: "2px" }}>
-          <b>หมายเหตุ เลขประจำตัวผู้เสียภาษีอากร (13 หลัก)* หมายถึง</b>
-          <span style={{ marginLeft: "20px" }}>1. กรณีบุคคลธรรมดาไทย ให้ใช้เลขประจำตัวประชาชนของกรมการปกครอง</span>
-          <div style={{ paddingLeft: "246px" }}>2. กรณีนิติบุคคล ให้ใช้เลขทะเบียนนิติบุคคลของกรมพัฒนาธุรกิจการค้า</div>
-          <div style={{ paddingLeft: "246px" }}>3. กรณีอื่นๆ นอกเหนือจาก 1. และ 2. ให้ใช้เลขประจำตัวผู้เสียภาษีอากร (13 หลัก) ของกรมสรรพากร</div>
+        <div style={{ marginTop: "4px", fontSize: "8.5px", color: "#666", borderTop: "1px solid #ccc", paddingTop: "2px", display: "flex", gap: "8px", alignItems: "flex-start" }}>
+          <b style={{ flexShrink: 0, whiteSpace: "nowrap" }}>หมายเหตุ เลขประจำตัวผู้เสียภาษีอากร (13 หลัก)* หมายถึง</b>
+          <div>
+            <div>1. กรณีบุคคลธรรมดาไทย ให้ใช้เลขประจำตัวประชาชนของกรมการปกครอง</div>
+            <div>2. กรณีนิติบุคคล ให้ใช้เลขทะเบียนนิติบุคคลของกรมพัฒนาธุรกิจการค้า</div>
+            <div>3. กรณีอื่นๆ นอกเหนือจาก 1. และ 2. ให้ใช้เลขประจำตัวผู้เสียภาษีอากร (13 หลัก) ของกรมสรรพากร</div>
+          </div>
         </div>
       </div>
     </div>
