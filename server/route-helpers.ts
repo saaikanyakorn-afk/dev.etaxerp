@@ -418,6 +418,7 @@ async function _createAutoJournalEntryInner(params: AutoJournalParams): Promise<
   const isReceipt = documentType === "receipt";
   const isTaxInvoice = documentType === "tax_invoice";
   const isPaymentVoucher = documentType === "payment";
+  const isCreditNote = documentType === "credit_note";
   const isPurchaseOrExpense = documentType === "purchase" || documentType === "expense";
   const netCash = (isReceipt || isTaxInvoice || isPaymentVoucher || isPurchaseOrExpense) ? grossTotal - wht : grossTotal;
 
@@ -500,6 +501,10 @@ async function _createAutoJournalEntryInner(params: AutoJournalParams): Promise<
       }
 
       if (isSalesDoc && !isCreditPayment && isCashBankLine && paymentMethodAccountCode) {
+        effectiveCode = paymentMethodAccountCode;
+      }
+
+      if (isCreditNote && !isCreditPayment && paymentMethodAccountCode && isARLine) {
         effectiveCode = paymentMethodAccountCode;
       }
 

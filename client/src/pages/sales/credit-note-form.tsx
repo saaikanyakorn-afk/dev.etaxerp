@@ -214,6 +214,7 @@ export default function CreditNoteForm() {
               currencyCode: tiv.currencyCode || "THB",
               sellerBranchId: tiv.sellerBranchId || p.sellerBranchId,
               originalInvoiceAmount: cleanDecimal(tiv.subtotal || tiv.totalAmount, ""),
+              ...(tiv.paymentMethod ? { paymentMethod: tiv.paymentMethod } : {}),
             }));
             if (tiv.items && tiv.items.length > 0) {
               setItems(tiv.items.map((it: any) => ({
@@ -331,6 +332,7 @@ export default function CreditNoteForm() {
           refTaxInvoiceDate: data.taxInvoiceDate || data.refTaxInvoiceDate || "",
           refTaxInvoiceId: invoiceId,
           originalInvoiceAmount: cleanDecimal(data.subtotal || data.totalAmount, ""),
+          ...(data.paymentMethod ? { paymentMethod: data.paymentMethod } : {}),
         }));
         if (data.items && data.items.length > 0) {
           setItems(data.items.map((it: any) => ({

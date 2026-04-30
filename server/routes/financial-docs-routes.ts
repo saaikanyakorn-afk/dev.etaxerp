@@ -880,6 +880,7 @@ app.post("/api/sales-credit-notes", requireAuth, requireAnyModule("sales", "ecom
 
     let journalResult = null;
     try {
+      const cnPmAccCode = await resolvePaymentMethodAccountCode(result.companyId, result.paymentMethod);
       journalResult = await createAutoJournalEntry({
         companyId: result.companyId,
         documentType: "credit_note",
@@ -895,6 +896,7 @@ app.post("/api/sales-credit-notes", requireAuth, requireAnyModule("sales", "ecom
         userId: user.id,
         customerName: result.customerName,
         paymentMethod: result.paymentMethod || "เครดิต",
+        paymentMethodAccountCode: cnPmAccCode,
         overrideLines: body?.journalOverrideLines || req?.body?.journalOverrideLines || undefined,
       });
     } catch (e) {}
@@ -961,6 +963,7 @@ app.patch("/api/sales-credit-notes/:id", requireAuth, requireAnyModule("sales", 
     let journalResult = null;
     if (statusChanged && body.status === "approved") {
       try {
+        const cnPatchPmAccCode = await resolvePaymentMethodAccountCode(result.companyId, result.paymentMethod);
         journalResult = await createAutoJournalEntry({
           companyId: result.companyId,
           documentType: "credit_note",
@@ -976,6 +979,7 @@ app.patch("/api/sales-credit-notes/:id", requireAuth, requireAnyModule("sales", 
           userId: user.id,
           customerName: result.customerName,
           paymentMethod: result.paymentMethod || "เครดิต",
+          paymentMethodAccountCode: cnPatchPmAccCode,
           overrideLines: body?.journalOverrideLines || req?.body?.journalOverrideLines || undefined,
         });
       } catch (e) {}
