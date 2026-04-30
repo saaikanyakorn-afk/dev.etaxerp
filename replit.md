@@ -119,7 +119,7 @@ Must run isolated — verify DB before deploying anything else.
 
 **STEP 1 — Deploy ONLY this file:**
 ```
-git fetch origin && git checkout origin/main -- server/routes/payment-methods-routes.ts && npm run build && npm start
+git fetch origin && git checkout origin/main -- server/routes/payment-methods-routes.ts && npm run build && pm2 start etax-center
 ```
 
 **STEP 2 — Watch for this log (⚠️ STOP if not seen):**
@@ -230,7 +230,7 @@ git fetch origin && git checkout origin/main -- \
   client/src/pages/sales/tax-invoice-share.tsx \
   client/src/pages/settings/inventory-triggers.tsx \
   client/src/pages/settings/payment-methods.tsx \
-  && npm run build && npm start
+  && npm run build && pm2 start etax-center
 ```
 **NOT included (NEVER deploy):** `client/src/App.tsx`, `server/index.ts`, `shared/schema.ts`
 
@@ -259,7 +259,7 @@ Do NOT stop the server after BATCH 2 unless there is a problem.
 pm2 stop etax-center
 ```
 ```
-git fetch origin && git checkout origin/main -- client/src/components/etax-send-dialog.tsx && npm run build && npm start
+git fetch origin && git checkout origin/main -- client/src/components/etax-send-dialog.tsx && npm run build && pm2 start etax-center
 ```
 
 ## 🔴 GOLDEN RULE — PULL-BEFORE-TOUCH (MANDATORY for any protected/sensitive file)
