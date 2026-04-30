@@ -1585,10 +1585,18 @@ Commands issued to production server = **`git fetch origin` + `git checkout orig
 
 ### Deploying to Production (cherry-pick only)
 Always send these commands one step at a time. Never batch without พี่ช้าง confirming each step.
+
+**Step A — Push files to git repo FIRST (from dev environment):**
+Files must exist in the git remote before the production server can checkout them.
+Kai identifies the specific commit hash that contains ONLY the files for this step.
+พี่ช้าง (or authorized human operator) cherry-pushes ONLY that commit to github-production.
+AI agents cannot push to github-production directly — human authorization required always.
+
+**Step B — Production server command (after Step A confirmed):**
 ```
 git fetch origin && git checkout origin/main -- <file1> <file2> ... && npm run build && npm start
 ```
-List ONLY the files that changed for this specific task. Nothing else.
+List ONLY the files that changed for this specific step. Nothing else.
 
 ### Production DB Credentials (for direct query from dev environment)
 ```
