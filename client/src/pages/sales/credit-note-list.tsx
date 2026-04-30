@@ -239,7 +239,18 @@ export default function CreditNoteList() {
                             </span>
                           </div>
                         </TableCell>
-                        <TableCell className="text-sm">{cn.refTaxInvoiceNo || "-"}</TableCell>
+                        <TableCell className="text-sm">
+                          {cn.refTaxInvoiceId ? (
+                            <button
+                              className="text-blue-600 hover:underline font-medium"
+                              onClick={() => navigate(`/sales/tax-invoice/edit/${cn.refTaxInvoiceId}`)}
+                            >
+                              {cn.refTaxInvoiceNo || `#${cn.refTaxInvoiceId}`}
+                            </button>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
+                        </TableCell>
                         <TableCell className="text-right tabular-nums">
                           <div className="text-sm font-normal">
                             {fmt(cn.totalAmount)}
