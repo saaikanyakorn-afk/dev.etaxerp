@@ -133,11 +133,9 @@ pm2 stop etax-center
 Server must NOT stay running between steps. Half-baked upgrade = user data risk.
 Do NOT proceed to STEP 3 until server is confirmed stopped.
 
-**STEP 3 — Verify DB with eyes (server is stopped — DB query is safe):**
-```
-PGPASSWORD=nJKsyhE4583Hz psql -h deep-main.hopto.org -p 20541 -U etaxusr -d etax-production -c "SELECT column_name FROM information_schema.columns WHERE table_name='payment_methods' AND column_name IN ('bank_name','bank_account_no');"
-```
-Must see 2 rows. Stop and tell Kai if not.
+**STEP 3 — Kai verifies DB (Kai's job, not sysadmin):**
+After server is stopped, Kai queries production DB directly and confirms both columns exist.
+SysAdmin waits for Kai to give the go-ahead before proceeding to STEP 4.
 
 **STEP 4 — Restart clean (migration will NOT run again — flag is set):**
 ```
