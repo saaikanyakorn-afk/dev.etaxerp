@@ -72,7 +72,15 @@
 //
 //   Caller side (in the relevant route file, NOT index.ts):
 //     import { runXxxColumnsMigration } from "@shared/schema-extra";
-//     runXxxColumnsMigration(db);  // top-level call, fires when route module loads
+//     export function registerXxxRoutes(app: Express) {
+//       runXxxColumnsMigration(db);  // INSIDE the register function, NOT top-level
+//       ...
+//     }
+//
+//   CRITICAL TIMING RULE: Call MUST be inside the register function body, never
+//   at module top-level. Top-level runs at import time (before DB config bootstrap
+//   completes on production). Inside the function runs at route registration time
+//   (after migrationReady = true, DB is fully connected).
 //
 //   Rule: NEVER use DROP COLUMN, ALTER TYPE, or RENAME — additive only.
 //   Rule: NEVER touch index.ts for feature column additions.

@@ -6,9 +6,10 @@ import { warehouseZones, warehouseBins, ecommerceOrders, ecommerceOrderItems } f
 import { requireAuth, requireModule } from "../route-middleware";
 import { runWarehouseColumnsMigration } from "@shared/schema-extra";
 
+export function registerWarehouseBinRoutes(app: Express) {
+// Run after DB is ready (inside function = called after migrationReady, not at module import time)
 runWarehouseColumnsMigration(db);
 
-export function registerWarehouseBinRoutes(app: Express) {
 // ========== Warehouse Bin Location System ==========
 
 app.get("/api/ecommerce/warehouse/zones", requireAuth, requireModule("ecommerce"), async (req, res) => {

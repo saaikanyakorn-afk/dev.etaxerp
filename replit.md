@@ -1593,8 +1593,10 @@ Kai notifies พี่ช้าง only when cherry-push is done — then พี
 
 **Step B — Production server command (after Step A confirmed):**
 ```
-git fetch origin && git checkout origin/main -- <file1> <file2> ... && npm run build && npm start
+pm2 stop etax-center && git fetch origin && git checkout origin/main -- <file1> <file2> ... && npm run build && npm start
 ```
+`pm2 stop` MUST come first — prevents EADDRINUSE and ensures DB config bootstrap
+completes before any migration code runs on the fresh start.
 List ONLY the files that changed for this specific step. Nothing else.
 
 ### Production DB Credentials (for direct query from dev environment)
