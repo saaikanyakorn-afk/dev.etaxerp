@@ -465,7 +465,9 @@ export async function runWarehouseColumnsMigration(db: any) {
     `));
     console.log("[migration] ✅ warehouse columns ensured (8 columns)");
   } catch (e: any) {
-    console.warn("[migration] warehouse columns DDL:", e.message);
+    console.error(`[migration] ❌ warehouse columns DDL FAILED — server continues but schema may be incomplete`);
+    console.error(`[migration] DDL error: ${e.message}`);
+    console.error(`[migration] Action required: check warehouse_stock_levels, goods_receivings, sales_credit_notes, ecommerce_orders, manufacturing_orders, general_settings columns manually`);
   }
 
   // --- Data backfill — touches existing data, backup done 2026-04-30 ---
@@ -516,6 +518,8 @@ export async function runWarehouseColumnsMigration(db: any) {
     ));
     console.log("[migration] ✅ warehouse_stock_levels historical backfill done");
   } catch (e: any) {
-    console.warn("[migration] warehouse backfill:", e.message);
+    console.error(`[migration] ❌ warehouse backfill FAILED — flag '${BACKFILL_FLAG}' NOT set, will retry on next restart`);
+    console.error(`[migration] Backfill error: ${e.message}`);
+    console.error(`[migration] Hint: check unique index wsl_unique_warehouse_product_company on warehouse_stock_levels, and check for duplicate (warehouse_id, product_id, company_id) rows`);
   }
 }
