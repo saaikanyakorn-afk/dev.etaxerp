@@ -102,10 +102,11 @@ Production is at commit `a1c6996c` on github-production. The following batches a
 
 **DEPLOY RULES — apply to every batch, every time:**
 1. **DB manipulation = its own isolated loop.** Never mix with code batch. Verify DB before closing loop.
-2. **Stop server immediately after verifying each step's log.** Half-baked upgrade running = users can log in and hit broken state. `pm2 stop etax-center` the moment you have what you need from that restart.
+2. **Stop-between-steps rule applies ONLY to destructive migrations** (DROP, UPDATE existing rows, backfill). For `ADD COLUMN nullable + IF NOT EXISTS` — no mid-loop stop needed. Running again does no harm. Kai verifies DB remotely while server is up.
 3. **Between batches, server must be STOPPED.** Only start again when the next batch is fully ready to run.
 4. **BATCH 1 must complete its full loop before BATCH 2 begins.** No exceptions.
 5. **NEVER deploy `client/src/App.tsx`, `server/index.ts`, `shared/schema.ts`.**
+6. **Minimize stop/start cycles.** Every stop = physical walk to server room for พี่ช้าง. Design commands to complete in one run where safe.
 
 **Rule: DB manipulation runs its own loop FIRST, before any code batch.**
 
@@ -148,11 +149,11 @@ pm2 start etax-center
 ```
 If migration log appears again → `pm2 stop etax-center` immediately, tell Kai.
 
-- [ ] STEP 1: deployed + started
-- [ ] STEP 2: migration log seen ✅
-- [ ] STEP 2b: server STOPPED immediately
-- [ ] STEP 3: DB verified — bank_name + bank_account_no present
-- [ ] STEP 4: restarted clean
+- [x] STEP 1: deployed + started
+- [x] STEP 2: migration log seen ✅ `[migration] ✅ bank_name + bank_account_no added to payment_methods`
+- [x] STEP 2b: server STOPPED
+- [x] STEP 3: DB verified by Kai — bank_name ✅ bank_account_no ✅ (both text, nullable)
+- [x] STEP 4: restarted clean — awaiting STEP 5 confirmation
 - [ ] STEP 5: clean log confirmed — no migration repeat
 - [ ] BATCH 1 LOOP CLOSED → proceed to BATCH 2
 
