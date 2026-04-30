@@ -130,11 +130,11 @@ app.get("/api/version", (_req, res) => {
 });
 
 app.get("/api/share-base-url", (req, res) => {
-  const shareBaseUrl = process.env.SHARE_BASE_URL;
-  if (!shareBaseUrl) {
-    throw new Error("SHARE_BASE_URL environment variable is not configured");
+  const host = req.get("host");
+  if (!host) {
+    throw new Error("Server cannot determine its own host — check reverse proxy Host header configuration");
   }
-  res.json({ url: shareBaseUrl.replace(/\/$/, "") });
+  res.json({ url: `${req.protocol}://${host}` });
 });
 
 app.get("/api/public-config", (_req, res) => {
