@@ -17,9 +17,12 @@
 //          - Where the backup file is (path)
 //          - When it ran (datetime)
 //          - Why it was needed (reason/ticket)
-//     3. FLAG COMPLETED — only after backup exists and history is updated,
-//        insert the system_config flag to prevent re-run.
-//     4. Comment out the block → push clean in the next cycle.
+//     3. FLAG COMPLETED — insert the system_config flag. This is a secondary safety
+//        net only — it guards the window before the clean push lands on the server.
+//     4. COMMENT OUT THE BLOCK immediately with date/time/reason in the comment.
+//        This is the PRIMARY prevention — once the code is gone, re-run is impossible.
+//     5. PUSH CLEAN immediately — before any other step continues.
+//        Do NOT move to the next task until clean code is live on the server.
 //
 //   Example skeleton:
 //     const FLAG = "BATCH_REGENERATE_PDF_2026_XX_XX";
@@ -123,9 +126,18 @@
 //       This MUST happen before flagging complete.
 //   ────────────────────────────────────────────────────────────────────────────
 //
-//   5. COMMENT OUT THE BLOCK — in schema-extra.ts, comment out the migration block
-//      with the date/time it ran and the reason (e.g., // Ran 2026-05-01 14:30 UTC).
-//   6. PUSH CLEAN — push the commented-out schema-extra.ts to production, rebuild.
+//   5. COMMENT OUT THE BLOCK IMMEDIATELY — this is the PRIMARY prevention against
+//      re-run, not the flag. Comment out the entire migration block in schema-extra.ts
+//      with: date/time it finished, what it did, why it ran that time.
+//      Example:
+//        /* DONE 2026-05-01 14:30 UTC — added warehouse_id to goods_receivings.
+//           Ran once to migrate warehouse columns from index.ts. Never run again. */
+//   6. PUSH CLEAN BEFORE ANYTHING ELSE — push the commented-out schema-extra.ts
+//      to production and rebuild immediately. Do NOT proceed to any other checklist
+//      step until the clean code is live on the server.
+//      Once the block is gone from the server, re-run is physically impossible.
+//      The system_config flag is only a secondary safety net for the window between
+//      the migration running and the clean push landing.
 //   7. CONTINUE CHECKLIST — proceed with the remaining steps of the full fix batch.
 // =============================================================================
 
