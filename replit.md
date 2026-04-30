@@ -1574,6 +1574,52 @@ Other:
 - Security work lives ONLY on github-replit (and github-dev when approved). Never cherry-pick security commits to prod working dir.
 - Commit `73e7d519` (sysAdmin LINE ID 2FA requirement) — github-replit ONLY. DO NOT propagate.
 
+## PRODUCTION OPS — AI MUST READ EVERY SESSION
+
+### Absolute Server Command Rule
+Commands issued to production server = **`git fetch origin` + `git checkout origin/main -- <files>` + `npm run build` + `npm start`** ONLY.
+- NEVER `git pull` (pulls everything — forbidden)
+- NEVER open application server console manually
+- NEVER open database server console manually
+- ALL verify / inspect / backup must be done through CODE or from dev environment directly
+
+### Deploying to Production (cherry-pick only)
+Always send these commands one step at a time. Never batch without พี่ช้าง confirming each step.
+```
+git fetch origin && git checkout origin/main -- <file1> <file2> ... && npm run build && npm start
+```
+List ONLY the files that changed for this specific task. Nothing else.
+
+### Production DB Credentials (for direct query from dev environment)
+```
+postgresql://etaxusr:nJKsyhE4583Hz@deep-main.hopto.org:20541/etax-production
+psql: PGPASSWORD=nJKsyhE4583Hz psql -h deep-main.hopto.org -p 20541 -U etaxusr -d etax-production
+```
+Use this to verify production state directly from dev — no console needed on DB server.
+
+### DB Migration Checklist (must follow every time — no shortcuts)
+See `shared/schema-extra.ts` header for full rules. Summary:
+
+1. **VERIFY FIRST** — query prod DB from dev environment before writing any code
+2. **BACKUP** (if touching existing data) — `pg_dump` from dev env → `db/backups/YYYY-MM-DD_<table>_before_<reason>.sql`
+3. **WRITE MIGRATION** — TERTIARY USE pattern in `schema-extra.ts` + caller in route file (NOT index.ts)
+4. **WRITE HISTORY** — entry in `db/schema-history.md` (what/backup path/when/why)
+5. **CHERRY-PICK DEPLOY** — only migration files, nothing else
+6. **VERIFY RESULT** — query prod DB from dev environment
+7. **COMMENT OUT BLOCK IMMEDIATELY** — with date/time/reason — this is PRIMARY prevention of re-run
+8. **PUSH CLEAN BEFORE ANYTHING ELSE** — comment-out must land on server before next step
+9. **CONTINUE** rest of the task checklist
+
+### The Two Facts Behind All These Rules
+1. **Agent switch** — a new agent has zero memory of what the previous agent did
+2. **AI memory resets daily** — tomorrow this agent will forget everything done today
+
+Code is the only memory that does not forget. Every action must leave a trace in the codebase.
+
+### Node.js Logging Rule
+- Do NOT grep server logs manually
+- If you need to see Node.js output: write a temporary `console.log` block in code, deploy, read screen output, then **remove the block and push clean**
+
 ## External Dependencies
 - **LINE Messaging API:** Used for sending messages and processing webhooks.
 - **Resend (Email Service):** Sends e-Tax Invoice emails with PDF/A-3 attachments, document sharing, and HR payslips.
