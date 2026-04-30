@@ -754,8 +754,9 @@ app.post("/api/quotations/:id/send-email", requireAuth, requireAnyModule("sales"
 async function computeInvoicePaidAmounts(invoiceIds: number[]): Promise<Record<number, number>> {
   const paidMap: Record<number, number> = {};
   if (invoiceIds.length === 0) return paidMap;
-  const directPaid = await db.execute(sql`SELECT invoice_id, SUM(total_amount) AS paid FROM receipts WHERE invoice_id = ANY(${invoiceIds}) GROUP BY invoice_id`);
-  const batchPaid = await db.execute(sql`SELECT doc_id, SUM(amount) AS paid FROM receipt_linked_docs WHERE doc_type = 'IV' AND doc_id = ANY(${invoiceIds}) GROUP BY doc_id`);
+  const idArr = `'{${invoiceIds.join(",")}}'::int[]`;
+  const directPaid = await db.execute(sql.raw(`SELECT invoice_id, SUM(total_amount) AS paid FROM receipts WHERE invoice_id = ANY(${idArr}) GROUP BY invoice_id`));
+  const batchPaid = await db.execute(sql.raw(`SELECT doc_id, SUM(amount) AS paid FROM receipt_linked_docs WHERE doc_type = 'IV' AND doc_id = ANY(${idArr}) GROUP BY doc_id`));
   for (const r of (directPaid as any).rows || []) paidMap[r.invoice_id] = (paidMap[r.invoice_id] || 0) + parseFloat(r.paid || 0);
   for (const r of (batchPaid as any).rows || []) paidMap[r.doc_id] = (paidMap[r.doc_id] || 0) + parseFloat(r.paid || 0);
   return paidMap;
@@ -1769,7 +1770,8 @@ app.post("/api/invoices/import/create", requireAuth, requireAnyModule("sales", "
 async function computeTaxInvoicePaidAmounts(taxInvoiceIds: number[]): Promise<Record<number, number>> {
   const paidMap: Record<number, number> = {};
   if (taxInvoiceIds.length === 0) return paidMap;
-  const batchPaid = await db.execute(sql`SELECT doc_id, SUM(amount) AS paid FROM receipt_linked_docs WHERE doc_type = 'TIV' AND doc_id = ANY(${taxInvoiceIds}) GROUP BY doc_id`);
+  const idArr = `'{${taxInvoiceIds.join(",")}}'::int[]`;
+  const batchPaid = await db.execute(sql.raw(`SELECT doc_id, SUM(amount) AS paid FROM receipt_linked_docs WHERE doc_type = 'TIV' AND doc_id = ANY(${idArr}) GROUP BY doc_id`));
   for (const r of (batchPaid as any).rows || []) paidMap[r.doc_id] = (paidMap[r.doc_id] || 0) + parseFloat(r.paid || 0);
   return paidMap;
 }
