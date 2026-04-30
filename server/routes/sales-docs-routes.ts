@@ -1776,6 +1776,18 @@ async function computeTaxInvoicePaidAmounts(taxInvoiceIds: number[]): Promise<Re
   return paidMap;
 }
 
+async function computeTaxInvoiceCNAmounts(taxInvoiceIds: number[]): Promise<Record<number, number>> {
+  const cnMap: Record<number, number> = {};
+  if (taxInvoiceIds.length === 0) return cnMap;
+  const rows = await db.select({ refId: salesCreditNotes.refTaxInvoiceId, total: salesCreditNotes.totalAmount })
+    .from(salesCreditNotes)
+    .where(and(inArray(salesCreditNotes.refTaxInvoiceId as any, taxInvoiceIds), sql`${salesCreditNotes.status} != 'cancelled'`));
+  for (const r of rows) {
+    if (r.refId) cnMap[r.refId] = (cnMap[r.refId] || 0) + parseFloat(String(r.total || 0));
+  }
+  return cnMap;
+}
+
 app.get("/api/tax-invoices", requireAuth, requireAnyModule("sales", "ecommerce"), async (req, res) => {
   try {
     const companyId = Number(req.query.companyId);
@@ -1786,7 +1798,8 @@ app.get("/api/tax-invoices", requireAuth, requireAnyModule("sales", "ecommerce")
       const userMap: Record<number, string> = {};
       if (userIds.length > 0) { const uu = await db.select({ id: users.id, fullName: users.fullName }).from(users).where(inArray(users.id, userIds)); for (const u of uu) userMap[u.id] = u.fullName; }
       const paidMap = await computeTaxInvoicePaidAmounts(rows.map((r: any) => r.id));
-      return rows.map((r: any) => ({ ...r, createdByName: r.createdBy ? userMap[r.createdBy] || "-" : "-", updatedByName: r.updatedBy ? userMap[r.updatedBy] || "-" : "-", paidAmount: paidMap[r.id] || 0 }));
+      const cnMap = await computeTaxInvoiceCNAmounts(rows.map((r: any) => r.id));
+      return rows.map((r: any) => ({ ...r, createdByName: r.createdBy ? userMap[r.createdBy] || "-" : "-", updatedByName: r.updatedBy ? userMap[r.updatedBy] || "-" : "-", paidAmount: paidMap[r.id] || 0, cnAmount: cnMap[r.id] || 0 }));
     };
     if (req.query.page) {
       const { page, pageSize, offset } = parsePagination(req, { pageSize: 50 });
