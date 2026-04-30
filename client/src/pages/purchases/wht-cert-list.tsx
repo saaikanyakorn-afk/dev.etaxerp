@@ -13,8 +13,9 @@ import { useCompany } from "@/lib/company-context";
 import {
   Search, Plus, FileText, Edit2, Trash2, Eye,
   CheckCircle2, Clock, XCircle,
-  Printer, Link2, Download, BarChart3, Layers, Loader2
+  Printer, Link2, Download, BarChart3, Layers, Loader2, MessageSquare
 } from "lucide-react";
+import LineSendDialog from "@/components/line-send-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { apiRequest, getShareBaseUrl } from "@/lib/queryClient";
 import { formatDate } from "@/lib/format";
@@ -109,6 +110,7 @@ export default function WhtCertList() {
   const [consYear, setConsYear] = useState(getDefaultYear());
   const [consSearched, setConsSearched] = useState(false);
   const [selectedVendors, setSelectedVendors] = useState<Set<string>>(new Set());
+  const [lineDialog, setLineDialog] = useState<{ open: boolean; url: string; docNo: string; payeeName: string }>({ open: false, url: "", docNo: "", payeeName: "" });
 
   const { dateEra, dateFmt } = useDateSettings();
   const { data: docSettings } = useQuery<any>({
@@ -215,6 +217,18 @@ export default function WhtCertList() {
       const url = `${base}/share/wht-cert/${data.shareToken}`;
       await navigator.clipboard.writeText(url);
       toast({ title: "คัดลอกลิงก์แชร์แล้ว" });
+    } catch {
+      toast({ title: "เกิดข้อผิดพลาด", variant: "destructive" });
+    }
+  };
+
+  const handleSendLine = async (doc: any) => {
+    try {
+      const res = await apiRequest("POST", `/api/wht-certs/${doc.id}/share`);
+      const data = await res.json();
+      const base = await getShareBaseUrl();
+      const url = `${base}/share/wht-cert/${data.shareToken}`;
+      setTimeout(() => setLineDialog({ open: true, url, docNo: doc.certNo || "", payeeName: doc.payeeName || "" }), 150);
     } catch {
       toast({ title: "เกิดข้อผิดพลาด", variant: "destructive" });
     }
@@ -422,6 +436,16 @@ export default function WhtCertList() {
                                     onClick={() => handleShare(doc)}
                                   >
                                     <Link2 className="h-4 w-4 text-gray-500" />
+                                  </Button>
+                                  <Button
+                                    data-testid={`button-line-${doc.id}`}
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8"
+                                    title="ส่งผ่าน LINE"
+                                    onClick={() => handleSendLine(doc)}
+                                  >
+                                    <MessageSquare className="h-4 w-4 text-green-500" />
                                   </Button>
                                   {doc.status === "draft" && (
                                     <Button
@@ -828,6 +852,15 @@ export default function WhtCertList() {
           </TabsContent>
         </Tabs>
       </div>
+      <LineSendDialog
+        open={lineDialog.open}
+        onOpenChange={(open) => setLineDialog(prev => ({ ...prev, open }))}
+        shareUrl={lineDialog.url}
+        docType="ใบ 50 ทวิ"
+        docNo={lineDialog.docNo}
+        customerName={lineDialog.payeeName}
+        companyId={companyId}
+      />
     </Layout>
   );
 }
