@@ -243,7 +243,7 @@ export default function CreditNoteList() {
                           {cn.refTaxInvoiceId ? (
                             <button
                               className="text-blue-600 hover:underline font-medium"
-                              onClick={() => navigate(`/sales/tax-invoice/edit/${cn.refTaxInvoiceId}`)}
+                              onClick={() => navigate(`/sales/tax-invoices?search=${encodeURIComponent(cn.refTaxInvoiceNo || String(cn.refTaxInvoiceId))}`)}
                             >
                               {cn.refTaxInvoiceNo || `#${cn.refTaxInvoiceId}`}
                             </button>
