@@ -330,6 +330,7 @@ export default function CreditNoteForm() {
           refTaxInvoiceNo: data.taxInvoiceNo || data.refTaxInvoiceNo || "",
           refTaxInvoiceDate: data.taxInvoiceDate || data.refTaxInvoiceDate || "",
           refTaxInvoiceId: invoiceId,
+          originalInvoiceAmount: cleanDecimal(data.subtotal || data.totalAmount, ""),
         }));
         if (data.items && data.items.length > 0) {
           setItems(data.items.map((it: any) => ({
