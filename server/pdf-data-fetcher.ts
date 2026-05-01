@@ -431,9 +431,9 @@ export async function buildBillingNotePdfData(billingNoteId: number): Promise<Ge
       if (u) {
         const sigBase64 = await fetchImageAsBase64(u.signatureUrl ? await resolveObjectStorageUrl(u.signatureUrl) : null);
         userSig = {
-          name: u.signatureName || u.fullName || "",
-          title: u.signatureTitle || "",
-          imageBase64: sigBase64,
+          signatureBase64: sigBase64,
+          signatureName: u.signatureName || u.fullName || "",
+          signatureTitle: u.signatureTitle || null,
         };
       }
     } catch {}
