@@ -136,7 +136,7 @@ export const NAV_ITEMS = [
     children: [
       { label: "ปฏิทินครบกำหนดชำระ", href: "/finance/due-calendar", group: "ภาพรวม" },
       { label: "พยากรณ์เงินสด+ทุนหมุนเวียน", href: "/finance/cash-flow-forecast", group: "ภาพรวม" },
-      { label: "รายการรับเงิน", href: "/finance/receipt-billing", group: "รับ-จ่ายเงิน" },
+      { label: "ใบเสร็จรับเงิน", href: "/finance/receipt-billing", group: "รับ-จ่ายเงิน" },
       { label: "ใบวางบิล", href: "/finance/billing-notes", group: "รับ-จ่ายเงิน" },
       { label: "จ่ายเงิน/วางบิล", href: "/finance/ap-billing", group: "รับ-จ่ายเงิน" },
       { label: "รายการชำระเงิน", href: "/finance/payments", group: "รับ-จ่ายเงิน" },

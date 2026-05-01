@@ -45,7 +45,7 @@ const NAV_LABEL_MAP: Record<string, string> = {
   "การเงิน": "nav.finance",
   "ปฏิทินครบกำหนดชำระ": "nav.dueCalendar",
   "พยากรณ์เงินสด+ทุนหมุนเวียน": "nav.cashFlowForecast",
-  "รายการรับเงิน": "nav.receiptBilling",
+  "ใบเสร็จรับเงิน": "nav.receiptBilling",
   "ใบวางบิล": "nav.billingNotes",
   "จ่ายเงิน/วางบิล": "nav.apBilling",
   "รายการชำระเงิน": "nav.payments",

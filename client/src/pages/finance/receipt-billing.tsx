@@ -557,8 +557,8 @@ export default function ReceiptBilling() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-gray-800" data-testid="text-page-title">รับเงิน</h1>
-          <p className="text-sm text-muted-foreground">รายการใบรับเงินทั้งหมด</p>
+          <h1 className="text-xl font-bold text-gray-800" data-testid="text-page-title">ใบเสร็จรับเงิน</h1>
+          <p className="text-sm text-muted-foreground">รายการใบเสร็จรับเงินทั้งหมด</p>
         </div>
         <Button
           size="sm"
@@ -618,7 +618,7 @@ export default function ReceiptBilling() {
       <Card className="border-0 shadow-sm">
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
-            <CardTitle className="text-base">รายการใบรับเงิน</CardTitle>
+            <CardTitle className="text-base">ใบเสร็จรับเงิน</CardTitle>
             <div className="relative">
               <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
               <Input

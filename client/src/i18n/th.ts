@@ -45,7 +45,7 @@ export const th = {
     finance: "การเงิน",
     dueCalendar: "ปฏิทินครบกำหนดชำระ",
     cashFlowForecast: "พยากรณ์เงินสด+ทุนหมุนเวียน",
-    receiptBilling: "รายการรับเงิน",
+    receiptBilling: "ใบเสร็จรับเงิน",
     billingNotes: "ใบวางบิล",
     apBilling: "จ่ายเงิน/วางบิล",
     payments: "รายการชำระเงิน",
