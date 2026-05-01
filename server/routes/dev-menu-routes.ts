@@ -944,7 +944,7 @@ app.get("/api/dev/pdf-test-docs", requireAuth, async (req, res) => {
 });
 
 // ===================== Invoice Recompute Preview =====================
-app.get("/api/dev/invoice-recompute-preview", requireSuperAdmin, async (req, res) => {
+app.get("/api/dev/invoice-recompute-preview", requireAdmin, async (req, res) => {
   try {
     const companyId = Number(req.query.companyId);
     if (!companyId) return res.status(400).json({ message: "companyId required" });
@@ -996,7 +996,7 @@ app.get("/api/dev/invoice-recompute-preview", requireSuperAdmin, async (req, res
   } catch (err: any) { res.status(500).json({ message: err.message }); }
 });
 
-app.post("/api/dev/invoice-recompute-apply", requireSuperAdmin, async (req, res) => {
+app.post("/api/dev/invoice-recompute-apply", requireAdmin, async (req, res) => {
   try {
     const { ids } = req.body as { ids: number[] };
     if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ message: "ids required" });
