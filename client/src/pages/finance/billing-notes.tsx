@@ -8,7 +8,9 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { FileText, Search, DollarSign, Clock, AlertTriangle, CheckCircle, Users, CreditCard, Loader2, Receipt, ChevronDown, ChevronRight, Link2, Plus, ArrowLeft, X, CalendarDays, Printer } from "lucide-react";
+import { FileText, Search, DollarSign, Clock, AlertTriangle, CheckCircle, Users, CreditCard, Loader2, Receipt, ChevronDown, ChevronRight, Link2, Plus, ArrowLeft, X, CalendarDays, Printer, Pencil, Trash2, Send, MoreHorizontal } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Textarea } from "@/components/ui/textarea";
 import { useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useCompany } from "@/lib/company-context";
@@ -74,6 +76,22 @@ export default function BillingNotes() {
   const [receiptPayDate, setReceiptPayDate] = useState(() => toLocalDateStr(new Date()));
   const [receiptWht, setReceiptWht] = useState("");
   const [receiptNotes, setReceiptNotes] = useState("");
+
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editBn, setEditBn] = useState<any>(null);
+  const [editBillingDate, setEditBillingDate] = useState("");
+  const [editDueDate, setEditDueDate] = useState("");
+  const [editNotes, setEditNotes] = useState("");
+  const [editWht, setEditWht] = useState("");
+
+  const [sendDialogOpen, setSendDialogOpen] = useState(false);
+  const [sendBn, setSendBn] = useState<any>(null);
+  const [sendToEmail, setSendToEmail] = useState("");
+  const [sendSubject, setSendSubject] = useState("");
+  const [sendBody, setSendBody] = useState("");
+
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [deleteBn, setDeleteBn] = useState<any>(null);
 
   const { dateEra, dateFmt } = useDateSettings();
   const { data: docSettings } = useQuery<any>({
@@ -184,6 +202,68 @@ export default function BillingNotes() {
     },
   });
 
+  const updateBillingNote = useMutation({
+    mutationFn: async ({ id, payload }: { id: number; payload: any }) => {
+      const r = await fetch(`/api/finance/billing-notes/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(payload),
+      });
+      if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.message || "เกิดข้อผิดพลาด"); }
+      return r.json();
+    },
+    onSuccess: () => {
+      toast({ title: "แก้ไขใบวางบิลสำเร็จ" });
+      queryClient.invalidateQueries({ queryKey: ["/api/finance/billing-notes", companyId] });
+      setEditDialogOpen(false);
+    },
+    onError: (err: any) => {
+      toast({ title: "เกิดข้อผิดพลาด", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const deleteBillingNote = useMutation({
+    mutationFn: async (id: number) => {
+      const r = await fetch(`/api/finance/billing-notes/${id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.message || "เกิดข้อผิดพลาด"); }
+      return r.json();
+    },
+    onSuccess: () => {
+      toast({ title: "ลบใบวางบิลสำเร็จ" });
+      queryClient.invalidateQueries({ queryKey: ["/api/finance/billing-notes", companyId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/finance/customer-outstanding-docs"] });
+      setDeleteConfirmOpen(false);
+      setDeleteBn(null);
+    },
+    onError: (err: any) => {
+      toast({ title: "เกิดข้อผิดพลาด", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const sendEmailBN = useMutation({
+    mutationFn: async ({ id, payload }: { id: number; payload: any }) => {
+      const r = await fetch(`/api/finance/billing-notes/${id}/send-email`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(payload),
+      });
+      if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.message || "เกิดข้อผิดพลาด"); }
+      return r.json();
+    },
+    onSuccess: () => {
+      toast({ title: "ส่งอีเมลสำเร็จ" });
+      setSendDialogOpen(false);
+    },
+    onError: (err: any) => {
+      toast({ title: "เกิดข้อผิดพลาด", description: err.message, variant: "destructive" });
+    },
+  });
+
   const resetCreateForm = () => {
     setCustomerSearch("");
     setSelectedContact(null);
@@ -284,6 +364,36 @@ export default function BillingNotes() {
     setSelectedContact(null);
     setCustomerSearch("");
     setSelectedDocs(new Set());
+  };
+
+  const openEditDialog = (bn: any) => {
+    setEditBn(bn);
+    setEditBillingDate(bn.billingDate || toLocalDateStr(new Date()));
+    setEditDueDate(bn.dueDate || "");
+    setEditNotes(bn.notes || "");
+    setEditWht(bn.withholdingTax && parseFloat(bn.withholdingTax) > 0 ? String(parseFloat(bn.withholdingTax)) : "");
+    setEditDialogOpen(true);
+  };
+
+  const submitEdit = () => {
+    if (!editBn) return;
+    updateBillingNote.mutate({
+      id: editBn.id,
+      payload: { billingDate: editBillingDate, dueDate: editDueDate || null, notes: editNotes, withholdingTax: parseFloat(editWht) || 0 },
+    });
+  };
+
+  const openSendDialog = (bn: any) => {
+    setSendBn(bn);
+    setSendToEmail(bn.customerEmail || "");
+    setSendSubject(`ใบวางบิล ${bn.billingNo}`);
+    setSendBody("");
+    setSendDialogOpen(true);
+  };
+
+  const submitSend = () => {
+    if (!sendBn) return;
+    sendEmailBN.mutate({ id: sendBn.id, payload: { toEmail: sendToEmail, subject: sendSubject, body: sendBody || undefined } });
   };
 
   const toggleNoteExpand = (id: number) => {
@@ -690,6 +800,38 @@ export default function BillingNotes() {
                               สร้างใบรับเงิน
                             </Button>
                           )}
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 w-7 p-0"
+                                onClick={(e) => e.stopPropagation()}
+                                data-testid={`button-more-actions-${bn.id}`}
+                              >
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                              <DropdownMenuItem onClick={() => openEditDialog(bn)} data-testid={`menu-edit-${bn.id}`}>
+                                <Pencil className="h-3.5 w-3.5 mr-2 text-blue-500" />
+                                แก้ไข
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => openSendDialog(bn)} data-testid={`menu-send-${bn.id}`}>
+                                <Send className="h-3.5 w-3.5 mr-2 text-indigo-500" />
+                                ส่งอีเมล
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                className="text-red-600 focus:text-red-600"
+                                onClick={() => { setDeleteBn(bn); setDeleteConfirmOpen(true); }}
+                                data-testid={`menu-delete-${bn.id}`}
+                              >
+                                <Trash2 className="h-3.5 w-3.5 mr-2" />
+                                ลบ
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </div>
                       </div>
                     </div>
@@ -821,6 +963,96 @@ export default function BillingNotes() {
             >
               {createReceiptFromBN.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <CreditCard className="h-4 w-4 mr-1" />}
               บันทึกรับเงิน
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog แก้ไขใบวางบิล */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent className="sm:max-w-[480px] max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>แก้ไขใบวางบิล</DialogTitle>
+            <DialogDescription>{editBn?.billingNo} — {editBn?.customerName}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs">วันที่วางบิล</Label>
+                <ThaiDateInput value={editBillingDate} onChange={setEditBillingDate} dateEra={dateEra} dateFmt={dateFmt} className="mt-1 h-9 text-sm" data-testid="input-edit-billing-date" />
+              </div>
+              <div>
+                <Label className="text-xs">วันครบกำหนด</Label>
+                <ThaiDateInput value={editDueDate} onChange={setEditDueDate} dateEra={dateEra} dateFmt={dateFmt} className="mt-1 h-9 text-sm" data-testid="input-edit-due-date" />
+              </div>
+            </div>
+            <div>
+              <Label className="text-xs">หัก ณ ที่จ่าย (บาท)</Label>
+              <Input type="number" min="0" step="0.01" value={editWht} onChange={(e) => setEditWht(e.target.value)} placeholder="0.00" className="mt-1 h-9 text-sm" data-testid="input-edit-wht" />
+            </div>
+            <div>
+              <Label className="text-xs">หมายเหตุ</Label>
+              <Input value={editNotes} onChange={(e) => setEditNotes(e.target.value)} placeholder="หมายเหตุ (ถ้ามี)" className="mt-1 h-9 text-sm" data-testid="input-edit-notes" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setEditDialogOpen(false)}>ยกเลิก</Button>
+            <Button size="sm" className="px-6" style={{ background: "#fb9678" }} disabled={updateBillingNote.isPending} onClick={submitEdit} data-testid="button-submit-edit">
+              {updateBillingNote.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Pencil className="h-4 w-4 mr-1" />}
+              บันทึก
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog ส่งอีเมล */}
+      <Dialog open={sendDialogOpen} onOpenChange={setSendDialogOpen}>
+        <DialogContent className="sm:max-w-[520px] max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>ส่งใบวางบิลทางอีเมล</DialogTitle>
+            <DialogDescription>{sendBn?.billingNo} — {sendBn?.customerName}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div>
+              <Label className="text-xs">อีเมลผู้รับ <span className="text-red-500">*</span></Label>
+              <Input value={sendToEmail} onChange={(e) => setSendToEmail(e.target.value)} placeholder="example@email.com" className="mt-1 h-9 text-sm" data-testid="input-send-email" />
+            </div>
+            <div>
+              <Label className="text-xs">หัวข้ออีเมล</Label>
+              <Input value={sendSubject} onChange={(e) => setSendSubject(e.target.value)} className="mt-1 h-9 text-sm" data-testid="input-send-subject" />
+            </div>
+            <div>
+              <Label className="text-xs">ข้อความเพิ่มเติม (ถ้ามี)</Label>
+              <Textarea value={sendBody} onChange={(e) => setSendBody(e.target.value)} placeholder="ระบบจะใช้ข้อความเริ่มต้นถ้าไม่ได้กรอก" rows={3} className="mt-1 text-sm" data-testid="input-send-body" />
+            </div>
+            <p className="text-[11px] text-muted-foreground">PDF ใบวางบิลจะถูกแนบไปกับอีเมลโดยอัตโนมัติ</p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setSendDialogOpen(false)}>ยกเลิก</Button>
+            <Button size="sm" className="px-6" style={{ background: "#6366f1" }} disabled={sendEmailBN.isPending || !sendToEmail} onClick={submitSend} data-testid="button-submit-send">
+              {sendEmailBN.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Send className="h-4 w-4 mr-1" />}
+              ส่งอีเมล
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog ยืนยันลบ */}
+      <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <DialogContent className="sm:max-w-[400px] max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>ยืนยันการลบใบวางบิล</DialogTitle>
+            <DialogDescription>
+              ต้องการลบใบวางบิล <strong>{deleteBn?.billingNo}</strong> ({deleteBn?.customerName}) ใช่หรือไม่?
+              <br />
+              <span className="text-red-500 text-xs mt-1 block">การลบจะไม่สามารถย้อนกลับได้ และจะอัพเดตสถานะชำระเงินของเอกสารที่เชื่อมโยงด้วย</span>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setDeleteConfirmOpen(false)}>ยกเลิก</Button>
+            <Button size="sm" variant="destructive" disabled={deleteBillingNote.isPending} onClick={() => deleteBn && deleteBillingNote.mutate(deleteBn.id)} data-testid="button-confirm-delete">
+              {deleteBillingNote.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Trash2 className="h-4 w-4 mr-1" />}
+              ลบใบวางบิล
             </Button>
           </DialogFooter>
         </DialogContent>

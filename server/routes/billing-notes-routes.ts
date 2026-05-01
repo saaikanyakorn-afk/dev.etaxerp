@@ -209,6 +209,99 @@ app.post("/api/finance/billing-notes/:id/create-receipt", requireAuth, async (re
   } catch (err: any) { res.status(500).json({ message: err.message }); }
 });
 
+app.patch("/api/finance/billing-notes/:id", requireAuth, async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const [bn] = await db.select().from(billingNotes).where(eq(billingNotes.id, id));
+    if (!bn) return res.status(404).json({ message: "ไม่พบใบวางบิล" });
+    const user = req.user as any;
+    if (!(await verifyCompanyAccess(user, bn.companyId))) return res.status(403).json({ message: "ไม่มีสิทธิ์" });
+
+    const { billingDate, dueDate, notes, withholdingTax } = req.body;
+    const updates: any = { updatedBy: user.id, updatedAt: new Date() };
+    if (billingDate !== undefined) updates.billingDate = billingDate;
+    if (dueDate !== undefined) updates.dueDate = dueDate || null;
+    if (notes !== undefined) updates.notes = notes || null;
+    await db.update(billingNotes).set(updates).where(eq(billingNotes.id, id));
+
+    if (withholdingTax !== undefined) {
+      const wht = parseFloat(withholdingTax) || 0;
+      await db.execute(sql.raw(`UPDATE billing_notes SET withholding_tax = ${wht} WHERE id = ${id}`));
+    }
+    res.json({ success: true });
+  } catch (err: any) { res.status(500).json({ message: err.message }); }
+});
+
+app.delete("/api/finance/billing-notes/:id", requireAuth, async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const [bn] = await db.select().from(billingNotes).where(eq(billingNotes.id, id));
+    if (!bn) return res.status(404).json({ message: "ไม่พบใบวางบิล" });
+    const user = req.user as any;
+    if (!(await verifyCompanyAccess(user, bn.companyId))) return res.status(403).json({ message: "ไม่มีสิทธิ์" });
+    if (bn.receiptId) return res.status(400).json({ message: "ไม่สามารถลบใบวางบิลที่มีใบรับเงินแล้วได้" });
+
+    const linkedDocs = await db.select().from(billingNoteLinkedDocs)
+      .where(eq(billingNoteLinkedDocs.billingNoteId, id));
+
+    await db.delete(billingNoteLinkedDocs).where(eq(billingNoteLinkedDocs.billingNoteId, id));
+    await db.delete(billingNotes).where(eq(billingNotes.id, id));
+
+    for (const doc of linkedDocs) {
+      try {
+        if (doc.docType === "TIV") await recomputePaymentStatus("taxInvoice", doc.docId);
+        else if (doc.docType === "IV") await recomputePaymentStatus("invoice", doc.docId);
+      } catch (e: any) { console.error(`[BN-DELETE] recompute ${doc.docType}#${doc.docId}:`, e.message); }
+    }
+    res.json({ success: true });
+  } catch (err: any) { res.status(500).json({ message: err.message }); }
+});
+
+app.post("/api/finance/billing-notes/:id/send-email", requireAuth, async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const [bn] = await db.select().from(billingNotes).where(eq(billingNotes.id, id));
+    if (!bn) return res.status(404).json({ message: "ไม่พบใบวางบิล" });
+    const user = req.user as any;
+    if (!(await verifyCompanyAccess(user, bn.companyId))) return res.status(403).json({ message: "ไม่มีสิทธิ์" });
+
+    const { toEmail, subject: customSubject, body: customBody } = req.body;
+    if (!toEmail) return res.status(400).json({ message: "กรุณาระบุอีเมลผู้รับ" });
+
+    const smtpRows = await db.execute(sql.raw(`SELECT config_key, config_value FROM system_config WHERE config_key IN ('SYSADMIN_SMTP_HOST','SYSADMIN_SMTP_PORT','SYSADMIN_SMTP_USER','SYSADMIN_SMTP_PASS','SYSADMIN_SMTP_FROM','SYSADMIN_SMTP_SECURE')`));
+    const smtpCfg: Record<string, string> = {};
+    for (const r of (smtpRows.rows || []) as any[]) smtpCfg[r.config_key] = r.config_value;
+    if (!smtpCfg.SYSADMIN_SMTP_HOST || !smtpCfg.SYSADMIN_SMTP_USER || !smtpCfg.SYSADMIN_SMTP_PASS) {
+      return res.status(400).json({ message: "ยังไม่ได้ตั้งค่า SMTP — กรุณาตั้งค่าใน System Config ก่อน" });
+    }
+
+    const { buildBillingNotePdfData } = await import("../pdf-data-fetcher");
+    const { generatePdfMake } = await import("../pdf-pdfmake-generator");
+    const pdfOpts = await buildBillingNotePdfData(id);
+    const pdfBuffer = await generatePdfMake(pdfOpts);
+
+    const [comp] = await db.select({ name: companies.name }).from(companies).where(eq(companies.id, bn.companyId));
+    const companyName = comp?.name || "บริษัท";
+    const totalFmt = parseFloat(bn.totalAmount || "0").toLocaleString("th-TH", { minimumFractionDigits: 2 });
+
+    const nodemailer = await import("nodemailer");
+    const transporter = nodemailer.default.createTransport({
+      host: smtpCfg.SYSADMIN_SMTP_HOST,
+      port: Number(smtpCfg.SYSADMIN_SMTP_PORT || "587"),
+      secure: smtpCfg.SYSADMIN_SMTP_SECURE === "true",
+      auth: { user: smtpCfg.SYSADMIN_SMTP_USER, pass: smtpCfg.SYSADMIN_SMTP_PASS.trim() },
+    });
+    await transporter.sendMail({
+      from: smtpCfg.SYSADMIN_SMTP_FROM || smtpCfg.SYSADMIN_SMTP_USER,
+      to: toEmail,
+      subject: customSubject || `ใบวางบิล ${bn.billingNo} จาก ${companyName}`,
+      html: customBody || `<div style="font-family:sans-serif;padding:20px"><p>เรียน ${bn.customerName || "ท่าน"},</p><p>กรุณาตรวจสอบใบวางบิลเลขที่ <strong>${bn.billingNo}</strong> ยอดเงิน <strong>฿${totalFmt}</strong> ที่แนบมาพร้อมอีเมลนี้</p><p>ขอบคุณ,<br/>${companyName}</p></div>`,
+      attachments: [{ filename: `billing-note-${bn.billingNo}.pdf`, content: pdfBuffer, contentType: "application/pdf" }],
+    });
+    res.json({ success: true });
+  } catch (err: any) { res.status(500).json({ message: err.message }); }
+});
+
 app.patch("/api/finance/billing-notes/:id/void", requireAuth, async (req, res) => {
   try {
     const id = Number(req.params.id);
