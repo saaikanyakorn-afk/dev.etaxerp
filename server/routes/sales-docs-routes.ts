@@ -2469,7 +2469,16 @@ app.get("/api/receipts", requireAuth, requireAnyModule("sales", "ecommerce"), as
       const userIds = Array.from(new Set(rows.map((r: any) => r.createdBy).concat(rows.map((r: any) => r.updatedBy)).filter(Boolean))) as number[];
       const userMap: Record<number, string> = {};
       for (const uid of userIds) { try { const u = await storage.getUser(uid); if (u) userMap[uid] = u.username; } catch {} }
-      return rows.map((r: any) => ({ ...r, createdByName: r.createdBy ? userMap[r.createdBy] || "-" : "-", updatedByName: r.updatedBy ? userMap[r.updatedBy] || "-" : "-" }));
+      const ids = rows.map((r: any) => r.id).filter(Boolean);
+      let linkedDocsMap: Record<number, { docType: string; docNo: string; docId: number }[]> = {};
+      if (ids.length > 0) {
+        const ldRows = await db.select().from(receiptLinkedDocs).where(sql`receipt_id = ANY(ARRAY[${sql.raw(ids.join(","))}]::int[])`);
+        for (const ld of ldRows) {
+          if (!linkedDocsMap[ld.receiptId]) linkedDocsMap[ld.receiptId] = [];
+          linkedDocsMap[ld.receiptId].push({ docType: ld.docType, docNo: ld.docNo || "", docId: ld.docId });
+        }
+      }
+      return rows.map((r: any) => ({ ...r, createdByName: r.createdBy ? userMap[r.createdBy] || "-" : "-", updatedByName: r.updatedBy ? userMap[r.updatedBy] || "-" : "-", linkedDocs: linkedDocsMap[r.id] || [] }));
     };
     if (req.query.page) {
       const { page, pageSize, offset } = parsePagination(req, { pageSize: 50 });

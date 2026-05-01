@@ -335,6 +335,26 @@ export default function ReceiptList() {
                               <span className="flex items-center gap-0.5 text-[#03c9d7] cursor-pointer hover:underline" onClick={(e) => { e.stopPropagation(); setRelatedDoc({ open: true, id: rc.id, docNo: rc.receiptNo }); }}>
                                 <FileText className="h-3 w-3" /> เอกสารที่เกี่ยวข้อง
                               </span>
+                              {(rc.linkedDocs || []).length > 0 && (
+                                <>
+                                  <span className="text-slate-400">|</span>
+                                  {(rc.linkedDocs as any[]).map((ld: any, i: number) => {
+                                    const path = ld.docType === "TIV" ? `/sales/tax-invoices/view/${ld.docId}?companyId=${companyId}` : ld.docType === "IV" ? `/sales/invoices/view/${ld.docId}?companyId=${companyId}` : null;
+                                    return (
+                                      <span key={i} className="flex items-center gap-0.5">
+                                        {i > 0 && <span className="text-slate-400 mr-1">,</span>}
+                                        {path ? (
+                                          <a href={path} onClick={(e) => e.stopPropagation()} className="flex items-center gap-0.5 text-indigo-600 hover:underline">
+                                            <Link2 className="h-3 w-3" /> {ld.docNo || `${ld.docType}#${ld.docId}`}
+                                          </a>
+                                        ) : (
+                                          <span className="text-indigo-600 flex items-center gap-0.5"><Link2 className="h-3 w-3" /> {ld.docNo || `${ld.docType}#${ld.docId}`}</span>
+                                        )}
+                                      </span>
+                                    );
+                                  })}
+                                </>
+                              )}
                               {rc.attachedUrl && (
                                 <>
                                   <span className="text-slate-400">|</span>
