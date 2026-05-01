@@ -1224,7 +1224,12 @@ export async function recomputePaymentStatus(docType: "taxInvoice" | "invoice", 
       .where(sql`invoice_id = ${docId} AND payment_method IS NOT NULL AND payment_method <> '' AND payment_method <> 'เครดิต'`);
     tivSum = nonCreditTIVs.reduce((sum: number, tiv: any) => sum + parseFloat(String(tiv.totalAmount || "0")), 0);
   }
-  const totalPaid = directSum + batchSum + tivSum;
+  const rawPaid = directSum + batchSum + tivSum;
+  // WHT ถือว่าชำระแล้ว (ลูกค้าหักแล้วโอนส่วนที่เหลือ) เฉพาะเมื่อมีการชำระจริงเกิดขึ้น
+  const whtAmount = (docType === "invoice" && rawPaid > 0)
+    ? parseFloat((doc as any).withholdingTax || "0")
+    : 0;
+  const totalPaid = rawPaid + whtAmount;
   let status: "unpaid" | "partial" | "paid" = "unpaid";
   if (totalPaid > 0 && totalPaid < docTotal - 0.01) status = "partial";
   else if (totalPaid >= docTotal - 0.01 && totalPaid > 0) status = "paid";

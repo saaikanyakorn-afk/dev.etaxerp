@@ -761,6 +761,11 @@ async function computeInvoicePaidAmounts(invoiceIds: number[]): Promise<Record<n
   for (const r of (directPaid as any).rows || []) paidMap[r.invoice_id] = (paidMap[r.invoice_id] || 0) + parseFloat(r.paid || 0);
   for (const r of (batchPaid as any).rows || []) paidMap[r.doc_id] = (paidMap[r.doc_id] || 0) + parseFloat(r.paid || 0);
   for (const r of (tivPaid as any).rows || []) paidMap[r.invoice_id] = (paidMap[r.invoice_id] || 0) + parseFloat(r.paid || 0);
+  // WHT ถือว่าชำระแล้ว เฉพาะ invoice ที่มีการชำระจริงเกิดขึ้น
+  const whtRows = await db.execute(sql.raw(`SELECT id, CAST(withholding_tax AS NUMERIC) AS wht FROM invoices WHERE id = ANY(${idArr}) AND withholding_tax IS NOT NULL AND CAST(withholding_tax AS NUMERIC) > 0`));
+  for (const r of (whtRows as any).rows || []) {
+    if ((paidMap[r.id] || 0) > 0) paidMap[r.id] = (paidMap[r.id] || 0) + parseFloat(r.wht || 0);
+  }
   return paidMap;
 }
 

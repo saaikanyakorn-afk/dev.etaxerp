@@ -943,5 +943,203 @@ app.get("/api/dev/pdf-test-docs", requireAuth, async (req, res) => {
   }
 });
 
+// ===================== Invoice Recompute Preview =====================
+app.get("/api/dev/invoice-recompute-preview", requireSuperAdmin, async (req, res) => {
+  try {
+    const companyId = Number(req.query.companyId);
+    if (!companyId) return res.status(400).json({ message: "companyId required" });
+    const invRows = await db.execute(sql.raw(`SELECT id, invoice_no, customer_name, total_amount, withholding_tax, payment_status FROM invoices WHERE company_id = ${companyId} ORDER BY invoice_date DESC, id DESC`));
+    const rows = (invRows as any).rows || [];
+    if (rows.length === 0) return res.json([]);
+    const idArr = `'{${rows.map((r: any) => r.id).join(",")}}'::int[]`;
+    const [directRes, batchRes, tivRes] = await Promise.all([
+      db.execute(sql.raw(`SELECT invoice_id, SUM(total_amount) AS paid FROM receipts WHERE invoice_id = ANY(${idArr}) GROUP BY invoice_id`)),
+      db.execute(sql.raw(`SELECT doc_id, SUM(amount) AS paid FROM receipt_linked_docs WHERE doc_type='IV' AND doc_id = ANY(${idArr}) GROUP BY doc_id`)),
+      db.execute(sql.raw(`SELECT invoice_id, SUM(total_amount) AS paid FROM tax_invoices WHERE invoice_id = ANY(${idArr}) AND payment_method IS NOT NULL AND payment_method <> '' AND payment_method <> 'เครดิต' GROUP BY invoice_id`)),
+    ]);
+    const directMap: Record<number,number> = {};
+    const batchMap: Record<number,number> = {};
+    const tivMap: Record<number,number> = {};
+    for (const r of (directRes as any).rows || []) directMap[r.invoice_id] = parseFloat(r.paid || 0);
+    for (const r of (batchRes as any).rows || []) batchMap[r.doc_id] = parseFloat(r.paid || 0);
+    for (const r of (tivRes as any).rows || []) tivMap[r.invoice_id] = parseFloat(r.paid || 0);
+    const result = rows.map((inv: any) => {
+      const total = parseFloat(inv.total_amount || 0);
+      const whtField = parseFloat(inv.withholding_tax || 0);
+      const direct = directMap[inv.id] || 0;
+      const batch = batchMap[inv.id] || 0;
+      const tiv = tivMap[inv.id] || 0;
+      const rawPaid = direct + batch + tiv;
+      const whtCounted = rawPaid > 0 ? whtField : 0;
+      const effectivePaid = rawPaid + whtCounted;
+      const newStatus = effectivePaid >= total - 0.01 && effectivePaid > 0 ? "paid" : effectivePaid > 0 ? "partial" : "unpaid";
+      // determine case
+      const sources: string[] = [];
+      if (direct > 0) sources.push("Receipt");
+      if (batch > 0) sources.push("BatchReceipt");
+      if (tiv > 0) sources.push("TIV");
+      if (whtCounted > 0) sources.push("WHT");
+      let caseLabel = sources.length === 0 ? "Case1: ไม่มีชำระ" :
+        sources.length === 1 && sources[0] === "Receipt" ? "Case2: เสร็จตรง" :
+        sources.length === 1 && sources[0] === "BatchReceipt" ? "Case3: เสร็จรวม" :
+        sources.includes("TIV") && !sources.includes("WHT") ? "Case4: TIV" :
+        sources.includes("TIV") && sources.includes("WHT") && !sources.includes("Receipt") && !sources.includes("BatchReceipt") ? "Case6: TIV+WHT" :
+        sources.includes("WHT") && !sources.includes("TIV") ? "Case5: เสร็จ+WHT" :
+        sources.includes("Receipt") && sources.includes("TIV") ? "Case7: ผสม" :
+        effectivePaid > total + 0.01 ? "Case9: เกิน" : "Case8: อื่นๆ";
+      return {
+        id: inv.id, invoiceNo: inv.invoice_no, customerName: inv.customer_name,
+        total, whtField, direct, batch, tiv, rawPaid, whtCounted, effectivePaid,
+        currentStatus: inv.payment_status, newStatus, caseLabel,
+        willChange: inv.payment_status !== newStatus,
+      };
+    });
+    res.json(result);
+  } catch (err: any) { res.status(500).json({ message: err.message }); }
+});
+
+app.post("/api/dev/invoice-recompute-apply", requireSuperAdmin, async (req, res) => {
+  try {
+    const { ids } = req.body as { ids: number[] };
+    if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ message: "ids required" });
+    const { recomputePaymentStatus } = await import("../route-helpers");
+    let updated = 0; const errors: string[] = [];
+    for (const id of ids) {
+      try { await recomputePaymentStatus("invoice", id); updated++; }
+      catch (e: any) { errors.push(`invoice#${id}: ${e.message}`); }
+    }
+    res.json({ updated, errors });
+  } catch (err: any) { res.status(500).json({ message: err.message }); }
+});
+
+app.get("/dev/recompute-preview", (req, res) => {
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  res.send(`<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8" />
+<title>Invoice Recompute Preview</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;font-family:sans-serif}
+body{background:#f5f5f5;padding:20px;font-size:13px}
+h1{font-size:18px;margin-bottom:12px;color:#1e3a5f}
+.toolbar{display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap}
+input[type=number]{border:1px solid #ccc;border-radius:4px;padding:5px 8px;width:120px}
+button{padding:5px 14px;border:none;border-radius:4px;cursor:pointer;font-size:13px;font-weight:500}
+.btn-load{background:#2563eb;color:#fff}
+.btn-apply{background:#16a34a;color:#fff}
+.btn-apply:disabled{background:#86efac;cursor:default}
+.btn-filter{background:#e5e7eb;color:#374151}
+.btn-filter.active{background:#374151;color:#fff}
+.stats{display:flex;gap:12px;margin-bottom:10px;flex-wrap:wrap}
+.stat{background:#fff;border:1px solid #e5e7eb;border-radius:6px;padding:6px 14px;text-align:center}
+.stat-n{font-size:20px;font-weight:700}
+.stat-will{color:#dc2626}
+.stat-ok{color:#16a34a}
+table{width:100%;border-collapse:collapse;background:#fff;border-radius:6px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.1)}
+th{background:#1e3a5f;color:#fff;padding:7px 8px;text-align:left;white-space:nowrap}
+td{padding:6px 8px;border-bottom:1px solid #f0f0f0;vertical-align:middle}
+tr:hover td{background:#f9fafb}
+.will-change td{background:#fff7ed}
+.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600}
+.unpaid{background:#fee2e2;color:#991b1b}
+.partial{background:#fed7aa;color:#9a3412}
+.paid{background:#dcfce7;color:#166534}
+.arrow{color:#6b7280;font-size:16px;margin:0 4px}
+.changed{color:#dc2626;font-weight:700}
+.ok{color:#16a34a}
+.case-badge{background:#e0e7ff;color:#3730a3;border-radius:4px;padding:1px 6px;font-size:10px}
+.loading{color:#6b7280;padding:20px;text-align:center}
+.error{color:#dc2626;padding:10px;background:#fee2e2;border-radius:4px}
+.num{text-align:right;font-variant-numeric:tabular-nums}
+</style>
+</head>
+<body>
+<h1>Invoice Payment Status — Recompute Preview</h1>
+<div class="toolbar">
+  <label>Company ID: <input id="cid" type="number" value="4" min="1" /></label>
+  <button class="btn-load" onclick="loadData()">โหลดข้อมูล</button>
+  <button class="btn-filter active" id="f-all" onclick="setFilter('all')">ทั้งหมด</button>
+  <button class="btn-filter" id="f-change" onclick="setFilter('change')">เฉพาะที่จะเปลี่ยน</button>
+  <button class="btn-apply" id="applyBtn" onclick="applyChanges()" disabled>Apply เฉพาะที่จะเปลี่ยน</button>
+</div>
+<div class="stats" id="stats"></div>
+<div id="out"></div>
+<script>
+let allData = [], currentFilter = 'all';
+const STATUS_TH = { unpaid:'ยังไม่ชำระ', partial:'ชำระบางส่วน', paid:'ชำระครบ' };
+function badge(s){ return '<span class="badge '+(s||'')+'">'+( STATUS_TH[s]||s||'-')+'</span>'; }
+function fmt(n){ return Number(n).toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function setFilter(f){
+  currentFilter=f;
+  document.getElementById('f-all').className='btn-filter'+(f==='all'?' active':'');
+  document.getElementById('f-change').className='btn-filter'+(f==='change'?' active':'');
+  render();
+}
+async function loadData(){
+  const cid = document.getElementById('cid').value;
+  document.getElementById('out').innerHTML='<div class="loading">กำลังโหลด...</div>';
+  document.getElementById('stats').innerHTML='';
+  try{
+    const r = await fetch('/api/dev/invoice-recompute-preview?companyId='+cid, {credentials:'include'});
+    if(!r.ok){ const e=await r.json(); throw new Error(e.message); }
+    allData = await r.json();
+    document.getElementById('applyBtn').disabled = !allData.some(d=>d.willChange);
+    render();
+  }catch(e){ document.getElementById('out').innerHTML='<div class="error">Error: '+e.message+'</div>'; }
+}
+function render(){
+  const data = currentFilter==='change' ? allData.filter(d=>d.willChange) : allData;
+  const willChange = allData.filter(d=>d.willChange).length;
+  const total = allData.length;
+  document.getElementById('stats').innerHTML =
+    '<div class="stat"><div class="stat-n">'+total+'</div><div>ทั้งหมด</div></div>'+
+    '<div class="stat"><div class="stat-n stat-will">'+willChange+'</div><div>จะเปลี่ยน</div></div>'+
+    '<div class="stat"><div class="stat-n stat-ok">'+(total-willChange)+'</div><div>ถูกต้องแล้ว</div></div>';
+  if(data.length===0){ document.getElementById('out').innerHTML='<div class="loading">ไม่มีข้อมูล</div>'; return; }
+  let rows = data.map((d,i)=>{
+    const chg = d.willChange ? 'will-change' : '';
+    const arrow = d.willChange ? '<span class="arrow">→</span><span class="changed">'+badge(d.newStatus)+'</span>' : '<span class="ok">✓ ถูกต้อง</span>';
+    return '<tr class="'+chg+'">'+
+      '<td class="num">'+(i+1)+'</td>'+
+      '<td><a href="/sales/invoices" style="color:#2563eb;text-decoration:none">'+d.invoiceNo+'</a></td>'+
+      '<td>'+d.customerName+'</td>'+
+      '<td class="num">'+fmt(d.total)+'</td>'+
+      '<td class="num">'+fmt(d.direct)+'</td>'+
+      '<td class="num">'+fmt(d.batch)+'</td>'+
+      '<td class="num">'+fmt(d.tiv)+'</td>'+
+      '<td class="num">'+fmt(d.whtCounted)+'</td>'+
+      '<td class="num"><b>'+fmt(d.effectivePaid)+'</b></td>'+
+      '<td><span class="case-badge">'+d.caseLabel+'</span></td>'+
+      '<td>'+badge(d.currentStatus)+arrow+'</td>'+
+      '</tr>';
+  }).join('');
+  document.getElementById('out').innerHTML =
+    '<table><thead><tr>'+
+    '<th>#</th><th>เลขที่</th><th>ลูกค้า</th>'+
+    '<th>ยอดรวม</th><th>เสร็จตรง</th><th>เสร็จรวม</th><th>TIV</th><th>WHT</th><th>ยอดรับรวม</th>'+
+    '<th>Case</th><th>สถานะ (ปัจจุบัน → ใหม่)</th>'+
+    '</tr></thead><tbody>'+rows+'</tbody></table>';
+}
+async function applyChanges(){
+  const ids = allData.filter(d=>d.willChange).map(d=>d.id);
+  if(!ids.length){ alert('ไม่มีรายการที่ต้องเปลี่ยน'); return; }
+  if(!confirm('จะ apply '+ids.length+' รายการ ยืนยัน?')) return;
+  document.getElementById('applyBtn').disabled=true;
+  document.getElementById('applyBtn').textContent='กำลัง apply...';
+  try{
+    const r = await fetch('/api/dev/invoice-recompute-apply',{
+      method:'POST', headers:{'Content-Type':'application/json'},
+      credentials:'include', body: JSON.stringify({ids})
+    });
+    const result = await r.json();
+    alert('Updated: '+result.updated+' รายการ'+(result.errors?.length?' | Errors: '+result.errors.join(', '):''));
+    loadData();
+  }catch(e){ alert('Error: '+e.message); document.getElementById('applyBtn').disabled=false; }
+}
+</script>
+</body>
+</html>`);
+});
 
 }
