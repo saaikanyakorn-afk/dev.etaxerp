@@ -56,6 +56,8 @@ const STATUS_MAP: Record<string, { label: string; color: string; icon: any }> = 
   approved: { label: "อนุมัติ", color: "bg-emerald-100 text-emerald-700 border-emerald-200", icon: CheckCircle2 },
   cancelled: { label: "ยกเลิก", color: "bg-gray-100 text-gray-700 border-gray-200", icon: XCircle },
   voided: { label: "ยกเลิก(ถูกต้อง)", color: "bg-amber-100 text-amber-700 border-amber-200", icon: AlertCircle },
+  paid: { label: "เสร็จสิ้น", color: "bg-emerald-100 text-emerald-700 border-emerald-200", icon: CheckCircle2 },
+  transfer_done: { label: "โอนแล้ว", color: "bg-emerald-100 text-emerald-700 border-emerald-200", icon: CheckCircle2 },
 };
 
 const PAYMENT_STATUS_MAP: Record<string, { label: string; color: string }> = {
