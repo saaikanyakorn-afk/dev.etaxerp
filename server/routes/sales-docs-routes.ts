@@ -2975,6 +2975,14 @@ app.get("/api/related-documents/:docType/:docId", requireAuth, async (req, res) 
         const cnsByTx = await db.select().from(salesCreditNotes).where(and(eq(salesCreditNotes.refTaxInvoiceId, txId), eq(salesCreditNotes.companyId, companyId)));
         for (const cn of cnsByTx) addUnique({ type: "credit_note", id: cn.id, docNo: cn.creditNoteNo, date: cn.creditNoteDate, status: cn.status, totalAmount: cn.totalAmount });
       }
+      const bnLinks = await db.select({ billingNoteId: billingNoteLinkedDocs.billingNoteId })
+        .from(billingNoteLinkedDocs)
+        .where(and(eq(billingNoteLinkedDocs.docType, "IV"), eq(billingNoteLinkedDocs.docId, id)));
+      if (bnLinks.length > 0) {
+        const bnIds = bnLinks.map((l: any) => l.billingNoteId);
+        const bns = await db.select().from(billingNotes).where(and(inArray(billingNotes.id, bnIds), eq(billingNotes.companyId, companyId)));
+        for (const bn of bns) addUnique({ type: "billing_note", id: bn.id, docNo: bn.billingNo, date: bn.billingDate, status: bn.status, totalAmount: String(bn.totalAmount) });
+      }
 
     } else if (docType === "tax_invoice") {
       const [tx] = await db.select().from(taxInvoices).where(and(eq(taxInvoices.id, id), eq(taxInvoices.companyId, companyId)));
