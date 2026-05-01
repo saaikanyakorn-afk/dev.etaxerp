@@ -80,9 +80,9 @@ export default function BillingNotes() {
   const [receiptWht, setReceiptWht] = useState("");
   const receiptWhtAmt = useMemo(() => {
     const rate = parseFloat(receiptWht) || 0;
-    const total = parseFloat(receiptBillingNote?.totalAmount || "0") || 0;
-    if (rate <= 0 || total <= 0) return 0;
-    return Math.round(rate / 100 * total * 100) / 100;
+    const base = parseFloat(receiptBillingNote?.whtBase || "0") || parseFloat(receiptBillingNote?.totalAmount || "0") || 0;
+    if (rate <= 0 || base <= 0) return 0;
+    return Math.round(rate / 100 * base * 100) / 100;
   }, [receiptWht, receiptBillingNote]);
   const [receiptNotes, setReceiptNotes] = useState("");
 
