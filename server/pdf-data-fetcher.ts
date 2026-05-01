@@ -440,7 +440,30 @@ export async function buildBillingNotePdfData(billingNoteId: number): Promise<Ge
   }
 
   const logoBase64 = await fetchImageAsBase64(company.logoUrl ? await resolveObjectStorageUrl(company.logoUrl) : null);
-  const qrBase64 = await fetchImageAsBase64(docSetting?.qrCode ? await resolveObjectStorageUrl(docSetting.qrCode) : null);
+
+  let bnQrCodeBase64: string | null = null;
+  const qrCodeSrc = docSetting?.qrCodeUrl || docSetting?.qrCode || null;
+  if (qrCodeSrc) {
+    bnQrCodeBase64 = await fetchImageAsBase64(await resolveObjectStorageUrl(qrCodeSrc));
+  }
+
+  let bnWhtVal = 0;
+  try {
+    const whtR = await db.execute(sql.raw(`SELECT withholding_tax FROM billing_notes WHERE id = ${billingNoteId} LIMIT 1`));
+    if ((whtR.rows || []).length > 0) bnWhtVal = parseFloat(String((whtR.rows as any[])[0].withholding_tax ?? "0")) || 0;
+  } catch {}
+
+  let bnPromptpayQrBase64: string | null = null;
+  if (docSetting?.promptpayEnabled && docSetting?.promptpayId && !bnQrCodeBase64) {
+    try {
+      const generatePayload = (await import("promptpay-qr")).default;
+      const QRCode = (await import("qrcode")).default;
+      const pid = docSetting.promptpayId.replace(/[-\s]/g, "");
+      const payAmt = Math.max(0, parseFloat(String(bn.totalAmount || "0")) - bnWhtVal);
+      const payload = generatePayload(pid, { amount: payAmt > 0 ? payAmt : undefined });
+      bnPromptpayQrBase64 = await QRCode.toDataURL(payload, { width: 200, margin: 1 });
+    } catch {}
+  }
 
   const pdfCompany: PdfCompany = {
     id: company.id,
@@ -464,8 +487,11 @@ export async function buildBillingNotePdfData(billingNoteId: number): Promise<Ge
     showStamp: docSetting?.showStamp !== false,
     showTaxId: docSetting?.showTaxId !== false,
     showNote: docSetting?.showNote !== false,
-    showQrCode: !!(docSetting?.qrCode && docSetting?.promptpayEnabled),
-    qrCodeBase64: qrBase64,
+    showQrCode: !!(bnQrCodeBase64 || bnPromptpayQrBase64),
+    qrCodeBase64: bnQrCodeBase64,
+    promptpayQrBase64: bnPromptpayQrBase64,
+    qrBase64: bnQrCodeBase64 || bnPromptpayQrBase64 || null,
+    showQrOnDoc: docSetting?.showQrOnDoc !== false,
     showWatermark: false,
     watermarkText: "",
     docTypeColors: docSetting?.docTypeColors || null,
@@ -493,7 +519,7 @@ export async function buildBillingNotePdfData(billingNoteId: number): Promise<Ge
     subtotal: bnSubtotal,
     vatAmount: bnVatAmount,
     totalAmount,
-    withholdingTax: 0,
+    withholdingTax: bnWhtVal,
     discountAmount: 0,
     notes: bn.notes || "",
     items,

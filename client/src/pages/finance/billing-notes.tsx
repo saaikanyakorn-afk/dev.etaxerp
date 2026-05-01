@@ -64,6 +64,7 @@ export default function BillingNotes() {
     return toLocalDateStr(d);
   });
   const [billingNotes, setBillingNotes] = useState("");
+  const [billingWht, setBillingWht] = useState("");
   const dropdownRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
@@ -146,7 +147,13 @@ export default function BillingNotes() {
 
   const createBillingNote = useMutation({
     mutationFn: async (payload: any) => {
-      const r = await apiRequest("POST", "/api/finance/billing-notes", payload);
+      const r = await fetch("/api/finance/billing-notes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(payload),
+      });
+      if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.message || "เกิดข้อผิดพลาด"); }
       return r.json();
     },
     onSuccess: () => {
@@ -186,6 +193,7 @@ export default function BillingNotes() {
     d.setDate(d.getDate() + 30);
     setDueDate(toLocalDateStr(d));
     setBillingNotes("");
+    setBillingWht("");
   };
 
   const resetReceiptForm = () => {
@@ -237,6 +245,9 @@ export default function BillingNotes() {
       notes: billingNotes,
       customerId: selectedContact?.id || null,
       customerName: selectedContact?.name || "",
+      customerAddress: selectedContact?.address || null,
+      customerTaxId: selectedContact?.taxId || null,
+      withholdingTax: parseFloat(billingWht) || 0,
     });
   };
 
@@ -316,12 +327,17 @@ export default function BillingNotes() {
                 <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-4 py-3">
                   <Users className="h-4 w-4 text-blue-500" />
                   <div className="flex-1">
-                    <span className="text-sm font-semibold text-blue-800">{selectedContact.name}</span>
-                    {selectedContact.code && (
-                      <span className="text-xs text-blue-600 ml-2">({selectedContact.code})</span>
-                    )}
-                    {selectedContact.taxId && (
-                      <span className="text-xs text-blue-500 ml-2">เลขนิติ: {selectedContact.taxId}</span>
+                    <div className="flex items-center gap-1 flex-wrap">
+                      <span className="text-sm font-semibold text-blue-800">{selectedContact.name}</span>
+                      {selectedContact.code && (
+                        <span className="text-xs text-blue-600">({selectedContact.code})</span>
+                      )}
+                      {selectedContact.taxId && (
+                        <span className="text-xs text-blue-500">เลขนิติ: {selectedContact.taxId}</span>
+                      )}
+                    </div>
+                    {selectedContact.address && (
+                      <p className="text-xs text-blue-400 mt-0.5 leading-relaxed">{selectedContact.address}</p>
                     )}
                   </div>
                   <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={clearContact} data-testid="button-clear-contact">
@@ -461,7 +477,7 @@ export default function BillingNotes() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                     <div>
                       <Label className="text-xs">วันที่วางบิล</Label>
                       <ThaiDateInput
@@ -482,6 +498,19 @@ export default function BillingNotes() {
                         dateFmt={dateFmt}
                         className="mt-1 h-9 text-sm"
                         data-testid="input-due-date"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs">หัก ณ ที่จ่าย (บาท)</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={billingWht}
+                        onChange={(e) => setBillingWht(e.target.value)}
+                        placeholder="0.00"
+                        className="mt-1 h-9 text-sm"
+                        data-testid="input-billing-wht"
                       />
                     </div>
                     <div>
@@ -509,7 +538,9 @@ export default function BillingNotes() {
                       data-testid="button-submit-billing-note"
                     >
                       {createBillingNote.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <FileText className="h-4 w-4 mr-1" />}
-                      สร้างใบวางบิล ฿{fmt(selectedTotal)}
+                      {parseFloat(billingWht) > 0
+                        ? `สร้างใบวางบิล ฿${fmt(selectedTotal)} (ยอดสุทธิ ฿${fmt(Math.max(0, selectedTotal - (parseFloat(billingWht) || 0)))})`
+                        : `สร้างใบวางบิล ฿${fmt(selectedTotal)}`}
                     </Button>
                   </div>
                 </CardContent>

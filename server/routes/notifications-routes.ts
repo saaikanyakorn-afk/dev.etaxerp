@@ -456,7 +456,7 @@ app.get("/api/finance/customer-outstanding", requireAuth, async (req, res) => {
 
     const searchTerm = `%${q}%`;
     const matchingContacts = await db.select({
-      id: contacts.id, code: contacts.code, name: contacts.name, taxId: contacts.taxId,
+      id: contacts.id, code: contacts.code, name: contacts.name, taxId: contacts.taxId, address: contacts.address,
     }).from(contacts).where(and(
       eq(contacts.companyId, companyId),
       eq(contacts.active, true),

@@ -135,6 +135,7 @@ export async function runOneTimeSchemaV85Migration() {
     await addCol("sys_admins", "two_factor_verified", "BOOLEAN NOT NULL DEFAULT false");
     console.log("[OneTimeMigration] ✓ sys_admins columns");
 
+
     await db.execute(sql`
       INSERT INTO system_config (config_key, config_value, description)
       VALUES (${MIGRATION_KEY}, ${"done_" + new Date().toISOString()}, 'One-time schema v85 migration — tables + columns')
