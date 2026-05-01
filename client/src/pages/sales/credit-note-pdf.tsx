@@ -29,19 +29,15 @@ export default function CreditNotePdf() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [serverError, setServerError] = useState(false);
-  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
-  const [pdfLoading, setPdfLoading] = useState(false);
+  const [iframeLoaded, setIframeLoaded] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
-  const objUrlRef = useRef<string>("");
+  const pdfApiUrl = `/api/documents/credit_note/${id}/pdf`;
 
   useEffect(() => {
     (async () => {
       try {
         const res = await fetch(`/api/sales-credit-notes/${id}`, { credentials: "include" });
-        if (res.ok) {
-          const d = await res.json();
-          setData(d);
-        }
+        if (res.ok) { const d = await res.json(); setData(d); }
       } catch (err: any) {
         if (err.message === "Failed to fetch" || err.message?.includes("NetworkError")) setServerError(true);
       }
@@ -50,45 +46,24 @@ export default function CreditNotePdf() {
   }, [id]);
 
   useEffect(() => {
-    let cancelled = false;
-    if (objUrlRef.current) { URL.revokeObjectURL(objUrlRef.current); objUrlRef.current = ""; }
-    setPdfUrl(null);
-    setPdfLoading(true);
-    const docNo = data?.creditNoteNo || "credit-note";
-    fetch(`/api/documents/credit_note/${id}/pdf`, { credentials: "include" })
-      .then(r => { if (!r.ok) throw new Error("สร้าง PDF ไม่สำเร็จ"); return r.blob(); })
-      .then(blob => {
-        if (cancelled) return;
-        objUrlRef.current = URL.createObjectURL(new File([blob], `${docNo}.pdf`, { type: "application/pdf" }));
-        setPdfUrl(objUrlRef.current);
-      })
-      .catch(() => {})
-      .finally(() => { if (!cancelled) setPdfLoading(false); });
-    return () => { cancelled = true; };
-  }, [id, data?.creditNoteNo]);
-
-  useEffect(() => {
-    return () => { if (objUrlRef.current) URL.revokeObjectURL(objUrlRef.current); };
-  }, []);
-
-  useEffect(() => {
     const no = data?.creditNoteNo;
     if (!no) return;
-    const prev = document.title;
-    document.title = no;
+    const prev = document.title; document.title = no;
     return () => { document.title = prev; };
   }, [data?.creditNoteNo]);
 
-  const handlePrint = () => {
-    iframeRef.current?.contentWindow?.print();
-  };
+  const handlePrint = () => { iframeRef.current?.contentWindow?.print(); };
 
-  const handleDownload = () => {
-    if (!pdfUrl) return;
-    const a = document.createElement("a");
-    a.href = pdfUrl;
-    a.download = `${data?.creditNoteNo || "credit-note"}.pdf`;
-    a.click();
+  const handleDownload = async () => {
+    try {
+      const res = await fetch(pdfApiUrl, { credentials: "include" });
+      if (!res.ok) return;
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = `${data?.creditNoteNo || "credit-note"}.pdf`; a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch {}
   };
 
   if (serverError) {
@@ -110,35 +85,15 @@ export default function CreditNotePdf() {
               <Button variant="outline" size="sm" className="gap-1.5" onClick={handlePrint} data-testid="button-print">
                 <Printer className="h-4 w-4" /> พิมพ์
               </Button>
-              <Button variant="outline" size="sm" className="gap-1.5" onClick={handleDownload} disabled={pdfLoading} data-testid="button-download">
-                {pdfLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />} ดาวน์โหลด
+              <Button variant="outline" size="sm" className="gap-1.5" onClick={handleDownload} data-testid="button-download">
+                <Download className="h-4 w-4" /> ดาวน์โหลด
               </Button>
-              <EDocumentActions
-                documentType="credit_note"
-                documentId={Number(id)}
-                docNo={data.creditNoteNo}
-                customerEmail={data.contactEmail}
-                customerName={data.customerName}
-                compact
-                onDownload={handleDownload}
-              />
+              <EDocumentActions documentType="credit_note" documentId={Number(id)} docNo={data.creditNoteNo} customerEmail={data.contactEmail} customerName={data.customerName} compact onDownload={handleDownload} />
             </div>
           </div>
         </div>
-
-        {pdfLoading ? (
-          <div className="flex-1 flex items-center justify-center">
-            <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
-          </div>
-        ) : pdfUrl ? (
-          <iframe
-            ref={iframeRef}
-            src={pdfUrl}
-            className="flex-1 w-full border-0 rounded mt-2"
-            title={data.creditNoteNo}
-            data-testid="pdf-iframe"
-          />
-        ) : null}
+        {!iframeLoaded && <div className="flex-1 flex items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-slate-400" /></div>}
+        <iframe ref={iframeRef} src={pdfApiUrl} className={`flex-1 w-full border-0 rounded mt-2 ${iframeLoaded ? "" : "hidden"}`} title={data.creditNoteNo} onLoad={() => setIframeLoaded(true)} data-testid="pdf-iframe" />
       </div>
     </Layout>
   );

@@ -7,51 +7,44 @@ import Layout from "@/components/layout";
 export default function SalesOrderPdf() {
   const { id } = useParams<{ id: string }>();
   const [, navigate] = useLocation();
-  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [docNo, setDocNo] = useState("sales-order");
   const [loading, setLoading] = useState(true);
+  const [iframeLoaded, setIframeLoaded] = useState(false);
   const [error, setError] = useState("");
   const iframeRef = useRef<HTMLIFrameElement>(null);
-  const objUrlRef = useRef<string>("");
+  const pdfApiUrl = `/api/documents/sales_order/${id}/pdf`;
 
   useEffect(() => {
     (async () => {
       try {
-        const [docRes, pdfRes] = await Promise.all([
-          fetch(`/api/sales-orders/${id}`, { credentials: "include" }),
-          fetch(`/api/documents/sales_order/${id}/pdf`, { credentials: "include" }),
-        ]);
-        let filename = "sales-order.pdf";
-        if (docRes.ok) {
-          const d = await docRes.json();
-          filename = `${d.salesOrderNo || d.orderNo || "sales-order"}.pdf`;
+        const res = await fetch(`/api/sales-orders/${id}`, { credentials: "include" });
+        if (res.ok) {
+          const d = await res.json();
           setDocNo(d.salesOrderNo || d.orderNo || "sales-order");
         }
-        if (!pdfRes.ok) throw new Error("สร้าง PDF ไม่สำเร็จ");
-        const blob = await pdfRes.blob();
-        objUrlRef.current = URL.createObjectURL(new File([blob], filename, { type: "application/pdf" }));
-        setPdfUrl(objUrlRef.current);
-      } catch (err: any) {
-        setError(err.message || "เกิดข้อผิดพลาด");
-      }
+      } catch (err: any) { setError(err.message || "เกิดข้อผิดพลาด"); }
       setLoading(false);
     })();
-    return () => { if (objUrlRef.current) URL.revokeObjectURL(objUrlRef.current); };
   }, [id]);
 
-  const handlePrint = () => {
-    if (!iframeRef.current?.contentWindow) return;
-    const prev = document.title;
-    document.title = docNo;
-    setTimeout(() => { document.title = prev; }, 1000);
-    iframeRef.current.contentWindow.print();
-  };
-  const handleDownload = () => {
-    if (!pdfUrl) return;
-    const a = document.createElement("a");
-    a.href = pdfUrl;
-    a.download = `${docNo}.pdf`;
-    a.click();
+  useEffect(() => {
+    if (!docNo || docNo === "sales-order") return;
+    const prev = document.title; document.title = docNo;
+    return () => { document.title = prev; };
+  }, [docNo]);
+
+  const handlePrint = () => { iframeRef.current?.contentWindow?.print(); };
+
+  const handleDownload = async () => {
+    try {
+      const res = await fetch(pdfApiUrl, { credentials: "include" });
+      if (!res.ok) return;
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = `${docNo}.pdf`; a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch {}
   };
 
   if (loading) return <Layout><div className="flex items-center justify-center py-24"><Loader2 className="h-8 w-8 animate-spin text-slate-400" /></div></Layout>;
@@ -73,13 +66,8 @@ export default function SalesOrderPdf() {
             </Button>
           </div>
         </div>
-        <iframe
-          ref={iframeRef}
-          src={pdfUrl!}
-          className="flex-1 w-full border-0 rounded"
-          title={docNo}
-          data-testid="pdf-iframe"
-        />
+        {!iframeLoaded && <div className="flex-1 flex items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-slate-400" /></div>}
+        <iframe ref={iframeRef} src={pdfApiUrl} className={`flex-1 w-full border-0 rounded ${iframeLoaded ? "" : "hidden"}`} title={docNo} onLoad={() => setIframeLoaded(true)} data-testid="pdf-iframe" />
       </div>
     </Layout>
   );

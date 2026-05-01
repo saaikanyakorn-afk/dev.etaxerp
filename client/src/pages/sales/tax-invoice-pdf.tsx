@@ -216,10 +216,8 @@ export default function TaxInvoicePdf() {
   const [loading, setLoading] = useState(true);
   const [serverError, setServerError] = useState(false);
   const [printType, setPrintType] = useState<PrintType>("tax_invoice");
-  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
-  const [pdfLoading, setPdfLoading] = useState(false);
+  const [iframeLoaded, setIframeLoaded] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
-  const objUrlRef = useRef<string>("");
 
   const [demoRunning, setDemoRunning] = useState(false);
   const [demoResult, setDemoResult] = useState<any>(null);
@@ -271,29 +269,8 @@ export default function TaxInvoicePdf() {
   }, [id]);
 
   useEffect(() => {
-    if (printType === "abbreviated_tax_invoice") return;
-    let cancelled = false;
-    if (objUrlRef.current) { URL.revokeObjectURL(objUrlRef.current); objUrlRef.current = ""; }
-    setPdfUrl(null);
-    setPdfLoading(true);
-    const ptParam = printType !== "tax_invoice" ? `?printType=${printType}` : "";
-    const taxNo = data?.taxInvoiceNo || "tax-invoice";
-    const filename = `${taxNo}.pdf`;
-    fetch(`/api/documents/tax_invoice/${id}/pdf${ptParam}`, { credentials: "include" })
-      .then(r => { if (!r.ok) throw new Error("สร้าง PDF ไม่สำเร็จ"); return r.blob(); })
-      .then(blob => {
-        if (cancelled) return;
-        objUrlRef.current = URL.createObjectURL(new File([blob], filename, { type: "application/pdf" }));
-        setPdfUrl(objUrlRef.current);
-      })
-      .catch(() => {})
-      .finally(() => { if (!cancelled) setPdfLoading(false); });
-    return () => { cancelled = true; };
+    setIframeLoaded(false);
   }, [id, printType]);
-
-  useEffect(() => {
-    return () => { if (objUrlRef.current) URL.revokeObjectURL(objUrlRef.current); };
-  }, []);
 
   useEffect(() => {
     const taxNo = data?.taxInvoiceNo;
@@ -311,12 +288,22 @@ export default function TaxInvoicePdf() {
     }
   };
 
-  const handleDownload = () => {
-    if (!pdfUrl || printType === "abbreviated_tax_invoice") return;
-    const a = document.createElement("a");
-    a.href = pdfUrl;
-    a.download = `${data?.taxInvoiceNo || "tax-invoice"}.pdf`;
-    a.click();
+  const getPdfApiUrl = () => {
+    const ptParam = printType !== "tax_invoice" ? `?printType=${printType}` : "";
+    return `/api/documents/tax_invoice/${id}/pdf${ptParam}`;
+  };
+
+  const handleDownload = async () => {
+    if (printType === "abbreviated_tax_invoice") return;
+    try {
+      const res = await fetch(getPdfApiUrl(), { credentials: "include" });
+      if (!res.ok) return;
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = `${data?.taxInvoiceNo || "tax-invoice"}.pdf`; a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch {}
   };
 
   if (serverError) {
@@ -352,8 +339,8 @@ export default function TaxInvoicePdf() {
                 <Printer className="h-4 w-4" /> พิมพ์
               </Button>
               {!isThermal && (
-                <Button variant="outline" size="sm" className="gap-1.5" onClick={handleDownload} disabled={pdfLoading} data-testid="button-download">
-                  {pdfLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />} ดาวน์โหลด
+                <Button variant="outline" size="sm" className="gap-1.5" onClick={handleDownload} data-testid="button-download">
+                  <Download className="h-4 w-4" /> ดาวน์โหลด
                 </Button>
               )}
               <EDocumentActions
@@ -420,19 +407,23 @@ export default function TaxInvoicePdf() {
           <div className="flex-1 overflow-auto">
             <AbbreviatedTaxInvoice data={data} company={company} />
           </div>
-        ) : pdfLoading ? (
-          <div className="flex-1 flex items-center justify-center">
-            <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
-          </div>
-        ) : pdfUrl ? (
-          <iframe
-            ref={iframeRef}
-            src={pdfUrl}
-            className="flex-1 w-full border-0 rounded mt-2"
-            title={data.taxInvoiceNo}
-            data-testid="pdf-iframe"
-          />
-        ) : null}
+        ) : (
+          <>
+            {!iframeLoaded && (
+              <div className="flex-1 flex items-center justify-center">
+                <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
+              </div>
+            )}
+            <iframe
+              ref={iframeRef}
+              src={getPdfApiUrl()}
+              className={`flex-1 w-full border-0 rounded mt-2 ${iframeLoaded ? "" : "hidden"}`}
+              title={data.taxInvoiceNo}
+              onLoad={() => setIframeLoaded(true)}
+              data-testid="pdf-iframe"
+            />
+          </>
+        )}
       </div>
     </Layout>
   );
