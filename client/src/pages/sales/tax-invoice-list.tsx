@@ -444,11 +444,13 @@ export default function TaxInvoiceList() {
                               <span className="font-semibold text-slate-800">{inv.customerName}</span>
                             </div>
                             <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1 text-xs text-muted-foreground">
-                              {(inv.paymentMethod === "เงินสด" || (inv.status === "cash" && inv.paymentMethod !== "เครดิต")) && (
+                              {(inv.paymentMethod === "เงินสด" || (inv.status === "cash" && inv.paymentMethod !== "เครดิต")) ? (
                                 <span className="text-green-600">
                                   {(inv.refDoc || inv.referenceNo) ? "Cash[BL-IV]" : "Cash[TIV]"}
                                 </span>
-                              )}
+                              ) : inv.paymentMethod === "เครดิต" ? (
+                                <span className="text-purple-600">Credit[TIV]</span>
+                              ) : null}
                               {inv.customerAddress && (
                                 <span className="flex items-center gap-0.5 text-blue-500 cursor-pointer hover:underline" onClick={() => window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(inv.customerAddress)}`, '_blank')}>
                                   <ExternalLink className="h-3 w-3" /> ดูแผนที่
@@ -504,13 +506,14 @@ export default function TaxInvoiceList() {
                               const effectiveTotal = total - cnAmt;
                               const outstanding = isPaid ? 0 : Math.max(0, effectiveTotal - paid);
                               const whtAmt = parseFloat(String(inv.withholdingTax || inv.whtAmount || 0));
+                              const isCreditUnpaid = inv.paymentMethod === "เครดิต" && !isPaid;
                               return (
                                 <>
                                   <div className="text-xs text-muted-foreground">{fmt(outstanding)}</div>
                                   {cnAmt > 0 && (
                                     <div className="text-xs text-orange-500">[CN: -{fmt(cnAmt)}]</div>
                                   )}
-                                  {whtAmt > 0 && (
+                                  {whtAmt > 0 && !isCreditUnpaid && (
                                     <div className="text-xs text-blue-600">[WHT:{fmt(whtAmt)}]</div>
                                   )}
                                   <div className="border-t border-gray-200 my-0.5" />
