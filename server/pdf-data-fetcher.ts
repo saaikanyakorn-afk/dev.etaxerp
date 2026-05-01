@@ -440,7 +440,8 @@ export async function buildBillingNotePdfData(billingNoteId: number): Promise<Ge
   }
 
   const logoSrc = docSetting?.logoUrl || (company as any).logoUrl || null;
-  const logoBase64 = await fetchImageAsBase64(logoSrc ? await resolveObjectStorageUrl(logoSrc) : null);
+  const resolvedLogoUrl = logoSrc ? resolveObjectStorageUrl(logoSrc) : null;
+  const logoBase64 = await fetchImageAsBase64(resolvedLogoUrl);
 
   let bnQrCodeBase64: string | null = null;
   const qrCodeSrc = docSetting?.qrCodeUrl || docSetting?.qrCode || null;
