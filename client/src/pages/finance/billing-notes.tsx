@@ -8,17 +8,18 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { FileText, Search, DollarSign, Clock, AlertTriangle, CheckCircle, Users, CreditCard, Loader2, Receipt, ChevronDown, ChevronRight, Link2, Plus, ArrowLeft, X, CalendarDays, Printer, Pencil, Trash2, Send, MoreHorizontal } from "lucide-react";
+import { FileText, Search, DollarSign, Clock, AlertTriangle, CheckCircle, Users, CreditCard, Loader2, Receipt, ChevronDown, ChevronRight, Link2, Plus, ArrowLeft, X, CalendarDays, Printer, Pencil, Trash2, Send, MoreHorizontal, Copy, FileCheck, BookOpen } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Textarea } from "@/components/ui/textarea";
 import { useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useCompany } from "@/lib/company-context";
 import { formatDate } from "@/lib/format";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, getShareBaseUrl } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import ThaiDateInput from "@/components/thai-date-input";
 import { toLocalDateStr } from "@/lib/utils";
+import LineSendDialog from "@/components/line-send-dialog";
 
 import { useDateSettings } from "@/hooks/use-date-settings";
 function fmt(n: number) {
@@ -95,6 +96,18 @@ export default function BillingNotes() {
 
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteBn, setDeleteBn] = useState<any>(null);
+
+  const [lineDialog, setLineDialog] = useState<{ open: boolean; url: string; docNo: string; customerName: string }>({ open: false, url: "", docNo: "", customerName: "" });
+
+  const getBnPrimaryDocType = (bn: any): "IV" | "TIV" | "mixed" => {
+    const docs = bn.linkedDocs || [];
+    if (docs.length === 0) return "TIV";
+    const hasIV = docs.some((d: any) => d.docType === "IV");
+    const hasTIV = docs.some((d: any) => d.docType === "TIV");
+    if (hasIV && hasTIV) return "mixed";
+    if (hasIV) return "IV";
+    return "TIV";
+  };
 
   const { dateEra, dateFmt } = useDateSettings();
   const { data: docSettings } = useQuery<any>({
@@ -833,28 +846,35 @@ export default function BillingNotes() {
                           <span className="text-xs text-muted-foreground">{formatDate(bn.billingDate, dateEra, dateFmt)}</span>
                           {billingStatusBadge(bn.status)}
                           <span className="text-sm font-bold" style={{ color: "#fb9678" }}>฿{fmt(parseFloat(bn.totalAmount) || 0)}</span>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-7 text-xs"
-                            onClick={(e) => { e.stopPropagation(); navigate(`/finance/billing-notes/pdf/${bn.id}`); }}
-                            data-testid={`button-print-billing-note-${bn.id}`}
-                          >
-                            <Printer className="h-3 w-3 mr-1" />
-                            พิมพ์
-                          </Button>
-                          {isUnpaid && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-7 text-xs border-green-200 text-green-700 hover:bg-green-50"
-                              onClick={(e) => { e.stopPropagation(); openReceiptDialog(bn); }}
-                              data-testid={`button-create-receipt-${bn.id}`}
-                            >
-                              <Receipt className="h-3 w-3 mr-1" />
-                              สร้างใบรับเงิน
-                            </Button>
-                          )}
+                          {isUnpaid && (() => {
+                            const docType = getBnPrimaryDocType(bn);
+                            if (docType === "IV") {
+                              return (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-7 text-xs border-cyan-200 text-cyan-700 hover:bg-cyan-50"
+                                  onClick={(e) => { e.stopPropagation(); navigate(`/sales/tax-invoice/new?billingNoteId=${bn.id}&companyId=${companyId}`); }}
+                                  data-testid={`button-create-tax-invoice-${bn.id}`}
+                                >
+                                  <FileCheck className="h-3 w-3 mr-1" />
+                                  สร้างใบกำกับภาษี
+                                </Button>
+                              );
+                            }
+                            return (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 text-xs border-green-200 text-green-700 hover:bg-green-50"
+                                onClick={(e) => { e.stopPropagation(); openReceiptDialog(bn); }}
+                                data-testid={`button-create-receipt-${bn.id}`}
+                              >
+                                <Receipt className="h-3 w-3 mr-1" />
+                                สร้างใบเสร็จรับเงิน
+                              </Button>
+                            );
+                          })()}
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button
@@ -880,11 +900,44 @@ export default function BillingNotes() {
                                 <Send className="h-3.5 w-3.5 mr-2 text-indigo-500" />
                                 ส่งอีเมล
                               </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={async () => {
+                                  const base = await getShareBaseUrl();
+                                  const url = `${base}/finance/billing-notes/pdf/${bn.id}`;
+                                  navigator.clipboard.writeText(url).catch(() => {});
+                                  toast({ title: "คัดลอกลิงค์แล้ว" });
+                                }}
+                                data-testid={`menu-copy-link-${bn.id}`}
+                              >
+                                <Copy className="h-3.5 w-3.5 mr-2 text-gray-500" />
+                                คัดลอกลิงค์
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={async () => {
+                                  const base = await getShareBaseUrl();
+                                  const url = `${base}/finance/billing-notes/pdf/${bn.id}`;
+                                  setTimeout(() => setLineDialog({ open: true, url, docNo: bn.billingNo, customerName: bn.customerName || "" }), 150);
+                                }}
+                                data-testid={`menu-line-${bn.id}`}
+                              >
+                                <BookOpen className="h-3.5 w-3.5 mr-2 text-green-500" />
+                                ส่งไลน์
+                              </DropdownMenuItem>
                               {bn.status !== "paid" && bn.paymentStatus !== "paid" && (
-                                <DropdownMenuItem onClick={() => openReceiptDialog(bn)} data-testid={`menu-receipt-${bn.id}`}>
-                                  <Receipt className="h-3.5 w-3.5 mr-2 text-green-500" />
-                                  สร้างใบรับเงิน
-                                </DropdownMenuItem>
+                                <>
+                                  <DropdownMenuSeparator />
+                                  {getBnPrimaryDocType(bn) === "IV" ? (
+                                    <DropdownMenuItem onClick={() => navigate(`/sales/tax-invoice/new?billingNoteId=${bn.id}&companyId=${companyId}`)} data-testid={`menu-create-tiv-${bn.id}`}>
+                                      <FileCheck className="h-3.5 w-3.5 mr-2 text-cyan-500" />
+                                      สร้างใบกำกับภาษี
+                                    </DropdownMenuItem>
+                                  ) : (
+                                    <DropdownMenuItem onClick={() => openReceiptDialog(bn)} data-testid={`menu-receipt-${bn.id}`}>
+                                      <Receipt className="h-3.5 w-3.5 mr-2 text-green-500" />
+                                      สร้างใบเสร็จรับเงิน
+                                    </DropdownMenuItem>
+                                  )}
+                                </>
                               )}
                               <DropdownMenuSeparator />
                               <DropdownMenuItem
@@ -1133,6 +1186,15 @@ export default function BillingNotes() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <LineSendDialog
+        open={lineDialog.open}
+        onOpenChange={(open) => setLineDialog(prev => ({ ...prev, open }))}
+        shareUrl={lineDialog.url}
+        docNo={lineDialog.docNo}
+        customerName={lineDialog.customerName}
+        companyId={companyId}
+      />
     </div>
     </Layout>
   );
