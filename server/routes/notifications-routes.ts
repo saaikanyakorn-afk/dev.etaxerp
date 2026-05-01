@@ -499,7 +499,7 @@ app.get("/api/finance/customer-outstanding-docs", requireAuth, async (req, res) 
       id: taxInvoices.id, docNo: taxInvoices.taxInvoiceNo, docDate: taxInvoices.taxInvoiceDate,
       dueDate: taxInvoices.dueDate, contactName: taxInvoices.customerName,
       totalAmount: taxInvoices.totalAmount, subtotal: taxInvoices.subtotal, paymentStatus: taxInvoices.paymentStatus,
-      customerId: taxInvoices.customerId,
+      customerId: taxInvoices.customerId, withholdingTax: taxInvoices.withholdingTax,
     }).from(taxInvoices).where(and(
       eq(taxInvoices.companyId, companyId),
       sql`${taxInvoices.status} != 'cancelled'`,
@@ -510,7 +510,12 @@ app.get("/api/finance/customer-outstanding-docs", requireAuth, async (req, res) 
 
     const documents = [
       ...ivRows.map(r => ({ ...r, docType: "IV", totalAmount: parseFloat(r.totalAmount || "0"), subtotal: parseFloat(r.subtotal || r.totalAmount || "0") })),
-      ...tivRows.map(r => ({ ...r, docType: "TIV", totalAmount: parseFloat(r.totalAmount || "0"), subtotal: parseFloat(r.subtotal || r.totalAmount || "0") })),
+      ...tivRows.map(r => {
+        const net = parseFloat(r.totalAmount || "0");
+        const wht = parseFloat(r.withholdingTax || "0");
+        const gross = net + wht;
+        return { ...r, docType: "TIV", totalAmount: gross, withholdingTax: wht, subtotal: parseFloat(r.subtotal || "0") };
+      }),
     ];
 
     res.json({ documents });
