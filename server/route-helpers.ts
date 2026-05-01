@@ -1230,10 +1230,17 @@ export async function recomputePaymentStatus(docType: "taxInvoice" | "invoice", 
     ? parseFloat((doc as any).withholdingTax || "0")
     : 0;
   const totalPaid = rawPaid + whtAmount;
-  let status: "unpaid" | "partial" | "paid" = "unpaid";
-  if (totalPaid > 0 && totalPaid < docTotal - 0.01) status = "partial";
-  else if (totalPaid >= docTotal - 0.01 && totalPaid > 0) status = "paid";
-  await db.update(table).set({ paymentStatus: status }).where(eq(table.id, docId));
+  let newPaymentStatus: "unpaid" | "partial" | "paid" = "unpaid";
+  if (totalPaid > 0 && totalPaid < docTotal - 0.01) newPaymentStatus = "partial";
+  else if (totalPaid >= docTotal - 0.01 && totalPaid > 0) newPaymentStatus = "paid";
+  const updateFields: any = { paymentStatus: newPaymentStatus };
+  const docStatus = (doc as any).status || "";
+  if (newPaymentStatus === "paid" && !["cancelled", "voided", "cancel"].includes(docStatus)) {
+    updateFields.status = "paid";
+  } else if (newPaymentStatus !== "paid" && docStatus === "paid") {
+    updateFields.status = "debtor";
+  }
+  await db.update(table).set(updateFields).where(eq(table.id, docId));
 }
 
 export async function recomputeAPPaymentStatus(docType: "purchaseInvoice" | "expense", docId: number) {

@@ -366,14 +366,15 @@ export default function ReceiptList() {
                           <TableCell className="text-right tabular-nums pt-2.5">
                             {(() => {
                               const total = parseFloat(String(rc.totalAmount || 0));
-                              const paidStatuses = ["issued", "completed", "transfer_done", "cheque_done"];
+                              const paidStatuses = ["issued", "completed", "transfer_done", "cheque_done", "approved", "paid"];
                               const paidAmt = parseFloat(String(rc.paidAmount ?? 0));
                               const outstanding = paidStatuses.includes(rc.status) ? 0 : Math.max(0, total - paidAmt);
+                              const whtAmt = parseFloat(String(rc.withholdingTax ?? rc.whtAmount ?? 0));
                               return (
                                 <>
                                   <div className="text-xs text-muted-foreground">{fmt(outstanding)}</div>
-                                  {rc.whtAmount > 0 && (
-                                    <div className="text-xs text-blue-600">[WHT:{fmt(rc.whtAmount)}]</div>
+                                  {whtAmt > 0 && (
+                                    <div className="text-xs text-blue-600">[WHT:{fmt(whtAmt)}]</div>
                                   )}
                                   <div className="border-t border-gray-200 my-0.5" />
                                   <div className="text-sm font-medium">
