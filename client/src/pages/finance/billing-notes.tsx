@@ -78,6 +78,12 @@ export default function BillingNotes() {
   const [receiptPayMethod, setReceiptPayMethod] = useState("โอนเงิน");
   const [receiptPayDate, setReceiptPayDate] = useState(() => toLocalDateStr(new Date()));
   const [receiptWht, setReceiptWht] = useState("");
+  const receiptWhtAmt = useMemo(() => {
+    const rate = parseFloat(receiptWht) || 0;
+    const total = parseFloat(receiptBillingNote?.totalAmount || "0") || 0;
+    if (rate <= 0 || total <= 0) return 0;
+    return Math.round(rate / 100 * total * 100) / 100;
+  }, [receiptWht, receiptBillingNote]);
   const [receiptNotes, setReceiptNotes] = useState("");
 
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -383,7 +389,7 @@ export default function BillingNotes() {
         paymentMethod: receiptPayMethod,
         paymentDate: receiptPayDate,
         notes: receiptNotes,
-        withholdingTax: parseFloat(receiptWht) || 0,
+        withholdingTax: receiptWhtAmt,
       },
     });
   };
@@ -1031,28 +1037,32 @@ export default function BillingNotes() {
               />
             </div>
             <div>
-              <Label className="text-xs">ภาษีถูกหัก ณ ที่จ่าย</Label>
-              <Input
-                type="number"
-                step="0.01"
-                min="0"
-                value={receiptWht}
-                onChange={(e) => setReceiptWht(e.target.value)}
-                placeholder="0.00"
-                className="mt-1 h-9 text-sm"
-                data-testid="input-receipt-wht"
-              />
+              <Label className="text-xs">อัตราภาษีถูกหัก ณ ที่จ่าย (%)</Label>
+              <div className="relative mt-1">
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  max="100"
+                  value={receiptWht}
+                  onChange={(e) => setReceiptWht(e.target.value)}
+                  placeholder="0"
+                  className="h-9 text-sm pr-8"
+                  data-testid="input-receipt-wht"
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">%</span>
+              </div>
             </div>
-            {parseFloat(receiptWht) > 0 && receiptBillingNote && (
+            {receiptWhtAmt > 0 && receiptBillingNote && (
               <div className="bg-amber-50 rounded-lg p-3 flex items-center justify-between">
                 <div className="text-sm text-amber-800">
                   <span>ยอดเอกสาร ฿{fmt(parseFloat(receiptBillingNote.totalAmount) || 0)}</span>
                   <span className="mx-2">-</span>
-                  <span>ภาษีถูกหัก ฿{fmt(parseFloat(receiptWht) || 0)}</span>
+                  <span>ภาษีถูกหัก {parseFloat(receiptWht) || 0}% = ฿{fmt(receiptWhtAmt)}</span>
                 </div>
                 <div className="text-right">
                   <span className="text-xs text-amber-600">ยอดรับสุทธิ</span>
-                  <p className="text-lg font-bold" style={{ color: "#05b187" }}>฿{fmt((parseFloat(receiptBillingNote.totalAmount) || 0) - (parseFloat(receiptWht) || 0))}</p>
+                  <p className="text-lg font-bold" style={{ color: "#05b187" }}>฿{fmt((parseFloat(receiptBillingNote.totalAmount) || 0) - receiptWhtAmt)}</p>
                 </div>
               </div>
             )}
