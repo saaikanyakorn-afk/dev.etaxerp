@@ -51,6 +51,8 @@ const STATUS_MAP: Record<string, { label: string; color: string; icon: any }> = 
   cheque_done: { label: "เช็คจ่าย [เสร็จสิ้น]", color: "bg-emerald-200 text-emerald-800 border-emerald-300", icon: CheckCircle2 },
   draft: { label: "ร่าง", color: "bg-slate-100 text-slate-700 border-slate-200", icon: Clock },
   issued: { label: "ออกแล้ว", color: "bg-emerald-100 text-emerald-700 border-emerald-200", icon: CheckCircle2 },
+  approved: { label: "เสร็จสิ้น", color: "bg-emerald-100 text-emerald-700 border-emerald-200", icon: CheckCircle2 },
+  paid: { label: "เสร็จสิ้น", color: "bg-emerald-100 text-emerald-700 border-emerald-200", icon: CheckCircle2 },
   pending_approval: { label: "รออนุมัติ", color: "bg-amber-100 text-amber-700 border-amber-200", icon: Clock },
   cancelled: { label: "ยกเลิก", color: "bg-gray-100 text-gray-700 border-gray-200", icon: XCircle },
 };
@@ -354,6 +356,8 @@ export default function ReceiptList() {
                                 cheque: { label: "เช็ค", cls: "bg-purple-50 text-purple-600 border-purple-200" },
                                 cheque_done: { label: "เช็คผ่าน", cls: "bg-emerald-50 text-emerald-600 border-emerald-200" },
                                 overdue: { label: "เกินกำหนด", cls: "bg-red-50 text-red-600 border-red-200" },
+                                approved: { label: "เสร็จสิ้น", cls: "bg-emerald-50 text-emerald-600 border-emerald-200" },
+                                paid: { label: "เสร็จสิ้น", cls: "bg-emerald-50 text-emerald-600 border-emerald-200" },
                               };
                               const a = approvalMap[rc.status] || { label: "-", cls: "bg-slate-50 text-slate-500 border-slate-200" };
                               return (
