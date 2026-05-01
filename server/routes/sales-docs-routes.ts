@@ -3047,7 +3047,7 @@ app.get("/api/related-documents/:docType/:docId", requireAuth, async (req, res) 
       for (const rc of rcs) addUnique({ type: "receipt", id: rc.id, docNo: rc.receiptNo, date: rc.receiptDate, status: rc.status, totalAmount: rc.totalAmount });
       const rcsByRef = await db.select().from(receipts).where(and(eq(receipts.refDoc, tx.taxInvoiceNo), eq(receipts.companyId, companyId)));
       for (const rc of rcsByRef) addUnique({ type: "receipt", id: rc.id, docNo: rc.receiptNo, date: rc.receiptDate, status: rc.status, totalAmount: rc.totalAmount });
-      const blLinks = await db.select({ billingNoteId: billingNoteLinkedDocs.billingNoteId }).from(billingNoteLinkedDocs).where(and(eq(billingNoteLinkedDocs.docType, "tax_invoice"), eq(billingNoteLinkedDocs.docId, id)));
+      const blLinks = await db.select({ billingNoteId: billingNoteLinkedDocs.billingNoteId }).from(billingNoteLinkedDocs).where(and(eq(billingNoteLinkedDocs.docType, "TIV"), eq(billingNoteLinkedDocs.docId, id)));
       if (blLinks.length > 0) {
         const blIds = blLinks.map(l => l.billingNoteId);
         const bls = await db.select().from(billingNotes).where(and(inArray(billingNotes.id, blIds), eq(billingNotes.companyId, companyId)));
