@@ -980,12 +980,13 @@ app.get("/api/dev/invoice-recompute-preview", requireSuperAdmin, async (req, res
       if (tiv > 0) sources.push("TIV");
       if (whtCounted > 0) sources.push("WHT");
       let caseLabel = sources.length === 0 ? "Case1: ไม่มีชำระ" :
+        effectivePaid > total + 0.01 ? "Case9: เกิน" :
         sources.length === 1 && sources[0] === "Receipt" ? "Case2: เสร็จตรง" :
         sources.length === 1 && sources[0] === "BatchReceipt" ? "Case3: เสร็จรวม" :
         sources.includes("TIV") && !sources.includes("WHT") && !sources.includes("Receipt") && !sources.includes("BatchReceipt") ? "Case4: TIV" :
         sources.includes("TIV") && sources.includes("WHT") && !sources.includes("Receipt") && !sources.includes("BatchReceipt") ? "Case6: TIV+WHT" :
         sources.includes("WHT") && !sources.includes("TIV") ? "Case5: เสร็จ+WHT" :
-        effectivePaid > total + 0.01 ? "Case9: เกิน" : "Case8: อื่นๆ";
+        "Case8: อื่นๆ";
       return {
         id: inv.id, invoiceNo: inv.invoice_no, customerName: inv.customer_name,
         total, whtField, direct, batch, tiv, rawPaid, whtCounted, effectivePaid,
