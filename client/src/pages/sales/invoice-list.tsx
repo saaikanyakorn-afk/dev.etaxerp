@@ -69,6 +69,7 @@ const FILTER_OPTIONS = [
 const PAYMENT_STATUS_MAP: Record<string, { label: string; color: string }> = {
   unpaid: { label: "ยังไม่ชำระ", color: "bg-slate-100 text-slate-600 border-slate-200" },
   new: { label: "ยังไม่ชำระ", color: "bg-slate-100 text-slate-600 border-slate-200" },
+  billing_note: { label: "วางบิล", color: "bg-blue-100 text-blue-700 border-blue-200" },
   partial: { label: "ชำระบางส่วน", color: "bg-amber-100 text-amber-700 border-amber-200" },
   paid: { label: "ชำระครบ", color: "bg-emerald-100 text-emerald-700 border-emerald-200" },
   success: { label: "ชำระครบ", color: "bg-emerald-100 text-emerald-700 border-emerald-200" },
@@ -200,8 +201,12 @@ export default function InvoiceList() {
     const paidAmount = parseFloat(String(inv.paidAmount || 0));
     if (total > 0 && paidAmount > total) return "overpaid";
     if (inv.paymentStatus === "paid" || inv.status === "paid") return "paid";
+    if (inv.status === "partially_paid" || inv.paymentStatus === "partial") {
+      const isOverdue = inv.dueDate && new Date(inv.dueDate) < new Date(new Date().toDateString());
+      return isOverdue ? "partial_overdue" : "partial";
+    }
+    if (inv.hasBillingNote && !["paid", "cancel", "cancelled"].includes(inv.status)) return "billing_note";
     const isOverdue = inv.dueDate && new Date(inv.dueDate) < new Date(new Date().toDateString());
-    if (inv.status === "partially_paid" || inv.paymentStatus === "partial") return isOverdue ? "partial_overdue" : "partial";
     return isOverdue ? "overdue" : "unpaid";
   }
 
