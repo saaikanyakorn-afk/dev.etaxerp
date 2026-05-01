@@ -2,7 +2,7 @@ import type { Express, Request, Response } from "express";
 import { db } from "../db";
 import { storage } from "../storage";
 import { eq, desc, and, inArray, count, sql, isNull } from "drizzle-orm";
-import { salesOrders, invoices, salesOrderItems, quotations, companies, documentSettings, quotationItems, users, invoiceItems, journalEntries, journalLines, accounts, products, contacts, documentImportBatches, taxInvoices, taxInvoiceItems, receipts, receiptItems, purchaseInvoices, expenses, commissionRules, commissionRecords, employees, liveCfOrders, salesCreditNotes, billingNotes, billingNoteLinkedDocs, purchaseRequests, bidComparisons, purchaseOrders, productBundles, purchaseDebitNotes } from "@shared/schema";
+import { salesOrders, invoices, salesOrderItems, quotations, companies, documentSettings, quotationItems, users, invoiceItems, journalEntries, journalLines, accounts, products, contacts, documentImportBatches, taxInvoices, taxInvoiceItems, receipts, receiptItems, purchaseInvoices, expenses, commissionRules, commissionRecords, employees, liveCfOrders, salesCreditNotes, billingNotes, billingNoteLinkedDocs, purchaseRequests, bidComparisons, purchaseOrders, productBundles, purchaseDebitNotes, approvalRequests } from "@shared/schema";
 import { gte, lte, or } from "drizzle-orm";
 import { requireAuth, requireRole, requireAnyModule, getCompanyTenantId, checkDocOwnership } from "../route-middleware";
 import { getNextDocNo, validateDocNo, getNextJournalEntryNo, createAutoJournalEntry, resolvePaymentMethodAccountCode, logActivity, checkDocumentLimit, deleteStockMovementsForDoc, deleteJournalEntriesForDoc, recomputePaymentStatus, deductStockBundleAware, upsertWarehouseStockLevel, reverseWarehouseStockBundleAware, getInventoryTriggers } from "../route-helpers";
@@ -798,14 +798,19 @@ app.get("/api/invoices", requireAuth, requireAnyModule("sales", "ecommerce"), as
     }
     const paidMap = await computeInvoicePaidAmounts(rows.map((r: any) => r.id));
     const bnLinkedInvIds = new Set<number>();
+    const invApprovalMap: Record<number, string> = {};
     if (rows.length > 0) {
       const ids = rows.map((r: any) => r.id);
       const bnLinks = await db.select({ docId: billingNoteLinkedDocs.docId })
         .from(billingNoteLinkedDocs)
         .where(and(eq(billingNoteLinkedDocs.docType, "IV"), inArray(billingNoteLinkedDocs.docId, ids)));
       for (const l of bnLinks) bnLinkedInvIds.add(l.docId);
+      const arRows = await db.select({ documentId: approvalRequests.documentId, status: approvalRequests.status })
+        .from(approvalRequests)
+        .where(and(eq(approvalRequests.documentType, "invoice"), inArray(approvalRequests.documentId, ids)));
+      for (const ar of arRows) invApprovalMap[ar.documentId] = ar.status;
     }
-    const result = rows.map((r: any) => ({ ...r, createdByName: r.createdBy ? userMap[r.createdBy] || "-" : "-", updatedByName: r.updatedBy ? userMap[r.updatedBy] || "-" : "-", paidAmount: paidMap[r.id] || 0, hasBillingNote: bnLinkedInvIds.has(r.id) }));
+    const result = rows.map((r: any) => ({ ...r, createdByName: r.createdBy ? userMap[r.createdBy] || "-" : "-", updatedByName: r.updatedBy ? userMap[r.updatedBy] || "-" : "-", paidAmount: paidMap[r.id] || 0, hasBillingNote: bnLinkedInvIds.has(r.id), approvalStatus: invApprovalMap[r.id] || null }));
     res.json(result);
   } catch (err: any) { console.error("[invoices] list error:", err); res.status(500).json({ message: err.message }); }
 });
@@ -1819,14 +1824,19 @@ app.get("/api/tax-invoices", requireAuth, requireAnyModule("sales", "ecommerce")
       const paidMap = await computeTaxInvoicePaidAmounts(rows.map((r: any) => r.id));
       const cnMap = await computeTaxInvoiceCNAmounts(rows.map((r: any) => r.id));
       const bnLinkedTivIds = new Set<number>();
+      const approvalMap: Record<number, string> = {};
       if (rows.length > 0) {
         const ids = rows.map((r: any) => r.id);
         const bnLinks = await db.select({ docId: billingNoteLinkedDocs.docId })
           .from(billingNoteLinkedDocs)
           .where(and(eq(billingNoteLinkedDocs.docType, "TIV"), inArray(billingNoteLinkedDocs.docId, ids)));
         for (const l of bnLinks) bnLinkedTivIds.add(l.docId);
+        const arRows = await db.select({ documentId: approvalRequests.documentId, status: approvalRequests.status })
+          .from(approvalRequests)
+          .where(and(eq(approvalRequests.documentType, "tax_invoice"), inArray(approvalRequests.documentId, ids)));
+        for (const ar of arRows) approvalMap[ar.documentId] = ar.status;
       }
-      return rows.map((r: any) => ({ ...r, createdByName: r.createdBy ? userMap[r.createdBy] || "-" : "-", updatedByName: r.updatedBy ? userMap[r.updatedBy] || "-" : "-", paidAmount: paidMap[r.id] || 0, cnAmount: cnMap[r.id] || 0, hasBillingNote: bnLinkedTivIds.has(r.id) }));
+      return rows.map((r: any) => ({ ...r, createdByName: r.createdBy ? userMap[r.createdBy] || "-" : "-", updatedByName: r.updatedBy ? userMap[r.updatedBy] || "-" : "-", paidAmount: paidMap[r.id] || 0, cnAmount: cnMap[r.id] || 0, hasBillingNote: bnLinkedTivIds.has(r.id), approvalStatus: approvalMap[r.id] || null }));
     };
     if (req.query.page) {
       const { page, pageSize, offset } = parsePagination(req, { pageSize: 50 });

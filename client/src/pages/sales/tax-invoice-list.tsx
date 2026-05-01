@@ -474,9 +474,15 @@ export default function TaxInvoiceList() {
                             </div>
                           </TableCell>
                           <TableCell className="text-center pt-2.5">
-                            <Badge data-testid={`badge-approval-${inv.id}`} className={`${st.color} border text-xs py-0.5 px-2.5 font-normal h-6`}>
-                              {st.label}
-                            </Badge>
+                            {inv.approvalStatus ? (() => {
+                              const aMap: Record<string, { label: string; cls: string }> = {
+                                pending: { label: "รออนุมัติ", cls: "bg-amber-50 text-amber-600 border-amber-300" },
+                                approved: { label: "อนุมัติ", cls: "bg-emerald-50 text-emerald-600 border-emerald-200" },
+                                rejected: { label: "ปฏิเสธ", cls: "bg-red-50 text-red-600 border-red-200" },
+                              };
+                              const a = aMap[inv.approvalStatus] || { label: inv.approvalStatus, cls: "bg-slate-50 text-slate-500 border-slate-200" };
+                              return <Badge data-testid={`badge-approval-${inv.id}`} className={`${a.cls} border text-xs py-0.5 px-2.5 font-normal h-6`}>{a.label}</Badge>;
+                            })() : <span className="text-xs text-muted-foreground">-</span>}
                           </TableCell>
                           <TableCell className="text-right tabular-nums pt-2.5">
                             {(() => {

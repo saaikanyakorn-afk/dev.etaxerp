@@ -429,24 +429,16 @@ export default function InvoiceList() {
                               )}
                             </div>
                           </TableCell>
-                          <TableCell className="pt-3">
-                            {(() => {
-                              const approvalMap: Record<string, { label: string; cls: string }> = {
-                                debtor: { label: "ยังไม่ชำระ", cls: "bg-amber-50 text-amber-600 border-amber-300" },
-                                overdue: { label: "เกินกำหนด", cls: "bg-red-50 text-red-600 border-red-200" },
-                                billing_note: { label: "วางบิล", cls: "bg-blue-50 text-blue-600 border-blue-200" },
-                                partial: { label: "บางส่วน", cls: "bg-amber-50 text-amber-600 border-amber-300" },
-                                paid: { label: "ชำระแล้ว", cls: "bg-emerald-50 text-emerald-600 border-emerald-200" },
-                                cancel: { label: "ยกเลิก", cls: "bg-red-50 text-red-600 border-red-200" },
+                          <TableCell className="text-center pt-3">
+                            {inv.approvalStatus ? (() => {
+                              const aMap: Record<string, { label: string; cls: string }> = {
+                                pending: { label: "รออนุมัติ", cls: "bg-amber-50 text-amber-600 border-amber-300" },
+                                approved: { label: "อนุมัติ", cls: "bg-emerald-50 text-emerald-600 border-emerald-200" },
+                                rejected: { label: "ปฏิเสธ", cls: "bg-red-50 text-red-600 border-red-200" },
                               };
-                              const effectiveStatus = inv.hasBillingNote && !["paid", "cancel", "cancelled"].includes(inv.status) ? "billing_note" : inv.status;
-                              const a = approvalMap[effectiveStatus] || { label: "-", cls: "bg-slate-50 text-slate-500 border-slate-200" };
-                              return (
-                                <Badge data-testid={`badge-approval-${inv.id}`} className={`${a.cls} border text-xs py-0.5 px-2.5 font-normal h-6`}>
-                                  {a.label}
-                                </Badge>
-                              );
-                            })()}
+                              const a = aMap[inv.approvalStatus] || { label: inv.approvalStatus, cls: "bg-slate-50 text-slate-500 border-slate-200" };
+                              return <Badge data-testid={`badge-approval-${inv.id}`} className={`${a.cls} border text-xs py-0.5 px-2.5 font-normal h-6`}>{a.label}</Badge>;
+                            })() : <span className="text-xs text-muted-foreground">-</span>}
                           </TableCell>
                           <TableCell className="text-right tabular-nums pt-2.5">
                             {(() => {
