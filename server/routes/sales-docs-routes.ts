@@ -2968,6 +2968,11 @@ app.get("/api/related-documents/:docType/:docId", requireAuth, async (req, res) 
             const [so] = await db.select().from(salesOrders).where(and(eq(salesOrders.id, iv.salesOrderId), eq(salesOrders.companyId, companyId)));
             if (so) addUnique({ type: "sales_order", id: so.id, docNo: so.orderNo, date: so.orderDate, status: so.status, totalAmount: so.totalAmount });
           }
+          // sibling TIVs — all other TIVs from the same invoice
+          const siblingTxs = await db.select().from(taxInvoices).where(and(eq(taxInvoices.invoiceId, tx.invoiceId), eq(taxInvoices.companyId, companyId)));
+          for (const sib of siblingTxs) {
+            if (sib.id !== id) addUnique({ type: "tax_invoice", id: sib.id, docNo: sib.taxInvoiceNo, date: sib.taxInvoiceDate, status: sib.status, totalAmount: sib.totalAmount });
+          }
         }
       }
       if (tx.refDoc && !tx.invoiceId) {
@@ -2982,6 +2987,11 @@ app.get("/api/related-documents/:docType/:docId", requireAuth, async (req, res) 
           if (iv.salesOrderId) {
             const [so] = await db.select().from(salesOrders).where(and(eq(salesOrders.id, iv.salesOrderId), eq(salesOrders.companyId, companyId)));
             if (so) addUnique({ type: "sales_order", id: so.id, docNo: so.orderNo, date: so.orderDate, status: so.status, totalAmount: so.totalAmount });
+          }
+          // sibling TIVs from same invoice (via invoiceId link)
+          const siblingTxs2 = await db.select().from(taxInvoices).where(and(eq(taxInvoices.invoiceId, iv.id), eq(taxInvoices.companyId, companyId)));
+          for (const sib of siblingTxs2) {
+            if (sib.id !== id) addUnique({ type: "tax_invoice", id: sib.id, docNo: sib.taxInvoiceNo, date: sib.taxInvoiceDate, status: sib.status, totalAmount: sib.totalAmount });
           }
         }
         const qoByRef = await db.select().from(quotations).where(and(eq(quotations.quotationNo, refDocNo), eq(quotations.companyId, companyId)));
