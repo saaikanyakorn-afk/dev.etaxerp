@@ -2746,13 +2746,26 @@ app.delete("/api/receipts/:id", requireAuth, requireAnyModule("sales", "ecommerc
     const [existing] = await db.select().from(receipts).where(eq(receipts.id, Number(req.params.id)));
     if (!existing) return res.status(404).json({ message: "ไม่พบใบเสร็จรับเงิน" });
     { const ac = await checkDocOwnership(existing.companyId, req.user); if (!ac.allowed) return res.status(403).json({ message: ac.message }); }
+    // เก็บ linked docs ก่อนลบ เพื่อ recompute payment status ภายหลัง
+    const linkedDocs = await db.select().from(receiptLinkedDocs).where(eq(receiptLinkedDocs.receiptId, existing.id));
     await db.transaction(async (tx) => {
       await deleteJournalEntriesForDoc(tx, "receipt", existing.id);
+      await tx.delete(receiptLinkedDocs).where(eq(receiptLinkedDocs.receiptId, existing.id));
       await tx.delete(receiptItems).where(eq(receiptItems.receiptId, existing.id));
+      // reset billing note ที่ผูกกับ receipt นี้
+      await tx.execute(sql.raw(`UPDATE billing_notes SET payment_status = 'unpaid', receipt_id = NULL WHERE receipt_id = ${existing.id}`));
       await tx.delete(receipts).where(eq(receipts.id, existing.id));
     });
+    // recompute จาก taxInvoiceId/invoiceId field ตรง
     if (existing.taxInvoiceId) await recomputePaymentStatus("taxInvoice", existing.taxInvoiceId);
     if (existing.invoiceId) await recomputePaymentStatus("invoice", existing.invoiceId);
+    // recompute จาก receipt_linked_docs (billing note receipts)
+    for (const ld of linkedDocs) {
+      try {
+        if (ld.docType === "TIV" && ld.docId) await recomputePaymentStatus("taxInvoice", ld.docId);
+        else if (ld.docType === "IV" && ld.docId) await recomputePaymentStatus("invoice", ld.docId);
+      } catch (e: any) { console.error(`[RC-DELETE] recomputePaymentStatus ${ld.docType}#${ld.docId} failed:`, e.message); }
+    }
     res.json({ success: true });
   } catch (err: any) { res.status(500).json({ message: err.message }); }
 });
@@ -2771,9 +2784,12 @@ app.post("/api/receipts/bulk-delete", requireAuth, requireAnyModule("sales", "ec
       try {
         const [existing] = await db.select().from(receipts).where(eq(receipts.id, Number(id)));
         if (!existing) { errors.push(`#${id}: ไม่พบ`); continue; }
+        const linkedDocs = await db.select().from(receiptLinkedDocs).where(eq(receiptLinkedDocs.receiptId, existing.id));
         await db.transaction(async (tx) => {
           await deleteJournalEntriesForDoc(tx, "receipt", existing.id);
+          await tx.delete(receiptLinkedDocs).where(eq(receiptLinkedDocs.receiptId, existing.id));
           await tx.delete(receiptItems).where(eq(receiptItems.receiptId, existing.id));
+          await tx.execute(sql.raw(`UPDATE billing_notes SET payment_status = 'unpaid', receipt_id = NULL WHERE receipt_id = ${existing.id}`));
           await tx.delete(receipts).where(eq(receipts.id, existing.id));
         });
         if (existing.taxInvoiceId) {
@@ -2781,6 +2797,12 @@ app.post("/api/receipts/bulk-delete", requireAuth, requireAnyModule("sales", "ec
         }
         if (existing.invoiceId) {
           try { await recomputePaymentStatus("invoice", existing.invoiceId); } catch (e: any) { console.error(`[RC-DELETE] recomputePaymentStatus invoice#${existing.invoiceId} failed:`, e.message); }
+        }
+        for (const ld of linkedDocs) {
+          try {
+            if (ld.docType === "TIV" && ld.docId) await recomputePaymentStatus("taxInvoice", ld.docId);
+            else if (ld.docType === "IV" && ld.docId) await recomputePaymentStatus("invoice", ld.docId);
+          } catch (e: any) { console.error(`[RC-BULK-DELETE] recomputePaymentStatus ${ld.docType}#${ld.docId} failed:`, e.message); }
         }
         logActivity({ companyId: existing.companyId, userId: user.id, userName: user.username, action: "delete", entityType: "receipt", entityId: String(existing.id), entityName: existing.receiptNo }).catch(() => {});
         deleted++;
