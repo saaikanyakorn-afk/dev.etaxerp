@@ -2310,6 +2310,9 @@ app.delete("/api/tax-invoices/:id", requireAuth, requireAnyModule("sales", "ecom
     });
     const tiDelTriggers = await getInventoryTriggers(existing.companyId);
     if (tiDelTriggers.invoice_deduct) await reverseWarehouseStockBundleAware(tiItems, existing.companyId);
+    if (existing.invoiceId) {
+      try { await recomputePaymentStatus("invoice", existing.invoiceId); } catch (e: any) { console.error(`[TIV-DELETE] recomputePaymentStatus invoice#${existing.invoiceId} failed:`, e.message); }
+    }
     const user = req.user as any;
     logActivity({ companyId: existing.companyId, userId: user.id, userName: user.username, action: "delete", entityType: "tax_invoice", entityId: String(existing.id), entityName: existing.taxInvoiceNo }).catch(() => {});
     res.json({ success: true });
@@ -2339,6 +2342,9 @@ app.post("/api/tax-invoices/bulk-delete", requireAuth, requireAnyModule("sales",
         });
         const bulkTiDelTriggers = await getInventoryTriggers(existing.companyId);
         if (bulkTiDelTriggers.invoice_deduct) await reverseWarehouseStockBundleAware(bulkTiItems, existing.companyId);
+        if (existing.invoiceId) {
+          try { await recomputePaymentStatus("invoice", existing.invoiceId); } catch (e: any) { console.error(`[TIV-BULK-DELETE] recomputePaymentStatus invoice#${existing.invoiceId} failed:`, e.message); }
+        }
         logActivity({ companyId: existing.companyId, userId: user.id, userName: user.username, action: "delete", entityType: "tax_invoice", entityId: String(existing.id), entityName: existing.taxInvoiceNo }).catch(() => {});
         deleted++;
       } catch (e: any) { errors.push(`#${id}: ${e.message}`); }

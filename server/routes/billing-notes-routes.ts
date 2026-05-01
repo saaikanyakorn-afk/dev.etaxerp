@@ -1,7 +1,7 @@
 import type { Express, Request, Response } from "express";
 import { db } from "../db";
 import { eq, desc, and, asc, gte, lte , sql } from "drizzle-orm";
-import { billingNotes, receipts, receiptLinkedDocs, purchaseInvoices, expenses, paymentVouchers, paymentVoucherLinkedDocs, invoices, firmClients, contacts, invoiceItems, journalEntries, companies, journalLines, accounts, bankStatements, lineGroupMappings } from "@shared/schema";
+import { billingNotes, billingNoteLinkedDocs, receipts, receiptLinkedDocs, purchaseInvoices, expenses, paymentVouchers, paymentVoucherLinkedDocs, invoices, firmClients, contacts, invoiceItems, journalEntries, companies, journalLines, accounts, bankStatements, lineGroupMappings } from "@shared/schema";
 import { requireAuth, requireModule } from "../route-middleware";
 import { getNextDocNo, createAutoJournalEntry, resolvePaymentMethodAccountCode, recomputePaymentStatus, recomputeAPPaymentStatus } from "../route-helpers";
 import { verifyCompanyAccess } from "../route-factory";
@@ -199,6 +199,15 @@ app.patch("/api/finance/billing-notes/:id/void", requireAuth, async (req, res) =
     await db.update(billingNotes)
       .set({ status: "cancelled", updatedBy: user.id, updatedAt: new Date() })
       .where(eq(billingNotes.id, id));
+
+    const voidLinkedDocs = await db.select().from(billingNoteLinkedDocs)
+      .where(eq(billingNoteLinkedDocs.billingNoteId, id));
+    for (const doc of voidLinkedDocs) {
+      try {
+        if (doc.docType === "TIV") await recomputePaymentStatus("taxInvoice", doc.docId);
+        else if (doc.docType === "IV") await recomputePaymentStatus("invoice", doc.docId);
+      } catch (e: any) { console.error(`[BN-VOID] recomputePaymentStatus ${doc.docType}#${doc.docId} failed:`, e.message); }
+    }
 
     res.json({ success: true });
   } catch (err: any) { res.status(500).json({ message: err.message }); }
