@@ -456,10 +456,14 @@ export default function TaxInvoiceList() {
                                   <ExternalLink className="h-3 w-3" /> ดูแผนที่
                                 </span>
                               )}
-                              <span className="flex items-center gap-0.5 text-slate-500 cursor-pointer hover:underline" onClick={(e) => { e.stopPropagation(); setJournalDoc({ open: true, id: inv.id }); }}>
-                                <BookOpen className="h-3 w-3" /> ดูบัญชี
-                              </span>
-                              <span className="text-slate-400">|</span>
+                              {inv.hasJournalEntry && (
+                                <>
+                                  <span className="flex items-center gap-0.5 text-slate-500 cursor-pointer hover:underline" onClick={(e) => { e.stopPropagation(); setJournalDoc({ open: true, id: inv.id }); }}>
+                                    <BookOpen className="h-3 w-3" /> ดูบัญชี
+                                  </span>
+                                  <span className="text-slate-400">|</span>
+                                </>
+                              )}
                               <span className="flex items-center gap-0.5 text-[#03c9d7] cursor-pointer hover:underline" onClick={(e) => { e.stopPropagation(); setRelatedDoc({ open: true, id: inv.id, docNo: inv.taxInvoiceNo }); }}>
                                 <FileText className="h-3 w-3" /> เอกสารที่เกี่ยวข้อง
                               </span>
