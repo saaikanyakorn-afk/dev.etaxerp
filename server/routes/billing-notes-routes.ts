@@ -8,9 +8,10 @@ import { verifyCompanyAccess } from "../route-factory";
 import multer from "multer";
 
 export function registerBillingNotesRoutes(app: Express) {
-// One-shot migration: add withholding_tax and wht_rate columns to billing_notes
+// One-shot migration: add withholding_tax, wht_rate, wht_base columns to billing_notes
 db.execute(sql`ALTER TABLE billing_notes ADD COLUMN IF NOT EXISTS withholding_tax DECIMAL(15,2) DEFAULT 0`).catch(() => {});
 db.execute(sql`ALTER TABLE billing_notes ADD COLUMN IF NOT EXISTS wht_rate DECIMAL(5,2) DEFAULT 0`).catch(() => {});
+db.execute(sql`ALTER TABLE billing_notes ADD COLUMN IF NOT EXISTS wht_base DECIMAL(15,2) DEFAULT 0`).catch(() => {});
 
 // ========== Billing Notes (ใบวางบิล) ==========
 app.get("/api/finance/billing-notes", requireAuth, async (req, res) => {
@@ -24,11 +25,11 @@ app.get("/api/finance/billing-notes", requireAuth, async (req, res) => {
       .where(eq(billingNotes.companyId, companyId))
       .orderBy(desc(billingNotes.createdAt));
 
-    const whtMap: Record<number, { amount: string; rate: string }> = {};
+    const whtMap: Record<number, { amount: string; rate: string; base: string }> = {};
     try {
-      const whtRows = await db.execute(sql.raw(`SELECT id, withholding_tax, wht_rate FROM billing_notes WHERE company_id = ${companyId}`));
+      const whtRows = await db.execute(sql.raw(`SELECT id, withholding_tax, wht_rate, wht_base FROM billing_notes WHERE company_id = ${companyId}`));
       for (const r of (whtRows.rows || []) as any[]) {
-        whtMap[r.id] = { amount: String(r.withholding_tax ?? "0"), rate: String(r.wht_rate ?? "0") };
+        whtMap[r.id] = { amount: String(r.withholding_tax ?? "0"), rate: String(r.wht_rate ?? "0"), base: String(r.wht_base ?? "0") };
       }
     } catch {}
 
@@ -36,7 +37,7 @@ app.get("/api/finance/billing-notes", requireAuth, async (req, res) => {
     for (const bn of bnRows) {
       const linkedDocs = await db.select().from(billingNoteLinkedDocs)
         .where(eq(billingNoteLinkedDocs.billingNoteId, bn.id));
-      result.push({ ...bn, withholdingTax: whtMap[bn.id]?.amount ?? "0", whtRate: whtMap[bn.id]?.rate ?? "0", linkedDocs });
+      result.push({ ...bn, withholdingTax: whtMap[bn.id]?.amount ?? "0", whtRate: whtMap[bn.id]?.rate ?? "0", whtBase: whtMap[bn.id]?.base ?? "0", linkedDocs });
     }
 
     res.json(result);
@@ -45,7 +46,7 @@ app.get("/api/finance/billing-notes", requireAuth, async (req, res) => {
 
 app.post("/api/finance/billing-notes", requireAuth, async (req, res) => {
   try {
-    const { companyId, documents, billingDate, dueDate, notes, customerId, customerName, customerAddress, customerTaxId, branch, withholdingTax, whtRate } = req.body;
+    const { companyId, documents, billingDate, dueDate, notes, customerId, customerName, customerAddress, customerTaxId, branch, withholdingTax, whtRate, whtBase } = req.body;
     if (!companyId || !documents || !Array.isArray(documents) || documents.length === 0) {
       return res.status(400).json({ message: "กรุณาเลือกเอกสารอย่างน้อย 1 รายการ" });
     }
@@ -54,6 +55,7 @@ app.post("/api/finance/billing-notes", requireAuth, async (req, res) => {
 
     const whtAmt = parseFloat(withholdingTax) || 0;
     const whtRateVal = parseFloat(whtRate) || 0;
+    const whtBaseVal = parseFloat(whtBase) || 0;
     const totalAmount = documents.reduce((s: number, d: any) => s + (parseFloat(d.amount) || 0), 0);
     const billingNo = await getNextDocNo(companyId, "BN", billingNotes, billingNotes.billingNo, billingNotes.companyId, billingDate);
 
@@ -88,13 +90,13 @@ app.post("/api/finance/billing-notes", requireAuth, async (req, res) => {
           amount: String(doc.amount),
         });
       }
-      if (whtAmt > 0 || whtRateVal > 0) {
-        await tx.execute(sql.raw(`UPDATE billing_notes SET withholding_tax = ${whtAmt}, wht_rate = ${whtRateVal} WHERE id = ${bn.id}`));
+      if (whtAmt > 0 || whtRateVal > 0 || whtBaseVal > 0) {
+        await tx.execute(sql.raw(`UPDATE billing_notes SET withholding_tax = ${whtAmt}, wht_rate = ${whtRateVal}, wht_base = ${whtBaseVal} WHERE id = ${bn.id}`));
       }
       return bn;
     });
 
-    res.json({ success: true, billingNote: { ...result, withholdingTax: String(whtAmt), whtRate: String(whtRateVal) } });
+    res.json({ success: true, billingNote: { ...result, withholdingTax: String(whtAmt), whtRate: String(whtRateVal), whtBase: String(whtBaseVal) } });
   } catch (err: any) { res.status(500).json({ message: err.message }); }
 });
 
@@ -109,16 +111,17 @@ app.get("/api/finance/billing-notes/:id", requireAuth, async (req, res) => {
     const linkedDocs = await db.select().from(billingNoteLinkedDocs)
       .where(eq(billingNoteLinkedDocs.billingNoteId, bn.id));
 
-    let whtVal = "0"; let whtRateVal = "0";
+    let whtVal = "0"; let whtRateVal = "0"; let whtBaseVal = "0";
     try {
-      const whtRows = await db.execute(sql.raw(`SELECT withholding_tax, wht_rate FROM billing_notes WHERE id = ${id} LIMIT 1`));
+      const whtRows = await db.execute(sql.raw(`SELECT withholding_tax, wht_rate, wht_base FROM billing_notes WHERE id = ${id} LIMIT 1`));
       if ((whtRows.rows || []).length > 0) {
         whtVal = String((whtRows.rows as any[])[0].withholding_tax ?? "0");
         whtRateVal = String((whtRows.rows as any[])[0].wht_rate ?? "0");
+        whtBaseVal = String((whtRows.rows as any[])[0].wht_base ?? "0");
       }
     } catch {}
 
-    res.json({ ...bn, withholdingTax: whtVal, whtRate: whtRateVal, linkedDocs });
+    res.json({ ...bn, withholdingTax: whtVal, whtRate: whtRateVal, whtBase: whtBaseVal, linkedDocs });
   } catch (err: any) { res.status(500).json({ message: err.message }); }
 });
 
@@ -222,17 +225,18 @@ app.patch("/api/finance/billing-notes/:id", requireAuth, async (req, res) => {
     const user = req.user as any;
     if (!(await verifyCompanyAccess(user, bn.companyId))) return res.status(403).json({ message: "ไม่มีสิทธิ์" });
 
-    const { billingDate, dueDate, notes, withholdingTax, whtRate } = req.body;
+    const { billingDate, dueDate, notes, withholdingTax, whtRate, whtBase } = req.body;
     const updates: any = { updatedBy: user.id, updatedAt: new Date() };
     if (billingDate !== undefined) updates.billingDate = billingDate;
     if (dueDate !== undefined) updates.dueDate = dueDate || null;
     if (notes !== undefined) updates.notes = notes || null;
     await db.update(billingNotes).set(updates).where(eq(billingNotes.id, id));
 
-    if (withholdingTax !== undefined || whtRate !== undefined) {
+    if (withholdingTax !== undefined || whtRate !== undefined || whtBase !== undefined) {
       const wht = parseFloat(withholdingTax) || 0;
       const rate = parseFloat(whtRate) || 0;
-      await db.execute(sql.raw(`UPDATE billing_notes SET withholding_tax = ${wht}, wht_rate = ${rate} WHERE id = ${id}`));
+      const base = parseFloat(whtBase) || 0;
+      await db.execute(sql.raw(`UPDATE billing_notes SET withholding_tax = ${wht}, wht_rate = ${rate}, wht_base = ${base} WHERE id = ${id}`));
     }
     res.json({ success: true });
   } catch (err: any) { res.status(500).json({ message: err.message }); }

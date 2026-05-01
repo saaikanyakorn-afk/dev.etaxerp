@@ -474,13 +474,12 @@ export async function buildBillingNotePdfData(billingNoteId: number): Promise<Ge
     phone: company.phone || "",
     email: (company as any).email || "",
     website: (company as any).website || "",
-    logoBase64: logoBase64 || "",
     logoUrl: company.logoUrl || "",
-    branchName: "",
-    branchCode: "",
+    branch: (company as any).branch || "สำนักงานใหญ่",
   };
 
   const pdfSettings: PdfSettings = {
+    logoBase64: logoBase64 || "",
     themeColor: docSetting?.themeColor || "#fb9678",
     showLogo: docSetting?.showLogo !== false,
     showSignature: docSetting?.showSignature !== false,

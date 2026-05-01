@@ -342,6 +342,7 @@ export default function BillingNotes() {
       customerTaxId: selectedContact?.taxId || null,
       whtRate: parseFloat(billingWhtRate) || 0,
       withholdingTax: billingWhtAmount,
+      whtBase: selectedSubtotal,
     });
   };
 
@@ -368,7 +369,8 @@ export default function BillingNotes() {
   };
 
   const selectContact = (contact: any) => {
-    setSelectedContact(contact);
+    const resolvedAddress = contact.address || contact.buildingNumber || "";
+    setSelectedContact({ ...contact, address: resolvedAddress });
     setCustomerSearch(contact.name);
     setShowDropdown(false);
     setSelectedDocs(new Set());
@@ -393,11 +395,11 @@ export default function BillingNotes() {
   const submitEdit = () => {
     if (!editBn) return;
     const rate = parseFloat(editWhtRate) || 0;
-    const subtotal = parseFloat(editBn.subtotal ?? editBn.totalAmount ?? "0");
-    const whtAmt = rate > 0 && subtotal > 0 ? Math.round(rate / 100 * subtotal * 100) / 100 : 0;
+    const base = parseFloat(editBn.whtBase ?? "0") || parseFloat(editBn.subtotal ?? editBn.totalAmount ?? "0");
+    const whtAmt = rate > 0 && base > 0 ? Math.round(rate / 100 * base * 100) / 100 : 0;
     updateBillingNote.mutate({
       id: editBn.id,
-      payload: { billingDate: editBillingDate, dueDate: editDueDate || null, notes: editNotes, whtRate: rate, withholdingTax: whtAmt },
+      payload: { billingDate: editBillingDate, dueDate: editDueDate || null, notes: editNotes, whtRate: rate, withholdingTax: whtAmt, whtBase: base },
     });
   };
 
@@ -1019,10 +1021,10 @@ export default function BillingNotes() {
               </div>
               {(() => {
                 const rate = parseFloat(editWhtRate) || 0;
-                const subtotal = parseFloat(editBn?.subtotal ?? editBn?.totalAmount ?? "0");
-                const amt = rate > 0 && subtotal > 0 ? Math.round(rate / 100 * subtotal * 100) / 100 : 0;
+                const base = parseFloat(editBn?.whtBase ?? "0") || parseFloat(editBn?.subtotal ?? editBn?.totalAmount ?? "0");
+                const amt = rate > 0 && base > 0 ? Math.round(rate / 100 * base * 100) / 100 : 0;
                 return amt > 0 ? (
-                  <p className="text-[11px] text-muted-foreground mt-1">= ฿{fmt(amt)} (จากยอดก่อน VAT ฿{fmt(subtotal)})</p>
+                  <p className="text-[11px] text-muted-foreground mt-1">= ฿{fmt(amt)} (จากยอดก่อน VAT ฿{fmt(base)})</p>
                 ) : null;
               })()}
             </div>
