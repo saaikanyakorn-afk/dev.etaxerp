@@ -420,7 +420,7 @@ async function _createAutoJournalEntryInner(params: AutoJournalParams): Promise<
   const isPaymentVoucher = documentType === "payment";
   const isCreditNote = documentType === "credit_note";
   const isPurchaseOrExpense = documentType === "purchase" || documentType === "expense";
-  const netCash = (isReceipt || isTaxInvoice || isPaymentVoucher || isPurchaseOrExpense) ? grossTotal - wht : grossTotal;
+  const netCash = (isReceipt || (isTaxInvoice && !isCreditPayment) || isPaymentVoucher || isPurchaseOrExpense) ? grossTotal - wht : grossTotal;
 
   const result = await db.transaction(async (tx) => {
     const docTypeLabel: Record<string, string> = {
@@ -556,7 +556,7 @@ async function _createAutoJournalEntryInner(params: AutoJournalParams): Promise<
       const code = effectiveCode;
 
       if (isCashBankLine || code === paymentMethodAccountCode) {
-        amount = (isReceipt || isTaxInvoice || isPaymentVoucher || isPurchaseOrExpense) ? netCash : grossTotal;
+        amount = (isReceipt || (isTaxInvoice && !isCreditPayment) || isPaymentVoucher || isPurchaseOrExpense) ? netCash : grossTotal;
       } else if (code.startsWith("120") || code.startsWith("112")) {
         amount = grossTotal;
       } else if (code.startsWith("123")) {
@@ -697,7 +697,7 @@ async function _createAutoJournalEntryInner(params: AutoJournalParams): Promise<
       pendingLines.splice(insertPos, 0, ...newRevLines);
     }
 
-    if ((isReceipt || isTaxInvoice) && wht > 0) {
+    if ((isReceipt || (isTaxInvoice && !isCreditPayment)) && wht > 0) {
       const whtAcc = accountMap.get("1307") || accountMap.get("1434000") || accountMap.get("1301000");
       if (whtAcc) {
         const whtDesc = whtAcc.nameTh
