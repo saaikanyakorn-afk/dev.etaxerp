@@ -567,12 +567,28 @@ app.post("/api/finance/batch-receipt", requireAuth, async (req, res) => {
       const amt = parseFloat(doc.amount);
       if (!amt || amt <= 0) return res.status(400).json({ message: "จำนวนเงินต้องมากกว่า 0" });
     }
-    const totalAmount = documents.reduce((s: number, d: any) => s + (parseFloat(d.amount) || 0), 0);
-    if (totalAmount <= 0) return res.status(400).json({ message: "ยอดรวมต้องมากกว่า 0" });
+    const grossAmount = documents.reduce((s: number, d: any) => s + (parseFloat(d.amount) || 0), 0);
+    if (grossAmount <= 0) return res.status(400).json({ message: "ยอดรวมต้องมากกว่า 0" });
     const whtAmt = parseFloat(withholdingTax) || 0;
+    const netAmount = grossAmount - whtAmt;
     const customerName = documents[0].contactName || "ลูกค้าทั่วไป";
     const customerId = documents[0].customerId || null;
     const receiptNo = await getNextDocNo(companyId, "RE", receipts, receipts.receiptNo, receipts.companyId, paymentDate);
+
+    // Compute actual VAT by summing vatAmount from linked IV/TIV records
+    let actualVatAmount = 0;
+    let actualSubtotal = 0;
+    for (const doc of documents) {
+      if (doc.docType === "IV") {
+        const [iv] = await db.select().from(invoices).where(eq(invoices.id, doc.docId));
+        if (iv) { actualVatAmount += parseFloat(iv.vatAmount || "0"); actualSubtotal += parseFloat(iv.subtotal || "0"); }
+      } else if (doc.docType === "TIV") {
+        const [tiv] = await db.select().from(taxInvoices).where(eq(taxInvoices.id, doc.docId));
+        if (tiv) { actualVatAmount += parseFloat(tiv.vatAmount || "0"); actualSubtotal += parseFloat(tiv.subtotal || "0"); }
+      }
+    }
+    // fallback: if no VAT from docs, treat grossAmount as subtotal
+    if (actualSubtotal === 0) actualSubtotal = grossAmount;
 
     const result = await db.transaction(async (tx) => {
       const [receipt] = await tx.insert(receipts).values({
@@ -581,10 +597,10 @@ app.post("/api/finance/batch-receipt", requireAuth, async (req, res) => {
         receiptDate: paymentDate || new Date().toISOString().split("T")[0],
         customerId,
         customerName,
-        subtotal: String(totalAmount),
-        vatAmount: "0",
+        subtotal: String(actualSubtotal),
+        vatAmount: String(actualVatAmount),
         withholdingTax: String(whtAmt),
-        totalAmount: String(totalAmount),
+        totalAmount: String(netAmount),
         status: "approved",
         paymentMethod: paymentMethod || "โอนเงิน",
         paymentDate: paymentDate || new Date().toISOString().split("T")[0],
@@ -621,9 +637,9 @@ app.post("/api/finance/batch-receipt", requireAuth, async (req, res) => {
         sourceDocId: result.id,
         docDate: result.receiptDate,
         docNo: result.receiptNo,
-        subtotal: String(totalAmount),
-        vatAmount: "0",
-        totalAmount: String(totalAmount),
+        subtotal: String(actualSubtotal),
+        vatAmount: String(actualVatAmount),
+        totalAmount: String(netAmount),
         withholdingTax: String(whtAmt),
         currencyCode: "THB",
         exchangeRate: "1",
@@ -631,10 +647,10 @@ app.post("/api/finance/batch-receipt", requireAuth, async (req, res) => {
         customerName,
         paymentMethod: paymentMethod || "โอนเงิน",
         paymentMethodAccountCode: pmAccCode,
-        linkedInvoiceId: documents[0].docId,
-        overrideLines: body?.journalOverrideLines || req?.body?.journalOverrideLines || undefined,
+        linkedInvoiceId: documents[0]?.docId,
+        overrideLines: req.body?.journalOverrideLines || undefined,
       });
-    } catch (e) {}
+    } catch (e: any) { console.error("[batch-receipt] journal creation failed:", e.message); }
 
     res.json({ success: true, receipt: result, journalResult });
   } catch (err: any) { res.status(500).json({ message: err.message }); }

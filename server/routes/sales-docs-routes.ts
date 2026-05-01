@@ -2737,6 +2737,12 @@ app.patch("/api/receipts/:id", requireAuth, requireAnyModule("sales", "ecommerce
     if (shouldCreateJournal) {
       try {
         const pmAccCode2 = await resolvePaymentMethodAccountCode(updated.companyId, updated.paymentMethod);
+        // resolve linkedInvoiceId from receipt_linked_docs if not directly linked
+        let linkedInvId: number | undefined = updated.invoiceId || updated.taxInvoiceId || undefined;
+        if (!linkedInvId) {
+          const rldForJournal = await db.select().from(receiptLinkedDocs).where(eq(receiptLinkedDocs.receiptId, updated.id));
+          if (rldForJournal.length > 0) linkedInvId = rldForJournal[0].docId || undefined;
+        }
         journalResult = await createAutoJournalEntry({
           companyId: updated.companyId,
           documentType: "receipt",
@@ -2753,10 +2759,10 @@ app.patch("/api/receipts/:id", requireAuth, requireAnyModule("sales", "ecommerce
           userId: user.id,
           customerName: updated.customerName,
           paymentMethodAccountCode: pmAccCode2,
-          linkedInvoiceId: updated.invoiceId || updated.taxInvoiceId || undefined,
-          overrideLines: body?.journalOverrideLines || req?.body?.journalOverrideLines || undefined,
+          linkedInvoiceId: linkedInvId,
+          overrideLines: req.body?.journalOverrideLines || undefined,
         });
-      } catch (e) {}
+      } catch (e: any) { console.error("[receipt-patch] journal creation failed:", e.message); }
     }
 
     res.json({ ...updated, items: savedItems, journalResult });
