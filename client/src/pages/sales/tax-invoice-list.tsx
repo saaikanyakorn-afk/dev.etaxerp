@@ -489,11 +489,12 @@ export default function TaxInvoiceList() {
                               const total = parseFloat(String(inv.totalAmount || 0));
                               const paid = parseFloat(String(inv.paidAmount || 0));
                               const cnAmt = parseFloat(String(inv.cnAmount || 0));
+                              const whtAmt = parseFloat(String(inv.withholdingTax || inv.whtAmount || 0));
+                              const grossTotal = total + whtAmt;
                               const PAID_STATUSES = ["paid", "cash", "credit_card", "cheque_done", "transfer_done", "paid_by_ar", "completed"];
                               const isPaid = PAID_STATUSES.includes(inv.status) || inv.paymentStatus === "paid" || inv.paymentStatus === "success";
-                              const effectiveTotal = total - cnAmt;
+                              const effectiveTotal = grossTotal - cnAmt;
                               const outstanding = isPaid ? 0 : Math.max(0, effectiveTotal - paid);
-                              const whtAmt = parseFloat(String(inv.withholdingTax || inv.whtAmount || 0));
                               const isCreditUnpaid = inv.paymentMethod === "เครดิต" && !isPaid;
                               return (
                                 <>
@@ -506,7 +507,7 @@ export default function TaxInvoiceList() {
                                   )}
                                   <div className="border-t border-gray-200 my-0.5" />
                                   <div className="text-sm font-medium">
-                                    {fmt(total)}
+                                    {fmt(grossTotal)}
                                     {inv.currencyCode && inv.currencyCode !== "THB" && (
                                       <span className="text-[10px] ml-1 text-[var(--theme-primary)]">{inv.currencyCode}</span>
                                     )}

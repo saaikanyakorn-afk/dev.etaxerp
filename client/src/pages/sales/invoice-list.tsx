@@ -448,15 +448,17 @@ export default function InvoiceList() {
                           <TableCell className="text-right tabular-nums pt-2.5">
                             {(() => {
                               const total = parseFloat(String(inv.totalAmount || 0));
+                              const whtAmt = parseFloat(String(inv.withholdingTax || 0));
+                              const grossTotal = total + whtAmt;
                               const paidAmt = parseFloat(String(inv.paidAmount ?? 0));
                               const isPaid = inv.status === "paid" || inv.paymentStatus === "paid" || inv.paymentStatus === "success";
-                              const outstanding = isPaid ? 0 : Math.max(0, total - paidAmt);
+                              const outstanding = isPaid ? 0 : Math.max(0, grossTotal - paidAmt);
                               return (
                                 <>
                                   <div className="text-xs text-muted-foreground">{fmt(outstanding)}</div>
                                   <div className="border-t border-gray-200 my-0.5" />
                                   <div className="text-sm font-medium">
-                                    {fmt(total)}
+                                    {fmt(grossTotal)}
                                     {inv.currencyCode && inv.currencyCode !== "THB" && (
                                       <span className="text-[10px] ml-1 text-[var(--theme-primary)]">{inv.currencyCode}</span>
                                     )}
