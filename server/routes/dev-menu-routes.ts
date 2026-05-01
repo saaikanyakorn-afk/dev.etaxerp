@@ -982,10 +982,9 @@ app.get("/api/dev/invoice-recompute-preview", requireSuperAdmin, async (req, res
       let caseLabel = sources.length === 0 ? "Case1: ไม่มีชำระ" :
         sources.length === 1 && sources[0] === "Receipt" ? "Case2: เสร็จตรง" :
         sources.length === 1 && sources[0] === "BatchReceipt" ? "Case3: เสร็จรวม" :
-        sources.includes("TIV") && !sources.includes("WHT") ? "Case4: TIV" :
+        sources.includes("TIV") && !sources.includes("WHT") && !sources.includes("Receipt") && !sources.includes("BatchReceipt") ? "Case4: TIV" :
         sources.includes("TIV") && sources.includes("WHT") && !sources.includes("Receipt") && !sources.includes("BatchReceipt") ? "Case6: TIV+WHT" :
         sources.includes("WHT") && !sources.includes("TIV") ? "Case5: เสร็จ+WHT" :
-        sources.includes("Receipt") && sources.includes("TIV") ? "Case7: ผสม" :
         effectivePaid > total + 0.01 ? "Case9: เกิน" : "Case8: อื่นๆ";
       return {
         id: inv.id, invoiceNo: inv.invoice_no, customerName: inv.customer_name,
@@ -1123,7 +1122,7 @@ function badge(s,big){
 }
 function fmt(n){ return Number(n||0).toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2}); }
 
-const KNOWN_CASES = ['Case1','Case2','Case3','Case4','Case5','Case6','Case7','Case9'];
+const KNOWN_CASES = ['Case1','Case2','Case3','Case4','Case5','Case6','Case9'];
 
 function isUnknownCase(caseLabel){ return !KNOWN_CASES.some(c => caseLabel.startsWith(c)); }
 
