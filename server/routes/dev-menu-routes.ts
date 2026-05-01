@@ -1041,6 +1041,8 @@ tr.will-change td{background:#fffbeb}
 tr.applied td{background:#f0fdf4}
 tr.applied .row-status{color:#16a34a;font-weight:700}
 tr.current-row td{background:#eff6ff;outline:2px solid #3b82f6}
+tr.unknown-row td{background:#fff1f2;border-left:4px solid #dc2626}
+.case-unknown{background:#fee2e2;color:#991b1b;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700}
 .badge{display:inline-block;padding:2px 10px;border-radius:12px;font-size:12px;font-weight:600}
 .unpaid{background:#fee2e2;color:#991b1b}
 .partial{background:#fed7aa;color:#9a3412}
@@ -1079,6 +1081,7 @@ tr.current-row td{background:#eff6ff;outline:2px solid #3b82f6}
   <button class="btn-proceed" id="proceedBtn" onclick="startStepByStep()" disabled>▶ Proceed (ทีละใบ)</button>
   <button class="btn-reload" id="reloadBtn" onclick="loadData()" style="display:none">🔄 Load Again (ตรวจ idempotency)</button>
 </div>
+<div id="unknownAlert" style="display:none;background:#fee2e2;border:2px solid #dc2626;border-radius:8px;padding:14px 18px;margin-bottom:12px;color:#991b1b;font-weight:600;font-size:13px"></div>
 
 <div class="stats" id="stats"></div>
 <div id="summary"></div>
@@ -1098,7 +1101,6 @@ tr.current-row td{background:#eff6ff;outline:2px solid #3b82f6}
     <div class="step-timer"><div class="step-timer-bar" id="timerBar" style="width:100%"></div></div>
     <div>
       <button class="btn-ok" id="btnOK" onclick="applyCurrentAndNext()">✔ Apply &amp; Next</button>
-      <button class="btn-skip" onclick="skipCurrent()">ข้าม</button>
     </div>
   </div>
 </div>
@@ -1121,21 +1123,39 @@ function badge(s,big){
 }
 function fmt(n){ return Number(n||0).toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2}); }
 
+const KNOWN_CASES = ['Case1','Case2','Case3','Case4','Case5','Case6','Case7','Case9'];
+
+function isUnknownCase(caseLabel){ return !KNOWN_CASES.some(c => caseLabel.startsWith(c)); }
+
 async function loadData(){
   const cid = document.getElementById('cid').value;
   document.getElementById('out').innerHTML='<div class="loading">กำลังโหลด...</div>';
   document.getElementById('stats').innerHTML='';
   document.getElementById('proceedBtn').disabled=true;
+  document.getElementById('unknownAlert').style.display='none';
   document.getElementById('summary').style.display='none';
   try{
     const r = await fetch('/api/dev/invoice-recompute-preview?companyId='+cid,{credentials:'include'});
     if(!r.ok){ const e=await r.json(); throw new Error(e.message); }
     allData = await r.json();
     toChange = allData.filter(d=>d.willChange);
-    document.getElementById('proceedBtn').disabled = toChange.length===0;
-    document.getElementById('proceedBtn').textContent = toChange.length>0
-      ? '▶ Proceed — '+toChange.length+' รายการ (ทีละใบ)'
-      : '✓ ไม่มีรายการที่ต้องเปลี่ยน';
+    const unknowns = toChange.filter(d=>isUnknownCase(d.caseLabel));
+
+    if(unknowns.length > 0){
+      const alertEl = document.getElementById('unknownAlert');
+      alertEl.innerHTML =
+        '🚫 พบ '+unknowns.length+' รายการที่ไม่รู้จัก (Case ไม่ตรงกับ scenario ใดเลย) — Proceed ถูก disable<br>'+
+        'กรุณาตรวจสอบและเพิ่ม logic ก่อน:<br>'+
+        unknowns.map(u=>'&nbsp;&nbsp;• '+u.invoiceNo+' — <b>'+u.caseLabel+'</b> (d='+u.direct+' b='+u.batch+' t='+u.tiv+' wht='+u.whtCounted+' eff='+u.effectivePaid+' total='+u.total+')').join('<br>');
+      alertEl.style.display='block';
+      document.getElementById('proceedBtn').disabled=true;
+      document.getElementById('proceedBtn').textContent='🚫 มี Case ไม่รู้จัก — ตรวจสอบก่อน';
+    } else {
+      document.getElementById('proceedBtn').disabled = toChange.length===0;
+      document.getElementById('proceedBtn').textContent = toChange.length>0
+        ? '▶ Proceed — '+toChange.length+' รายการ (ทีละใบ)'
+        : '✓ ไม่มีรายการที่ต้องเปลี่ยน';
+    }
     render();
   }catch(e){
     document.getElementById('out').innerHTML='<div class="error">Error: '+e.message+'</div>';
@@ -1157,7 +1177,11 @@ function render(){
 
   // Show only willChange rows in preview table
   const rows = toChange.map((d,i)=>{
-    return '<tr class="will-change" id="row-'+d.id+'">'+
+    const unknown = isUnknownCase(d.caseLabel);
+    const rowCls = unknown ? 'will-change unknown-row' : 'will-change';
+    const caseBadgeCls = unknown ? 'case-badge case-unknown' : 'case-badge';
+    const unknownFlag = unknown ? ' <span style="color:#dc2626;font-weight:700">⚠ ไม่รู้จัก</span>' : '';
+    return '<tr class="'+rowCls+'" id="row-'+d.id+'">'+
       '<td class="num">'+(i+1)+'</td>'+
       '<td><b>'+d.invoiceNo+'</b></td>'+
       '<td>'+d.customerName+'</td>'+
@@ -1165,7 +1189,7 @@ function render(){
       '<td class="num">'+fmt(d.effectivePaid)+'</td>'+
       '<td>'+badge(d.currentStatus)+'</td>'+
       '<td>→ '+badge(d.newStatus)+'</td>'+
-      '<td><span class="case-badge">'+d.caseLabel+'</span></td>'+
+      '<td><span class="'+caseBadgeCls+'">'+d.caseLabel+'</span>'+unknownFlag+'</td>'+
       '<td class="row-status" id="rs-'+d.id+'">รอดำเนินการ</td>'+
       '</tr>';
   }).join('');
@@ -1259,15 +1283,6 @@ async function applyCurrentAndNext(){
   setTimeout(showStep, 400);
 }
 
-function skipCurrent(){
-  clearTimer();
-  const d = toChange[stepIdx];
-  const rs = document.getElementById('rs-'+d.id);
-  if(rs){ rs.textContent='⏭ ข้าม'; rs.style.color='#6b7280'; }
-  document.getElementById('stepOverlay').classList.remove('show');
-  stepIdx++;
-  setTimeout(showStep, 300);
-}
 
 function finishAll(){
   document.getElementById('stepOverlay').classList.remove('show');
