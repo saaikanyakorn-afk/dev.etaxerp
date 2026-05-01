@@ -2087,7 +2087,8 @@ app.patch("/api/tax-invoices/:id", requireAuth, requireAnyModule("sales", "ecomm
 
     let journalResult = null;
     const statusChanged = body.status && body.status !== existing.status;
-    const shouldCreateTxJournal = (statusChanged && (body.status === "approved" || body.status === "issued")) || updated.status === "approved" || updated.status === "issued";
+    const journalStatuses = ["approved", "issued", "debtor"];
+    const shouldCreateTxJournal = (statusChanged && journalStatuses.includes(body.status)) || journalStatuses.includes(updated.status || "");
     if (shouldCreateTxJournal) {
       try {
         if (updated.invoiceId) {
