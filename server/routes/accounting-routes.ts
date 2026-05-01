@@ -1403,7 +1403,7 @@ app.post("/api/journal-preview", requireAuth, async (req, res) => {
       }
     }
 
-    const netCashTHB = (isReceipt || isTaxInvoice || isPaymentVoucher || isPurchaseDoc) ? grossTotalTHB - whtTHB : grossTotalTHB;
+    const netCashTHB = (isReceipt || (isTaxInvoice && !isCreditPayment) || isPaymentVoucher || isPurchaseDoc) ? grossTotalTHB - whtTHB : grossTotalTHB;
 
     const previewLines: any[] = [];
 
@@ -1453,9 +1453,9 @@ app.post("/api/journal-preview", requireAuth, async (req, res) => {
       } else if (isDepositDoc && line.accountCode === "1434000") {
         amount = subTHB;
       } else if (wasARSubstituted || wasAPSubstituted) {
-        amount = (isReceipt || isTaxInvoice || isPaymentVoucher || isPurchaseDoc) ? netCashTHB : grossTotalTHB;
+        amount = (isReceipt || (isTaxInvoice && !isCreditPayment) || isPaymentVoucher || isPurchaseDoc) ? netCashTHB : grossTotalTHB;
       } else if (isCashBankLine || code === pmAccCode) {
-        amount = (isReceipt || isTaxInvoice || isPaymentVoucher || isPurchaseDoc) ? netCashTHB : grossTotalTHB;
+        amount = (isReceipt || (isTaxInvoice && !isCreditPayment) || isPaymentVoucher || isPurchaseDoc) ? netCashTHB : grossTotalTHB;
       } else if (code.startsWith("120") || code.startsWith("112")) {
         amount = grossTotalTHB;
       } else if (code.startsWith("123")) {

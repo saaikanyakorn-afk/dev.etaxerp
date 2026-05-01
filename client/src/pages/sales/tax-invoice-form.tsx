@@ -263,7 +263,7 @@ export default function TaxInvoiceForm() {
     creditDays: "",
     notes: "",
     internalNotes: "",
-    status: "cash",
+    status: "debtor",
     salesperson: "",
     department: "",
     project: "",
@@ -619,7 +619,7 @@ export default function TaxInvoiceForm() {
               contactPerson: src.contactPerson || "", contactPhone: src.contactPhone || "",
               contactEmail: src.contactEmail || "", creditDays: src.creditDays ? String(src.creditDays) : "",
               notes: src.notes || "", internalNotes: src.internalNotes || "",
-              status: "cash", paymentStatus: "unpaid",
+              status: src.paymentMethod === "เงินสด" ? "cash" : "debtor", paymentStatus: "unpaid",
               salesperson: src.salesperson || "", department: src.department || "",
               project: src.project || "", refDoc: src.refDoc || "",
               paymentTerms: src.paymentTerms || "",
@@ -942,7 +942,7 @@ export default function TaxInvoiceForm() {
       creditDays: "",
       notes: "",
       internalNotes: "",
-      status: "cash",
+      status: "debtor",
       salesperson: "",
       department: "",
       project: "",
@@ -998,8 +998,13 @@ export default function TaxInvoiceForm() {
       newContact = await handleSaveNewContact();
     }
     const totals = calcTotals();
+    const computedStatus = (() => {
+      if (editingId && ["issued", "cancelled", "voided"].includes(form.status)) return form.status;
+      return form.paymentMethod === "เงินสด" ? "cash" : "debtor";
+    })();
     const payload = {
       ...form,
+      status: computedStatus,
       customerId: newContact ? newContact.id : (form.customerId ? Number(form.customerId) : null),
       customerCode: newContact ? newContact.code : (form.customerCode || ""),
       companyId,
