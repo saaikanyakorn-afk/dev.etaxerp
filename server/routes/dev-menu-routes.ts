@@ -1021,122 +1021,275 @@ app.get("/dev/recompute-preview", (req, res) => {
 <title>Invoice Recompute Preview</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;font-family:sans-serif}
-body{background:#f5f5f5;padding:20px;font-size:13px}
+body{background:#f0f4f8;padding:20px;font-size:13px}
 h1{font-size:18px;margin-bottom:12px;color:#1e3a5f}
 .toolbar{display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap}
-input[type=number]{border:1px solid #ccc;border-radius:4px;padding:5px 8px;width:120px}
-button{padding:5px 14px;border:none;border-radius:4px;cursor:pointer;font-size:13px;font-weight:500}
+input[type=number]{border:1px solid #ccc;border-radius:4px;padding:5px 8px;width:100px}
+button{padding:6px 16px;border:none;border-radius:5px;cursor:pointer;font-size:13px;font-weight:600;transition:opacity .15s}
+button:disabled{opacity:.45;cursor:default}
 .btn-load{background:#2563eb;color:#fff}
-.btn-apply{background:#16a34a;color:#fff}
-.btn-apply:disabled{background:#86efac;cursor:default}
-.btn-filter{background:#e5e7eb;color:#374151}
-.btn-filter.active{background:#374151;color:#fff}
-.stats{display:flex;gap:12px;margin-bottom:10px;flex-wrap:wrap}
-.stat{background:#fff;border:1px solid #e5e7eb;border-radius:6px;padding:6px 14px;text-align:center}
-.stat-n{font-size:20px;font-weight:700}
-.stat-will{color:#dc2626}
-.stat-ok{color:#16a34a}
-table{width:100%;border-collapse:collapse;background:#fff;border-radius:6px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.1)}
-th{background:#1e3a5f;color:#fff;padding:7px 8px;text-align:left;white-space:nowrap}
-td{padding:6px 8px;border-bottom:1px solid #f0f0f0;vertical-align:middle}
-tr:hover td{background:#f9fafb}
-.will-change td{background:#fff7ed}
-.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600}
+.btn-proceed{background:#d97706;color:#fff;font-size:14px;padding:8px 22px}
+.btn-reload{background:#6b7280;color:#fff}
+.stats{display:flex;gap:12px;margin-bottom:14px;flex-wrap:wrap}
+.stat{background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:8px 18px;text-align:center;min-width:90px}
+.stat-n{font-size:22px;font-weight:700}
+.stat-will{color:#dc2626}.stat-ok{color:#16a34a}.stat-total{color:#1e3a5f}
+table{width:100%;border-collapse:collapse;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.08)}
+th{background:#1e3a5f;color:#fff;padding:8px 10px;text-align:left;white-space:nowrap;font-size:12px}
+td{padding:7px 10px;border-bottom:1px solid #f0f0f0;vertical-align:middle}
+tr.will-change td{background:#fffbeb}
+tr.applied td{background:#f0fdf4}
+tr.applied .row-status{color:#16a34a;font-weight:700}
+tr.current-row td{background:#eff6ff;outline:2px solid #3b82f6}
+.badge{display:inline-block;padding:2px 10px;border-radius:12px;font-size:12px;font-weight:600}
 .unpaid{background:#fee2e2;color:#991b1b}
 .partial{background:#fed7aa;color:#9a3412}
 .paid{background:#dcfce7;color:#166534}
-.arrow{color:#6b7280;font-size:16px;margin:0 4px}
-.changed{color:#dc2626;font-weight:700}
-.ok{color:#16a34a}
 .case-badge{background:#e0e7ff;color:#3730a3;border-radius:4px;padding:1px 6px;font-size:10px}
-.loading{color:#6b7280;padding:20px;text-align:center}
-.error{color:#dc2626;padding:10px;background:#fee2e2;border-radius:4px}
 .num{text-align:right;font-variant-numeric:tabular-nums}
+.loading{color:#6b7280;padding:30px;text-align:center;font-size:14px}
+.error{color:#dc2626;padding:10px;background:#fee2e2;border-radius:6px;margin:10px 0}
+
+/* Step overlay */
+#stepOverlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:100;align-items:center;justify-content:center}
+#stepOverlay.show{display:flex}
+.step-card{background:#fff;border-radius:14px;padding:32px 36px;max-width:520px;width:90%;box-shadow:0 8px 40px rgba(0,0,0,.25);text-align:center}
+.step-progress{font-size:13px;color:#6b7280;margin-bottom:6px}
+.step-inv{font-size:22px;font-weight:700;color:#1e3a5f;margin-bottom:4px}
+.step-cust{font-size:13px;color:#6b7280;margin-bottom:20px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.step-change{display:flex;align-items:center;justify-content:center;gap:16px;margin-bottom:24px}
+.step-badge{font-size:16px;padding:6px 18px;border-radius:14px;font-weight:700}
+.step-arrow{font-size:24px;color:#6b7280}
+.step-timer{height:6px;background:#e5e7eb;border-radius:3px;margin-bottom:20px;overflow:hidden}
+.step-timer-bar{height:100%;background:#3b82f6;border-radius:3px;transition:width linear}
+.btn-ok{background:#16a34a;color:#fff;font-size:15px;padding:10px 32px;border-radius:8px;margin-right:10px}
+.btn-skip{background:#e5e7eb;color:#374151;font-size:13px;padding:10px 20px;border-radius:8px}
+
+/* Summary */
+#summary{display:none;background:#fff;border:2px solid #16a34a;border-radius:10px;padding:20px;margin-top:16px}
+.run-badge{display:inline-block;background:#1e3a5f;color:#fff;border-radius:20px;padding:3px 14px;font-size:12px;font-weight:700;margin-bottom:8px}
 </style>
 </head>
 <body>
 <h1>Invoice Payment Status — Recompute Preview</h1>
+
 <div class="toolbar">
   <label>Company ID: <input id="cid" type="number" value="4" min="1" /></label>
   <button class="btn-load" onclick="loadData()">โหลดข้อมูล</button>
-  <button class="btn-filter active" id="f-all" onclick="setFilter('all')">ทั้งหมด</button>
-  <button class="btn-filter" id="f-change" onclick="setFilter('change')">เฉพาะที่จะเปลี่ยน</button>
-  <button class="btn-apply" id="applyBtn" onclick="applyChanges()" disabled>Apply เฉพาะที่จะเปลี่ยน</button>
+  <button class="btn-proceed" id="proceedBtn" onclick="startStepByStep()" disabled>▶ Proceed (ทีละใบ)</button>
+  <button class="btn-reload" id="reloadBtn" onclick="loadData()" style="display:none">🔄 Load Again (ตรวจ idempotency)</button>
 </div>
+
 <div class="stats" id="stats"></div>
+<div id="summary"></div>
 <div id="out"></div>
+
+<!-- Step-by-step overlay -->
+<div id="stepOverlay">
+  <div class="step-card">
+    <div class="step-progress" id="stepProgress"></div>
+    <div class="step-inv" id="stepInv"></div>
+    <div class="step-cust" id="stepCust"></div>
+    <div class="step-change">
+      <span class="step-badge" id="stepOld"></span>
+      <span class="step-arrow">→</span>
+      <span class="step-badge" id="stepNew"></span>
+    </div>
+    <div class="step-timer"><div class="step-timer-bar" id="timerBar" style="width:100%"></div></div>
+    <div>
+      <button class="btn-ok" id="btnOK" onclick="applyCurrentAndNext()">✔ Apply &amp; Next</button>
+      <button class="btn-skip" onclick="skipCurrent()">ข้าม</button>
+    </div>
+  </div>
+</div>
+
 <script>
-let allData = [], currentFilter = 'all';
+let allData = [];
+let toChange = [];
+let stepIdx = 0;
+let timerHandle = null;
+let runCount = 0;
+let appliedLog = [];
+
 const STATUS_TH = { unpaid:'ยังไม่ชำระ', partial:'ชำระบางส่วน', paid:'ชำระครบ' };
-function badge(s){ return '<span class="badge '+(s||'')+'">'+( STATUS_TH[s]||s||'-')+'</span>'; }
-function fmt(n){ return Number(n).toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2}); }
-function setFilter(f){
-  currentFilter=f;
-  document.getElementById('f-all').className='btn-filter'+(f==='all'?' active':'');
-  document.getElementById('f-change').className='btn-filter'+(f==='change'?' active':'');
-  render();
+const STATUS_CLS = { unpaid:'unpaid', partial:'partial', paid:'paid' };
+
+function badge(s,big){
+  const cls = STATUS_CLS[s]||'';
+  const lbl = STATUS_TH[s]||s||'-';
+  return '<span class="badge'+(big?' step-badge':'')+' '+cls+'">'+lbl+'</span>';
 }
+function fmt(n){ return Number(n||0).toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+
 async function loadData(){
   const cid = document.getElementById('cid').value;
   document.getElementById('out').innerHTML='<div class="loading">กำลังโหลด...</div>';
   document.getElementById('stats').innerHTML='';
+  document.getElementById('proceedBtn').disabled=true;
+  document.getElementById('summary').style.display='none';
   try{
-    const r = await fetch('/api/dev/invoice-recompute-preview?companyId='+cid, {credentials:'include'});
+    const r = await fetch('/api/dev/invoice-recompute-preview?companyId='+cid,{credentials:'include'});
     if(!r.ok){ const e=await r.json(); throw new Error(e.message); }
     allData = await r.json();
-    document.getElementById('applyBtn').disabled = !allData.some(d=>d.willChange);
+    toChange = allData.filter(d=>d.willChange);
+    document.getElementById('proceedBtn').disabled = toChange.length===0;
+    document.getElementById('proceedBtn').textContent = toChange.length>0
+      ? '▶ Proceed — '+toChange.length+' รายการ (ทีละใบ)'
+      : '✓ ไม่มีรายการที่ต้องเปลี่ยน';
     render();
-  }catch(e){ document.getElementById('out').innerHTML='<div class="error">Error: '+e.message+'</div>'; }
+  }catch(e){
+    document.getElementById('out').innerHTML='<div class="error">Error: '+e.message+'</div>';
+  }
 }
+
 function render(){
-  const data = currentFilter==='change' ? allData.filter(d=>d.willChange) : allData;
-  const willChange = allData.filter(d=>d.willChange).length;
+  const willChange = toChange.length;
   const total = allData.length;
   document.getElementById('stats').innerHTML =
-    '<div class="stat"><div class="stat-n">'+total+'</div><div>ทั้งหมด</div></div>'+
+    '<div class="stat"><div class="stat-n stat-total">'+total+'</div><div>ทั้งหมด</div></div>'+
     '<div class="stat"><div class="stat-n stat-will">'+willChange+'</div><div>จะเปลี่ยน</div></div>'+
     '<div class="stat"><div class="stat-n stat-ok">'+(total-willChange)+'</div><div>ถูกต้องแล้ว</div></div>';
-  if(data.length===0){ document.getElementById('out').innerHTML='<div class="loading">ไม่มีข้อมูล</div>'; return; }
-  let rows = data.map((d,i)=>{
-    const chg = d.willChange ? 'will-change' : '';
-    const arrow = d.willChange ? '<span class="arrow">→</span><span class="changed">'+badge(d.newStatus)+'</span>' : '<span class="ok">✓ ถูกต้อง</span>';
-    return '<tr class="'+chg+'">'+
+
+  if(toChange.length===0 && allData.length>0){
+    document.getElementById('out').innerHTML='<div class="loading" style="color:#16a34a;font-weight:600">✅ ทุก invoice มีสถานะถูกต้องแล้ว ไม่มีรายการที่ต้องเปลี่ยน</div>';
+    return;
+  }
+
+  // Show only willChange rows in preview table
+  const rows = toChange.map((d,i)=>{
+    return '<tr class="will-change" id="row-'+d.id+'">'+
       '<td class="num">'+(i+1)+'</td>'+
-      '<td><a href="/sales/invoices" style="color:#2563eb;text-decoration:none">'+d.invoiceNo+'</a></td>'+
+      '<td><b>'+d.invoiceNo+'</b></td>'+
       '<td>'+d.customerName+'</td>'+
       '<td class="num">'+fmt(d.total)+'</td>'+
-      '<td class="num">'+fmt(d.direct)+'</td>'+
-      '<td class="num">'+fmt(d.batch)+'</td>'+
-      '<td class="num">'+fmt(d.tiv)+'</td>'+
-      '<td class="num">'+fmt(d.whtCounted)+'</td>'+
-      '<td class="num"><b>'+fmt(d.effectivePaid)+'</b></td>'+
+      '<td class="num">'+fmt(d.effectivePaid)+'</td>'+
+      '<td>'+badge(d.currentStatus)+'</td>'+
+      '<td>→ '+badge(d.newStatus)+'</td>'+
       '<td><span class="case-badge">'+d.caseLabel+'</span></td>'+
-      '<td>'+badge(d.currentStatus)+arrow+'</td>'+
+      '<td class="row-status" id="rs-'+d.id+'">รอดำเนินการ</td>'+
       '</tr>';
   }).join('');
-  document.getElementById('out').innerHTML =
-    '<table><thead><tr>'+
-    '<th>#</th><th>เลขที่</th><th>ลูกค้า</th>'+
-    '<th>ยอดรวม</th><th>เสร็จตรง</th><th>เสร็จรวม</th><th>TIV</th><th>WHT</th><th>ยอดรับรวม</th>'+
-    '<th>Case</th><th>สถานะ (ปัจจุบัน → ใหม่)</th>'+
-    '</tr></thead><tbody>'+rows+'</tbody></table>';
+
+  document.getElementById('out').innerHTML = rows
+    ? '<table><thead><tr>'+
+      '<th>#</th><th>เลขที่</th><th>ลูกค้า</th>'+
+      '<th>ยอดรวม</th><th>ยอดรับรวม</th><th>สถานะปัจจุบัน</th><th>สถานะใหม่</th>'+
+      '<th>Case</th><th>ผล</th>'+
+      '</tr></thead><tbody>'+rows+'</tbody></table>'
+    : '<div class="loading">ไม่มีรายการ</div>';
 }
-async function applyChanges(){
-  const ids = allData.filter(d=>d.willChange).map(d=>d.id);
-  if(!ids.length){ alert('ไม่มีรายการที่ต้องเปลี่ยน'); return; }
-  if(!confirm('จะ apply '+ids.length+' รายการ ยืนยัน?')) return;
-  document.getElementById('applyBtn').disabled=true;
-  document.getElementById('applyBtn').textContent='กำลัง apply...';
+
+/* ─── Step-by-step ─── */
+function startStepByStep(){
+  if(toChange.length===0) return;
+  stepIdx=0; appliedLog=[];
+  runCount++;
+  showStep();
+}
+
+function showStep(){
+  if(stepIdx >= toChange.length){ finishAll(); return; }
+  const d = toChange[stepIdx];
+
+  // Highlight current row
+  document.querySelectorAll('tr.current-row').forEach(r=>r.classList.remove('current-row'));
+  const row = document.getElementById('row-'+d.id);
+  if(row){ row.classList.add('current-row'); row.scrollIntoView({block:'nearest',behavior:'smooth'}); }
+
+  document.getElementById('stepProgress').textContent =
+    'รายการที่ '+(stepIdx+1)+' / '+toChange.length+' (Run #'+runCount+')';
+  document.getElementById('stepInv').textContent = d.invoiceNo;
+  document.getElementById('stepCust').textContent = d.customerName;
+
+  const oldEl = document.getElementById('stepOld');
+  const newEl = document.getElementById('stepNew');
+  oldEl.textContent = STATUS_TH[d.currentStatus]||d.currentStatus;
+  oldEl.className = 'step-badge '+(STATUS_CLS[d.currentStatus]||'');
+  newEl.textContent = STATUS_TH[d.newStatus]||d.newStatus;
+  newEl.className = 'step-badge '+(STATUS_CLS[d.newStatus]||'');
+
+  document.getElementById('stepOverlay').classList.add('show');
+  document.getElementById('btnOK').disabled=false;
+
+  // Timer: 8 seconds auto-apply
+  startTimer(8, ()=>applyCurrentAndNext());
+}
+
+function startTimer(seconds, cb){
+  clearTimer();
+  const bar = document.getElementById('timerBar');
+  bar.style.transition='none'; bar.style.width='100%';
+  setTimeout(()=>{
+    bar.style.transition='width '+seconds+'s linear';
+    bar.style.width='0%';
+  },50);
+  timerHandle = setTimeout(cb, seconds*1000);
+}
+
+function clearTimer(){
+  if(timerHandle){ clearTimeout(timerHandle); timerHandle=null; }
+  const bar=document.getElementById('timerBar');
+  bar.style.transition='none'; bar.style.width='100%';
+}
+
+async function applyCurrentAndNext(){
+  clearTimer();
+  document.getElementById('btnOK').disabled=true;
+  const d = toChange[stepIdx];
+  const rs = document.getElementById('rs-'+d.id);
+  const row = document.getElementById('row-'+d.id);
   try{
     const r = await fetch('/api/dev/invoice-recompute-apply',{
       method:'POST', headers:{'Content-Type':'application/json'},
-      credentials:'include', body: JSON.stringify({ids})
+      credentials:'include', body: JSON.stringify({ids:[d.id]})
     });
     const result = await r.json();
-    alert('Updated: '+result.updated+' รายการ'+(result.errors?.length?' | Errors: '+result.errors.join(', '):''));
-    loadData();
-  }catch(e){ alert('Error: '+e.message); document.getElementById('applyBtn').disabled=false; }
+    if(result.updated>0){
+      if(rs){ rs.textContent='✅ Applied: '+STATUS_TH[d.currentStatus]+' → '+STATUS_TH[d.newStatus]; rs.style.color='#16a34a'; }
+      if(row){ row.classList.remove('will-change','current-row'); row.classList.add('applied'); }
+      appliedLog.push({invoiceNo:d.invoiceNo,old:d.currentStatus,nw:d.newStatus});
+    } else {
+      if(rs){ rs.textContent='⚠ ไม่ได้เปลี่ยน'; rs.style.color='#d97706'; }
+    }
+  }catch(e){
+    if(rs){ rs.textContent='❌ Error: '+e.message; rs.style.color='#dc2626'; }
+  }
+  stepIdx++;
+  document.getElementById('stepOverlay').classList.remove('show');
+  setTimeout(showStep, 400);
 }
+
+function skipCurrent(){
+  clearTimer();
+  const d = toChange[stepIdx];
+  const rs = document.getElementById('rs-'+d.id);
+  if(rs){ rs.textContent='⏭ ข้าม'; rs.style.color='#6b7280'; }
+  document.getElementById('stepOverlay').classList.remove('show');
+  stepIdx++;
+  setTimeout(showStep, 300);
+}
+
+function finishAll(){
+  document.getElementById('stepOverlay').classList.remove('show');
+  document.getElementById('reloadBtn').style.display='';
+
+  const sumEl = document.getElementById('summary');
+  const rows = appliedLog.map(x=>
+    '<tr><td><b>'+x.invoiceNo+'</b></td>'+
+    '<td>'+badge(x.old)+'</td>'+
+    '<td>→ '+badge(x.nw)+'</td></tr>'
+  ).join('');
+  sumEl.innerHTML =
+    '<span class="run-badge">Run #'+runCount+'</span> '+
+    '<b style="font-size:15px"> เสร็จสิ้น — Applied '+appliedLog.length+' รายการ</b>'+
+    (appliedLog.length>0
+      ? '<table style="margin-top:12px"><thead><tr><th>Invoice</th><th>เดิม</th><th>ใหม่</th></tr></thead><tbody>'+rows+'</tbody></table>'
+      : '<p style="color:#16a34a;margin-top:8px">✅ ไม่มีรายการที่เปลี่ยนแปลง — idempotent ✓</p>');
+  sumEl.style.display='block';
+  sumEl.scrollIntoView({behavior:'smooth'});
+}
+
+window.onload = loadData;
 </script>
 </body>
 </html>`);
