@@ -2506,12 +2506,25 @@ app.get("/api/receipts/:id", requireAuth, requireAnyModule("sales", "ecommerce")
     const [doc] = await db.select().from(receipts).where(eq(receipts.id, Number(req.params.id)));
     if (!doc) return res.status(404).json({ message: "ไม่พบใบเสร็จรับเงิน" });
     { const ac = await checkDocOwnership(doc.companyId, req.user); if (!ac.allowed) return res.status(403).json({ message: ac.message }); }
-    const items = await db.select().from(receiptItems).where(eq(receiptItems.receiptId, doc.id));
+    let items: any[] = await db.select().from(receiptItems).where(eq(receiptItems.receiptId, doc.id));
+    const linkedDocs = await db.select().from(receiptLinkedDocs).where(eq(receiptLinkedDocs.receiptId, doc.id));
+    // If no items saved (e.g. receipt created from billing note), fall back to items from linked TIV/IV
+    if (items.length === 0 && linkedDocs.length > 0) {
+      for (const ld of linkedDocs) {
+        if (ld.docType === "TIV" && ld.docId) {
+          const txItems = await db.select().from(taxInvoiceItems).where(eq(taxInvoiceItems.taxInvoiceId, ld.docId));
+          items = [...items, ...txItems];
+        } else if (ld.docType === "IV" && ld.docId) {
+          const ivItems = await db.select().from(invoiceItems).where(eq(invoiceItems.invoiceId, ld.docId));
+          items = [...items, ...ivItems];
+        }
+      }
+    }
     let createdByName = "-";
     let updatedByName = "-";
     if (doc.createdBy) { const u = await storage.getUser(doc.createdBy); if (u) createdByName = u.fullName; }
     if (doc.updatedBy) { const u = await storage.getUser(doc.updatedBy); if (u) updatedByName = u.fullName; }
-    res.json({ ...doc, items, createdByName, updatedByName });
+    res.json({ ...doc, items, linkedDocs, createdByName, updatedByName });
   } catch (err: any) { res.status(500).json({ message: err.message }); }
 });
 

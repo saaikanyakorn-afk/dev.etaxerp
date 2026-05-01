@@ -140,6 +140,7 @@ export default function ReceiptForm() {
   const [editingPriceIdx, setEditingPriceIdx] = useState<number | null>(null);
   const [discountMode, setDiscountMode] = useState<"amount" | "percent">("amount");
   const [loaded, setLoaded] = useState(false);
+  const [receiptLinkedDocs, setReceiptLinkedDocs] = useState<any[]>([]);
 
   useEffect(() => {
     if (isNew && selectedCompany && items.length === 1 && !items[0].productCode) {
@@ -497,6 +498,9 @@ export default function ReceiptForm() {
                 vatType: it.vatType || "vat7",
                 warehouseId: it.warehouseId || undefined,
               })));
+            }
+            if (data.linkedDocs && data.linkedDocs.length > 0) {
+              setReceiptLinkedDocs(data.linkedDocs);
             }
             setSavedId(editingId);
           }
@@ -1307,7 +1311,7 @@ export default function ReceiptForm() {
                 paymentMethod={form.paymentMethod}
                 currencyCode={form.currencyCode}
                 exchangeRate={form.exchangeRate}
-                linkedInvoiceId={fromInvoiceId ? Number(fromInvoiceId) : (fromTaxInvoiceId ? Number(fromTaxInvoiceId) : ((form as any).invoiceId || (form as any).taxInvoiceId || null))}
+                linkedInvoiceId={fromInvoiceId ? Number(fromInvoiceId) : (fromTaxInvoiceId ? Number(fromTaxInvoiceId) : ((form as any).invoiceId || (form as any).taxInvoiceId || receiptLinkedDocs[0]?.docId || null))}
                               onLinesChange={setJournalOverrideLines}
               />
             </div>
