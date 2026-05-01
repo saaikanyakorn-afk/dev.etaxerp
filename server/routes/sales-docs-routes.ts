@@ -3350,18 +3350,19 @@ app.get("/api/invoices/:id/issued-tiv-amount", requireAuth, async (req, res) => 
     const invoiceId = Number(req.params.id);
     const companyId = Number(req.query.companyId);
     if (!invoiceId || !companyId) return res.status(400).json({ message: "Invalid params" });
-    const [inv] = await db.select({ totalAmount: invoices.totalAmount, withholdingTax: invoices.withholdingTax })
+    const [inv] = await db.select({ subtotal: invoices.subtotal, totalAmount: invoices.totalAmount, withholdingTax: invoices.withholdingTax })
       .from(invoices).where(and(eq(invoices.id, invoiceId), eq(invoices.companyId, companyId)));
     if (!inv) return res.status(404).json({ message: "Invoice not found" });
-    const tivRows = await db.select({ totalAmount: taxInvoices.totalAmount })
+    const tivRows = await db.select({ subtotal: taxInvoices.subtotal })
       .from(taxInvoices)
       .where(and(
         eq(taxInvoices.invoiceId, invoiceId),
         eq(taxInvoices.companyId, companyId),
         sql`status IN ('cash', 'approved')`
       ));
-    const issuedAmount = tivRows.reduce((s, r) => s + parseFloat(String(r.totalAmount || "0")), 0);
-    const invoiceTotal = parseFloat(String(inv.totalAmount || "0"));
+    // Use subtotal (before VAT) for both sides so ratio is consistent regardless of WHT
+    const issuedAmount = tivRows.reduce((s, r) => s + parseFloat(String(r.subtotal || "0")), 0);
+    const invoiceTotal = parseFloat(String(inv.subtotal || "0"));
     const remaining = Math.max(0, invoiceTotal - issuedAmount);
     res.json({ issuedAmount, invoiceTotal, remaining, withholdingTax: parseFloat(String(inv.withholdingTax || "0")) });
   } catch (err: any) {
