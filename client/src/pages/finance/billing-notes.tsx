@@ -184,6 +184,7 @@ export default function BillingNotes() {
       toast({ title: "สร้างใบวางบิลสำเร็จ" });
       queryClient.invalidateQueries({ queryKey: ["/api/finance/billing-notes", companyId] });
       queryClient.invalidateQueries({ queryKey: ["/api/finance/customer-outstanding-docs"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/invoices"] });
       resetCreateForm();
       setMode("list");
     },
@@ -222,6 +223,7 @@ export default function BillingNotes() {
     onSuccess: () => {
       toast({ title: "แก้ไขใบวางบิลสำเร็จ" });
       queryClient.invalidateQueries({ queryKey: ["/api/finance/billing-notes", companyId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/invoices"] });
       setEditDialogOpen(false);
     },
     onError: (err: any) => {
@@ -242,6 +244,7 @@ export default function BillingNotes() {
       toast({ title: "ลบใบวางบิลสำเร็จ" });
       queryClient.invalidateQueries({ queryKey: ["/api/finance/billing-notes", companyId] });
       queryClient.invalidateQueries({ queryKey: ["/api/finance/customer-outstanding-docs"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/invoices"] });
       setDeleteConfirmOpen(false);
       setDeleteBn(null);
     },
