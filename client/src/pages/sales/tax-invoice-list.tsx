@@ -473,28 +473,10 @@ export default function TaxInvoiceList() {
                               )}
                             </div>
                           </TableCell>
-                          <TableCell className="pt-3">
-                            {(() => {
-                              const approvalMap: Record<string, { label: string; cls: string }> = {
-                                cash: { label: "เงินสด", cls: "bg-emerald-50 text-emerald-600 border-emerald-200" },
-                                credit_card: { label: "บัตรเครดิต", cls: "bg-blue-50 text-blue-600 border-blue-200" },
-                                cheque: { label: "เช็ค", cls: "bg-purple-50 text-purple-600 border-purple-200" },
-                                cheque_done: { label: "เช็คผ่าน", cls: "bg-emerald-50 text-emerald-600 border-emerald-200" },
-                                debtor: { label: "ยังไม่ชำระ", cls: "bg-amber-50 text-amber-600 border-amber-300" },
-                                overdue: { label: "เกินกำหนด", cls: "bg-red-50 text-red-600 border-red-200" },
-                                billing_note: { label: "วางบิล", cls: "bg-blue-50 text-blue-600 border-blue-200" },
-                                partial: { label: "บางส่วน", cls: "bg-amber-50 text-amber-600 border-amber-300" },
-                                paid_by_ar: { label: "ชำระจาก AR", cls: "bg-emerald-50 text-emerald-600 border-emerald-200" },
-                                credit_note: { label: "ใบลดหนี้", cls: "bg-orange-50 text-orange-600 border-orange-200" },
-                              };
-                              const effectiveStatus = inv.hasBillingNote && !["paid", "cancel", "cancelled"].includes(inv.status) ? "billing_note" : inv.status;
-                              const a = approvalMap[effectiveStatus] || { label: "-", cls: "bg-slate-50 text-slate-500 border-slate-200" };
-                              return (
-                                <Badge data-testid={`badge-approval-${inv.id}`} className={`${a.cls} border text-xs py-0.5 px-2.5 font-normal h-6`}>
-                                  {a.label}
-                                </Badge>
-                              );
-                            })()}
+                          <TableCell className="text-center pt-2.5">
+                            <Badge data-testid={`badge-approval-${inv.id}`} className={`${st.color} border text-xs py-0.5 px-2.5 font-normal h-6`}>
+                              {st.label}
+                            </Badge>
                           </TableCell>
                           <TableCell className="text-right tabular-nums pt-2.5">
                             {(() => {
@@ -528,10 +510,30 @@ export default function TaxInvoiceList() {
                             })()}
                           </TableCell>
                           <TableCell className="text-center pt-2.5">
-                            <Badge data-testid={`badge-status-${inv.id}`} className={`${st.color} border text-xs py-0.5 px-2.5 font-normal h-6`}>
-                              {st.label}
-                            </Badge>
-                            <div className="text-xs text-muted-foreground mt-1">{formatDate(inv.dueDate || inv.taxInvoiceDate, dateEra, dateFmt)}</div>
+                            {(() => {
+                              const approvalMap: Record<string, { label: string; cls: string }> = {
+                                cash: { label: "เงินสด", cls: "bg-emerald-50 text-emerald-600 border-emerald-200" },
+                                credit_card: { label: "บัตรเครดิต", cls: "bg-blue-50 text-blue-600 border-blue-200" },
+                                cheque: { label: "เช็ค", cls: "bg-purple-50 text-purple-600 border-purple-200" },
+                                cheque_done: { label: "เช็คผ่าน", cls: "bg-emerald-50 text-emerald-600 border-emerald-200" },
+                                debtor: { label: "ยังไม่ชำระ", cls: "bg-amber-50 text-amber-600 border-amber-300" },
+                                overdue: { label: "เกินกำหนด", cls: "bg-red-50 text-red-600 border-red-200" },
+                                billing_note: { label: "วางบิล", cls: "bg-blue-50 text-blue-600 border-blue-200" },
+                                partial: { label: "บางส่วน", cls: "bg-amber-50 text-amber-600 border-amber-300" },
+                                paid_by_ar: { label: "ชำระจาก AR", cls: "bg-emerald-50 text-emerald-600 border-emerald-200" },
+                                credit_note: { label: "ใบลดหนี้", cls: "bg-orange-50 text-orange-600 border-orange-200" },
+                              };
+                              const effectiveStatus = inv.hasBillingNote && !["paid", "cancel", "cancelled"].includes(inv.status) ? "billing_note" : inv.status;
+                              const a = approvalMap[effectiveStatus] || { label: "-", cls: "bg-slate-50 text-slate-500 border-slate-200" };
+                              return (
+                                <>
+                                  <Badge data-testid={`badge-status-${inv.id}`} className={`${a.cls} border text-xs py-0.5 px-2.5 font-normal h-6`}>
+                                    {a.label}
+                                  </Badge>
+                                  <div className="text-xs text-muted-foreground mt-1">{formatDate(inv.dueDate || inv.taxInvoiceDate, dateEra, dateFmt)}</div>
+                                </>
+                              );
+                            })()}
                           </TableCell>
                           <TableCell>
                             <DropdownMenu>
