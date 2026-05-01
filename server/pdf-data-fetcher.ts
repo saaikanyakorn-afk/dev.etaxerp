@@ -386,18 +386,35 @@ export async function buildBillingNotePdfData(billingNoteId: number): Promise<Ge
 
   const linkedDocs = await db.select().from(billingNoteLinkedDocs).where(eq(billingNoteLinkedDocs.billingNoteId, billingNoteId));
 
-  const items: PdfLineItem[] = linkedDocs.map((doc: any) => ({
-    productCode: "",
-    productName: doc.docType === "IV" ? "ใบแจ้งหนี้" : doc.docType === "TIV" ? "ใบกำกับภาษี" : (doc.docType || ""),
-    description: `เลขที่ ${doc.docNo || "-"}${doc.docDate ? ` ลงวันที่ ${doc.docDate}` : ""}`,
-    qty: 1,
-    unit: "รายการ",
-    unitPrice: parseFloat(String(doc.amount || "0")),
-    discount: 0,
-    discountType: "amount" as const,
-    total: parseFloat(String(doc.amount || "0")),
-    vatType: "no_vat" as const,
-  }));
+  let bnSubtotal = 0, bnVatAmount = 0;
+  const items: PdfLineItem[] = [];
+  for (const doc of linkedDocs) {
+    let docSubtotal = parseFloat(String(doc.amount || "0"));
+    let docVat = 0;
+    try {
+      if (doc.docType === "IV" && doc.docId) {
+        const [iv] = await db.select({ subtotal: invoices.subtotal, vatAmount: invoices.vatAmount }).from(invoices).where(eq(invoices.id, doc.docId));
+        if (iv) { docSubtotal = parseFloat(String(iv.subtotal || "0")); docVat = parseFloat(String(iv.vatAmount || "0")); }
+      } else if (doc.docType === "TIV" && doc.docId) {
+        const [tiv] = await db.select({ subtotal: taxInvoices.subtotal, vatAmount: taxInvoices.vatAmount }).from(taxInvoices).where(eq(taxInvoices.id, doc.docId));
+        if (tiv) { docSubtotal = parseFloat(String(tiv.subtotal || "0")); docVat = parseFloat(String(tiv.vatAmount || "0")); }
+      }
+    } catch {}
+    bnSubtotal += docSubtotal;
+    bnVatAmount += docVat;
+    items.push({
+      productCode: "",
+      productName: doc.docType === "IV" ? "ใบแจ้งหนี้" : doc.docType === "TIV" ? "ใบกำกับภาษี" : (doc.docType || ""),
+      description: `เลขที่ ${doc.docNo || "-"}${doc.docDate ? ` ลงวันที่ ${doc.docDate}` : ""}`,
+      qty: 1,
+      unit: "รายการ",
+      unitPrice: docSubtotal,
+      discount: 0,
+      discountType: "amount" as const,
+      total: docSubtotal,
+      vatType: "no_vat" as const,
+    });
+  }
 
   const totalAmount = parseFloat(String(bn.totalAmount || "0"));
 
@@ -473,8 +490,8 @@ export async function buildBillingNotePdfData(billingNoteId: number): Promise<Ge
     customerBranch: "",
     sellerBranchName: "",
     sellerBranchAddress: "",
-    subtotal: totalAmount,
-    vatAmount: 0,
+    subtotal: bnSubtotal,
+    vatAmount: bnVatAmount,
     totalAmount,
     withholdingTax: 0,
     discountAmount: 0,
