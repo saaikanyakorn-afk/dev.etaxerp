@@ -66,7 +66,8 @@ export default function BillingNotes() {
     return toLocalDateStr(d);
   });
   const [billingNotes, setBillingNotes] = useState("");
-  const [billingWht, setBillingWht] = useState("");
+  const [billingWhtRate, setBillingWhtRate] = useState("");
+  const [billingWht, setBillingWht] = useState(""); // computed amount (ไม่ใช้ input แล้ว แต่เก็บไว้)
   const dropdownRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
@@ -82,7 +83,8 @@ export default function BillingNotes() {
   const [editBillingDate, setEditBillingDate] = useState("");
   const [editDueDate, setEditDueDate] = useState("");
   const [editNotes, setEditNotes] = useState("");
-  const [editWht, setEditWht] = useState("");
+  const [editWhtRate, setEditWhtRate] = useState("");
+  const [editWht, setEditWht] = useState(""); // computed amount
 
   const [sendDialogOpen, setSendDialogOpen] = useState(false);
   const [sendBn, setSendBn] = useState<any>(null);
@@ -273,6 +275,7 @@ export default function BillingNotes() {
     d.setDate(d.getDate() + 30);
     setDueDate(toLocalDateStr(d));
     setBillingNotes("");
+    setBillingWhtRate("");
     setBillingWht("");
   };
 
@@ -309,6 +312,16 @@ export default function BillingNotes() {
     return selectedDocsList.reduce((s, d) => s + (parseFloat(d.totalAmount) || 0), 0);
   }, [selectedDocsList]);
 
+  const selectedSubtotal = useMemo(() => {
+    return selectedDocsList.reduce((s, d) => s + (parseFloat((d as any).subtotal ?? d.totalAmount) || 0), 0);
+  }, [selectedDocsList]);
+
+  const billingWhtAmount = useMemo(() => {
+    const rate = parseFloat(billingWhtRate) || 0;
+    if (rate <= 0 || selectedSubtotal <= 0) return 0;
+    return Math.round(rate / 100 * selectedSubtotal * 100) / 100;
+  }, [billingWhtRate, selectedSubtotal]);
+
   const submitBillingNote = () => {
     if (selectedDocsList.length === 0) return;
     createBillingNote.mutate({
@@ -327,7 +340,8 @@ export default function BillingNotes() {
       customerName: selectedContact?.name || "",
       customerAddress: selectedContact?.address || null,
       customerTaxId: selectedContact?.taxId || null,
-      withholdingTax: parseFloat(billingWht) || 0,
+      whtRate: parseFloat(billingWhtRate) || 0,
+      withholdingTax: billingWhtAmount,
     });
   };
 
@@ -371,15 +385,19 @@ export default function BillingNotes() {
     setEditBillingDate(bn.billingDate || toLocalDateStr(new Date()));
     setEditDueDate(bn.dueDate || "");
     setEditNotes(bn.notes || "");
-    setEditWht(bn.withholdingTax && parseFloat(bn.withholdingTax) > 0 ? String(parseFloat(bn.withholdingTax)) : "");
+    const rate = parseFloat(bn.whtRate ?? "0");
+    setEditWhtRate(rate > 0 ? String(rate) : "");
     setEditDialogOpen(true);
   };
 
   const submitEdit = () => {
     if (!editBn) return;
+    const rate = parseFloat(editWhtRate) || 0;
+    const subtotal = parseFloat(editBn.subtotal ?? editBn.totalAmount ?? "0");
+    const whtAmt = rate > 0 && subtotal > 0 ? Math.round(rate / 100 * subtotal * 100) / 100 : 0;
     updateBillingNote.mutate({
       id: editBn.id,
-      payload: { billingDate: editBillingDate, dueDate: editDueDate || null, notes: editNotes, withholdingTax: parseFloat(editWht) || 0 },
+      payload: { billingDate: editBillingDate, dueDate: editDueDate || null, notes: editNotes, whtRate: rate, withholdingTax: whtAmt },
     });
   };
 
@@ -611,17 +629,24 @@ export default function BillingNotes() {
                       />
                     </div>
                     <div>
-                      <Label className="text-xs">หัก ณ ที่จ่าย (บาท)</Label>
-                      <Input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={billingWht}
-                        onChange={(e) => setBillingWht(e.target.value)}
-                        placeholder="0.00"
-                        className="mt-1 h-9 text-sm"
-                        data-testid="input-billing-wht"
-                      />
+                      <Label className="text-xs">หัก ณ ที่จ่าย (%)</Label>
+                      <div className="relative mt-1">
+                        <Input
+                          type="number"
+                          min="0"
+                          max="100"
+                          step="0.5"
+                          value={billingWhtRate}
+                          onChange={(e) => setBillingWhtRate(e.target.value)}
+                          placeholder="0"
+                          className="h-9 text-sm pr-8"
+                          data-testid="input-billing-wht"
+                        />
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">%</span>
+                      </div>
+                      {billingWhtAmount > 0 && (
+                        <p className="text-[11px] text-muted-foreground mt-1">= ฿{fmt(billingWhtAmount)} (จากยอดก่อน VAT ฿{fmt(selectedSubtotal)})</p>
+                      )}
                     </div>
                     <div>
                       <Label className="text-xs">หมายเหตุ</Label>
@@ -648,8 +673,8 @@ export default function BillingNotes() {
                       data-testid="button-submit-billing-note"
                     >
                       {createBillingNote.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <FileText className="h-4 w-4 mr-1" />}
-                      {parseFloat(billingWht) > 0
-                        ? `สร้างใบวางบิล ฿${fmt(selectedTotal)} (ยอดสุทธิ ฿${fmt(Math.max(0, selectedTotal - (parseFloat(billingWht) || 0)))})`
+                      {billingWhtAmount > 0
+                        ? `สร้างใบวางบิล ฿${fmt(selectedTotal)} (หัก ณ ที่จ่าย ฿${fmt(billingWhtAmount)})`
                         : `สร้างใบวางบิล ฿${fmt(selectedTotal)}`}
                     </Button>
                   </div>
@@ -987,8 +1012,19 @@ export default function BillingNotes() {
               </div>
             </div>
             <div>
-              <Label className="text-xs">หัก ณ ที่จ่าย (บาท)</Label>
-              <Input type="number" min="0" step="0.01" value={editWht} onChange={(e) => setEditWht(e.target.value)} placeholder="0.00" className="mt-1 h-9 text-sm" data-testid="input-edit-wht" />
+              <Label className="text-xs">หัก ณ ที่จ่าย (%)</Label>
+              <div className="relative mt-1">
+                <Input type="number" min="0" max="100" step="0.5" value={editWhtRate} onChange={(e) => setEditWhtRate(e.target.value)} placeholder="0" className="h-9 text-sm pr-8" data-testid="input-edit-wht" />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">%</span>
+              </div>
+              {(() => {
+                const rate = parseFloat(editWhtRate) || 0;
+                const subtotal = parseFloat(editBn?.subtotal ?? editBn?.totalAmount ?? "0");
+                const amt = rate > 0 && subtotal > 0 ? Math.round(rate / 100 * subtotal * 100) / 100 : 0;
+                return amt > 0 ? (
+                  <p className="text-[11px] text-muted-foreground mt-1">= ฿{fmt(amt)} (จากยอดก่อน VAT ฿{fmt(subtotal)})</p>
+                ) : null;
+              })()}
             </div>
             <div>
               <Label className="text-xs">หมายเหตุ</Label>

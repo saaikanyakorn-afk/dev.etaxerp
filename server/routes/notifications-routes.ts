@@ -322,7 +322,7 @@ app.get("/api/finance/receipt-billing", requireAuth, async (req, res) => {
     const ivRows = await db.select({
       id: invoices.id, docNo: invoices.invoiceNo, docDate: invoices.invoiceDate,
       dueDate: invoices.dueDate, contactName: invoices.customerName,
-      totalAmount: invoices.totalAmount, paymentStatus: invoices.paymentStatus, status: invoices.status,
+      totalAmount: invoices.totalAmount, subtotal: invoices.subtotal, paymentStatus: invoices.paymentStatus, status: invoices.status,
     }).from(invoices).where(and(
       eq(invoices.companyId, companyId),
       sql`${invoices.status} != 'cancelled'`,
@@ -332,7 +332,7 @@ app.get("/api/finance/receipt-billing", requireAuth, async (req, res) => {
     const tivRows = await db.select({
       id: taxInvoices.id, docNo: taxInvoices.taxInvoiceNo, docDate: taxInvoices.taxInvoiceDate,
       dueDate: taxInvoices.dueDate, contactName: taxInvoices.customerName,
-      totalAmount: taxInvoices.totalAmount, paymentStatus: taxInvoices.paymentStatus, status: taxInvoices.status, paymentMethod: taxInvoices.paymentMethod,
+      totalAmount: taxInvoices.totalAmount, subtotal: taxInvoices.subtotal, paymentStatus: taxInvoices.paymentStatus, status: taxInvoices.status, paymentMethod: taxInvoices.paymentMethod,
     }).from(taxInvoices).where(and(
       eq(taxInvoices.companyId, companyId),
       sql`${taxInvoices.status} != 'cancelled'`,
@@ -340,8 +340,8 @@ app.get("/api/finance/receipt-billing", requireAuth, async (req, res) => {
     )).orderBy(taxInvoices.dueDate);
 
     const documents = [
-      ...ivRows.map(r => ({ ...r, docType: "IV", totalAmount: parseFloat(r.totalAmount || "0") })),
-      ...tivRows.map(r => ({ ...r, docType: "TIV", totalAmount: parseFloat(r.totalAmount || "0") })),
+      ...ivRows.map(r => ({ ...r, docType: "IV", totalAmount: parseFloat(r.totalAmount || "0"), subtotal: parseFloat(r.subtotal || r.totalAmount || "0") })),
+      ...tivRows.map(r => ({ ...r, docType: "TIV", totalAmount: parseFloat(r.totalAmount || "0"), subtotal: parseFloat(r.subtotal || r.totalAmount || "0") })),
     ];
 
     const rcRows = await db.select({
@@ -484,7 +484,7 @@ app.get("/api/finance/customer-outstanding-docs", requireAuth, async (req, res) 
     const ivRows = await db.select({
       id: invoices.id, docNo: invoices.invoiceNo, docDate: invoices.invoiceDate,
       dueDate: invoices.dueDate, contactName: invoices.customerName,
-      totalAmount: invoices.totalAmount, paymentStatus: invoices.paymentStatus,
+      totalAmount: invoices.totalAmount, subtotal: invoices.subtotal, paymentStatus: invoices.paymentStatus,
       customerId: invoices.customerId,
     }).from(invoices).where(and(
       eq(invoices.companyId, companyId),
@@ -496,7 +496,7 @@ app.get("/api/finance/customer-outstanding-docs", requireAuth, async (req, res) 
     const tivRows = await db.select({
       id: taxInvoices.id, docNo: taxInvoices.taxInvoiceNo, docDate: taxInvoices.taxInvoiceDate,
       dueDate: taxInvoices.dueDate, contactName: taxInvoices.customerName,
-      totalAmount: taxInvoices.totalAmount, paymentStatus: taxInvoices.paymentStatus,
+      totalAmount: taxInvoices.totalAmount, subtotal: taxInvoices.subtotal, paymentStatus: taxInvoices.paymentStatus,
       customerId: taxInvoices.customerId,
     }).from(taxInvoices).where(and(
       eq(taxInvoices.companyId, companyId),
@@ -506,8 +506,8 @@ app.get("/api/finance/customer-outstanding-docs", requireAuth, async (req, res) 
     )).orderBy(taxInvoices.dueDate);
 
     const documents = [
-      ...ivRows.map(r => ({ ...r, docType: "IV", totalAmount: parseFloat(r.totalAmount || "0") })),
-      ...tivRows.map(r => ({ ...r, docType: "TIV", totalAmount: parseFloat(r.totalAmount || "0") })),
+      ...ivRows.map(r => ({ ...r, docType: "IV", totalAmount: parseFloat(r.totalAmount || "0"), subtotal: parseFloat(r.subtotal || r.totalAmount || "0") })),
+      ...tivRows.map(r => ({ ...r, docType: "TIV", totalAmount: parseFloat(r.totalAmount || "0"), subtotal: parseFloat(r.subtotal || r.totalAmount || "0") })),
     ];
 
     res.json({ documents });
