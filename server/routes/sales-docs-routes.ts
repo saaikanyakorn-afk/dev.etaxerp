@@ -2237,7 +2237,7 @@ app.post("/api/tax-invoices/bulk-journal", requireAuth, requireAnyModule("sales"
           and(eq(taxInvoices.id, numId), eq(taxInvoices.companyId, Number(companyId)))
         );
         if (!inv) { skipped++; continue; }
-        if (inv.status !== "approved" && inv.status !== "issued") { skipped++; continue; }
+        if (!["approved", "issued", "debtor"].includes(inv.status || "")) { skipped++; continue; }
 
         const [existingJE] = await db.select().from(journalEntries).where(
           and(
