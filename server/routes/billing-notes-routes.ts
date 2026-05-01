@@ -1,7 +1,7 @@
 import type { Express, Request, Response } from "express";
 import { db } from "../db";
 import { eq, desc, and, asc, gte, lte , sql } from "drizzle-orm";
-import { billingNotes, billingNoteLinkedDocs, receipts, receiptLinkedDocs, purchaseInvoices, expenses, paymentVouchers, paymentVoucherLinkedDocs, invoices, firmClients, contacts, invoiceItems, journalEntries, companies, journalLines, accounts, bankStatements, lineGroupMappings } from "@shared/schema";
+import { billingNotes, billingNoteLinkedDocs, receipts, receiptLinkedDocs, purchaseInvoices, expenses, paymentVouchers, paymentVoucherLinkedDocs, invoices, firmClients, contacts, invoiceItems, journalEntries, companies, journalLines, accounts, bankStatements, lineGroupMappings, taxInvoices, taxInvoiceItems } from "@shared/schema";
 import { requireAuth, requireModule } from "../route-middleware";
 import { getNextDocNo, createAutoJournalEntry, resolvePaymentMethodAccountCode, recomputePaymentStatus, recomputeAPPaymentStatus } from "../route-helpers";
 import { verifyCompanyAccess } from "../route-factory";
@@ -214,6 +214,117 @@ app.post("/api/finance/billing-notes/:id/create-receipt", requireAuth, async (re
     } catch (e) {}
 
     res.json({ success: true, receipt: result, journalResult });
+  } catch (err: any) { res.status(500).json({ message: err.message }); }
+});
+
+app.post("/api/finance/billing-notes/:id/create-tax-invoice", requireAuth, async (req, res) => {
+  try {
+    const bnId = Number(req.params.id);
+    const [bn] = await db.select().from(billingNotes).where(eq(billingNotes.id, bnId));
+    if (!bn) return res.status(404).json({ message: "ไม่พบใบวางบิล" });
+    const user = req.user as any;
+    if (!(await verifyCompanyAccess(user, bn.companyId))) return res.status(403).json({ message: "ไม่มีสิทธิ์" });
+
+    const { taxInvoiceDate, notes: tivNotes } = req.body;
+    const linkedDocs = await db.select().from(billingNoteLinkedDocs)
+      .where(eq(billingNoteLinkedDocs.billingNoteId, bnId));
+    if (linkedDocs.length === 0) return res.status(400).json({ message: "ใบวางบิลไม่มีรายการเอกสาร" });
+
+    // collect items from all linked IV docs
+    const allItems: any[] = [];
+    for (const doc of linkedDocs) {
+      if (doc.docType === "IV") {
+        const ivItems = await db.select().from(invoiceItems).where(eq(invoiceItems.invoiceId, doc.docId));
+        allItems.push(...ivItems);
+      }
+    }
+
+    // compute subtotal + vat from items
+    let subtotalVal = 0;
+    let vatVal = 0;
+    for (const it of allItems) {
+      const tot = parseFloat(it.total || "0");
+      subtotalVal += tot;
+      if ((it.vatType || "vat7") === "vat7") vatVal += Math.round(tot * 0.07 * 100) / 100;
+    }
+    if (allItems.length === 0) {
+      subtotalVal = parseFloat(bn.totalAmount || "0");
+      vatVal = 0;
+    }
+    const totalAmt = Math.round((subtotalVal + vatVal) * 100) / 100;
+
+    const tivDate = taxInvoiceDate || new Date().toISOString().split("T")[0];
+    const taxInvoiceNo = await getNextDocNo(bn.companyId, "TIV", taxInvoices, taxInvoices.taxInvoiceNo, taxInvoices.companyId, tivDate);
+
+    const result = await db.transaction(async (tx) => {
+      const singleIV = linkedDocs.length === 1 && linkedDocs[0].docType === "IV" ? linkedDocs[0].docId : null;
+      const [tiv] = await tx.insert(taxInvoices).values({
+        companyId: bn.companyId,
+        taxInvoiceNo,
+        taxInvoiceDate: tivDate,
+        customerId: bn.customerId || null,
+        customerName: bn.customerName,
+        customerAddress: bn.customerAddress || null,
+        customerTaxId: bn.customerTaxId || null,
+        branch: null,
+        subtotal: String(subtotalVal),
+        vatAmount: String(vatVal),
+        totalAmount: String(totalAmt),
+        withholdingTax: "0",
+        discountAmount: "0",
+        status: "approved",
+        priceMode: "excluded",
+        docPrefix: "TIV",
+        notes: tivNotes || `ออกใบกำกับภาษีจากใบวางบิล ${bn.billingNo}`,
+        paymentMethod: "เครดิต",
+        invoiceId: singleIV,
+        currencyCode: "THB",
+        exchangeRate: "1",
+        createdBy: user.id,
+      }).returning();
+
+      if (allItems.length > 0) {
+        await tx.insert(taxInvoiceItems).values(allItems.map((it: any) => ({
+          taxInvoiceId: tiv.id,
+          productId: it.productId || null,
+          productCode: it.productCode || null,
+          productName: it.productName || "",
+          description: it.description || null,
+          qty: String(it.qty || "1"),
+          unit: it.unit || "ชิ้น",
+          unitPrice: String(it.unitPrice || "0"),
+          discount: String(it.discount || "0"),
+          discountType: it.discountType || "amount",
+          total: String(it.total || "0"),
+          vatType: it.vatType || "vat7",
+        })));
+      }
+      return tiv;
+    });
+
+    let journalResult = null;
+    try {
+      journalResult = await createAutoJournalEntry({
+        companyId: result.companyId,
+        documentType: "taxInvoice",
+        sourceDocType: "taxInvoice",
+        sourceDocId: result.id,
+        docDate: result.taxInvoiceDate,
+        docNo: result.taxInvoiceNo,
+        subtotal: String(subtotalVal),
+        vatAmount: String(vatVal),
+        totalAmount: String(totalAmt),
+        withholdingTax: "0",
+        currencyCode: "THB",
+        exchangeRate: "1",
+        userId: user.id,
+        customerName: bn.customerName,
+        paymentMethod: "เครดิต",
+        linkedInvoiceId: linkedDocs[0]?.docId,
+      });
+    } catch (e: any) { console.error("[create-tiv-from-bn] journal error:", e.message); }
+
+    res.json({ success: true, taxInvoice: result, journalResult });
   } catch (err: any) { res.status(500).json({ message: err.message }); }
 });
 

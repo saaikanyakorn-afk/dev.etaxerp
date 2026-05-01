@@ -86,6 +86,11 @@ export default function BillingNotes() {
   }, [receiptWht, receiptBillingNote]);
   const [receiptNotes, setReceiptNotes] = useState("");
 
+  const [tivDialogOpen, setTivDialogOpen] = useState(false);
+  const [tivBillingNote, setTivBillingNote] = useState<any>(null);
+  const [tivDate, setTivDate] = useState(() => toLocalDateStr(new Date()));
+  const [tivNotes, setTivNotes] = useState("");
+
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editBn, setEditBn] = useState<any>(null);
   const [editBillingDate, setEditBillingDate] = useState("");
@@ -214,7 +219,13 @@ export default function BillingNotes() {
 
   const createReceiptFromBN = useMutation({
     mutationFn: async ({ id, payload }: { id: number; payload: any }) => {
-      const r = await apiRequest("POST", `/api/finance/billing-notes/${id}/create-receipt`, payload);
+      const r = await fetch(`/api/finance/billing-notes/${id}/create-receipt`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(payload),
+      });
+      if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.message || "เกิดข้อผิดพลาด"); }
       return r.json();
     },
     onSuccess: () => {
@@ -222,6 +233,29 @@ export default function BillingNotes() {
       queryClient.invalidateQueries({ queryKey: ["/api/finance/billing-notes", companyId] });
       setReceiptDialogOpen(false);
       resetReceiptForm();
+    },
+    onError: (err: any) => {
+      toast({ title: "เกิดข้อผิดพลาด", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const createTIVFromBN = useMutation({
+    mutationFn: async ({ id, payload }: { id: number; payload: any }) => {
+      const r = await fetch(`/api/finance/billing-notes/${id}/create-tax-invoice`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(payload),
+      });
+      if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.message || "เกิดข้อผิดพลาด"); }
+      return r.json();
+    },
+    onSuccess: (data) => {
+      toast({ title: "สร้างใบกำกับภาษีสำเร็จ", description: data.taxInvoice?.taxInvoiceNo });
+      queryClient.invalidateQueries({ queryKey: ["/api/finance/billing-notes", companyId] });
+      setTivDialogOpen(false);
+      setTivBillingNote(null);
+      navigate(`/sales/tax-invoices?companyId=${companyId}`);
     },
     onError: (err: any) => {
       toast({ title: "เกิดข้อผิดพลาด", description: err.message, variant: "destructive" });
@@ -379,6 +413,21 @@ export default function BillingNotes() {
     setReceiptWht("");
     setReceiptNotes("");
     setReceiptDialogOpen(true);
+  };
+
+  const openTIVDialog = (bn: any) => {
+    setTivBillingNote(bn);
+    setTivDate(toLocalDateStr(new Date()));
+    setTivNotes("");
+    setTivDialogOpen(true);
+  };
+
+  const submitTIV = () => {
+    if (!tivBillingNote) return;
+    createTIVFromBN.mutate({
+      id: tivBillingNote.id,
+      payload: { taxInvoiceDate: tivDate, notes: tivNotes },
+    });
   };
 
   const submitReceipt = () => {
@@ -860,7 +909,7 @@ export default function BillingNotes() {
                                   size="sm"
                                   variant="outline"
                                   className="h-7 text-xs border-cyan-200 text-cyan-700 hover:bg-cyan-50"
-                                  onClick={(e) => { e.stopPropagation(); navigate(`/sales/tax-invoice/new?billingNoteId=${bn.id}&companyId=${companyId}`); }}
+                                  onClick={(e) => { e.stopPropagation(); openTIVDialog(bn); }}
                                   data-testid={`button-create-tax-invoice-${bn.id}`}
                                 >
                                   <FileCheck className="h-3 w-3 mr-1" />
@@ -933,7 +982,7 @@ export default function BillingNotes() {
                                 <>
                                   <DropdownMenuSeparator />
                                   {getBnPrimaryDocType(bn) === "IV" ? (
-                                    <DropdownMenuItem onClick={() => navigate(`/sales/tax-invoice/new?billingNoteId=${bn.id}&companyId=${companyId}`)} data-testid={`menu-create-tiv-${bn.id}`}>
+                                    <DropdownMenuItem onClick={() => openTIVDialog(bn)} data-testid={`menu-create-tiv-${bn.id}`}>
                                       <FileCheck className="h-3.5 w-3.5 mr-2 text-cyan-500" />
                                       สร้างใบกำกับภาษี
                                     </DropdownMenuItem>
@@ -1091,6 +1140,69 @@ export default function BillingNotes() {
             >
               {createReceiptFromBN.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <CreditCard className="h-4 w-4 mr-1" />}
               บันทึกรับเงิน
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog สร้างใบกำกับภาษีจากใบวางบิล */}
+      <Dialog open={tivDialogOpen} onOpenChange={setTivDialogOpen}>
+        <DialogContent className="sm:max-w-[440px] max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>สร้างใบกำกับภาษีจากใบวางบิล</DialogTitle>
+            <DialogDescription>
+              {tivBillingNote && (
+                <span>ใบวางบิล: {tivBillingNote.billingNo} | ยอด ฿{fmt(parseFloat(tivBillingNote.totalAmount) || 0)}</span>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div>
+              <Label className="text-xs">วันที่ออกใบกำกับภาษี</Label>
+              <ThaiDateInput
+                value={tivDate}
+                onChange={setTivDate}
+                dateEra={dateEra}
+                dateFmt={dateFmt}
+                className="mt-1 h-9 text-sm"
+                data-testid="input-tiv-date"
+              />
+            </div>
+            <div>
+              <Label className="text-xs">หมายเหตุ</Label>
+              <Input
+                value={tivNotes}
+                onChange={(e) => setTivNotes(e.target.value)}
+                placeholder="หมายเหตุ (ถ้ามี)"
+                className="mt-1 h-9 text-sm"
+                data-testid="input-tiv-notes"
+              />
+            </div>
+            {tivBillingNote && (
+              <div className="bg-cyan-50 rounded-lg p-3">
+                <div className="text-xs text-cyan-700 mb-1">รายการเอกสารที่เชื่อมโยง</div>
+                {(tivBillingNote.linkedDocs || []).map((d: any) => (
+                  <div key={d.id} className="flex justify-between text-sm text-cyan-900">
+                    <span>{d.docNo || `IV #${d.docId}`}</span>
+                    <span>฿{fmt(parseFloat(d.amount) || 0)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setTivDialogOpen(false)} data-testid="button-cancel-tiv">
+              ยกเลิก
+            </Button>
+            <Button
+              size="sm"
+              className="px-6 bg-cyan-600 hover:bg-cyan-700 text-white"
+              disabled={createTIVFromBN.isPending}
+              onClick={submitTIV}
+              data-testid="button-submit-tiv"
+            >
+              {createTIVFromBN.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <FileCheck className="h-4 w-4 mr-1" />}
+              ออกใบกำกับภาษี
             </Button>
           </DialogFooter>
         </DialogContent>
