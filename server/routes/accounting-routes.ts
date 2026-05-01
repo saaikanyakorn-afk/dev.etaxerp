@@ -1499,7 +1499,7 @@ app.post("/api/journal-preview", requireAuth, async (req, res) => {
       });
     }
 
-    if ((isReceipt || isTaxInvoice) && whtTHB > 0) {
+    if ((isReceipt || (isTaxInvoice && !isCreditPayment)) && whtTHB > 0) {
       const whtAcc = accountMap.get("1434000") || accountMap.get("1307000");
       if (whtAcc) {
         previewLines.push({

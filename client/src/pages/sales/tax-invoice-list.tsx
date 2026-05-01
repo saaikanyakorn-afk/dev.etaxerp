@@ -444,7 +444,7 @@ export default function TaxInvoiceList() {
                               <span className="font-semibold text-slate-800">{inv.customerName}</span>
                             </div>
                             <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1 text-xs text-muted-foreground">
-                              {(inv.status === "cash" || inv.creditDays === 0) && (
+                              {(inv.paymentMethod === "เงินสด" || inv.paymentMethod === "cash") && (
                                 <span className="text-green-600">
                                   {(inv.refDoc || inv.referenceNo) ? "Cash[BL-IV]" : "Cash[TIV]"}
                                 </span>
