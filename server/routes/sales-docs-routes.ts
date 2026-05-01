@@ -1135,11 +1135,17 @@ app.post("/api/invoices/recompute-payment-statuses", requireAuth, requireRole("a
     `);
     const invoiceIds = ((tivRows as any).rows || []).map((r: any) => Number(r.id)).filter(Boolean);
     let updated = 0;
+    const errors: string[] = [];
     for (const id of invoiceIds) {
-      await recomputePaymentStatus("invoice", id).catch(() => {});
-      updated++;
+      try {
+        await recomputePaymentStatus("invoice", id);
+        updated++;
+      } catch (e: any) {
+        console.error(`[recompute-payment-statuses] invoice#${id} failed:`, e.message);
+        errors.push(`invoice#${id}: ${e.message}`);
+      }
     }
-    res.json({ message: `อัพเดทสถานะ ${updated} ใบแจ้งหนี้เรียบร้อย`, updated });
+    res.json({ message: `อัพเดทสถานะ ${updated} ใบแจ้งหนี้เรียบร้อย`, updated, errors });
   } catch (err: any) { res.status(500).json({ message: err.message }); }
 });
 
@@ -1971,7 +1977,9 @@ app.post("/api/tax-invoices", requireAuth, requireAnyModule("sales", "ecommerce"
       }
     }
     logActivity({ companyId, userId: user.id, userName: user.username, action: "create", entityType: "tax_invoice", entityId: String(result.id), entityName: taxInvoiceNo }).catch(() => {});
-    if (result.invoiceId) await recomputePaymentStatus("invoice", result.invoiceId).catch(() => {});
+    if (result.invoiceId) {
+      try { await recomputePaymentStatus("invoice", result.invoiceId); } catch (e: any) { console.error(`[TIV-CREATE] recomputePaymentStatus invoice#${result.invoiceId} failed:`, e.message); }
+    }
     res.status(201).json({ ...result, items: savedItems, journalResult });
   } catch (err: any) { res.status(400).json({ message: err.message }); }
 });
@@ -2167,8 +2175,10 @@ app.patch("/api/tax-invoices/:id", requireAuth, requireAnyModule("sales", "ecomm
       }
     }
 
-    if (updated.invoiceId) await recomputePaymentStatus("invoice", updated.invoiceId).catch(() => {});
-    else if (existing.invoiceId) await recomputePaymentStatus("invoice", existing.invoiceId).catch(() => {});
+    const tivPatchInvoiceId = updated.invoiceId || existing.invoiceId;
+    if (tivPatchInvoiceId) {
+      try { await recomputePaymentStatus("invoice", tivPatchInvoiceId); } catch (e: any) { console.error(`[TIV-PATCH] recomputePaymentStatus invoice#${tivPatchInvoiceId} failed:`, e.message); }
+    }
     res.json({ ...updated, items: savedItems, journalResult });
   } catch (err: any) { res.status(400).json({ message: err.message }); }
 });
@@ -2725,8 +2735,12 @@ app.post("/api/receipts/bulk-delete", requireAuth, requireAnyModule("sales", "ec
           await tx.delete(receiptItems).where(eq(receiptItems.receiptId, existing.id));
           await tx.delete(receipts).where(eq(receipts.id, existing.id));
         });
-        if (existing.taxInvoiceId) await recomputePaymentStatus("taxInvoice", existing.taxInvoiceId).catch(() => {});
-        if (existing.invoiceId) await recomputePaymentStatus("invoice", existing.invoiceId).catch(() => {});
+        if (existing.taxInvoiceId) {
+          try { await recomputePaymentStatus("taxInvoice", existing.taxInvoiceId); } catch (e: any) { console.error(`[RC-DELETE] recomputePaymentStatus taxInvoice#${existing.taxInvoiceId} failed:`, e.message); }
+        }
+        if (existing.invoiceId) {
+          try { await recomputePaymentStatus("invoice", existing.invoiceId); } catch (e: any) { console.error(`[RC-DELETE] recomputePaymentStatus invoice#${existing.invoiceId} failed:`, e.message); }
+        }
         logActivity({ companyId: existing.companyId, userId: user.id, userName: user.username, action: "delete", entityType: "receipt", entityId: String(existing.id), entityName: existing.receiptNo }).catch(() => {});
         deleted++;
       } catch (e: any) { errors.push(`#${id}: ${e.message}`); }
