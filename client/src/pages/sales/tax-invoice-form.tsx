@@ -295,6 +295,7 @@ export default function TaxInvoiceForm() {
   const [depositDeductions, setDepositDeductions] = useState<{ depositReceiptId: number; depositNo: string; amount: number }[]>([]);
   const [depositSectionOpen, setDepositSectionOpen] = useState(true);
   const [journalOverrideLines, setJournalOverrideLines] = useState<JournalLine[] | null>(null);
+  const [issuedTivInfo, setIssuedTivInfo] = useState<{ issuedAmount: number; invoiceTotal: number; remaining: number } | null>(null);
 
   useEffect(() => {
     if (isNew && selectedCompany && items.length === 1 && !items[0].productCode) {
@@ -419,12 +420,24 @@ export default function TaxInvoiceForm() {
     if (isNew && fromInvoiceId) {
       (async () => {
         try {
-          const res = await fetch(`/api/invoices/${fromInvoiceId}`, { credentials: "include" });
+          const [res, issuedRes] = await Promise.all([
+            fetch(`/api/invoices/${fromInvoiceId}`, { credentials: "include" }),
+            fetch(`/api/invoices/${fromInvoiceId}/issued-tiv-amount?companyId=${companyId}`, { credentials: "include" }),
+          ]);
           if (res.ok) {
             const inv = await res.json();
+            let ratio = 1;
+            if (issuedRes.ok) {
+              const issued = await issuedRes.json();
+              if (issued.issuedAmount > 0 && issued.invoiceTotal > 0) {
+                ratio = Math.max(0, issued.remaining) / issued.invoiceTotal;
+                setIssuedTivInfo({ issuedAmount: issued.issuedAmount, invoiceTotal: issued.invoiceTotal, remaining: issued.remaining });
+              }
+            }
             setPriceMode(inv.priceMode || "excluded");
             const dueDate = new Date();
             dueDate.setDate(dueDate.getDate() + (inv.creditDays || 0));
+            const scaledWht = ratio < 1 ? parseFloat(String(inv.withholdingTax || "0")) * ratio : parseFloat(String(inv.withholdingTax || "0"));
             setForm(prev => ({
               ...prev,
               taxInvoiceNo: "",
@@ -446,7 +459,7 @@ export default function TaxInvoiceForm() {
               department: inv.department || "",
               project: inv.project || "",
               refDoc: inv.invoiceNo || "",
-              withholdingTax: String(inv.withholdingTax || "0"),
+              withholdingTax: cleanDecimal(String(Math.round(scaledWht * 100) / 100), "0"),
               discountBeforeVat: inv.discountType === "percent" ? `${cleanDecimal(inv.discountAmount, "0")}%` : cleanDecimal(inv.discountAmount, "0"),
               paymentTerms: inv.paymentTerms || "",
               notes: inv.notes || "",
@@ -455,19 +468,23 @@ export default function TaxInvoiceForm() {
               paymentMethod: "เครดิต",
             }));
             if (inv.items && inv.items.length > 0) {
-              setItems(inv.items.map((it: any) => ({
-                productId: it.productId,
-                productCode: it.productCode || "",
-                productName: it.productName || "",
-                description: it.description || "",
-                qty: cleanDecimal(it.qty, "1"),
-                unit: it.unit || "ชิ้น",
-                unitPrice: cleanDecimal(it.unitPrice, "0"),
-                discount: it.discountType === "percent" ? `${cleanDecimal(it.discount, "0")}%` : cleanDecimal(it.discount, "0"),
-                total: cleanDecimal(it.total, "0"),
-                vatType: it.vatType || "vat7",
-                warehouseId: it.warehouseId || undefined,
-              })));
+              setItems(inv.items.map((it: any) => {
+                const scaledPrice = ratio < 1 ? parseFloat(String(it.unitPrice || "0")) * ratio : parseFloat(String(it.unitPrice || "0"));
+                const scaledTotal = ratio < 1 ? parseFloat(String(it.total || "0")) * ratio : parseFloat(String(it.total || "0"));
+                return {
+                  productId: it.productId,
+                  productCode: it.productCode || "",
+                  productName: it.productName || "",
+                  description: it.description || "",
+                  qty: cleanDecimal(it.qty, "1"),
+                  unit: it.unit || "ชิ้น",
+                  unitPrice: cleanDecimal(String(Math.round(scaledPrice * 100) / 100), "0"),
+                  discount: it.discountType === "percent" ? `${cleanDecimal(it.discount, "0")}%` : cleanDecimal(it.discount, "0"),
+                  total: cleanDecimal(String(Math.round(scaledTotal * 100) / 100), "0"),
+                  vatType: it.vatType || "vat7",
+                  warehouseId: it.warehouseId || undefined,
+                };
+              }));
             }
             if (inv.discountType === "percent") setDiscountMode("percent");
           }
@@ -1049,6 +1066,17 @@ export default function TaxInvoiceForm() {
           <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 mb-4 flex items-center gap-2 text-sm text-amber-800">
             <AlertCircle className="h-4 w-4 flex-shrink-0" />
             <span>เอกสารนี้มีสถานะ <strong>{form.status === "issued" ? "ออกแล้ว" : form.status === "cancelled" ? "ยกเลิกแล้ว" : "ถูกยกเลิก (Voided)"}</strong> ไม่สามารถแก้ไขได้</span>
+          </div>
+        )}
+
+        {issuedTivInfo && issuedTivInfo.issuedAmount > 0 && (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 mb-4 flex items-center gap-2 text-sm text-blue-800">
+            <AlertCircle className="h-4 w-4 flex-shrink-0 text-blue-500" />
+            <span>
+              ใบแจ้งหนี้นี้ออกใบกำกับภาษีไปแล้ว <strong>{issuedTivInfo.issuedAmount.toLocaleString("th-TH", { minimumFractionDigits: 2 })} บาท</strong>{" "}
+              คงเหลือ <strong>{issuedTivInfo.remaining.toLocaleString("th-TH", { minimumFractionDigits: 2 })} บาท</strong>{" "}
+              (จากทั้งหมด {issuedTivInfo.invoiceTotal.toLocaleString("th-TH", { minimumFractionDigits: 2 })} บาท) — ยอดด้านล่างปรับตามส่วนที่เหลือแล้ว
+            </span>
           </div>
         )}
 

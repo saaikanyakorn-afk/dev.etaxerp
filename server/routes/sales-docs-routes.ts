@@ -757,7 +757,7 @@ async function computeInvoicePaidAmounts(invoiceIds: number[]): Promise<Record<n
   const idArr = `'{${invoiceIds.join(",")}}'::int[]`;
   const directPaid = await db.execute(sql.raw(`SELECT invoice_id, SUM(total_amount) AS paid FROM receipts WHERE invoice_id = ANY(${idArr}) GROUP BY invoice_id`));
   const batchPaid = await db.execute(sql.raw(`SELECT doc_id, SUM(amount) AS paid FROM receipt_linked_docs WHERE doc_type = 'IV' AND doc_id = ANY(${idArr}) GROUP BY doc_id`));
-  const tivPaid = await db.execute(sql.raw(`SELECT invoice_id, SUM(total_amount) AS paid FROM tax_invoices WHERE invoice_id = ANY(${idArr}) AND payment_method IS NOT NULL AND payment_method <> '' AND payment_method <> 'เครดิต' GROUP BY invoice_id`));
+  const tivPaid = await db.execute(sql.raw(`SELECT invoice_id, SUM(total_amount) AS paid FROM tax_invoices WHERE invoice_id = ANY(${idArr}) AND status IN ('cash','approved') GROUP BY invoice_id`));
   for (const r of (directPaid as any).rows || []) paidMap[r.invoice_id] = (paidMap[r.invoice_id] || 0) + parseFloat(r.paid || 0);
   for (const r of (batchPaid as any).rows || []) paidMap[r.doc_id] = (paidMap[r.doc_id] || 0) + parseFloat(r.paid || 0);
   for (const r of (tivPaid as any).rows || []) paidMap[r.invoice_id] = (paidMap[r.invoice_id] || 0) + parseFloat(r.paid || 0);
@@ -1135,9 +1135,7 @@ app.post("/api/invoices/recompute-payment-statuses", requireAuth, requireRole("a
     const tivRows = await db.execute(sql`
       SELECT DISTINCT invoice_id AS id FROM tax_invoices
       WHERE invoice_id IS NOT NULL
-        AND payment_method IS NOT NULL
-        AND payment_method <> ''
-        AND payment_method <> 'เครดิต'
+        AND status IN ('cash', 'approved')
         ${companyId ? sql`AND company_id = ${companyId}` : sql``}
     `);
     const invoiceIds = ((tivRows as any).rows || []).map((r: any) => Number(r.id)).filter(Boolean);
@@ -3344,6 +3342,32 @@ app.post("/api/accounting/commission/calculate", requireAuth, requireAnyModule("
     results.sort((a, b) => b.commissionAmount - a.commissionAmount);
     res.json({ results, month, year });
   } catch (err: any) { res.status(500).json({ message: err.message }); }
+});
+
+// ---- Issued TIV amount for invoice (for TIV form remaining-amount calculation) ----
+app.get("/api/invoices/:id/issued-tiv-amount", requireAuth, async (req, res) => {
+  try {
+    const invoiceId = Number(req.params.id);
+    const companyId = Number(req.query.companyId);
+    if (!invoiceId || !companyId) return res.status(400).json({ message: "Invalid params" });
+    const [inv] = await db.select({ totalAmount: invoices.totalAmount, withholdingTax: invoices.withholdingTax })
+      .from(invoices).where(and(eq(invoices.id, invoiceId), eq(invoices.companyId, companyId)));
+    if (!inv) return res.status(404).json({ message: "Invoice not found" });
+    const tivRows = await db.select({ totalAmount: taxInvoices.totalAmount })
+      .from(taxInvoices)
+      .where(and(
+        eq(taxInvoices.invoiceId, invoiceId),
+        eq(taxInvoices.companyId, companyId),
+        sql`status IN ('cash', 'approved')`
+      ));
+    const issuedAmount = tivRows.reduce((s, r) => s + parseFloat(String(r.totalAmount || "0")), 0);
+    const invoiceTotal = parseFloat(String(inv.totalAmount || "0"));
+    const remaining = Math.max(0, invoiceTotal - issuedAmount);
+    res.json({ issuedAmount, invoiceTotal, remaining, withholdingTax: parseFloat(String(inv.withholdingTax || "0")) });
+  } catch (err: any) {
+    console.error("[issued-tiv-amount]", err);
+    res.status(500).json({ message: err.message });
+  }
 });
 
 }

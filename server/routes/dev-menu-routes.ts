@@ -955,7 +955,7 @@ app.get("/api/dev/invoice-recompute-preview", requireSuperAdmin, async (req, res
     const [directRes, batchRes, tivRes] = await Promise.all([
       db.execute(sql.raw(`SELECT invoice_id, SUM(total_amount) AS paid FROM receipts WHERE invoice_id = ANY(${idArr}) GROUP BY invoice_id`)),
       db.execute(sql.raw(`SELECT doc_id, SUM(amount) AS paid FROM receipt_linked_docs WHERE doc_type='IV' AND doc_id = ANY(${idArr}) GROUP BY doc_id`)),
-      db.execute(sql.raw(`SELECT invoice_id, SUM(total_amount) AS paid FROM tax_invoices WHERE invoice_id = ANY(${idArr}) AND payment_method IS NOT NULL AND payment_method <> '' AND payment_method <> 'เครดิต' GROUP BY invoice_id`)),
+      db.execute(sql.raw(`SELECT invoice_id, SUM(total_amount) AS paid FROM tax_invoices WHERE invoice_id = ANY(${idArr}) AND status IN ('cash','approved') GROUP BY invoice_id`)),
     ]);
     const directMap: Record<number,number> = {};
     const batchMap: Record<number,number> = {};
