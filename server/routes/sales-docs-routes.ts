@@ -3137,6 +3137,20 @@ app.get("/api/related-documents/:docType/:docId", requireAuth, async (req, res) 
         const cnsByRcTx = await db.select().from(salesCreditNotes).where(and(eq(salesCreditNotes.refTaxInvoiceId, rc.taxInvoiceId), eq(salesCreditNotes.companyId, companyId)));
         for (const cn of cnsByRcTx) addUnique({ type: "credit_note", id: cn.id, docNo: cn.creditNoteNo, date: cn.creditNoteDate, status: cn.status, totalAmount: cn.totalAmount });
       }
+      // lookup via receipt_linked_docs (for receipts created from billing notes)
+      const rldRows = await db.select().from(receiptLinkedDocs).where(eq(receiptLinkedDocs.receiptId, id));
+      for (const rld of rldRows) {
+        if (rld.docType === "TIV" && rld.docId) {
+          const [tx] = await db.select().from(taxInvoices).where(and(eq(taxInvoices.id, rld.docId), eq(taxInvoices.companyId, companyId)));
+          if (tx) addUnique({ type: "tax_invoice", id: tx.id, docNo: tx.taxInvoiceNo, date: tx.taxInvoiceDate, status: tx.status, totalAmount: String(parseFloat(tx.totalAmount || "0") + parseFloat(tx.withholdingTax || "0")) });
+        } else if (rld.docType === "IV" && rld.docId) {
+          const [iv] = await db.select().from(invoices).where(and(eq(invoices.id, rld.docId), eq(invoices.companyId, companyId)));
+          if (iv) addUnique({ type: "invoice", id: iv.id, docNo: iv.invoiceNo, date: iv.invoiceDate, status: iv.status, totalAmount: iv.totalAmount });
+        }
+      }
+      // lookup billing note linked to this receipt (receipt_id added via migration, not in schema)
+      const bnByReceiptRaw = await db.execute(sql.raw(`SELECT id, billing_no, billing_date, payment_status, status, total_amount FROM billing_notes WHERE receipt_id = ${id} AND company_id = ${companyId}`));
+      for (const bn of (bnByReceiptRaw.rows || []) as any[]) addUnique({ type: "billing_note", id: bn.id, docNo: bn.billing_no, date: bn.billing_date, status: bn.payment_status || bn.status, totalAmount: String(bn.total_amount) });
     } else if (docType === "purchase-request") {
       const [pr] = await db.select().from(purchaseRequests).where(and(eq(purchaseRequests.id, id), eq(purchaseRequests.companyId, companyId)));
       if (!pr) return res.status(404).json({ message: "Document not found" });
