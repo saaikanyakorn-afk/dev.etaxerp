@@ -41,7 +41,7 @@ import { parseAttachedUrl } from "@/components/multi-file-attachment";
 
 const STATUS_MAP: Record<string, { label: string; color: string; icon: any }> = {
   overdue: { label: "ค้างชำระ", color: "bg-red-100 text-red-700 border-red-200", icon: AlertCircle },
-  debtor: { label: "ลูกหนี้", color: "bg-orange-100 text-orange-700 border-orange-200", icon: AlertCircle },
+  debtor: { label: "ยังไม่ชำระ", color: "bg-orange-100 text-orange-700 border-orange-200", icon: AlertCircle },
   cash: { label: "เงินสด", color: "bg-emerald-100 text-emerald-700 border-emerald-200", icon: CheckCircle2 },
   credit_card: { label: "เครดิตการ์ด", color: "bg-blue-100 text-blue-700 border-blue-200", icon: CreditCard },
   billing_note: { label: "ใบวางบิล", color: "bg-indigo-100 text-indigo-700 border-indigo-200", icon: FileText },
@@ -480,7 +480,7 @@ export default function TaxInvoiceList() {
                                 credit_card: { label: "บัตรเครดิต", cls: "bg-blue-50 text-blue-600 border-blue-200" },
                                 cheque: { label: "เช็ค", cls: "bg-purple-50 text-purple-600 border-purple-200" },
                                 cheque_done: { label: "เช็คผ่าน", cls: "bg-emerald-50 text-emerald-600 border-emerald-200" },
-                                debtor: { label: "ลูกหนี้", cls: "bg-amber-50 text-amber-600 border-amber-300" },
+                                debtor: { label: "ยังไม่ชำระ", cls: "bg-amber-50 text-amber-600 border-amber-300" },
                                 overdue: { label: "เกินกำหนด", cls: "bg-red-50 text-red-600 border-red-200" },
                                 billing_note: { label: "วางบิล", cls: "bg-blue-50 text-blue-600 border-blue-200" },
                                 partial: { label: "บางส่วน", cls: "bg-amber-50 text-amber-600 border-amber-300" },

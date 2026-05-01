@@ -42,7 +42,7 @@ import { parseAttachedUrl } from "@/components/multi-file-attachment";
 const STATUS_MAP: Record<string, { label: string; color: string; icon: any }> = {
   draft: { label: "ร่าง", color: "bg-slate-100 text-slate-700 border-slate-200", icon: Clock },
   sent: { label: "ส่งแล้ว", color: "bg-[var(--theme-primary-light)] text-[var(--theme-primary)] border-[var(--theme-primary)]/20", icon: Send },
-  debtor: { label: "ลูกหนี้", color: "bg-orange-100 text-orange-700 border-orange-200", icon: AlertCircle },
+  debtor: { label: "ยังไม่ชำระ", color: "bg-orange-100 text-orange-700 border-orange-200", icon: AlertCircle },
   partially_paid: { label: "ชำระบางส่วน", color: "bg-amber-100 text-amber-700 border-amber-200", icon: DollarSign },
   paid: { label: "ชำระแล้ว", color: "bg-emerald-100 text-emerald-700 border-emerald-200", icon: CheckCircle2 },
   cancelled: { label: "ยกเลิก", color: "bg-slate-100 text-slate-500 border-slate-200", icon: XCircle },
@@ -59,7 +59,7 @@ const FILTER_OPTIONS = [
   { value: "all", label: "ทั้งหมด" },
   { value: "draft", label: "ร่าง" },
   { value: "sent", label: "ส่งแล้ว" },
-  { value: "debtor", label: "ลูกหนี้" },
+  { value: "debtor", label: "ยังไม่ชำระ" },
   { value: "partially_paid", label: "ชำระบางส่วน" },
   { value: "overdue", label: "ค้างชำระ (เกินกำหนด)" },
   { value: "paid", label: "ชำระแล้ว" },
@@ -432,7 +432,7 @@ export default function InvoiceList() {
                           <TableCell className="pt-3">
                             {(() => {
                               const approvalMap: Record<string, { label: string; cls: string }> = {
-                                debtor: { label: "ลูกหนี้", cls: "bg-amber-50 text-amber-600 border-amber-300" },
+                                debtor: { label: "ยังไม่ชำระ", cls: "bg-amber-50 text-amber-600 border-amber-300" },
                                 overdue: { label: "เกินกำหนด", cls: "bg-red-50 text-red-600 border-red-200" },
                                 billing_note: { label: "วางบิล", cls: "bg-blue-50 text-blue-600 border-blue-200" },
                                 partial: { label: "บางส่วน", cls: "bg-amber-50 text-amber-600 border-amber-300" },
