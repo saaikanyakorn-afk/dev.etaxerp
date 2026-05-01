@@ -485,7 +485,8 @@ export default function TaxInvoiceList() {
                                 paid_by_ar: { label: "ชำระจาก AR", cls: "bg-emerald-50 text-emerald-600 border-emerald-200" },
                                 credit_note: { label: "ใบลดหนี้", cls: "bg-orange-50 text-orange-600 border-orange-200" },
                               };
-                              const a = approvalMap[inv.status] || { label: "-", cls: "bg-slate-50 text-slate-500 border-slate-200" };
+                              const effectiveStatus = inv.hasBillingNote && !["paid", "cancel", "cancelled"].includes(inv.status) ? "billing_note" : inv.status;
+                              const a = approvalMap[effectiveStatus] || { label: "-", cls: "bg-slate-50 text-slate-500 border-slate-200" };
                               return (
                                 <Badge data-testid={`badge-approval-${inv.id}`} className={`${a.cls} border text-xs py-0.5 px-2.5 font-normal h-6`}>
                                   {a.label}

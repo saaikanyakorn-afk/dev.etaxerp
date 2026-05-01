@@ -797,7 +797,15 @@ app.get("/api/invoices", requireAuth, requireAnyModule("sales", "ecommerce"), as
       for (const u of userRows) userMap[u.id] = u.fullName;
     }
     const paidMap = await computeInvoicePaidAmounts(rows.map((r: any) => r.id));
-    const result = rows.map((r: any) => ({ ...r, createdByName: r.createdBy ? userMap[r.createdBy] || "-" : "-", updatedByName: r.updatedBy ? userMap[r.updatedBy] || "-" : "-", paidAmount: paidMap[r.id] || 0 }));
+    const bnLinkedInvIds = new Set<number>();
+    if (rows.length > 0) {
+      const ids = rows.map((r: any) => r.id);
+      const bnLinks = await db.select({ docId: billingNoteLinkedDocs.docId })
+        .from(billingNoteLinkedDocs)
+        .where(and(eq(billingNoteLinkedDocs.docType, "IV"), inArray(billingNoteLinkedDocs.docId, ids)));
+      for (const l of bnLinks) bnLinkedInvIds.add(l.docId);
+    }
+    const result = rows.map((r: any) => ({ ...r, createdByName: r.createdBy ? userMap[r.createdBy] || "-" : "-", updatedByName: r.updatedBy ? userMap[r.updatedBy] || "-" : "-", paidAmount: paidMap[r.id] || 0, hasBillingNote: bnLinkedInvIds.has(r.id) }));
     res.json(result);
   } catch (err: any) { console.error("[invoices] list error:", err); res.status(500).json({ message: err.message }); }
 });
@@ -1810,7 +1818,15 @@ app.get("/api/tax-invoices", requireAuth, requireAnyModule("sales", "ecommerce")
       if (userIds.length > 0) { const uu = await db.select({ id: users.id, fullName: users.fullName }).from(users).where(inArray(users.id, userIds)); for (const u of uu) userMap[u.id] = u.fullName; }
       const paidMap = await computeTaxInvoicePaidAmounts(rows.map((r: any) => r.id));
       const cnMap = await computeTaxInvoiceCNAmounts(rows.map((r: any) => r.id));
-      return rows.map((r: any) => ({ ...r, createdByName: r.createdBy ? userMap[r.createdBy] || "-" : "-", updatedByName: r.updatedBy ? userMap[r.updatedBy] || "-" : "-", paidAmount: paidMap[r.id] || 0, cnAmount: cnMap[r.id] || 0 }));
+      const bnLinkedTivIds = new Set<number>();
+      if (rows.length > 0) {
+        const ids = rows.map((r: any) => r.id);
+        const bnLinks = await db.select({ docId: billingNoteLinkedDocs.docId })
+          .from(billingNoteLinkedDocs)
+          .where(and(eq(billingNoteLinkedDocs.docType, "TIV"), inArray(billingNoteLinkedDocs.docId, ids)));
+        for (const l of bnLinks) bnLinkedTivIds.add(l.docId);
+      }
+      return rows.map((r: any) => ({ ...r, createdByName: r.createdBy ? userMap[r.createdBy] || "-" : "-", updatedByName: r.updatedBy ? userMap[r.updatedBy] || "-" : "-", paidAmount: paidMap[r.id] || 0, cnAmount: cnMap[r.id] || 0, hasBillingNote: bnLinkedTivIds.has(r.id) }));
     };
     if (req.query.page) {
       const { page, pageSize, offset } = parsePagination(req, { pageSize: 50 });

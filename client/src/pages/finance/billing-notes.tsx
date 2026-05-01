@@ -844,10 +844,20 @@ export default function BillingNotes() {
                                 <Pencil className="h-3.5 w-3.5 mr-2 text-blue-500" />
                                 แก้ไข
                               </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => navigate(`/finance/billing-notes/pdf/${bn.id}`)} data-testid={`menu-pdf-${bn.id}`}>
+                                <Printer className="h-3.5 w-3.5 mr-2 text-purple-500" />
+                                ดูตัวอย่าง / สั่งพิมพ์
+                              </DropdownMenuItem>
                               <DropdownMenuItem onClick={() => openSendDialog(bn)} data-testid={`menu-send-${bn.id}`}>
                                 <Send className="h-3.5 w-3.5 mr-2 text-indigo-500" />
                                 ส่งอีเมล
                               </DropdownMenuItem>
+                              {bn.status !== "paid" && bn.paymentStatus !== "paid" && (
+                                <DropdownMenuItem onClick={() => openReceiptDialog(bn)} data-testid={`menu-receipt-${bn.id}`}>
+                                  <Receipt className="h-3.5 w-3.5 mr-2 text-green-500" />
+                                  สร้างใบรับเงิน
+                                </DropdownMenuItem>
+                              )}
                               <DropdownMenuSeparator />
                               <DropdownMenuItem
                                 className="text-red-600 focus:text-red-600"

@@ -504,6 +504,7 @@ app.get("/api/finance/customer-outstanding-docs", requireAuth, async (req, res) 
       eq(taxInvoices.companyId, companyId),
       sql`${taxInvoices.status} != 'cancelled'`,
       sql`COALESCE(${taxInvoices.paymentStatus}, 'unpaid') != 'paid'`,
+      sql`COALESCE(${taxInvoices.paymentMethod}, 'เครดิต') != 'เงินสด'`,
       contactId ? eq(taxInvoices.customerId, contactId) : sql`${taxInvoices.customerName} = ${contactName}`
     )).orderBy(taxInvoices.dueDate);
 
