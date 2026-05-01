@@ -68,6 +68,7 @@ export default function BillingNotes() {
   const [billingNotes, setBillingNotes] = useState("");
   const [billingWhtRate, setBillingWhtRate] = useState("");
   const [billingWht, setBillingWht] = useState(""); // computed amount (ไม่ใช้ input แล้ว แต่เก็บไว้)
+  const [docTypeFilter, setDocTypeFilter] = useState<"IV" | "TIV">("IV");
   const dropdownRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
@@ -154,6 +155,9 @@ export default function BillingNotes() {
   });
 
   const outstandingDocs: any[] = outstandingData?.documents || [];
+  const filteredDocs = outstandingDocs.filter(d => d.docType === docTypeFilter);
+  const ivCount = outstandingDocs.filter(d => d.docType === "IV").length;
+  const tivCount = outstandingDocs.filter(d => d.docType === "TIV").length;
 
   const { data: paymentMethodsList } = useQuery<any[]>({
     queryKey: ["/api/payment-methods", companyId],
@@ -297,16 +301,16 @@ export default function BillingNotes() {
   };
 
   const toggleAll = () => {
-    if (selectedDocs.size === outstandingDocs.length) {
+    if (selectedDocs.size === filteredDocs.length && filteredDocs.length > 0) {
       setSelectedDocs(new Set());
     } else {
-      setSelectedDocs(new Set(outstandingDocs.map(docKey)));
+      setSelectedDocs(new Set(filteredDocs.map(docKey)));
     }
   };
 
   const selectedDocsList = useMemo(() => {
-    return outstandingDocs.filter(d => selectedDocs.has(docKey(d)));
-  }, [outstandingDocs, selectedDocs]);
+    return filteredDocs.filter(d => selectedDocs.has(docKey(d)));
+  }, [filteredDocs, selectedDocs]);
 
   const selectedTotal = useMemo(() => {
     return selectedDocsList.reduce((s, d) => s + (parseFloat(d.totalAmount) || 0), 0);
@@ -374,12 +378,14 @@ export default function BillingNotes() {
     setCustomerSearch(contact.name);
     setShowDropdown(false);
     setSelectedDocs(new Set());
+    setDocTypeFilter("IV");
   };
 
   const clearContact = () => {
     setSelectedContact(null);
     setCustomerSearch("");
     setSelectedDocs(new Set());
+    setDocTypeFilter("IV");
   };
 
   const openEditDialog = (bn: any) => {
@@ -535,31 +541,53 @@ export default function BillingNotes() {
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-base">เอกสารค้างชำระ</CardTitle>
-                  {outstandingDocs.length > 0 && (
+                  {filteredDocs.length > 0 && (
                     <div className="flex items-center gap-2">
                       <Checkbox
-                        checked={selectedDocs.size === outstandingDocs.length && outstandingDocs.length > 0}
+                        checked={selectedDocs.size === filteredDocs.length && filteredDocs.length > 0}
                         onCheckedChange={toggleAll}
                         data-testid="checkbox-select-all"
                       />
-                      <span className="text-xs text-muted-foreground">เลือกทั้งหมด ({outstandingDocs.length})</span>
+                      <span className="text-xs text-muted-foreground">เลือกทั้งหมด ({filteredDocs.length})</span>
                     </div>
                   )}
                 </div>
+                {!loadingDocs && outstandingDocs.length > 0 && (
+                  <div className="flex gap-2 mt-2">
+                    <button
+                      data-testid="tab-filter-iv"
+                      onClick={() => { setDocTypeFilter("IV"); setSelectedDocs(new Set()); }}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium border transition-colors ${docTypeFilter === "IV" ? "bg-blue-600 text-white border-blue-600" : "bg-white text-gray-600 border-gray-300 hover:border-blue-400 hover:text-blue-600"}`}
+                    >
+                      ใบแจ้งหนี้
+                      {ivCount > 0 && <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${docTypeFilter === "IV" ? "bg-white/20 text-white" : "bg-blue-100 text-blue-700"}`}>{ivCount}</span>}
+                    </button>
+                    <button
+                      data-testid="tab-filter-tiv"
+                      onClick={() => { setDocTypeFilter("TIV"); setSelectedDocs(new Set()); }}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium border transition-colors ${docTypeFilter === "TIV" ? "bg-cyan-600 text-white border-cyan-600" : "bg-white text-gray-600 border-gray-300 hover:border-cyan-400 hover:text-cyan-600"}`}
+                    >
+                      ใบกำกับภาษี
+                      {tivCount > 0 && <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${docTypeFilter === "TIV" ? "bg-white/20 text-white" : "bg-cyan-100 text-cyan-700"}`}>{tivCount}</span>}
+                    </button>
+                  </div>
+                )}
               </CardHeader>
               <CardContent className="p-0">
                 {loadingDocs ? (
                   <div className="flex items-center justify-center py-12">
                     <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                   </div>
-                ) : outstandingDocs.length === 0 ? (
+                ) : filteredDocs.length === 0 ? (
                   <div className="text-center py-12 text-sm text-muted-foreground">
                     <CheckCircle className="h-10 w-10 mx-auto mb-2 text-green-300" />
-                    ลูกค้ารายนี้ไม่มีเอกสารค้างชำระ
+                    {outstandingDocs.length === 0
+                      ? "ลูกค้ารายนี้ไม่มีเอกสารค้างชำระ"
+                      : docTypeFilter === "IV" ? "ไม่มีใบแจ้งหนี้ค้างชำระ" : "ไม่มีใบกำกับภาษีค้างชำระ"}
                   </div>
                 ) : (
                   <div className="divide-y">
-                    {outstandingDocs.map((doc: any) => {
+                    {filteredDocs.map((doc: any) => {
                       const key = docKey(doc);
                       const isSelected = selectedDocs.has(key);
                       return (
@@ -571,9 +599,6 @@ export default function BillingNotes() {
                                 onCheckedChange={() => toggleDoc(doc)}
                                 data-testid={`checkbox-doc-${key}`}
                               />
-                              <Badge className={`text-[9px] border-0 ${doc.docType === "IV" ? "bg-blue-100 text-blue-700" : "bg-cyan-100 text-cyan-700"}`}>
-                                {doc.docType === "IV" ? "ใบแจ้งหนี้" : "ใบกำกับภาษี"}
-                              </Badge>
                               <span className="text-sm font-medium text-gray-800">{doc.docNo}</span>
                               {paymentStatusBadge(doc.paymentStatus)}
                             </div>
