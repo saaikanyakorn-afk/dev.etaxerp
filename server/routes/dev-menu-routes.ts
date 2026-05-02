@@ -1013,12 +1013,25 @@ app.post("/api/dev/invoice-recompute-apply", requireAdmin, async (req, res) => {
     const { ids } = req.body as { ids: number[] };
     if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ message: "ids required" });
     const { recomputePaymentStatus } = await import("../route-helpers");
-    let updated = 0; const errors: string[] = [];
+    let updated = 0; let totalFixed = 0; const errors: string[] = [];
     for (const id of ids) {
-      try { await recomputePaymentStatus("invoice", id); updated++; }
-      catch (e: any) { errors.push(`invoice#${id}: ${e.message}`); }
+      try {
+        // fix total_amount if wrong (subtotal + vat - wht)
+        const invRow = await db.execute(sql.raw(`SELECT subtotal, vat_amount, withholding_tax, total_amount FROM invoices WHERE id = ${id}`));
+        const inv = ((invRow as any).rows || [])[0];
+        if (inv) {
+          const correctTotal = Math.round((parseFloat(inv.subtotal||0) + parseFloat(inv.vat_amount||0) - parseFloat(inv.withholding_tax||0)) * 100) / 100;
+          if (Math.abs(parseFloat(inv.total_amount||0) - correctTotal) > 0.01) {
+            await db.execute(sql.raw(`UPDATE invoices SET total_amount = ${correctTotal} WHERE id = ${id}`));
+            totalFixed++;
+          }
+        }
+        // fix payment_status
+        await recomputePaymentStatus("invoice", id);
+        updated++;
+      } catch (e: any) { errors.push(`invoice#${id}: ${e.message}`); }
     }
-    res.json({ updated, errors });
+    res.json({ updated, totalFixed, errors });
   } catch (err: any) { res.status(500).json({ message: err.message }); }
 });
 
@@ -1132,6 +1145,7 @@ let stepIdx = 0;
 let timerHandle = null;
 let runCount = 0;
 let appliedLog = [];
+let totalFixedCount = 0;
 let displayOnly = false;
 
 const STATUS_TH = { unpaid:'ยังไม่ชำระ', partial:'ชำระบางส่วน', paid:'ชำระครบ' };
@@ -1267,7 +1281,7 @@ function render(){
 /* ─── Step-by-step ─── */
 function startStepByStep(){
   if(toChange.length===0) return;
-  stepIdx=0; appliedLog=[];
+  stepIdx=0; appliedLog=[]; totalFixedCount=0;
   runCount++;
   showStep();
 }
@@ -1329,10 +1343,13 @@ async function applyCurrentAndNext(){
       credentials:'include', body: JSON.stringify({ids:[d.id]})
     });
     const result = await r.json();
-    if(result.updated>0){
-      if(rs){ rs.textContent='✅ Applied: '+STATUS_TH[d.currentStatus]+' → '+STATUS_TH[d.newStatus]; rs.style.color='#16a34a'; }
+    if(result.updated>0 || result.totalFixed>0){
+      const parts = [];
+      if(d.willChange) parts.push(STATUS_TH[d.currentStatus]+' → '+STATUS_TH[d.newStatus]);
+      if(result.totalFixed>0){ parts.push('ยอดรวม ✓'); totalFixedCount++; }
+      if(rs){ rs.textContent='✅ '+parts.join(' | '); rs.style.color='#16a34a'; }
       if(row){ row.classList.remove('will-change','current-row'); row.classList.add('applied'); }
-      appliedLog.push({invoiceNo:d.invoiceNo,old:d.currentStatus,nw:d.newStatus});
+      appliedLog.push({invoiceNo:d.invoiceNo,old:d.currentStatus,nw:d.newStatus,totalFixed:result.totalFixed>0});
     } else {
       if(rs){ rs.textContent='⚠ ไม่ได้เปลี่ยน'; rs.style.color='#d97706'; }
     }
@@ -1353,13 +1370,16 @@ function finishAll(){
   const rows = appliedLog.map(x=>
     '<tr><td><b>'+x.invoiceNo+'</b></td>'+
     '<td>'+badge(x.old)+'</td>'+
-    '<td>→ '+badge(x.nw)+'</td></tr>'
+    '<td>→ '+badge(x.nw)+'</td>'+
+    '<td>'+(x.totalFixed ? '<span style="color:#7c3aed;font-weight:600">ยอดรวม ✓</span>' : '—')+'</td></tr>'
   ).join('');
+  const totalFixedNote = totalFixedCount>0
+    ? ' <span style="color:#7c3aed;font-weight:600">(แก้ยอดรวม '+totalFixedCount+' ใบ)</span>' : '';
   sumEl.innerHTML =
     '<span class="run-badge">Run #'+runCount+'</span> '+
-    '<b style="font-size:15px"> เสร็จสิ้น — Applied '+appliedLog.length+' รายการ</b>'+
+    '<b style="font-size:15px"> เสร็จสิ้น — Applied '+appliedLog.length+' รายการ</b>'+totalFixedNote+
     (appliedLog.length>0
-      ? '<table style="margin-top:12px"><thead><tr><th>Invoice</th><th>เดิม</th><th>ใหม่</th></tr></thead><tbody>'+rows+'</tbody></table>'
+      ? '<table style="margin-top:12px"><thead><tr><th>Invoice</th><th>เดิม</th><th>ใหม่</th><th>ยอดรวม</th></tr></thead><tbody>'+rows+'</tbody></table>'
       : '<p style="color:#16a34a;margin-top:8px">✅ ไม่มีรายการที่เปลี่ยนแปลง — idempotent ✓</p>');
   sumEl.style.display='block';
   sumEl.scrollIntoView({behavior:'smooth'});
