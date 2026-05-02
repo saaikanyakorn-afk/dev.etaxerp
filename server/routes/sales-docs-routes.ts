@@ -3035,7 +3035,17 @@ app.get("/api/related-documents/:docType/:docId", requireAuth, async (req, res) 
       if (bnLinks.length > 0) {
         const bnIds = bnLinks.map((l: any) => l.billingNoteId);
         const bns = await db.select().from(billingNotes).where(and(inArray(billingNotes.id, bnIds), eq(billingNotes.companyId, companyId)));
-        for (const bn of bns) addUnique({ type: "billing_note", id: bn.id, docNo: bn.billingNo, date: bn.billingDate, status: bn.status, totalAmount: String(bn.totalAmount) });
+        for (const bn of bns) {
+          addUnique({ type: "billing_note", id: bn.id, docNo: bn.billingNo, date: bn.billingDate, status: bn.status, totalAmount: String(bn.totalAmount) });
+          // find TIVs created from this BN (stored via refDoc = bn.billingNo)
+          const tivsFromBn = await db.select().from(taxInvoices).where(and(eq(taxInvoices.refDoc, bn.billingNo), eq(taxInvoices.companyId, companyId)));
+          for (const tx of tivsFromBn) addUnique({ type: "tax_invoice", id: tx.id, docNo: tx.taxInvoiceNo, date: tx.taxInvoiceDate, status: tx.status, totalAmount: tx.totalAmount });
+          // find Receipts created from this BN (stored via receiptLinkedDocs)
+          if (bn.receiptId) {
+            const [rc] = await db.select().from(receipts).where(and(eq(receipts.id, bn.receiptId), eq(receipts.companyId, companyId)));
+            if (rc) addUnique({ type: "receipt", id: rc.id, docNo: rc.receiptNo, date: rc.receiptDate, status: rc.status, totalAmount: rc.totalAmount });
+          }
+        }
       }
 
     } else if (docType === "tax_invoice") {
@@ -3097,6 +3107,12 @@ app.get("/api/related-documents/:docType/:docId", requireAuth, async (req, res) 
       for (const rc of rcs) addUnique({ type: "receipt", id: rc.id, docNo: rc.receiptNo, date: rc.receiptDate, status: rc.status, totalAmount: rc.totalAmount });
       const rcsByRef = await db.select().from(receipts).where(and(eq(receipts.refDoc, tx.taxInvoiceNo), eq(receipts.companyId, companyId)));
       for (const rc of rcsByRef) addUnique({ type: "receipt", id: rc.id, docNo: rc.receiptNo, date: rc.receiptDate, status: rc.status, totalAmount: rc.totalAmount });
+      // receipts created via BN→Receipt that cover this TIV (stored in receipt_linked_docs)
+      const rldForTiv = await db.select().from(receiptLinkedDocs).where(and(eq(receiptLinkedDocs.docType, "TIV"), eq(receiptLinkedDocs.docId, id)));
+      for (const rld of rldForTiv) {
+        const [rcFromBn] = await db.select().from(receipts).where(and(eq(receipts.id, rld.receiptId), eq(receipts.companyId, companyId)));
+        if (rcFromBn) addUnique({ type: "receipt", id: rcFromBn.id, docNo: rcFromBn.receiptNo, date: rcFromBn.receiptDate, status: rcFromBn.status, totalAmount: rcFromBn.totalAmount });
+      }
       const blLinks = await db.select({ billingNoteId: billingNoteLinkedDocs.billingNoteId }).from(billingNoteLinkedDocs).where(and(eq(billingNoteLinkedDocs.docType, "TIV"), eq(billingNoteLinkedDocs.docId, id)));
       if (blLinks.length > 0) {
         const blIds = blLinks.map(l => l.billingNoteId);

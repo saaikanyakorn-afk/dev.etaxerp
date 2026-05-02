@@ -277,6 +277,7 @@ app.post("/api/finance/billing-notes/:id/create-tax-invoice", requireAuth, async
         docPrefix: "TIV",
         notes: tivNotes || `ออกใบกำกับภาษีจากใบวางบิล ${bn.billingNo}`,
         paymentMethod: tivPaymentMethod || "เครดิต",
+        refDoc: bn.billingNo,
         invoiceId: singleIV,
         currencyCode: "THB",
         exchangeRate: "1",
