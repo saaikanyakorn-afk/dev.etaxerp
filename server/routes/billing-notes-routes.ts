@@ -303,27 +303,44 @@ app.post("/api/finance/billing-notes/:id/create-tax-invoice", requireAuth, async
       return tiv;
     });
 
+    // Check if any linked IV already has a journal entry → revenue was already recognized
+    const ivDocIds = linkedDocs.filter(d => d.docType === "IV").map(d => d.docId);
+    let linkedIVsAlreadyJournaled = false;
+    if (ivDocIds.length > 0) {
+      for (const ivId of ivDocIds) {
+        const [existingJE] = await db.select({ id: journalEntries.id }).from(journalEntries)
+          .where(and(eq(journalEntries.companyId, bn.companyId), eq(journalEntries.sourceDocType, "invoice"), eq(journalEntries.sourceDocId, ivId)));
+        if (existingJE) { linkedIVsAlreadyJournaled = true; break; }
+      }
+    }
+
     let journalResult = null;
-    try {
-      journalResult = await createAutoJournalEntry({
-        companyId: result.companyId,
-        documentType: "tax_invoice",
-        sourceDocType: "tax_invoice",
-        sourceDocId: result.id,
-        docDate: result.taxInvoiceDate,
-        docNo: result.taxInvoiceNo,
-        subtotal: String(subtotalVal),
-        vatAmount: String(vatVal),
-        totalAmount: String(totalAmt),
-        withholdingTax: String(whtAmt),
-        currencyCode: "THB",
-        exchangeRate: "1",
-        userId: user.id,
-        customerName: bn.customerName,
-        paymentMethod: tivPaymentMethod || "เครดิต",
-        paymentMethodAccountCode: await resolvePaymentMethodAccountCode(bn.companyId, tivPaymentMethod || "เครดิต"),
-      });
-    } catch (e: any) { console.error("[create-tiv-from-bn] journal error:", e.message); }
+    if (linkedIVsAlreadyJournaled) {
+      // IV already posted revenue → TIV is just a formal VAT doc, no new journal
+      journalResult = { skipped: true, reason: "รายได้ถูกลงบัญชีแล้วใน IV ที่เชื่อมโยง — ไม่ลงซ้ำใน TIV" };
+      console.log(`[create-tiv-from-bn] ${result.taxInvoiceNo}: skipping journal — linked IVs (${ivDocIds.join(",")}) already journaled`);
+    } else {
+      try {
+        journalResult = await createAutoJournalEntry({
+          companyId: result.companyId,
+          documentType: "tax_invoice",
+          sourceDocType: "tax_invoice",
+          sourceDocId: result.id,
+          docDate: result.taxInvoiceDate,
+          docNo: result.taxInvoiceNo,
+          subtotal: String(subtotalVal),
+          vatAmount: String(vatVal),
+          totalAmount: String(totalAmt),
+          withholdingTax: String(whtAmt),
+          currencyCode: "THB",
+          exchangeRate: "1",
+          userId: user.id,
+          customerName: bn.customerName,
+          paymentMethod: tivPaymentMethod || "เครดิต",
+          paymentMethodAccountCode: await resolvePaymentMethodAccountCode(bn.companyId, tivPaymentMethod || "เครดิต"),
+        });
+      } catch (e: any) { console.error("[create-tiv-from-bn] journal error:", e.message); }
+    }
 
     res.json({ success: true, taxInvoice: result, journalResult });
   } catch (err: any) { res.status(500).json({ message: err.message }); }
