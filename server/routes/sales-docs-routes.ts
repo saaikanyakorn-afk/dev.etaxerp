@@ -2343,6 +2343,14 @@ app.delete("/api/tax-invoices/:id", requireAuth, requireAnyModule("sales", "ecom
     if (existing.invoiceId) {
       try { await recomputePaymentStatus("invoice", existing.invoiceId); } catch (e: any) { console.error(`[TIV-DELETE] recomputePaymentStatus invoice#${existing.invoiceId} failed:`, e.message); }
     }
+    // ถ้า TIV สร้างจาก BN (refDoc = billingNo) → reset BN status กลับเป็น approved
+    if (existing.refDoc) {
+      try {
+        await db.update(billingNotes)
+          .set({ status: "approved", updatedAt: new Date() })
+          .where(and(eq(billingNotes.billingNo, existing.refDoc), eq(billingNotes.companyId, existing.companyId), eq(billingNotes.status, "invoiced")));
+      } catch (e: any) { console.error(`[TIV-DELETE] reset BN status failed:`, e.message); }
+    }
     const user = req.user as any;
     logActivity({ companyId: existing.companyId, userId: user.id, userName: user.username, action: "delete", entityType: "tax_invoice", entityId: String(existing.id), entityName: existing.taxInvoiceNo }).catch(() => {});
     res.json({ success: true });
@@ -2374,6 +2382,12 @@ app.post("/api/tax-invoices/bulk-delete", requireAuth, requireAnyModule("sales",
         if (bulkTiDelTriggers.invoice_deduct) await reverseWarehouseStockBundleAware(bulkTiItems, existing.companyId);
         if (existing.invoiceId) {
           try { await recomputePaymentStatus("invoice", existing.invoiceId); } catch (e: any) { console.error(`[TIV-BULK-DELETE] recomputePaymentStatus invoice#${existing.invoiceId} failed:`, e.message); }
+        }
+        if (existing.refDoc) {
+          try {
+            await db.update(billingNotes).set({ status: "approved", updatedAt: new Date() })
+              .where(and(eq(billingNotes.billingNo, existing.refDoc), eq(billingNotes.companyId, existing.companyId), eq(billingNotes.status, "invoiced")));
+          } catch (e: any) { console.error(`[TIV-BULK-DELETE] reset BN status failed:`, e.message); }
         }
         logActivity({ companyId: existing.companyId, userId: user.id, userName: user.username, action: "delete", entityType: "tax_invoice", entityId: String(existing.id), entityName: existing.taxInvoiceNo }).catch(() => {});
         deleted++;
