@@ -1028,6 +1028,10 @@ button:disabled{opacity:.45;cursor:default}
 .btn-load{background:#2563eb;color:#fff}
 .btn-proceed{background:#d97706;color:#fff;font-size:14px;padding:8px 22px}
 .btn-reload{background:#6b7280;color:#fff}
+.mode-toggle{display:flex;align-items:center;gap:6px;padding:5px 12px;border:2px solid #6b7280;border-radius:6px;background:#fff;cursor:pointer;font-size:13px;font-weight:600;color:#374151;transition:all .15s}
+.mode-toggle.active{border-color:#7c3aed;background:#f5f3ff;color:#7c3aed}
+tr.ok-row td{background:#f0fdf4;opacity:.75}
+tr.ok-row .row-status{color:#16a34a}
 .stats{display:flex;gap:12px;margin-bottom:14px;flex-wrap:wrap}
 .stat{background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:8px 18px;text-align:center;min-width:90px}
 .stat-n{font-size:22px;font-weight:700}
@@ -1076,6 +1080,7 @@ tr.unknown-row td{background:#fff1f2;border-left:4px solid #dc2626}
 <div class="toolbar">
   <label>Company ID: <input id="cid" type="number" value="4" min="1" /></label>
   <button class="btn-load" onclick="loadData()">โหลดข้อมูล</button>
+  <button class="mode-toggle" id="modeBtn" onclick="toggleMode()" title="Display Only — แสดงทุกรายการ ไม่มีการแก้ไข">👁 Display Only</button>
   <button class="btn-proceed" id="proceedBtn" onclick="startStepByStep()" disabled>▶ Proceed (ทีละใบ)</button>
   <button class="btn-reload" id="reloadBtn" onclick="loadData()" style="display:none">🔄 Load Again (ตรวจ idempotency)</button>
 </div>
@@ -1110,6 +1115,7 @@ let stepIdx = 0;
 let timerHandle = null;
 let runCount = 0;
 let appliedLog = [];
+let displayOnly = false;
 
 const STATUS_TH = { unpaid:'ยังไม่ชำระ', partial:'ชำระบางส่วน', paid:'ชำระครบ' };
 const STATUS_CLS = { unpaid:'unpaid', partial:'partial', paid:'paid' };
@@ -1124,6 +1130,15 @@ function fmt(n){ return Number(n||0).toLocaleString('th-TH',{minimumFractionDigi
 const KNOWN_CASES = ['Case1','Case4','Case5','Case6','Case9'];
 
 function isUnknownCase(caseLabel){ return !KNOWN_CASES.some(c => caseLabel.startsWith(c)); }
+
+function toggleMode(){
+  displayOnly = !displayOnly;
+  const btn = document.getElementById('modeBtn');
+  btn.classList.toggle('active', displayOnly);
+  btn.textContent = displayOnly ? '👁 Display Only (ON)' : '👁 Display Only';
+  document.getElementById('proceedBtn').style.display = displayOnly ? 'none' : '';
+  if(allData.length > 0) render();
+}
 
 async function loadData(){
   const cid = document.getElementById('cid').value;
@@ -1166,19 +1181,28 @@ function render(){
   document.getElementById('stats').innerHTML =
     '<div class="stat"><div class="stat-n stat-total">'+total+'</div><div>ทั้งหมด</div></div>'+
     '<div class="stat"><div class="stat-n stat-will">'+willChange+'</div><div>จะเปลี่ยน</div></div>'+
-    '<div class="stat"><div class="stat-n stat-ok">'+(total-willChange)+'</div><div>ถูกต้องแล้ว</div></div>';
+    '<div class="stat"><div class="stat-n stat-ok">'+(total-willChange)+'</div><div>ถูกต้องแล้ว</div></div>'+
+    (displayOnly ? '<div class="stat" style="border-color:#7c3aed"><div class="stat-n" style="color:#7c3aed">'+total+'</div><div>แสดงทั้งหมด</div></div>' : '');
 
-  if(toChange.length===0 && allData.length>0){
+  if(!displayOnly && toChange.length===0 && allData.length>0){
     document.getElementById('out').innerHTML='<div class="loading" style="color:#16a34a;font-weight:600">✅ ทุก invoice มีสถานะถูกต้องแล้ว ไม่มีรายการที่ต้องเปลี่ยน</div>';
     return;
   }
 
-  // Show only willChange rows in preview table
-  const rows = toChange.map((d,i)=>{
+  // In display-only mode: show ALL records; otherwise show only willChange
+  const sourceRows = displayOnly ? allData : toChange;
+
+  const rows = sourceRows.map((d,i)=>{
     const unknown = isUnknownCase(d.caseLabel);
-    const rowCls = unknown ? 'will-change unknown-row' : 'will-change';
+    const isOk = !d.willChange;
+    const rowCls = isOk ? 'ok-row' : (unknown ? 'will-change unknown-row' : 'will-change');
     const caseBadgeCls = unknown ? 'case-badge case-unknown' : 'case-badge';
     const unknownFlag = unknown ? ' <span style="color:#dc2626;font-weight:700">⚠ ไม่รู้จัก</span>' : '';
+    const actionCell = displayOnly
+      ? (isOk
+          ? '<td class="row-status" style="color:#16a34a">✅ ถูกต้องแล้ว</td>'
+          : '<td class="row-status" style="color:#d97706">⏳ รอแก้ไข</td>')
+      : '<td class="row-status" id="rs-'+d.id+'">รอดำเนินการ</td>';
     return '<tr class="'+rowCls+'" id="row-'+d.id+'">'+
       '<td class="num">'+(i+1)+'</td>'+
       '<td><b>'+d.invoiceNo+'</b></td>'+
@@ -1186,9 +1210,9 @@ function render(){
       '<td class="num">'+fmt(d.total)+'</td>'+
       '<td class="num">'+fmt(d.effectivePaid)+'</td>'+
       '<td>'+badge(d.currentStatus)+'</td>'+
-      '<td>→ '+badge(d.newStatus)+'</td>'+
+      '<td>'+(isOk ? '<span style="color:#6b7280;font-size:11px">ไม่เปลี่ยน</span>' : '→ '+badge(d.newStatus))+'</td>'+
       '<td><span class="'+caseBadgeCls+'">'+d.caseLabel+'</span>'+unknownFlag+'</td>'+
-      '<td class="row-status" id="rs-'+d.id+'">รอดำเนินการ</td>'+
+      actionCell+
       '</tr>';
   }).join('');
 
@@ -1196,7 +1220,7 @@ function render(){
     ? '<table><thead><tr>'+
       '<th>#</th><th>เลขที่</th><th>ลูกค้า</th>'+
       '<th>ยอดรวม</th><th>ยอดรับรวม</th><th>สถานะปัจจุบัน</th><th>สถานะใหม่</th>'+
-      '<th>Case</th><th>ผล</th>'+
+      '<th>Case</th><th>'+(displayOnly ? 'สถานะ' : 'ผล')+'</th>'+
       '</tr></thead><tbody>'+rows+'</tbody></table>'
     : '<div class="loading">ไม่มีรายการ</div>';
 }
