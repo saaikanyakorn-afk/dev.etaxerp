@@ -923,7 +923,7 @@ export default function BillingNotes() {
                         </div>
                         <div className="flex items-center gap-3">
                           <span className="text-xs text-muted-foreground">{formatDate(bn.billingDate, dateEra, dateFmt)}</span>
-                          {billingStatusBadge(bn.status)}
+                          {billingStatusBadge(bn.paymentStatus === "paid" ? "paid" : bn.status)}
                           <span className="text-sm font-bold" style={{ color: "#fb9678" }}>฿{fmt(parseFloat(bn.totalAmount) || 0)}</span>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
