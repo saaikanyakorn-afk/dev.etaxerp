@@ -1204,12 +1204,14 @@ function render(){
     '<div class="stat"><div class="stat-n" style="color:#7c3aed">'+totalChange+'</div><div>total ผิด</div></div>'+
     '<div class="stat"><div class="stat-n stat-ok">'+bothOk+'</div><div>ถูกต้องทั้งคู่</div></div>';
 
-  if(toChange.length===0 && allData.length>0){
+  if(!displayOnly && toChange.length===0 && allData.length>0){
     document.getElementById('out').innerHTML='<div class="loading" style="color:#16a34a;font-weight:600">✅ ทุก invoice มีสถานะและยอดถูกต้องแล้ว</div>';
     return;
   }
 
-  const rows = toChange.map((d,i)=>{
+  const sourceRows = displayOnly ? allData : toChange;
+
+  const rows = sourceRows.map((d,i)=>{
     const unknown = isUnknownCase(d.caseLabel);
     const rowCls = unknown ? 'will-change unknown-row' : 'will-change';
     const caseBadgeCls = unknown ? 'case-badge case-unknown' : 'case-badge';
@@ -1228,8 +1230,11 @@ function render(){
       ? '<td>'+badge(d.currentStatus)+' → '+badge(d.newStatus)+'</td>'
       : '<td style="color:#16a34a;font-size:11px">ไม่เปลี่ยน ✓</td>';
 
+    const needsFix = d.willChange || d.totalWillChange;
     const actionCell = displayOnly
-      ? '<td class="row-status" style="color:#d97706">⏳ รอแก้ไข</td>'
+      ? (needsFix
+          ? '<td class="row-status" style="color:#d97706;font-weight:600">⏳ รอแก้ไข</td>'
+          : '<td class="row-status" style="color:#16a34a">✅ ถูกต้องแล้ว</td>')
       : '<td class="row-status" id="rs-'+d.id+'">รอดำเนินการ</td>';
 
     return '<tr class="'+rowCls+'" id="row-'+d.id+'">'+
