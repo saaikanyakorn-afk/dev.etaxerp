@@ -3134,6 +3134,20 @@ app.get("/api/related-documents/:docType/:docId", requireAuth, async (req, res) 
             const [rcFromBl] = await db.select().from(receipts).where(and(eq(receipts.id, bl.receiptId), eq(receipts.companyId, companyId)));
             if (rcFromBl) addUnique({ type: "receipt", id: rcFromBl.id, docNo: rcFromBl.receiptNo, date: rcFromBl.receiptDate, status: rcFromBl.status, totalAmount: rcFromBl.totalAmount });
           }
+          // follow BN → linked docs (IV, TIV) chain
+          const blnLinked = await db.select().from(billingNoteLinkedDocs).where(eq(billingNoteLinkedDocs.billingNoteId, bl.id));
+          for (const bld of blnLinked) {
+            if (bld.docType === "IV") {
+              const [iv] = await db.select().from(invoices).where(and(eq(invoices.id, bld.docId), eq(invoices.companyId, companyId)));
+              if (iv) {
+                addUnique({ type: "invoice", id: iv.id, docNo: iv.invoiceNo, date: iv.invoiceDate, status: iv.status, totalAmount: iv.totalAmount });
+                if (iv.quotationId) {
+                  const [qo] = await db.select().from(quotations).where(and(eq(quotations.id, iv.quotationId), eq(quotations.companyId, companyId)));
+                  if (qo) addUnique({ type: "quotation", id: qo.id, docNo: qo.quotationNo, date: qo.quotationDate, status: qo.status, totalAmount: qo.totalAmount });
+                }
+              }
+            }
+          }
         }
       }
       const cnsByTaxInv = await db.select().from(salesCreditNotes).where(and(eq(salesCreditNotes.refTaxInvoiceId, id), eq(salesCreditNotes.companyId, companyId)));

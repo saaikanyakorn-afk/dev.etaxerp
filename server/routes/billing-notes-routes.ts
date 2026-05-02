@@ -274,7 +274,7 @@ app.post("/api/finance/billing-notes/:id/create-tax-invoice", requireAuth, async
     const taxInvoiceNo = await getNextDocNo(bn.companyId, "TIV", taxInvoices, taxInvoices.taxInvoiceNo, taxInvoices.companyId, tivDate);
 
     const result = await db.transaction(async (tx) => {
-      const singleIV = linkedDocs.length === 1 && linkedDocs[0].docType === "IV" ? linkedDocs[0].docId : null;
+      const singleIV = (linkedDocs as any[]).find((d: any) => d.docType === "IV")?.docId ?? null;
       const [tiv] = await tx.insert(taxInvoices).values({
         companyId: bn.companyId,
         taxInvoiceNo,
@@ -321,25 +321,29 @@ app.post("/api/finance/billing-notes/:id/create-tax-invoice", requireAuth, async
     });
 
     let journalResult = null;
-    try {
-      journalResult = await createAutoJournalEntry({
-        companyId: result.companyId,
-        documentType: "tax_invoice",
-        sourceDocType: "tax_invoice",
-        sourceDocId: result.id,
-        docDate: result.taxInvoiceDate,
-        docNo: result.taxInvoiceNo,
-        subtotal: String(subtotalVal),
-        vatAmount: String(vatVal),
-        totalAmount: String(totalAmt),
-        withholdingTax: "0",
-        currencyCode: "THB",
-        exchangeRate: "1",
-        userId: user.id,
-        customerName: bn.customerName,
-        paymentMethod: tivPaymentMethod || "เครดิต",
-      });
-    } catch (e: any) { console.error("[create-tiv-from-bn] journal error:", e.message); }
+    // ถ้า BN มี IV ผูกอยู่ = IV ได้บันทึก DR AR / CR Revenue ไปแล้ว → TIV ไม่สร้างซ้ำ
+    const bnHasIVDocs = (linkedDocs as any[]).some((d: any) => d.docType === "IV");
+    if (!bnHasIVDocs) {
+      try {
+        journalResult = await createAutoJournalEntry({
+          companyId: result.companyId,
+          documentType: "tax_invoice",
+          sourceDocType: "tax_invoice",
+          sourceDocId: result.id,
+          docDate: result.taxInvoiceDate,
+          docNo: result.taxInvoiceNo,
+          subtotal: String(subtotalVal),
+          vatAmount: String(vatVal),
+          totalAmount: String(totalAmt),
+          withholdingTax: "0",
+          currencyCode: "THB",
+          exchangeRate: "1",
+          userId: user.id,
+          customerName: bn.customerName,
+          paymentMethod: tivPaymentMethod || "เครดิต",
+        });
+      } catch (e: any) { console.error("[create-tiv-from-bn] journal error:", e.message); }
+    }
 
     // if BN already has a receipt, link it to the new TIV and mark as paid
     if (bn.receiptId) {
