@@ -85,13 +85,17 @@ export default function ChatWidget() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  const pathname = window.location.pathname;
+  const [location] = useLocation();
+  const pathname = location;
   const isPublicPage = pathname === "/" || pathname === "/landing" || pathname === "/about" || pathname === "/register" || pathname === "/login" || pathname.startsWith("/pricing") || pathname.startsWith("/ecommerce-pricing") || pathname.startsWith("/food-delivery-pricing") || pathname.startsWith("/accounting-pricing");
   const isLanding = pathname === "/" || pathname === "/landing";
   const isPosTerminal = pathname === "/pos/terminal" || pathname === "/restaurant-pos";
-  const showButtons = isLanding ? pastHero : !isPosTerminal;
+  const isDashboard = pathname === "/dashboard" || pathname.startsWith("/dashboard/");
+  const showButtons = user
+    ? (isDashboard && !isPosTerminal)
+    : (isLanding ? pastHero : !isPosTerminal);
   const showContactIcons = isPublicPage && (!isLanding || pastHero);
-  const showChatButton = !isLanding || pastHero;
+  const showChatButton = user ? isDashboard : (!isLanding || pastHero);
 
   const { data: messages = [] } = useQuery<ChatMessage[]>({
     queryKey: ["/api/chat/messages"],
