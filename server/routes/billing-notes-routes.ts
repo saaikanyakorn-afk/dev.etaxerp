@@ -320,30 +320,30 @@ app.post("/api/finance/billing-notes/:id/create-tax-invoice", requireAuth, async
       return tiv;
     });
 
+    // บันทึกบัญชีตาม formula DB (ไม่ใช้ hardcode DR AR)
+    // ส่ง linkedInvoiceId เพื่อให้ไม่เป็น standalone → ใช้ formula จาก DB (เช่น โอนเงินเข้าบัญชี)
+    const firstIVId = (linkedDocs as any[]).find((d: any) => d.docType === "IV")?.docId ?? undefined;
     let journalResult = null;
-    // ถ้า BN มี IV ผูกอยู่ = IV ได้บันทึก DR AR / CR Revenue ไปแล้ว → TIV ไม่สร้างซ้ำ
-    const bnHasIVDocs = (linkedDocs as any[]).some((d: any) => d.docType === "IV");
-    if (!bnHasIVDocs) {
-      try {
-        journalResult = await createAutoJournalEntry({
-          companyId: result.companyId,
-          documentType: "tax_invoice",
-          sourceDocType: "tax_invoice",
-          sourceDocId: result.id,
-          docDate: result.taxInvoiceDate,
-          docNo: result.taxInvoiceNo,
-          subtotal: String(subtotalVal),
-          vatAmount: String(vatVal),
-          totalAmount: String(totalAmt),
-          withholdingTax: "0",
-          currencyCode: "THB",
-          exchangeRate: "1",
-          userId: user.id,
-          customerName: bn.customerName,
-          paymentMethod: tivPaymentMethod || "เครดิต",
-        });
-      } catch (e: any) { console.error("[create-tiv-from-bn] journal error:", e.message); }
-    }
+    try {
+      journalResult = await createAutoJournalEntry({
+        companyId: result.companyId,
+        documentType: "tax_invoice",
+        sourceDocType: "tax_invoice",
+        sourceDocId: result.id,
+        docDate: result.taxInvoiceDate,
+        docNo: result.taxInvoiceNo,
+        subtotal: String(subtotalVal),
+        vatAmount: String(vatVal),
+        totalAmount: String(totalAmt),
+        withholdingTax: "0",
+        currencyCode: "THB",
+        exchangeRate: "1",
+        userId: user.id,
+        customerName: bn.customerName,
+        paymentMethod: tivPaymentMethod || "โอนเงิน",
+        linkedInvoiceId: firstIVId,
+      });
+    } catch (e: any) { console.error("[create-tiv-from-bn] journal error:", e.message); }
 
     // if BN already has a receipt, link it to the new TIV and mark as paid
     if (bn.receiptId) {
@@ -365,10 +365,31 @@ app.post("/api/finance/billing-notes/:id/create-tax-invoice", requireAuth, async
       }
     }
 
-    // mark BN as "invoiced" to prevent re-creating TIV
-    await db.update(billingNotes)
-      .set({ status: "invoiced", updatedBy: user.id, updatedAt: new Date() })
-      .where(eq(billingNotes.id, bnId));
+    // TIV จาก BN = เสร็จสิ้น (รวมใบเสร็จด้วย) → mark BN + IVs ทั้งหมด + TIV เองว่า "paid"
+    const effectivePayment = tivPaymentMethod || "โอนเงิน";
+    const isCreditTIV = effectivePayment === "เครดิต";
+    const bnIVDocs = (linkedDocs as any[]).filter((d: any) => d.docType === "IV");
+    if (!isCreditTIV && bnIVDocs.length > 0) {
+      // mark BN as paid
+      await db.update(billingNotes)
+        .set({ status: "invoiced", paymentStatus: "paid", updatedBy: user.id, updatedAt: new Date() })
+        .where(eq(billingNotes.id, bnId));
+      // mark TIV itself as paid (TIV = ใบกำกับภาษี/ใบเสร็จในเอกสารเดียว)
+      await db.update(taxInvoices)
+        .set({ paymentStatus: "paid", status: "paid" })
+        .where(eq(taxInvoices.id, result.id));
+      // mark all linked IVs as paid
+      for (const doc of bnIVDocs) {
+        await db.update(invoices)
+          .set({ paymentStatus: "paid", status: "paid" })
+          .where(and(eq(invoices.id, doc.docId), eq(invoices.companyId, bn.companyId)));
+      }
+    } else {
+      // credit TIV → BN ยังไม่ชำระ แต่ mark invoiced
+      await db.update(billingNotes)
+        .set({ status: "invoiced", updatedBy: user.id, updatedAt: new Date() })
+        .where(eq(billingNotes.id, bnId));
+    }
 
     res.json({ success: true, taxInvoice: result, journalResult });
   } catch (err: any) { res.status(500).json({ message: err.message }); }

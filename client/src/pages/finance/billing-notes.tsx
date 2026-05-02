@@ -977,15 +977,15 @@ export default function BillingNotes() {
                               {bn.status !== "paid" && bn.paymentStatus !== "paid" && (
                                 <>
                                   <DropdownMenuSeparator />
-                                  {/* ปุ่มสร้างใบกำกับ: แสดงเฉพาะเมื่อ BN จาก IV และยังไม่เคยออกใบกำกับ */}
+                                  {/* BN จาก IV → ปุ่มสร้างใบกำกับ (TIV รวมใบเสร็จ ไม่ต้องออกใบเสร็จแยก) */}
                                   {getBnPrimaryDocType(bn) === "IV" && bn.status !== "invoiced" && (
                                     <DropdownMenuItem onClick={() => openTIVDialog(bn)} data-testid={`menu-create-tiv-${bn.id}`}>
                                       <FileCheck className="h-3.5 w-3.5 mr-2 text-cyan-500" />
                                       สร้างใบกำกับภาษี
                                     </DropdownMenuItem>
                                   )}
-                                  {/* ปุ่มสร้างใบเสร็จ: แสดงเมื่อ BN จาก TIV/mixed หรือออกใบกำกับแล้ว (invoiced) */}
-                                  {(getBnPrimaryDocType(bn) !== "IV" || bn.status === "invoiced") && (
+                                  {/* BN จาก TIV/mixed → ปุ่มสร้างใบเสร็จ (ไม่แสดงสำหรับ BN จาก IV เพราะ TIV = ใบเสร็จแล้ว) */}
+                                  {getBnPrimaryDocType(bn) !== "IV" && (
                                     <DropdownMenuItem onClick={() => openReceiptDialog(bn)} data-testid={`menu-receipt-${bn.id}`}>
                                       <Receipt className="h-3.5 w-3.5 mr-2 text-green-500" />
                                       สร้างใบเสร็จรับเงิน
