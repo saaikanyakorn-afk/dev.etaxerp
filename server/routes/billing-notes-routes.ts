@@ -209,7 +209,7 @@ app.post("/api/finance/billing-notes/:id/create-receipt", requireAuth, async (re
         paymentMethod: paymentMethod || "โอนเงิน",
         paymentMethodAccountCode: pmAccCode,
         linkedInvoiceId: linkedDocs[0]?.docId,
-        overrideLines: body?.journalOverrideLines || req?.body?.journalOverrideLines || undefined,
+        overrideLines: req.body?.journalOverrideLines || undefined,
       });
     } catch (e) {}
 
@@ -595,7 +595,7 @@ app.post("/api/finance/batch-payment-voucher", requireAuth, async (req, res) => 
         paymentMethod: paymentMethod || "โอนเงิน",
         paymentMethodAccountCode: pmAccCode,
         linkedInvoiceId: documents[0].docId,
-        overrideLines: body?.journalOverrideLines || req?.body?.journalOverrideLines || undefined,
+        overrideLines: req.body?.journalOverrideLines || undefined,
       });
     } catch (e) {}
 

@@ -419,7 +419,7 @@ export default function BillingNotes() {
 
   const openReceiptDialog = (bn: any) => {
     setReceiptBillingNote(bn);
-    setReceiptPayMethod(paymentMethodsList?.[0]?.name || "");
+    setReceiptPayMethod(paymentMethodsList?.[0]?.accountCode || "");
     setReceiptPayDate(toLocalDateStr(new Date()));
     setReceiptWht("");
     setReceiptNotes("");
@@ -430,7 +430,7 @@ export default function BillingNotes() {
     setTivBillingNote(bn);
     setTivDate(toLocalDateStr(new Date()));
     setTivNotes("");
-    setTivPayMethod(paymentMethodsList?.[0]?.name || "");
+    setTivPayMethod(paymentMethodsList?.[0]?.accountCode || "");
     setTivWht("");
     setTivDialogOpen(true);
   };
@@ -1064,7 +1064,7 @@ export default function BillingNotes() {
                 </SelectTrigger>
                 <SelectContent>
                   {(paymentMethodsList || []).map((m: any) => (
-                    <SelectItem key={m.id} value={m.name}>{m.name}</SelectItem>
+                    <SelectItem key={m.id} value={m.accountCode}>{m.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -1145,7 +1145,7 @@ export default function BillingNotes() {
                 </SelectTrigger>
                 <SelectContent>
                   {(paymentMethodsList || []).map((m: any) => (
-                    <SelectItem key={m.id} value={m.name}>{m.name}</SelectItem>
+                    <SelectItem key={m.id} value={m.accountCode}>{m.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
