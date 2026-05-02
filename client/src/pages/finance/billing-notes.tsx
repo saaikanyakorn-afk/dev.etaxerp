@@ -89,6 +89,7 @@ export default function BillingNotes() {
   const [tivDialogOpen, setTivDialogOpen] = useState(false);
   const [tivBillingNote, setTivBillingNote] = useState<any>(null);
   const [tivDate, setTivDate] = useState(() => toLocalDateStr(new Date()));
+  const [tivPayMethod, setTivPayMethod] = useState("เครดิต");
   const [tivNotes, setTivNotes] = useState("");
   const [tivWht, setTivWht] = useState("");
   const tivWhtAmt = useMemo(() => {
@@ -425,6 +426,7 @@ export default function BillingNotes() {
   const openTIVDialog = (bn: any) => {
     setTivBillingNote(bn);
     setTivDate(toLocalDateStr(new Date()));
+    setTivPayMethod("เครดิต");
     setTivNotes("");
     setTivWht("");
     setTivDialogOpen(true);
@@ -434,7 +436,7 @@ export default function BillingNotes() {
     if (!tivBillingNote) return;
     createTIVFromBN.mutate({
       id: tivBillingNote.id,
-      payload: { taxInvoiceDate: tivDate, notes: tivNotes, withholdingTax: tivWhtAmt },
+      payload: { taxInvoiceDate: tivDate, paymentMethod: tivPayMethod, notes: tivNotes, withholdingTax: tivWhtAmt },
     });
   };
 
@@ -1186,6 +1188,24 @@ export default function BillingNotes() {
                 className="mt-1 h-9 text-sm"
                 data-testid="input-tiv-date"
               />
+            </div>
+            <div>
+              <Label className="text-xs">วิธีชำระเงิน</Label>
+              <Select value={tivPayMethod} onValueChange={setTivPayMethod}>
+                <SelectTrigger className="mt-1 h-9 text-sm" data-testid="select-tiv-pay-method">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="เครดิต">เครดิต (ยังไม่รับเงิน)</SelectItem>
+                  <SelectItem value="โอนเงิน">โอนเงิน</SelectItem>
+                  <SelectItem value="เงินสด">เงินสด</SelectItem>
+                  <SelectItem value="เช็ค">เช็ค</SelectItem>
+                  <SelectItem value="บัตรเครดิต">บัตรเครดิต</SelectItem>
+                  {(paymentMethodsList || []).filter((m: any) => !["โอนเงิน","เงินสด","เช็ค","บัตรเครดิต"].includes(m.name)).map((m: any) => (
+                    <SelectItem key={m.id} value={m.name}>{m.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div>
               <Label className="text-xs">อัตราภาษีถูกหัก ณ ที่จ่าย (%)</Label>
