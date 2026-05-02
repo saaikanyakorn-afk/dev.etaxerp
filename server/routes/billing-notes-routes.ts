@@ -209,9 +209,9 @@ app.post("/api/finance/billing-notes/:id/create-receipt", requireAuth, async (re
         paymentMethod: paymentMethod || "โอนเงิน",
         paymentMethodAccountCode: pmAccCode,
         linkedInvoiceId: linkedDocs[0]?.docId,
-        overrideLines: body?.journalOverrideLines || req?.body?.journalOverrideLines || undefined,
+        overrideLines: req.body?.journalOverrideLines || undefined,
       });
-    } catch (e) {}
+    } catch (e: any) { console.error("[create-receipt-from-bn] journal error:", e.message); }
 
     res.json({ success: true, receipt: result, journalResult });
   } catch (err: any) { res.status(500).json({ message: err.message }); }
@@ -307,8 +307,8 @@ app.post("/api/finance/billing-notes/:id/create-tax-invoice", requireAuth, async
     try {
       journalResult = await createAutoJournalEntry({
         companyId: result.companyId,
-        documentType: "taxInvoice",
-        sourceDocType: "taxInvoice",
+        documentType: "tax_invoice",
+        sourceDocType: "tax_invoice",
         sourceDocId: result.id,
         docDate: result.taxInvoiceDate,
         docNo: result.taxInvoiceNo,
@@ -321,7 +321,6 @@ app.post("/api/finance/billing-notes/:id/create-tax-invoice", requireAuth, async
         userId: user.id,
         customerName: bn.customerName,
         paymentMethod: "เครดิต",
-        linkedInvoiceId: linkedDocs[0]?.docId,
       });
     } catch (e: any) { console.error("[create-tiv-from-bn] journal error:", e.message); }
 
