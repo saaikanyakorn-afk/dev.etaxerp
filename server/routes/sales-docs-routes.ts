@@ -789,26 +789,33 @@ app.get("/api/invoices", requireAuth, requireAnyModule("sales", "ecommerce"), as
       const result = rows.map((r: any) => ({ ...r, createdByName: r.createdBy ? userMap[r.createdBy] || "-" : "-", updatedByName: r.updatedBy ? userMap[r.updatedBy] || "-" : "-", paidAmount: paidMap[r.id] || 0 }));
       return res.json(paginatedResponse(result, Number(total), { page, pageSize, offset }));
     }
+    const _diag: string[] = [`A:cid=${companyId}`];
     rows = await db.select().from(invoices).where(whereClause).orderBy(desc(invoices.invoiceDate), desc(invoices.id));
+    _diag.push(`B:rows=${rows.length}`);
     const userIds = Array.from(new Set(rows.map((r: any) => r.createdBy).concat(rows.map((r: any) => r.updatedBy)).filter(Boolean))) as number[];
     const userMap: Record<number, string> = {};
     if (userIds.length > 0) {
       const userRows = await db.select({ id: users.id, fullName: users.fullName }).from(users).where(inArray(users.id, userIds));
       for (const u of userRows) userMap[u.id] = u.fullName;
     }
+    _diag.push(`C:umap=${Object.keys(userMap).length}`);
     const paidMap = await computeInvoicePaidAmounts(rows.map((r: any) => r.id));
+    _diag.push(`D:paid=${Object.keys(paidMap).length}`);
     const bnLinkedInvIds = new Set<number>();
     const invApprovalMap: Record<number, string> = {};
     if (rows.length > 0) {
       const idArr = `'{${rows.map((r: any) => r.id).join(",")}}'::int[]`;
       const bnLinks = await db.execute(sql.raw(`SELECT doc_id FROM billing_note_linked_docs WHERE doc_type = 'IV' AND doc_id = ANY(${idArr})`));
       for (const l of (bnLinks as any).rows || []) bnLinkedInvIds.add(l.doc_id);
+      _diag.push(`E:bn=${bnLinkedInvIds.size}`);
       const arRows = await db.execute(sql.raw(`SELECT document_id, status FROM approval_requests WHERE document_type = 'invoice' AND document_id = ANY(${idArr})`));
       for (const ar of (arRows as any).rows || []) invApprovalMap[ar.document_id] = ar.status;
+      _diag.push(`F:ar=${Object.keys(invApprovalMap).length}`);
     }
     const result = rows.map((r: any) => ({ ...r, createdByName: r.createdBy ? userMap[r.createdBy] || "-" : "-", updatedByName: r.updatedBy ? userMap[r.updatedBy] || "-" : "-", paidAmount: paidMap[r.id] || 0, hasBillingNote: bnLinkedInvIds.has(r.id), approvalStatus: invApprovalMap[r.id] || null }));
-    res.json(result);
-  } catch (err: any) { console.error("[invoices] list error:", err); res.status(500).json({ message: err.message }); }
+    _diag.push(`G:res=${result.length}`);
+    res.json({ _diagInfo: _diag.join(" "), items: result });
+  } catch (err: any) { res.status(500).json({ _diagInfo: "ERROR", message: err.message, detail: err.stack?.split('\n').slice(0,4).join(' → ') }); }
 });
 
 app.get("/api/invoices/next-no", requireAuth, requireAnyModule("sales", "ecommerce"), async (req, res) => {

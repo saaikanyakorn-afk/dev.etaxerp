@@ -108,19 +108,24 @@ export default function InvoiceList() {
 
   const { dateEra, dateFmt } = useDateSettings();
 
-  const { data: invoices = [], isLoading } = useQuery<any[]>({
+  const { data: _invoiceResp, isLoading } = useQuery<any>({
     queryKey: ["/api/invoices", companyId, searchText],
     queryFn: async () => {
-      if (!companyId) return [];
+      if (!companyId) return { items: [], _diagInfo: "no companyId" };
       const params = new URLSearchParams({ companyId: String(companyId) });
       if (searchText) params.set("search", searchText);
       const res = await fetch(`/api/invoices?${params}`, { credentials: "include" });
-      if (!res.ok) return [];
-      return res.json();
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) return { items: [], _diagInfo: `HTTP ${res.status}: ${body?.message || res.statusText}`, _error: body?.detail || body?.message || String(res.status) };
+      if (Array.isArray(body)) return { items: body, _diagInfo: `legacy array len=${body.length}` };
+      return body;
     },
     enabled: !!companyId,
     staleTime: 30_000,
   });
+  const invoices: any[] = Array.isArray(_invoiceResp?.items) ? _invoiceResp.items : [];
+  const _diagInfo: string = _invoiceResp?._diagInfo || "";
+  const _diagError: string = _invoiceResp?._error || "";
 
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => {
@@ -240,6 +245,13 @@ export default function InvoiceList() {
             <Search className="h-3.5 w-3.5 mr-1" /> ค้นหา
           </Button>
         </div>
+
+        {_diagInfo && (
+          <div style={{ background: _diagError ? "#fee2e2" : "#fef9c3", border: `1px solid ${_diagError ? "#f87171" : "#fbbf24"}`, borderRadius: 6, padding: "8px 12px", marginBottom: 8, fontSize: 13, fontFamily: "monospace", wordBreak: "break-all" }}>
+            <strong>🔍 API Diag:</strong> {_diagInfo}
+            {_diagError && <><br/><strong style={{ color: "#dc2626" }}>❌ Error:</strong> {_diagError}</>}
+          </div>
+        )}
 
         <Card className="rounded border shadow-sm bg-white">
           <CardHeader className="p-3 border-b space-y-3">
