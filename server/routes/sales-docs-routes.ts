@@ -3117,12 +3117,24 @@ app.get("/api/related-documents/:docType/:docId", requireAuth, async (req, res) 
       if (blLinks.length > 0) {
         const blIds = blLinks.map(l => l.billingNoteId);
         const bls = await db.select().from(billingNotes).where(and(inArray(billingNotes.id, blIds), eq(billingNotes.companyId, companyId)));
-        for (const bl of bls) addUnique({ type: "billing_note", id: bl.id, docNo: bl.billingNo, date: bl.billingDate, status: bl.status, totalAmount: String(bl.totalAmount) });
+        for (const bl of bls) {
+          addUnique({ type: "billing_note", id: bl.id, docNo: bl.billingNo, date: bl.billingDate, status: bl.status, totalAmount: String(bl.totalAmount) });
+          if (bl.receiptId) {
+            const [rcFromBl] = await db.select().from(receipts).where(and(eq(receipts.id, bl.receiptId), eq(receipts.companyId, companyId)));
+            if (rcFromBl) addUnique({ type: "receipt", id: rcFromBl.id, docNo: rcFromBl.receiptNo, date: rcFromBl.receiptDate, status: rcFromBl.status, totalAmount: rcFromBl.totalAmount });
+          }
+        }
       }
       if (tx.refDoc) {
         const refNo = tx.refDoc.trim();
         const blsByRef = await db.select().from(billingNotes).where(and(eq(billingNotes.billingNo, refNo), eq(billingNotes.companyId, companyId)));
-        for (const bl of blsByRef) addUnique({ type: "billing_note", id: bl.id, docNo: bl.billingNo, date: bl.billingDate, status: bl.status, totalAmount: String(bl.totalAmount) });
+        for (const bl of blsByRef) {
+          addUnique({ type: "billing_note", id: bl.id, docNo: bl.billingNo, date: bl.billingDate, status: bl.status, totalAmount: String(bl.totalAmount) });
+          if (bl.receiptId) {
+            const [rcFromBl] = await db.select().from(receipts).where(and(eq(receipts.id, bl.receiptId), eq(receipts.companyId, companyId)));
+            if (rcFromBl) addUnique({ type: "receipt", id: rcFromBl.id, docNo: rcFromBl.receiptNo, date: rcFromBl.receiptDate, status: rcFromBl.status, totalAmount: rcFromBl.totalAmount });
+          }
+        }
       }
       const cnsByTaxInv = await db.select().from(salesCreditNotes).where(and(eq(salesCreditNotes.refTaxInvoiceId, id), eq(salesCreditNotes.companyId, companyId)));
       for (const cn of cnsByTaxInv) addUnique({ type: "credit_note", id: cn.id, docNo: cn.creditNoteNo, date: cn.creditNoteDate, status: cn.status, totalAmount: cn.totalAmount });
