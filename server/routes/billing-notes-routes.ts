@@ -225,7 +225,7 @@ app.post("/api/finance/billing-notes/:id/create-tax-invoice", requireAuth, async
     const user = req.user as any;
     if (!(await verifyCompanyAccess(user, bn.companyId))) return res.status(403).json({ message: "ไม่มีสิทธิ์" });
 
-    const { taxInvoiceDate, notes: tivNotes } = req.body;
+    const { taxInvoiceDate, notes: tivNotes, withholdingTax } = req.body;
     const linkedDocs = await db.select().from(billingNoteLinkedDocs)
       .where(eq(billingNoteLinkedDocs.billingNoteId, bnId));
     if (linkedDocs.length === 0) return res.status(400).json({ message: "ใบวางบิลไม่มีรายการเอกสาร" });
@@ -251,7 +251,8 @@ app.post("/api/finance/billing-notes/:id/create-tax-invoice", requireAuth, async
       subtotalVal = parseFloat(bn.totalAmount || "0");
       vatVal = 0;
     }
-    const totalAmt = Math.round((subtotalVal + vatVal) * 100) / 100;
+    const whtAmt = parseFloat(withholdingTax) || 0;
+    const totalAmt = Math.round((subtotalVal + vatVal - whtAmt) * 100) / 100;
 
     const tivDate = taxInvoiceDate || new Date().toISOString().split("T")[0];
     const taxInvoiceNo = await getNextDocNo(bn.companyId, "TIV", taxInvoices, taxInvoices.taxInvoiceNo, taxInvoices.companyId, tivDate);
@@ -270,7 +271,7 @@ app.post("/api/finance/billing-notes/:id/create-tax-invoice", requireAuth, async
         subtotal: String(subtotalVal),
         vatAmount: String(vatVal),
         totalAmount: String(totalAmt),
-        withholdingTax: "0",
+        withholdingTax: String(whtAmt),
         discountAmount: "0",
         status: "approved",
         priceMode: "excluded",
@@ -314,7 +315,7 @@ app.post("/api/finance/billing-notes/:id/create-tax-invoice", requireAuth, async
         subtotal: String(subtotalVal),
         vatAmount: String(vatVal),
         totalAmount: String(totalAmt),
-        withholdingTax: "0",
+        withholdingTax: String(whtAmt),
         currencyCode: "THB",
         exchangeRate: "1",
         userId: user.id,

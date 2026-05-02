@@ -90,6 +90,13 @@ export default function BillingNotes() {
   const [tivBillingNote, setTivBillingNote] = useState<any>(null);
   const [tivDate, setTivDate] = useState(() => toLocalDateStr(new Date()));
   const [tivNotes, setTivNotes] = useState("");
+  const [tivWht, setTivWht] = useState("");
+  const tivWhtAmt = useMemo(() => {
+    const rate = parseFloat(tivWht) || 0;
+    const base = parseFloat(tivBillingNote?.whtBase || "0") || parseFloat(tivBillingNote?.totalAmount || "0") || 0;
+    if (rate <= 0 || base <= 0) return 0;
+    return Math.round(rate / 100 * base * 100) / 100;
+  }, [tivWht, tivBillingNote]);
 
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editBn, setEditBn] = useState<any>(null);
@@ -419,6 +426,7 @@ export default function BillingNotes() {
     setTivBillingNote(bn);
     setTivDate(toLocalDateStr(new Date()));
     setTivNotes("");
+    setTivWht("");
     setTivDialogOpen(true);
   };
 
@@ -426,7 +434,7 @@ export default function BillingNotes() {
     if (!tivBillingNote) return;
     createTIVFromBN.mutate({
       id: tivBillingNote.id,
-      payload: { taxInvoiceDate: tivDate, notes: tivNotes },
+      payload: { taxInvoiceDate: tivDate, notes: tivNotes, withholdingTax: tivWhtAmt },
     });
   };
 
@@ -1169,6 +1177,23 @@ export default function BillingNotes() {
               />
             </div>
             <div>
+              <Label className="text-xs">อัตราภาษีถูกหัก ณ ที่จ่าย (%)</Label>
+              <div className="relative mt-1">
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  max="100"
+                  value={tivWht}
+                  onChange={(e) => setTivWht(e.target.value)}
+                  placeholder="0"
+                  className="h-9 text-sm pr-8"
+                  data-testid="input-tiv-wht"
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">%</span>
+              </div>
+            </div>
+            <div>
               <Label className="text-xs">หมายเหตุ</Label>
               <Input
                 value={tivNotes}
@@ -1178,6 +1203,19 @@ export default function BillingNotes() {
                 data-testid="input-tiv-notes"
               />
             </div>
+            {tivWhtAmt > 0 && tivBillingNote && (
+              <div className="bg-amber-50 rounded-lg p-3 flex items-center justify-between">
+                <div className="text-sm text-amber-800">
+                  <span>ยอดเอกสาร ฿{fmt(parseFloat(tivBillingNote.totalAmount) || 0)}</span>
+                  <span className="mx-2">-</span>
+                  <span>WHT {parseFloat(tivWht) || 0}% = ฿{fmt(tivWhtAmt)}</span>
+                </div>
+                <div className="text-right">
+                  <span className="text-xs text-amber-600">ยอดสุทธิ</span>
+                  <p className="text-lg font-bold" style={{ color: "#05b187" }}>฿{fmt((parseFloat(tivBillingNote.totalAmount) || 0) - tivWhtAmt)}</p>
+                </div>
+              </div>
+            )}
             {tivBillingNote && (
               <div className="bg-cyan-50 rounded-lg p-3">
                 <div className="text-xs text-cyan-700 mb-1">รายการเอกสารที่เชื่อมโยง</div>
