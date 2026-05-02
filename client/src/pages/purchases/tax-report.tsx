@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useMemo } from "react";
+import { useLocation } from "wouter";
 import Layout from "@/components/layout";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -38,6 +39,7 @@ function docTypeLabel(type: string): string {
 }
 
 export default function PurchaseTaxReport() {
+  const [, navigate] = useLocation();
   const { selectedCompany } = useCompany();
   const { branchList } = useDocDropdowns();
   const companyId = selectedCompany?.id;
@@ -577,7 +579,18 @@ export default function PurchaseTaxReport() {
                         <TableCell className="text-center text-xs text-muted-foreground">{row.no}</TableCell>
                         <TableCell className="text-xs whitespace-nowrap min-w-[90px]">{formatDate(row.date, dateEra, dateFmt)}</TableCell>
                         <TableCell className="text-xs font-medium">{row.taxInvoiceRef}</TableCell>
-                        <TableCell className="text-xs">{row.docNo}</TableCell>
+                        <TableCell className="text-xs">
+                          <span
+                            className="text-blue-600 hover:underline cursor-pointer"
+                            onClick={() => {
+                              const base = row.docType === "expense" ? "/purchases/expense" : "/purchases/invoice";
+                              navigate(`${base}?search=${encodeURIComponent(row.docNo)}&companyId=${companyId}`);
+                            }}
+                            data-testid={`link-doc-${row.docNo}`}
+                          >
+                            {row.docNo}
+                          </span>
+                        </TableCell>
                         <TableCell className="text-xs">{row.vendorName}</TableCell>
                         <TableCell className="text-xs font-mono text-center">{row.vendorTaxId}</TableCell>
                         <TableCell className="text-xs text-center">{row.branch}</TableCell>

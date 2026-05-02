@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useMemo } from "react";
+import { useLocation } from "wouter";
 import Layout from "@/components/layout";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -28,6 +29,7 @@ function getLastDayOfMonth(y: number, m: number): number {
 }
 
 export default function SalesTaxReport() {
+  const [, navigate] = useLocation();
   const { selectedCompany } = useCompany();
   const { branchList } = useDocDropdowns();
   const companyId = selectedCompany?.id;
@@ -550,7 +552,16 @@ export default function SalesTaxReport() {
                         <TableCell className="text-center text-xs text-muted-foreground">{row.no}</TableCell>
                         <TableCell className="text-xs whitespace-nowrap min-w-[90px]">{formatDate(row.date, dateEra, dateFmt)}</TableCell>
                         <TableCell className="text-xs font-medium">
-                          {row.taxInvoiceNo}
+                          <span
+                            className="text-blue-600 hover:underline cursor-pointer"
+                            onClick={() => {
+                              const base = row.isCreditNote ? "/sales/credit-note" : "/sales/tax-invoice";
+                              navigate(`${base}?search=${encodeURIComponent(row.taxInvoiceNo)}&companyId=${companyId}`);
+                            }}
+                            data-testid={`link-doc-${row.taxInvoiceNo}`}
+                          >
+                            {row.taxInvoiceNo}
+                          </span>
                           {row.isDebitNote && <span className="ml-1 text-[10px] text-amber-600 font-medium">(เพิ่มหนี้)</span>}
                         </TableCell>
                         <TableCell className="text-xs">{row.customerName}</TableCell>
