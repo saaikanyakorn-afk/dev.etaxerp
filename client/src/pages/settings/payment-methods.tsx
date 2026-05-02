@@ -253,16 +253,10 @@ export default function PaymentMethodSettings() {
                                 </SelectContent>
                               </Select>
                             </td>
-                            <td className="px-3 py-2">
+                            <td className="px-3 py-2 min-w-[160px]">
                               <div className="flex flex-col gap-1">
-                                <div className="flex items-center gap-1">
-                                  <span className="text-xs text-slate-400 w-10 shrink-0">ธนาคาร</span>
-                                  <Input data-testid={`input-edit-bank-name-${m.id}`} value={editForm.bankName || ""} onChange={e => setEditForm(prev => prev ? { ...prev, bankName: e.target.value } : prev)} placeholder="เช่น ธนาคารกสิกร" className="h-8 text-sm" />
-                                </div>
-                                <div className="flex items-center gap-1">
-                                  <span className="text-xs text-slate-400 w-10 shrink-0">เลขที่</span>
-                                  <Input data-testid={`input-edit-bank-account-no-${m.id}`} value={editForm.bankAccountNo || ""} onChange={e => setEditForm(prev => prev ? { ...prev, bankAccountNo: e.target.value } : prev)} placeholder="เช่น 123-4-56789-0" className="h-8 text-sm" />
-                                </div>
+                                <Input data-testid={`input-edit-bank-name-${m.id}`} value={editForm.bankName || ""} onChange={e => setEditForm(prev => prev ? { ...prev, bankName: e.target.value } : prev)} placeholder="ชื่อธนาคาร" className="h-8 text-sm w-full" />
+                                <Input data-testid={`input-edit-bank-account-no-${m.id}`} value={editForm.bankAccountNo || ""} onChange={e => setEditForm(prev => prev ? { ...prev, bankAccountNo: e.target.value } : prev)} placeholder="เลขที่บัญชี" className="h-8 text-sm w-full" />
                               </div>
                             </td>
                             <td className="px-3 py-2 text-center">
