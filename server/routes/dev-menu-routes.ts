@@ -987,9 +987,12 @@ app.get("/api/dev/invoice-recompute-preview", requireAdmin, async (req, res) => 
         sources.includes("TIV") && sources.includes("WHT") && !sources.includes("Receipt") && !sources.includes("BatchReceipt") ? "Case6: TIV+WHT" :
         sources.includes("WHT") && !sources.includes("TIV") ? "Case5: เสร็จ+WHT" :
         "Case8: อื่นๆ";
+      const correctTotal = Math.round((subtotal + vatAmount - whtField) * 100) / 100;
+      const totalWillChange = Math.abs(total - correctTotal) > 0.01;
       return {
         id: inv.id, invoiceNo: inv.invoice_no, customerName: inv.customer_name,
-        total, subtotal, vatAmount, whtField, direct, batch, tiv, rawPaid, whtCounted, effectivePaid,
+        total, subtotal, vatAmount, whtField, correctTotal, totalWillChange,
+        direct, batch, tiv, rawPaid, whtCounted, effectivePaid,
         currentStatus: inv.payment_status, newStatus, caseLabel,
         willChange: inv.payment_status !== newStatus,
       };
@@ -1153,8 +1156,8 @@ async function loadData(){
     const r = await fetch('/api/dev/invoice-recompute-preview?companyId='+cid,{credentials:'include'});
     if(!r.ok){ const e=await r.json(); throw new Error(e.message); }
     allData = await r.json();
-    toChange = allData.filter(d=>d.willChange);
-    const unknowns = toChange.filter(d=>isUnknownCase(d.caseLabel));
+    toChange = allData.filter(d=>d.willChange || d.totalWillChange);
+    const unknowns = toChange.filter(d=>d.willChange && isUnknownCase(d.caseLabel));
 
     if(unknowns.length > 0){
       const alertEl = document.getElementById('unknownAlert');
@@ -1178,15 +1181,17 @@ async function loadData(){
 }
 
 function render(){
-  const willChange = toChange.length;
-  const total = allData.length;
+  const statusChange = allData.filter(d=>d.willChange).length;
+  const totalChange = allData.filter(d=>d.totalWillChange).length;
+  const bothOk = allData.length - toChange.length;
   document.getElementById('stats').innerHTML =
-    '<div class="stat"><div class="stat-n stat-total">'+total+'</div><div>ทั้งหมด</div></div>'+
-    '<div class="stat"><div class="stat-n stat-will">'+willChange+'</div><div>จะเปลี่ยน</div></div>'+
-    '<div class="stat"><div class="stat-n stat-ok">'+(total-willChange)+'</div><div>ถูกต้องแล้ว</div></div>';
+    '<div class="stat"><div class="stat-n stat-total">'+allData.length+'</div><div>ทั้งหมด</div></div>'+
+    '<div class="stat"><div class="stat-n stat-will">'+statusChange+'</div><div>status ผิด</div></div>'+
+    '<div class="stat"><div class="stat-n" style="color:#7c3aed">'+totalChange+'</div><div>total ผิด</div></div>'+
+    '<div class="stat"><div class="stat-n stat-ok">'+bothOk+'</div><div>ถูกต้องทั้งคู่</div></div>';
 
   if(toChange.length===0 && allData.length>0){
-    document.getElementById('out').innerHTML='<div class="loading" style="color:#16a34a;font-weight:600">✅ ทุก invoice มีสถานะถูกต้องแล้ว ไม่มีรายการที่ต้องเปลี่ยน</div>';
+    document.getElementById('out').innerHTML='<div class="loading" style="color:#16a34a;font-weight:600">✅ ทุก invoice มีสถานะและยอดถูกต้องแล้ว</div>';
     return;
   }
 
@@ -1195,9 +1200,24 @@ function render(){
     const rowCls = unknown ? 'will-change unknown-row' : 'will-change';
     const caseBadgeCls = unknown ? 'case-badge case-unknown' : 'case-badge';
     const unknownFlag = unknown ? ' <span style="color:#dc2626;font-weight:700">⚠ ไม่รู้จัก</span>' : '';
+
+    // total_amount cell: highlight if wrong
+    const totalCell = d.totalWillChange
+      ? '<td class="num" style="color:#dc2626;font-weight:700" title="ควรเป็น '+fmt(d.correctTotal)+'">'+fmt(d.total)+' ❌</td>'
+      : '<td class="num" style="color:#16a34a">'+fmt(d.total)+' ✓</td>';
+    const correctTotalCell = d.totalWillChange
+      ? '<td class="num" style="color:#7c3aed;font-weight:700">'+fmt(d.correctTotal)+'</td>'
+      : '<td class="num" style="color:#6b7280;font-size:11px">—</td>';
+
+    // status change cell
+    const statusCell = d.willChange
+      ? '<td>'+badge(d.currentStatus)+' → '+badge(d.newStatus)+'</td>'
+      : '<td style="color:#16a34a;font-size:11px">ไม่เปลี่ยน ✓</td>';
+
     const actionCell = displayOnly
       ? '<td class="row-status" style="color:#d97706">⏳ รอแก้ไข</td>'
       : '<td class="row-status" id="rs-'+d.id+'">รอดำเนินการ</td>';
+
     return '<tr class="'+rowCls+'" id="row-'+d.id+'">'+
       '<td class="num">'+(i+1)+'</td>'+
       '<td><b>'+d.invoiceNo+'</b></td>'+
@@ -1205,10 +1225,10 @@ function render(){
       '<td class="num">'+fmt(d.subtotal)+'</td>'+
       '<td class="num">'+fmt(d.vatAmount)+'</td>'+
       '<td class="num">'+fmt(d.whtField)+'</td>'+
-      '<td class="num">'+fmt(d.total)+'</td>'+
+      totalCell+
+      correctTotalCell+
       '<td class="num">'+fmt(d.effectivePaid)+'</td>'+
-      '<td>'+badge(d.currentStatus)+'</td>'+
-      '<td>→ '+badge(d.newStatus)+'</td>'+
+      statusCell+
       '<td><span class="'+caseBadgeCls+'">'+d.caseLabel+'</span>'+unknownFlag+'</td>'+
       actionCell+
       '</tr>';
@@ -1217,8 +1237,9 @@ function render(){
   document.getElementById('out').innerHTML = rows
     ? '<table><thead><tr>'+
       '<th>#</th><th>เลขที่</th><th>ลูกค้า</th>'+
-      '<th>หลังส่วนลด</th><th>แวท</th><th>WHT</th><th>รวมสุทธิ</th>'+
-      '<th>ยอดรับรวม</th><th>สถานะปัจจุบัน</th><th>สถานะใหม่</th>'+
+      '<th>หลังส่วนลด</th><th>แวท</th><th>WHT</th>'+
+      '<th>รวมสุทธิ (DB)</th><th>คำนวณ</th>'+
+      '<th>ยอดรับรวม</th><th>สถานะ</th>'+
       '<th>Case</th><th>ผล</th>'+
       '</tr></thead><tbody>'+rows+'</tbody></table>'
     : '<div class="loading">ไม่มีรายการ</div>';
