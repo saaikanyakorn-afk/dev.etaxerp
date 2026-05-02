@@ -84,7 +84,7 @@ function fmt(val: string | number | null | undefined): string {
 }
 
 export default function InvoiceList() {
-  const { selectedCompany } = useCompany();
+  const { selectedCompany, selectedCompanyId } = useCompany();
   const companyId = selectedCompany?.id;
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -246,12 +246,10 @@ export default function InvoiceList() {
           </Button>
         </div>
 
-        {_diagInfo && (
-          <div style={{ background: _diagError ? "#fee2e2" : "#fef9c3", border: `1px solid ${_diagError ? "#f87171" : "#fbbf24"}`, borderRadius: 6, padding: "8px 12px", marginBottom: 8, fontSize: 13, fontFamily: "monospace", wordBreak: "break-all" }}>
-            <strong>🔍 API Diag:</strong> {_diagInfo}
-            {_diagError && <><br/><strong style={{ color: "#dc2626" }}>❌ Error:</strong> {_diagError}</>}
-          </div>
-        )}
+        <div style={{ background: _diagError ? "#fee2e2" : "#fef9c3", border: `1px solid ${_diagError ? "#f87171" : "#fbbf24"}`, borderRadius: 6, padding: "8px 12px", marginBottom: 8, fontSize: 12, fontFamily: "monospace", wordBreak: "break-all" }}>
+          <strong>🔍 Diag:</strong> cid={String(companyId)} selId={String(selectedCompanyId)} loading={String(isLoading)} invoices={invoices.length} | {_diagInfo || (isLoading ? "fetching..." : "NO_RESPONSE")}
+          {_diagError && <><br/><strong style={{ color: "#dc2626" }}>❌ Error:</strong> {_diagError}</>}
+        </div>
 
         <Card className="rounded border shadow-sm bg-white">
           <CardHeader className="p-3 border-b space-y-3">
