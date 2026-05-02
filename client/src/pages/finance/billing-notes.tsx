@@ -1064,7 +1064,9 @@ export default function BillingNotes() {
                 </SelectTrigger>
                 <SelectContent>
                   {(paymentMethodsList || []).map((m: any) => (
-                    <SelectItem key={m.id} value={m.accountCode}>{m.name}</SelectItem>
+                    <SelectItem key={m.id} value={m.accountCode}>
+                      {m.name}{m.bankName ? ` · ${m.bankName}` : ""}{m.bankAccountNo ? ` ${m.bankAccountNo}` : ""}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -1145,7 +1147,9 @@ export default function BillingNotes() {
                 </SelectTrigger>
                 <SelectContent>
                   {(paymentMethodsList || []).map((m: any) => (
-                    <SelectItem key={m.id} value={m.accountCode}>{m.name}</SelectItem>
+                    <SelectItem key={m.id} value={m.accountCode}>
+                      {m.name}{m.bankName ? ` · ${m.bankName}` : ""}{m.bankAccountNo ? ` ${m.bankAccountNo}` : ""}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
