@@ -901,35 +901,6 @@ export default function BillingNotes() {
                           <span className="text-xs text-muted-foreground">{formatDate(bn.billingDate, dateEra, dateFmt)}</span>
                           {billingStatusBadge(bn.status)}
                           <span className="text-sm font-bold" style={{ color: "#fb9678" }}>฿{fmt(parseFloat(bn.totalAmount) || 0)}</span>
-                          {isUnpaid && (() => {
-                            const docType = getBnPrimaryDocType(bn);
-                            if (docType === "IV") {
-                              return (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="h-7 text-xs border-cyan-200 text-cyan-700 hover:bg-cyan-50"
-                                  onClick={(e) => { e.stopPropagation(); openTIVDialog(bn); }}
-                                  data-testid={`button-create-tax-invoice-${bn.id}`}
-                                >
-                                  <FileCheck className="h-3 w-3 mr-1" />
-                                  สร้างใบกำกับภาษี
-                                </Button>
-                              );
-                            }
-                            return (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-7 text-xs border-green-200 text-green-700 hover:bg-green-50"
-                                onClick={(e) => { e.stopPropagation(); openReceiptDialog(bn); }}
-                                data-testid={`button-create-receipt-${bn.id}`}
-                              >
-                                <Receipt className="h-3 w-3 mr-1" />
-                                สร้างใบเสร็จรับเงิน
-                              </Button>
-                            );
-                          })()}
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button
