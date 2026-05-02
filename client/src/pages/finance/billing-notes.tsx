@@ -91,6 +91,13 @@ export default function BillingNotes() {
   const [tivDate, setTivDate] = useState(() => toLocalDateStr(new Date()));
   const [tivNotes, setTivNotes] = useState("");
   const [tivPayMethod, setTivPayMethod] = useState("");
+  const [tivWht, setTivWht] = useState("");
+  const tivWhtAmt = useMemo(() => {
+    const rate = parseFloat(tivWht) || 0;
+    const base = parseFloat(tivBillingNote?.whtBase || "0") || parseFloat(tivBillingNote?.totalAmount || "0") || 0;
+    if (rate <= 0 || base <= 0) return 0;
+    return Math.round(rate / 100 * base * 100) / 100;
+  }, [tivWht, tivBillingNote]);
 
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editBn, setEditBn] = useState<any>(null);
@@ -421,6 +428,7 @@ export default function BillingNotes() {
     setTivDate(toLocalDateStr(new Date()));
     setTivNotes("");
     setTivPayMethod(paymentMethodsList?.[0]?.name || "");
+    setTivWht("");
     setTivDialogOpen(true);
   };
 
@@ -428,7 +436,7 @@ export default function BillingNotes() {
     if (!tivBillingNote) return;
     createTIVFromBN.mutate({
       id: tivBillingNote.id,
-      payload: { taxInvoiceDate: tivDate, notes: tivNotes, paymentMethod: tivPayMethod },
+      payload: { taxInvoiceDate: tivDate, notes: tivNotes, paymentMethod: tivPayMethod, withholdingTax: tivWhtAmt },
     });
   };
 
@@ -1022,7 +1030,7 @@ export default function BillingNotes() {
       <Dialog open={receiptDialogOpen} onOpenChange={setReceiptDialogOpen}>
         <DialogContent className="sm:max-w-[480px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>สร้างใบรับเงินจากใบวางบิล</DialogTitle>
+            <DialogTitle>สร้างใบเสร็จรับเงินจากใบวางบิล</DialogTitle>
             <DialogDescription>
               {receiptBillingNote && (
                 <span>ใบวางบิล: {receiptBillingNote.billingNo} | ยอด ฿{fmt(parseFloat(receiptBillingNote.totalAmount) || 0)}</span>
@@ -1031,10 +1039,14 @@ export default function BillingNotes() {
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div>
+              <Label className="text-xs">วันที่รับเงิน</Label>
+              <ThaiDateInput value={receiptPayDate} onChange={setReceiptPayDate} dateEra={dateEra} dateFmt={dateFmt} className="mt-1 h-9 text-sm" data-testid="input-receipt-pay-date" />
+            </div>
+            <div>
               <Label className="text-xs">วิธีรับเงิน</Label>
               <Select value={receiptPayMethod} onValueChange={setReceiptPayMethod}>
                 <SelectTrigger className="mt-1 h-9 text-sm" data-testid="select-receipt-pay-method">
-                  <SelectValue />
+                  <SelectValue placeholder="เลือกวิธีรับเงิน" />
                 </SelectTrigger>
                 <SelectContent>
                   {(paymentMethodsList || []).map((m: any) => (
@@ -1044,80 +1056,50 @@ export default function BillingNotes() {
               </Select>
             </div>
             <div>
-              <Label className="text-xs">วันที่รับเงิน</Label>
-              <ThaiDateInput
-                value={receiptPayDate}
-                onChange={setReceiptPayDate}
-                dateEra={dateEra}
-                dateFmt={dateFmt}
-                className="mt-1 h-9 text-sm"
-                data-testid="input-receipt-pay-date"
-              />
-            </div>
-            <div>
               <Label className="text-xs">อัตราภาษีถูกหัก ณ ที่จ่าย (%)</Label>
               <div className="relative mt-1">
-                <Input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  max="100"
-                  value={receiptWht}
-                  onChange={(e) => setReceiptWht(e.target.value)}
-                  placeholder="0"
-                  className="h-9 text-sm pr-8"
-                  data-testid="input-receipt-wht"
-                />
+                <Input type="number" step="0.01" min="0" max="100" value={receiptWht} onChange={(e) => setReceiptWht(e.target.value)} placeholder="0" className="h-9 text-sm pr-8" data-testid="input-receipt-wht" />
                 <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">%</span>
               </div>
             </div>
             {receiptWhtAmt > 0 && receiptBillingNote && (
               <div className="bg-amber-50 rounded-lg p-3 flex items-center justify-between">
                 <div className="text-sm text-amber-800">
-                  <span>ยอดเอกสาร ฿{fmt(parseFloat(receiptBillingNote.totalAmount) || 0)}</span>
-                  <span className="mx-2">-</span>
-                  <span>ภาษีถูกหัก {parseFloat(receiptWht) || 0}% = ฿{fmt(receiptWhtAmt)}</span>
+                  <span>฿{fmt(parseFloat(receiptBillingNote.totalAmount) || 0)}</span>
+                  <span className="mx-1.5">-</span>
+                  <span>WHT {parseFloat(receiptWht) || 0}% (฿{fmt(receiptWhtAmt)})</span>
                 </div>
                 <div className="text-right">
-                  <span className="text-xs text-amber-600">ยอดรับสุทธิ</span>
-                  <p className="text-lg font-bold" style={{ color: "#05b187" }}>฿{fmt((parseFloat(receiptBillingNote.totalAmount) || 0) - receiptWhtAmt)}</p>
+                  <p className="text-xs text-amber-600">ยอดรับสุทธิ</p>
+                  <p className="text-base font-bold" style={{ color: "#05b187" }}>฿{fmt((parseFloat(receiptBillingNote.totalAmount) || 0) - receiptWhtAmt)}</p>
                 </div>
               </div>
             )}
             <div>
               <Label className="text-xs">หมายเหตุ</Label>
-              <Input
-                value={receiptNotes}
-                onChange={(e) => setReceiptNotes(e.target.value)}
-                placeholder="หมายเหตุ (ถ้ามี)"
-                className="mt-1 h-9 text-sm"
-                data-testid="input-receipt-notes"
-              />
+              <Input value={receiptNotes} onChange={(e) => setReceiptNotes(e.target.value)} placeholder="หมายเหตุ (ถ้ามี)" className="mt-1 h-9 text-sm" data-testid="input-receipt-notes" />
             </div>
             {receiptBillingNote && (receiptBillingNote.linkedDocs || []).length > 0 && (
-              <div className="bg-green-50 rounded-lg p-3">
-                <div className="text-xs text-green-700 mb-1 font-medium">รายการเอกสารที่เชื่อมโยง</div>
-                {(receiptBillingNote.linkedDocs || []).map((d: any) => (
-                  <div key={d.id} className="flex justify-between text-sm text-green-900 py-0.5">
-                    <span>{d.docNo || `#${d.docId}`}</span>
-                    <span>฿{fmt(parseFloat(d.amount) || 0)}</span>
-                  </div>
-                ))}
+              <div className="rounded-lg border p-3 space-y-1">
+                <p className="text-xs font-medium text-gray-500 mb-2">รายการเอกสารที่เชื่อมโยง</p>
+                {(receiptBillingNote.linkedDocs || []).map((d: any) => {
+                  const isTiv = d.docType === "TIV";
+                  return (
+                    <div key={d.id} className={`flex items-center justify-between text-sm rounded px-2 py-1 ${isTiv ? "bg-cyan-50 text-cyan-900" : "bg-blue-50 text-blue-900"}`}>
+                      <div className="flex items-center gap-2">
+                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${isTiv ? "bg-cyan-100 text-cyan-700" : "bg-blue-100 text-blue-700"}`}>{d.docType}</span>
+                        <span>{d.docNo || `#${d.docId}`}</span>
+                      </div>
+                      <span className="font-medium">฿{fmt(parseFloat(d.amount) || 0)}</span>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
           <DialogFooter>
-            <Button variant="outline" size="sm" onClick={() => setReceiptDialogOpen(false)} data-testid="button-cancel-receipt">
-              ยกเลิก
-            </Button>
-            <Button
-              size="sm"
-              className="px-6"
-              style={{ background: "#05b187" }}
-              disabled={createReceiptFromBN.isPending}
-              onClick={submitReceipt}
-              data-testid="button-submit-receipt"
-            >
+            <Button variant="outline" size="sm" onClick={() => setReceiptDialogOpen(false)} data-testid="button-cancel-receipt">ยกเลิก</Button>
+            <Button size="sm" className="px-6" style={{ background: "#05b187" }} disabled={createReceiptFromBN.isPending} onClick={submitReceipt} data-testid="button-submit-receipt">
               {createReceiptFromBN.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <CreditCard className="h-4 w-4 mr-1" />}
               บันทึกรับเงิน
             </Button>
@@ -1127,7 +1109,7 @@ export default function BillingNotes() {
 
       {/* Dialog สร้างใบกำกับภาษีจากใบวางบิล */}
       <Dialog open={tivDialogOpen} onOpenChange={setTivDialogOpen}>
-        <DialogContent className="sm:max-w-[440px] max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-[480px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>สร้างใบกำกับภาษีจากใบวางบิล</DialogTitle>
             <DialogDescription>
@@ -1139,14 +1121,7 @@ export default function BillingNotes() {
           <div className="space-y-4 py-2">
             <div>
               <Label className="text-xs">วันที่ออกใบกำกับภาษี</Label>
-              <ThaiDateInput
-                value={tivDate}
-                onChange={setTivDate}
-                dateEra={dateEra}
-                dateFmt={dateFmt}
-                className="mt-1 h-9 text-sm"
-                data-testid="input-tiv-date"
-              />
+              <ThaiDateInput value={tivDate} onChange={setTivDate} dateEra={dateEra} dateFmt={dateFmt} className="mt-1 h-9 text-sm" data-testid="input-tiv-date" />
             </div>
             <div>
               <Label className="text-xs">วิธีชำระเงิน</Label>
@@ -1162,38 +1137,50 @@ export default function BillingNotes() {
               </Select>
             </div>
             <div>
+              <Label className="text-xs">อัตราภาษีถูกหัก ณ ที่จ่าย (%)</Label>
+              <div className="relative mt-1">
+                <Input type="number" step="0.01" min="0" max="100" value={tivWht} onChange={(e) => setTivWht(e.target.value)} placeholder="0" className="h-9 text-sm pr-8" data-testid="input-tiv-wht" />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">%</span>
+              </div>
+            </div>
+            {tivWhtAmt > 0 && tivBillingNote && (
+              <div className="bg-amber-50 rounded-lg p-3 flex items-center justify-between">
+                <div className="text-sm text-amber-800">
+                  <span>฿{fmt(parseFloat(tivBillingNote.totalAmount) || 0)}</span>
+                  <span className="mx-1.5">-</span>
+                  <span>WHT {parseFloat(tivWht) || 0}% (฿{fmt(tivWhtAmt)})</span>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs text-amber-600">ยอดสุทธิ</p>
+                  <p className="text-base font-bold text-cyan-700">฿{fmt((parseFloat(tivBillingNote.totalAmount) || 0) - tivWhtAmt)}</p>
+                </div>
+              </div>
+            )}
+            <div>
               <Label className="text-xs">หมายเหตุ</Label>
-              <Input
-                value={tivNotes}
-                onChange={(e) => setTivNotes(e.target.value)}
-                placeholder="หมายเหตุ (ถ้ามี)"
-                className="mt-1 h-9 text-sm"
-                data-testid="input-tiv-notes"
-              />
+              <Input value={tivNotes} onChange={(e) => setTivNotes(e.target.value)} placeholder="หมายเหตุ (ถ้ามี)" className="mt-1 h-9 text-sm" data-testid="input-tiv-notes" />
             </div>
             {tivBillingNote && (tivBillingNote.linkedDocs || []).length > 0 && (
-              <div className="bg-cyan-50 rounded-lg p-3">
-                <div className="text-xs text-cyan-700 mb-1 font-medium">รายการเอกสารที่เชื่อมโยง</div>
-                {(tivBillingNote.linkedDocs || []).map((d: any) => (
-                  <div key={d.id} className="flex justify-between text-sm text-cyan-900 py-0.5">
-                    <span>{d.docNo || `#${d.docId}`}</span>
-                    <span>฿{fmt(parseFloat(d.amount) || 0)}</span>
-                  </div>
-                ))}
+              <div className="rounded-lg border p-3 space-y-1">
+                <p className="text-xs font-medium text-gray-500 mb-2">รายการเอกสารที่เชื่อมโยง</p>
+                {(tivBillingNote.linkedDocs || []).map((d: any) => {
+                  const isTiv = d.docType === "TIV";
+                  return (
+                    <div key={d.id} className={`flex items-center justify-between text-sm rounded px-2 py-1 ${isTiv ? "bg-cyan-50 text-cyan-900" : "bg-blue-50 text-blue-900"}`}>
+                      <div className="flex items-center gap-2">
+                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${isTiv ? "bg-cyan-100 text-cyan-700" : "bg-blue-100 text-blue-700"}`}>{d.docType}</span>
+                        <span>{d.docNo || `#${d.docId}`}</span>
+                      </div>
+                      <span className="font-medium">฿{fmt(parseFloat(d.amount) || 0)}</span>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
           <DialogFooter>
-            <Button variant="outline" size="sm" onClick={() => setTivDialogOpen(false)} data-testid="button-cancel-tiv">
-              ยกเลิก
-            </Button>
-            <Button
-              size="sm"
-              className="px-6 bg-cyan-600 hover:bg-cyan-700 text-white"
-              disabled={createTIVFromBN.isPending}
-              onClick={submitTIV}
-              data-testid="button-submit-tiv"
-            >
+            <Button variant="outline" size="sm" onClick={() => setTivDialogOpen(false)} data-testid="button-cancel-tiv">ยกเลิก</Button>
+            <Button size="sm" className="px-6 bg-cyan-600 hover:bg-cyan-700 text-white" disabled={createTIVFromBN.isPending} onClick={submitTIV} data-testid="button-submit-tiv">
               {createTIVFromBN.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <FileCheck className="h-4 w-4 mr-1" />}
               ออกใบกำกับภาษี
             </Button>
