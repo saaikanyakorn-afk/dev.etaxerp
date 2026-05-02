@@ -225,7 +225,7 @@ app.post("/api/finance/billing-notes/:id/create-tax-invoice", requireAuth, async
     const user = req.user as any;
     if (!(await verifyCompanyAccess(user, bn.companyId))) return res.status(403).json({ message: "ไม่มีสิทธิ์" });
 
-    const { taxInvoiceDate, notes: tivNotes } = req.body;
+    const { taxInvoiceDate, notes: tivNotes, paymentMethod: tivPaymentMethod } = req.body;
     const linkedDocs = await db.select().from(billingNoteLinkedDocs)
       .where(eq(billingNoteLinkedDocs.billingNoteId, bnId));
     if (linkedDocs.length === 0) return res.status(400).json({ message: "ใบวางบิลไม่มีรายการเอกสาร" });
@@ -276,7 +276,7 @@ app.post("/api/finance/billing-notes/:id/create-tax-invoice", requireAuth, async
         priceMode: "excluded",
         docPrefix: "TIV",
         notes: tivNotes || `ออกใบกำกับภาษีจากใบวางบิล ${bn.billingNo}`,
-        paymentMethod: "เครดิต",
+        paymentMethod: tivPaymentMethod || "เครดิต",
         invoiceId: singleIV,
         currencyCode: "THB",
         exchangeRate: "1",
@@ -306,8 +306,8 @@ app.post("/api/finance/billing-notes/:id/create-tax-invoice", requireAuth, async
     try {
       journalResult = await createAutoJournalEntry({
         companyId: result.companyId,
-        documentType: "taxInvoice",
-        sourceDocType: "taxInvoice",
+        documentType: "tax_invoice",
+        sourceDocType: "tax_invoice",
         sourceDocId: result.id,
         docDate: result.taxInvoiceDate,
         docNo: result.taxInvoiceNo,
@@ -319,8 +319,7 @@ app.post("/api/finance/billing-notes/:id/create-tax-invoice", requireAuth, async
         exchangeRate: "1",
         userId: user.id,
         customerName: bn.customerName,
-        paymentMethod: "เครดิต",
-        linkedInvoiceId: linkedDocs[0]?.docId,
+        paymentMethod: tivPaymentMethod || "เครดิต",
       });
     } catch (e: any) { console.error("[create-tiv-from-bn] journal error:", e.message); }
 

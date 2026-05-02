@@ -90,6 +90,7 @@ export default function BillingNotes() {
   const [tivBillingNote, setTivBillingNote] = useState<any>(null);
   const [tivDate, setTivDate] = useState(() => toLocalDateStr(new Date()));
   const [tivNotes, setTivNotes] = useState("");
+  const [tivPayMethod, setTivPayMethod] = useState("");
 
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editBn, setEditBn] = useState<any>(null);
@@ -419,6 +420,7 @@ export default function BillingNotes() {
     setTivBillingNote(bn);
     setTivDate(toLocalDateStr(new Date()));
     setTivNotes("");
+    setTivPayMethod(paymentMethodsList?.[0]?.name || "");
     setTivDialogOpen(true);
   };
 
@@ -426,7 +428,7 @@ export default function BillingNotes() {
     if (!tivBillingNote) return;
     createTIVFromBN.mutate({
       id: tivBillingNote.id,
-      payload: { taxInvoiceDate: tivDate, notes: tivNotes },
+      payload: { taxInvoiceDate: tivDate, notes: tivNotes, paymentMethod: tivPayMethod },
     });
   };
 
@@ -1018,7 +1020,7 @@ export default function BillingNotes() {
       </Card>
 
       <Dialog open={receiptDialogOpen} onOpenChange={setReceiptDialogOpen}>
-        <DialogContent className="sm:max-w-[480px]">
+        <DialogContent className="sm:max-w-[480px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>สร้างใบรับเงินจากใบวางบิล</DialogTitle>
             <DialogDescription>
@@ -1092,6 +1094,17 @@ export default function BillingNotes() {
                 data-testid="input-receipt-notes"
               />
             </div>
+            {receiptBillingNote && (receiptBillingNote.linkedDocs || []).length > 0 && (
+              <div className="bg-green-50 rounded-lg p-3">
+                <div className="text-xs text-green-700 mb-1 font-medium">รายการเอกสารที่เชื่อมโยง</div>
+                {(receiptBillingNote.linkedDocs || []).map((d: any) => (
+                  <div key={d.id} className="flex justify-between text-sm text-green-900 py-0.5">
+                    <span>{d.docNo || `#${d.docId}`}</span>
+                    <span>฿{fmt(parseFloat(d.amount) || 0)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" size="sm" onClick={() => setReceiptDialogOpen(false)} data-testid="button-cancel-receipt">
@@ -1136,6 +1149,19 @@ export default function BillingNotes() {
               />
             </div>
             <div>
+              <Label className="text-xs">วิธีชำระเงิน</Label>
+              <Select value={tivPayMethod} onValueChange={setTivPayMethod}>
+                <SelectTrigger className="mt-1 h-9 text-sm" data-testid="select-tiv-pay-method">
+                  <SelectValue placeholder="เลือกวิธีชำระเงิน" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(paymentMethodsList || []).map((m: any) => (
+                    <SelectItem key={m.id} value={m.name}>{m.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
               <Label className="text-xs">หมายเหตุ</Label>
               <Input
                 value={tivNotes}
@@ -1145,12 +1171,12 @@ export default function BillingNotes() {
                 data-testid="input-tiv-notes"
               />
             </div>
-            {tivBillingNote && (
+            {tivBillingNote && (tivBillingNote.linkedDocs || []).length > 0 && (
               <div className="bg-cyan-50 rounded-lg p-3">
-                <div className="text-xs text-cyan-700 mb-1">รายการเอกสารที่เชื่อมโยง</div>
+                <div className="text-xs text-cyan-700 mb-1 font-medium">รายการเอกสารที่เชื่อมโยง</div>
                 {(tivBillingNote.linkedDocs || []).map((d: any) => (
-                  <div key={d.id} className="flex justify-between text-sm text-cyan-900">
-                    <span>{d.docNo || `IV #${d.docId}`}</span>
+                  <div key={d.id} className="flex justify-between text-sm text-cyan-900 py-0.5">
+                    <span>{d.docNo || `#${d.docId}`}</span>
                     <span>฿{fmt(parseFloat(d.amount) || 0)}</span>
                   </div>
                 ))}
