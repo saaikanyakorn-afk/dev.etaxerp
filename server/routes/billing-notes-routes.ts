@@ -323,6 +323,11 @@ app.post("/api/finance/billing-notes/:id/create-tax-invoice", requireAuth, async
     // บันทึกบัญชีตาม formula DB (ไม่ใช้ hardcode DR AR)
     // ส่ง linkedInvoiceId เพื่อให้ไม่เป็น standalone → ใช้ formula จาก DB (เช่น โอนเงินเข้าบัญชี)
     const firstIVId = (linkedDocs as any[]).find((d: any) => d.docType === "IV")?.docId ?? undefined;
+    // resolve account code จริงของวิธีรับชำระ (เช่น ธนาคาร → รหัสบัญชีธนาคาร, ไม่ใช่เงินสด 1001000)
+    const effectivePm = tivPaymentMethod || "โอนเงิน";
+    const pmAccCode = effectivePm !== "เครดิต"
+      ? await resolvePaymentMethodAccountCode(result.companyId, effectivePm).catch(() => undefined)
+      : undefined;
     let journalResult = null;
     try {
       journalResult = await createAutoJournalEntry({
@@ -340,7 +345,8 @@ app.post("/api/finance/billing-notes/:id/create-tax-invoice", requireAuth, async
         exchangeRate: "1",
         userId: user.id,
         customerName: bn.customerName,
-        paymentMethod: tivPaymentMethod || "โอนเงิน",
+        paymentMethod: effectivePm,
+        paymentMethodAccountCode: pmAccCode,
         linkedInvoiceId: firstIVId,
       });
     } catch (e: any) { console.error("[create-tiv-from-bn] journal error:", e.message); }
