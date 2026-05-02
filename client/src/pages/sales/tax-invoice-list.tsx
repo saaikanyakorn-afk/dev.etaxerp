@@ -531,6 +531,9 @@ export default function TaxInvoiceList() {
                                 partial: { label: "บางส่วน", cls: "bg-amber-50 text-amber-600 border-amber-300" },
                                 paid_by_ar: { label: "ชำระจาก AR", cls: "bg-emerald-50 text-emerald-600 border-emerald-200" },
                                 credit_note: { label: "ใบลดหนี้", cls: "bg-orange-50 text-orange-600 border-orange-200" },
+                                paid: { label: "เสร็จสิ้น", cls: "bg-emerald-50 text-emerald-600 border-emerald-200" },
+                                transfer_done: { label: "โอนแล้ว", cls: "bg-emerald-50 text-emerald-600 border-emerald-200" },
+                                completed: { label: "เสร็จสิ้น", cls: "bg-emerald-50 text-emerald-600 border-emerald-200" },
                               };
                               const effectiveStatus = inv.hasBillingNote && !["paid", "cancel", "cancelled"].includes(inv.status) ? "billing_note" : inv.status;
                               const a = approvalMap[effectiveStatus] || { label: "-", cls: "bg-slate-50 text-slate-500 border-slate-200" };
