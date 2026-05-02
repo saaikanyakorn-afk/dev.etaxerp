@@ -209,9 +209,9 @@ app.post("/api/finance/billing-notes/:id/create-receipt", requireAuth, async (re
         paymentMethod: paymentMethod || "โอนเงิน",
         paymentMethodAccountCode: pmAccCode,
         linkedInvoiceId: linkedDocs[0]?.docId,
-        overrideLines: req.body?.journalOverrideLines || undefined,
+        overrideLines: body?.journalOverrideLines || req?.body?.journalOverrideLines || undefined,
       });
-    } catch (e: any) { console.error("[create-receipt-from-bn] journal error:", e.message); }
+    } catch (e) {}
 
     res.json({ success: true, receipt: result, journalResult });
   } catch (err: any) { res.status(500).json({ message: err.message }); }
@@ -225,7 +225,7 @@ app.post("/api/finance/billing-notes/:id/create-tax-invoice", requireAuth, async
     const user = req.user as any;
     if (!(await verifyCompanyAccess(user, bn.companyId))) return res.status(403).json({ message: "ไม่มีสิทธิ์" });
 
-    const { taxInvoiceDate, notes: tivNotes, withholdingTax, paymentMethod: tivPaymentMethod } = req.body;
+    const { taxInvoiceDate, notes: tivNotes } = req.body;
     const linkedDocs = await db.select().from(billingNoteLinkedDocs)
       .where(eq(billingNoteLinkedDocs.billingNoteId, bnId));
     if (linkedDocs.length === 0) return res.status(400).json({ message: "ใบวางบิลไม่มีรายการเอกสาร" });
@@ -251,8 +251,7 @@ app.post("/api/finance/billing-notes/:id/create-tax-invoice", requireAuth, async
       subtotalVal = parseFloat(bn.totalAmount || "0");
       vatVal = 0;
     }
-    const whtAmt = parseFloat(withholdingTax) || 0;
-    const totalAmt = Math.round((subtotalVal + vatVal - whtAmt) * 100) / 100;
+    const totalAmt = Math.round((subtotalVal + vatVal) * 100) / 100;
 
     const tivDate = taxInvoiceDate || new Date().toISOString().split("T")[0];
     const taxInvoiceNo = await getNextDocNo(bn.companyId, "TIV", taxInvoices, taxInvoices.taxInvoiceNo, taxInvoices.companyId, tivDate);
@@ -271,13 +270,13 @@ app.post("/api/finance/billing-notes/:id/create-tax-invoice", requireAuth, async
         subtotal: String(subtotalVal),
         vatAmount: String(vatVal),
         totalAmount: String(totalAmt),
-        withholdingTax: String(whtAmt),
+        withholdingTax: "0",
         discountAmount: "0",
         status: "approved",
         priceMode: "excluded",
         docPrefix: "TIV",
         notes: tivNotes || `ออกใบกำกับภาษีจากใบวางบิล ${bn.billingNo}`,
-        paymentMethod: tivPaymentMethod || "เครดิต",
+        paymentMethod: "เครดิต",
         invoiceId: singleIV,
         currencyCode: "THB",
         exchangeRate: "1",
@@ -303,50 +302,27 @@ app.post("/api/finance/billing-notes/:id/create-tax-invoice", requireAuth, async
       return tiv;
     });
 
-    // Check if any linked IV or TIV already has a journal entry → revenue already recognized
-    const ivDocIds = linkedDocs.filter(d => d.docType === "IV").map(d => d.docId);
-    const tivDocIds = linkedDocs.filter(d => d.docType === "TIV").map(d => d.docId);
-    let linkedDocsAlreadyJournaled = false;
-    for (const ivId of ivDocIds) {
-      const [je] = await db.select({ id: journalEntries.id }).from(journalEntries)
-        .where(and(eq(journalEntries.companyId, bn.companyId), eq(journalEntries.sourceDocType, "invoice"), eq(journalEntries.sourceDocId, ivId)));
-      if (je) { linkedDocsAlreadyJournaled = true; break; }
-    }
-    if (!linkedDocsAlreadyJournaled) {
-      for (const tivId of tivDocIds) {
-        const [je] = await db.select({ id: journalEntries.id }).from(journalEntries)
-          .where(and(eq(journalEntries.companyId, bn.companyId), eq(journalEntries.sourceDocType, "tax_invoice"), eq(journalEntries.sourceDocId, tivId)));
-        if (je) { linkedDocsAlreadyJournaled = true; break; }
-      }
-    }
-
     let journalResult = null;
-    if (linkedDocsAlreadyJournaled) {
-      // Linked IV/TIV already posted revenue → new TIV is just a formal VAT doc, no new journal
-      journalResult = { skipped: true, reason: "รายได้ถูกลงบัญชีแล้วในเอกสารที่เชื่อมโยง — ไม่ลงซ้ำใน TIV" };
-      console.log(`[create-tiv-from-bn] ${result.taxInvoiceNo}: skipping journal — linked docs (IV:${ivDocIds.join(",")}, TIV:${tivDocIds.join(",")}) already journaled`);
-    } else {
-      try {
-        journalResult = await createAutoJournalEntry({
-          companyId: result.companyId,
-          documentType: "tax_invoice",
-          sourceDocType: "tax_invoice",
-          sourceDocId: result.id,
-          docDate: result.taxInvoiceDate,
-          docNo: result.taxInvoiceNo,
-          subtotal: String(subtotalVal),
-          vatAmount: String(vatVal),
-          totalAmount: String(totalAmt),
-          withholdingTax: String(whtAmt),
-          currencyCode: "THB",
-          exchangeRate: "1",
-          userId: user.id,
-          customerName: bn.customerName,
-          paymentMethod: tivPaymentMethod || "เครดิต",
-          paymentMethodAccountCode: await resolvePaymentMethodAccountCode(bn.companyId, tivPaymentMethod || "เครดิต"),
-        });
-      } catch (e: any) { console.error("[create-tiv-from-bn] journal error:", e.message); }
-    }
+    try {
+      journalResult = await createAutoJournalEntry({
+        companyId: result.companyId,
+        documentType: "taxInvoice",
+        sourceDocType: "taxInvoice",
+        sourceDocId: result.id,
+        docDate: result.taxInvoiceDate,
+        docNo: result.taxInvoiceNo,
+        subtotal: String(subtotalVal),
+        vatAmount: String(vatVal),
+        totalAmount: String(totalAmt),
+        withholdingTax: "0",
+        currencyCode: "THB",
+        exchangeRate: "1",
+        userId: user.id,
+        customerName: bn.customerName,
+        paymentMethod: "เครดิต",
+        linkedInvoiceId: linkedDocs[0]?.docId,
+      });
+    } catch (e: any) { console.error("[create-tiv-from-bn] journal error:", e.message); }
 
     res.json({ success: true, taxInvoice: result, journalResult });
   } catch (err: any) { res.status(500).json({ message: err.message }); }
