@@ -303,22 +303,28 @@ app.post("/api/finance/billing-notes/:id/create-tax-invoice", requireAuth, async
       return tiv;
     });
 
-    // Check if any linked IV already has a journal entry → revenue was already recognized
+    // Check if any linked IV or TIV already has a journal entry → revenue already recognized
     const ivDocIds = linkedDocs.filter(d => d.docType === "IV").map(d => d.docId);
-    let linkedIVsAlreadyJournaled = false;
-    if (ivDocIds.length > 0) {
-      for (const ivId of ivDocIds) {
-        const [existingJE] = await db.select({ id: journalEntries.id }).from(journalEntries)
-          .where(and(eq(journalEntries.companyId, bn.companyId), eq(journalEntries.sourceDocType, "invoice"), eq(journalEntries.sourceDocId, ivId)));
-        if (existingJE) { linkedIVsAlreadyJournaled = true; break; }
+    const tivDocIds = linkedDocs.filter(d => d.docType === "TIV").map(d => d.docId);
+    let linkedDocsAlreadyJournaled = false;
+    for (const ivId of ivDocIds) {
+      const [je] = await db.select({ id: journalEntries.id }).from(journalEntries)
+        .where(and(eq(journalEntries.companyId, bn.companyId), eq(journalEntries.sourceDocType, "invoice"), eq(journalEntries.sourceDocId, ivId)));
+      if (je) { linkedDocsAlreadyJournaled = true; break; }
+    }
+    if (!linkedDocsAlreadyJournaled) {
+      for (const tivId of tivDocIds) {
+        const [je] = await db.select({ id: journalEntries.id }).from(journalEntries)
+          .where(and(eq(journalEntries.companyId, bn.companyId), eq(journalEntries.sourceDocType, "tax_invoice"), eq(journalEntries.sourceDocId, tivId)));
+        if (je) { linkedDocsAlreadyJournaled = true; break; }
       }
     }
 
     let journalResult = null;
-    if (linkedIVsAlreadyJournaled) {
-      // IV already posted revenue → TIV is just a formal VAT doc, no new journal
-      journalResult = { skipped: true, reason: "รายได้ถูกลงบัญชีแล้วใน IV ที่เชื่อมโยง — ไม่ลงซ้ำใน TIV" };
-      console.log(`[create-tiv-from-bn] ${result.taxInvoiceNo}: skipping journal — linked IVs (${ivDocIds.join(",")}) already journaled`);
+    if (linkedDocsAlreadyJournaled) {
+      // Linked IV/TIV already posted revenue → new TIV is just a formal VAT doc, no new journal
+      journalResult = { skipped: true, reason: "รายได้ถูกลงบัญชีแล้วในเอกสารที่เชื่อมโยง — ไม่ลงซ้ำใน TIV" };
+      console.log(`[create-tiv-from-bn] ${result.taxInvoiceNo}: skipping journal — linked docs (IV:${ivDocIds.join(",")}, TIV:${tivDocIds.join(",")}) already journaled`);
     } else {
       try {
         journalResult = await createAutoJournalEntry({
