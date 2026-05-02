@@ -800,15 +800,11 @@ app.get("/api/invoices", requireAuth, requireAnyModule("sales", "ecommerce"), as
     const bnLinkedInvIds = new Set<number>();
     const invApprovalMap: Record<number, string> = {};
     if (rows.length > 0) {
-      const ids = rows.map((r: any) => r.id);
-      const bnLinks = await db.select({ docId: billingNoteLinkedDocs.docId })
-        .from(billingNoteLinkedDocs)
-        .where(and(eq(billingNoteLinkedDocs.docType, "IV"), inArray(billingNoteLinkedDocs.docId, ids)));
-      for (const l of bnLinks) bnLinkedInvIds.add(l.docId);
-      const arRows = await db.select({ documentId: approvalRequests.documentId, status: approvalRequests.status })
-        .from(approvalRequests)
-        .where(and(eq(approvalRequests.documentType, "invoice"), inArray(approvalRequests.documentId, ids)));
-      for (const ar of arRows) invApprovalMap[ar.documentId] = ar.status;
+      const idArr = `'{${rows.map((r: any) => r.id).join(",")}}'::int[]`;
+      const bnLinks = await db.execute(sql.raw(`SELECT doc_id FROM billing_note_linked_docs WHERE doc_type = 'IV' AND doc_id = ANY(${idArr})`));
+      for (const l of (bnLinks as any).rows || []) bnLinkedInvIds.add(l.doc_id);
+      const arRows = await db.execute(sql.raw(`SELECT document_id, status FROM approval_requests WHERE document_type = 'invoice' AND document_id = ANY(${idArr})`));
+      for (const ar of (arRows as any).rows || []) invApprovalMap[ar.document_id] = ar.status;
     }
     const result = rows.map((r: any) => ({ ...r, createdByName: r.createdBy ? userMap[r.createdBy] || "-" : "-", updatedByName: r.updatedBy ? userMap[r.updatedBy] || "-" : "-", paidAmount: paidMap[r.id] || 0, hasBillingNote: bnLinkedInvIds.has(r.id), approvalStatus: invApprovalMap[r.id] || null }));
     res.json(result);
