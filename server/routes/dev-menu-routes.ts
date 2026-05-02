@@ -948,7 +948,9 @@ app.get("/api/dev/invoice-recompute-preview", requireAdmin, async (req, res) => 
   try {
     const companyId = Number(req.query.companyId);
     if (!companyId) return res.status(400).json({ message: "companyId required" });
-    const invRows = await db.execute(sql.raw(`SELECT id, invoice_no, customer_name, subtotal, vat_amount, total_amount, withholding_tax, payment_status FROM invoices WHERE company_id = ${companyId} ORDER BY invoice_date DESC, id DESC`));
+    const docPrefix = req.query.docPrefix ? String(req.query.docPrefix) : null;
+    const prefixClause = docPrefix ? ` AND doc_prefix = '${docPrefix.replace(/'/g,"''")}'` : "";
+    const invRows = await db.execute(sql.raw(`SELECT id, invoice_no, doc_prefix, customer_name, subtotal, vat_amount, total_amount, withholding_tax, payment_status FROM invoices WHERE company_id = ${companyId}${prefixClause} ORDER BY invoice_date DESC, id DESC`));
     const rows = (invRows as any).rows || [];
     if (rows.length === 0) return res.json([]);
     const idArr = `'{${rows.map((r: any) => r.id).join(",")}}'::int[]`;
@@ -990,7 +992,7 @@ app.get("/api/dev/invoice-recompute-preview", requireAdmin, async (req, res) => 
       const correctTotal = Math.round((subtotal + vatAmount - whtField) * 100) / 100;
       const totalWillChange = Math.abs(total - correctTotal) > 0.01;
       return {
-        id: inv.id, invoiceNo: inv.invoice_no, customerName: inv.customer_name,
+        id: inv.id, invoiceNo: inv.invoice_no, docPrefix: inv.doc_prefix || "IV", customerName: inv.customer_name,
         total, subtotal, vatAmount, whtField, correctTotal, totalWillChange,
         direct, batch, tiv, rawPaid, whtCounted, effectivePaid,
         currentStatus: inv.payment_status, newStatus, caseLabel,
@@ -1084,6 +1086,16 @@ tr.unknown-row td{background:#fff1f2;border-left:4px solid #dc2626}
 
 <div class="toolbar">
   <label>Company ID: <input id="cid" type="number" value="4" min="1" /></label>
+  <label>ประเภท:
+    <select id="docPrefix" style="border:1px solid #ccc;border-radius:4px;padding:5px 8px;font-size:13px;background:#fff">
+      <option value="">ทั้งหมด</option>
+      <option value="IV">IV — ใบแจ้งหนี้</option>
+      <option value="BL">BL — ใบวางบิล</option>
+      <option value="RC">RC — ใบเสร็จ</option>
+      <option value="BN">BN — ใบวางบิล (BN)</option>
+      <option value="SO">SO — ใบสั่งขาย</option>
+    </select>
+  </label>
   <button class="btn-load" onclick="loadData()">โหลดข้อมูล</button>
   <button class="mode-toggle" id="modeBtn" onclick="toggleMode()" title="Display Only — แสดงทุกรายการ ไม่มีการแก้ไข">👁 Display Only</button>
   <button class="btn-proceed" id="proceedBtn" onclick="startStepByStep()" disabled>▶ Proceed (ทีละใบ)</button>
@@ -1153,7 +1165,9 @@ async function loadData(){
   document.getElementById('unknownAlert').style.display='none';
   document.getElementById('summary').style.display='none';
   try{
-    const r = await fetch('/api/dev/invoice-recompute-preview?companyId='+cid,{credentials:'include'});
+    const prefix = document.getElementById('docPrefix').value;
+    const prefixParam = prefix ? '&docPrefix='+encodeURIComponent(prefix) : '';
+    const r = await fetch('/api/dev/invoice-recompute-preview?companyId='+cid+prefixParam,{credentials:'include'});
     if(!r.ok){ const e=await r.json(); throw new Error(e.message); }
     allData = await r.json();
     toChange = allData.filter(d=>d.willChange || d.totalWillChange);
@@ -1221,6 +1235,7 @@ function render(){
     return '<tr class="'+rowCls+'" id="row-'+d.id+'">'+
       '<td class="num">'+(i+1)+'</td>'+
       '<td><b>'+d.invoiceNo+'</b></td>'+
+      '<td><span class="case-badge">'+d.docPrefix+'</span></td>'+
       '<td>'+d.customerName+'</td>'+
       '<td class="num">'+fmt(d.subtotal)+'</td>'+
       '<td class="num">'+fmt(d.vatAmount)+'</td>'+
@@ -1236,7 +1251,7 @@ function render(){
 
   document.getElementById('out').innerHTML = rows
     ? '<table><thead><tr>'+
-      '<th>#</th><th>เลขที่</th><th>ลูกค้า</th>'+
+      '<th>#</th><th>เลขที่</th><th>ประเภท</th><th>ลูกค้า</th>'+
       '<th>หลังส่วนลด</th><th>แวท</th><th>WHT</th>'+
       '<th>รวมสุทธิ (DB)</th><th>คำนวณ</th>'+
       '<th>ยอดรับรวม</th><th>สถานะ</th>'+
