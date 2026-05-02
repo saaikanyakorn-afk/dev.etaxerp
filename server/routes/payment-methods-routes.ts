@@ -43,7 +43,7 @@ app.get("/api/payment-methods", requireAuth, async (req, res) => {
         });
       }
     }
-    const result = await db.execute(sql`SELECT *, bank_name AS "bankName", bank_account_no AS "bankAccountNo" FROM payment_methods WHERE company_id = ${companyId} ORDER BY sort_order`);
+    const result = await db.execute(sql`SELECT *, name_th AS "nameTh", account_code AS "accountCode", account_id AS "accountId", is_default AS "isDefault", sort_order AS "sortOrder", company_id AS "companyId", bank_name AS "bankName", bank_account_no AS "bankAccountNo" FROM payment_methods WHERE company_id = ${companyId} ORDER BY sort_order`);
     res.json(result.rows);
   } catch (err: any) { res.status(500).json({ message: err.message }); }
 });
@@ -71,7 +71,7 @@ app.post("/api/payment-methods", requireAuth, async (req, res) => {
     if (bankName !== undefined || bankAccountNo !== undefined) {
       await db.execute(sql`UPDATE payment_methods SET bank_name = ${bankName || null}, bank_account_no = ${bankAccountNo || null} WHERE id = ${method.id}`);
     }
-    const finalRow = await db.execute(sql`SELECT *, bank_name AS "bankName", bank_account_no AS "bankAccountNo" FROM payment_methods WHERE id = ${method.id} LIMIT 1`);
+    const finalRow = await db.execute(sql`SELECT *, name_th AS "nameTh", account_code AS "accountCode", account_id AS "accountId", is_default AS "isDefault", sort_order AS "sortOrder", company_id AS "companyId", bank_name AS "bankName", bank_account_no AS "bankAccountNo" FROM payment_methods WHERE id = ${method.id} LIMIT 1`);
     res.status(201).json(finalRow.rows[0]);
   } catch (err: any) { res.status(400).json({ message: err.message }); }
 });
@@ -108,7 +108,7 @@ app.patch("/api/payment-methods/:id", requireAuth, async (req, res) => {
     if (bankAccountNo !== undefined) {
       await db.execute(sql`UPDATE payment_methods SET bank_account_no = ${bankAccountNo || null} WHERE id = ${id}`);
     }
-    const finalRow = await db.execute(sql`SELECT *, bank_name AS "bankName", bank_account_no AS "bankAccountNo" FROM payment_methods WHERE id = ${id} LIMIT 1`);
+    const finalRow = await db.execute(sql`SELECT *, name_th AS "nameTh", account_code AS "accountCode", account_id AS "accountId", is_default AS "isDefault", sort_order AS "sortOrder", company_id AS "companyId", bank_name AS "bankName", bank_account_no AS "bankAccountNo" FROM payment_methods WHERE id = ${id} LIMIT 1`);
     res.json(finalRow.rows[0]);
   } catch (err: any) { res.status(400).json({ message: err.message }); }
 });
