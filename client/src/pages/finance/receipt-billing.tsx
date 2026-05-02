@@ -460,7 +460,7 @@ export default function ReceiptBilling() {
                           <SelectItem value="เช็ค">เช็ค</SelectItem>
                           <SelectItem value="บัตรเครดิต">บัตรเครดิต</SelectItem>
                           {(paymentMethodsList || []).filter((m: any) => !["โอนเงิน","เงินสด","เช็ค","บัตรเครดิต"].includes(m.name)).map((m: any) => (
-                            <SelectItem key={m.id} value={m.name}>{m.name}</SelectItem>
+                            <SelectItem key={m.id} value={m.name}>{m.name}{m.bankName ? ` · ${m.bankName}` : ""}{m.bankAccountNo ? ` ${m.bankAccountNo}` : ""}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>

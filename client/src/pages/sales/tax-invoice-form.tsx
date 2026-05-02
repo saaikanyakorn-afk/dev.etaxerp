@@ -1290,7 +1290,7 @@ export default function TaxInvoiceForm() {
                           {activePaymentMethods.length > 0 ? (
                             activePaymentMethods.map((m: any) => (
                               <SelectItem key={m.id} value={m.name || m.nameTh}>
-                                {acctName(m)}
+                                {acctName(m)}{m.bankName ? ` · ${m.bankName}` : ""}{m.bankAccountNo ? ` ${m.bankAccountNo}` : ""}
                               </SelectItem>
                             ))
                           ) : (

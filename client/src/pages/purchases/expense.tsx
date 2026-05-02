@@ -1122,7 +1122,7 @@ export default function Expense() {
                               const linkedName = linkedAcc ? (linkedAcc.nameTh || linkedAcc.name) : "";
                               return (
                                 <SelectItem key={m.id} value={m.name || m.nameTh}>
-                                  {acctName(m)}{linkedName ? ` — ${linkedName}` : ""}
+                                  {acctName(m)}{m.bankName ? ` · ${m.bankName}` : ""}{m.bankAccountNo ? ` ${m.bankAccountNo}` : ""}{linkedName ? ` — ${linkedName}` : ""}
                                 </SelectItem>
                               );
                             })

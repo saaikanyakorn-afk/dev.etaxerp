@@ -604,7 +604,7 @@ export default function APBilling() {
                     <SelectItem value="เช็ค">เช็ค</SelectItem>
                     <SelectItem value="บัตรเครดิต">บัตรเครดิต</SelectItem>
                     {paymentMethodsList?.map((pm: any) => (
-                      <SelectItem key={pm.id} value={pm.name}>{pm.name}</SelectItem>
+                      <SelectItem key={pm.id} value={pm.name}>{pm.name}{pm.bankName ? ` · ${pm.bankName}` : ""}{pm.bankAccountNo ? ` ${pm.bankAccountNo}` : ""}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
