@@ -2343,13 +2343,25 @@ app.delete("/api/tax-invoices/:id", requireAuth, requireAnyModule("sales", "ecom
     if (existing.invoiceId) {
       try { await recomputePaymentStatus("invoice", existing.invoiceId); } catch (e: any) { console.error(`[TIV-DELETE] recomputePaymentStatus invoice#${existing.invoiceId} failed:`, e.message); }
     }
-    // ถ้า TIV สร้างจาก BN (refDoc = billingNo) → reset BN status กลับเป็น approved
+    // ถ้า TIV สร้างจาก BN → reset BN.status + BN.paymentStatus + IV statuses ทั้งหมดกลับด้วย
     if (existing.refDoc) {
       try {
-        await db.update(billingNotes)
-          .set({ status: "approved", updatedAt: new Date() })
-          .where(and(eq(billingNotes.billingNo, existing.refDoc), eq(billingNotes.companyId, existing.companyId), eq(billingNotes.status, "invoiced")));
-      } catch (e: any) { console.error(`[TIV-DELETE] reset BN status failed:`, e.message); }
+        const [bnRow] = await db.select({ id: billingNotes.id })
+          .from(billingNotes)
+          .where(and(eq(billingNotes.billingNo, existing.refDoc), eq(billingNotes.companyId, existing.companyId)));
+        if (bnRow) {
+          await db.update(billingNotes)
+            .set({ status: "approved", paymentStatus: "unpaid", updatedAt: new Date() })
+            .where(eq(billingNotes.id, bnRow.id));
+          // คืนสถานะ IV ทั้งหมดที่ผูกกับ BN นี้กลับเป็น approved
+          const bnIVLinks = await db.select({ docId: billingNoteLinkedDocs.docId })
+            .from(billingNoteLinkedDocs)
+            .where(and(eq(billingNoteLinkedDocs.billingNoteId, bnRow.id), eq(billingNoteLinkedDocs.docType, "IV")));
+          for (const link of bnIVLinks) {
+            try { await recomputePaymentStatus("invoice", link.docId); } catch {}
+          }
+        }
+      } catch (e: any) { console.error(`[TIV-DELETE] reset BN/IV status failed:`, e.message); }
     }
     const user = req.user as any;
     logActivity({ companyId: existing.companyId, userId: user.id, userName: user.username, action: "delete", entityType: "tax_invoice", entityId: String(existing.id), entityName: existing.taxInvoiceNo }).catch(() => {});
@@ -2385,9 +2397,21 @@ app.post("/api/tax-invoices/bulk-delete", requireAuth, requireAnyModule("sales",
         }
         if (existing.refDoc) {
           try {
-            await db.update(billingNotes).set({ status: "approved", updatedAt: new Date() })
-              .where(and(eq(billingNotes.billingNo, existing.refDoc), eq(billingNotes.companyId, existing.companyId), eq(billingNotes.status, "invoiced")));
-          } catch (e: any) { console.error(`[TIV-BULK-DELETE] reset BN status failed:`, e.message); }
+            const [bnRowB] = await db.select({ id: billingNotes.id })
+              .from(billingNotes)
+              .where(and(eq(billingNotes.billingNo, existing.refDoc), eq(billingNotes.companyId, existing.companyId)));
+            if (bnRowB) {
+              await db.update(billingNotes)
+                .set({ status: "approved", paymentStatus: "unpaid", updatedAt: new Date() })
+                .where(eq(billingNotes.id, bnRowB.id));
+              const bnIVLinksB = await db.select({ docId: billingNoteLinkedDocs.docId })
+                .from(billingNoteLinkedDocs)
+                .where(and(eq(billingNoteLinkedDocs.billingNoteId, bnRowB.id), eq(billingNoteLinkedDocs.docType, "IV")));
+              for (const link of bnIVLinksB) {
+                try { await recomputePaymentStatus("invoice", link.docId); } catch {}
+              }
+            }
+          } catch (e: any) { console.error(`[TIV-BULK-DELETE] reset BN/IV status failed:`, e.message); }
         }
         logActivity({ companyId: existing.companyId, userId: user.id, userName: user.username, action: "delete", entityType: "tax_invoice", entityId: String(existing.id), entityName: existing.taxInvoiceNo }).catch(() => {});
         deleted++;
