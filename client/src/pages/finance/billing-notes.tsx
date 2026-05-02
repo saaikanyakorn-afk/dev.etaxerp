@@ -1133,6 +1133,17 @@ export default function BillingNotes() {
                 data-testid="input-receipt-notes"
               />
             </div>
+            {receiptBillingNote && (receiptBillingNote.linkedDocs || []).length > 0 && (
+              <div className="bg-green-50 rounded-lg p-3">
+                <div className="text-xs text-green-700 mb-1">รายการเอกสารที่เชื่อมโยง</div>
+                {(receiptBillingNote.linkedDocs || []).map((d: any) => (
+                  <div key={d.id} className="flex justify-between text-sm text-green-900">
+                    <span>{d.docNo || `${d.docType} #${d.docId}`}</span>
+                    <span>฿{fmt(parseFloat(d.amount) || 0)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" size="sm" onClick={() => setReceiptDialogOpen(false)} data-testid="button-cancel-receipt">
