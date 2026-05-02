@@ -187,6 +187,23 @@ app.post("/api/finance/billing-notes/:id/create-receipt", requireAuth, async (re
       if (doc.docType === "TIV") await recomputePaymentStatus("taxInvoice", doc.docId);
       else if (doc.docType === "IV") await recomputePaymentStatus("invoice", doc.docId);
     }
+    // also handle TIVs created FROM this BN (refDoc = bn.billingNo) — link receipt and recompute
+    const tivsFromBn = await db.select().from(taxInvoices)
+      .where(and(eq(taxInvoices.refDoc, bn.billingNo), eq(taxInvoices.companyId, bn.companyId)));
+    for (const tivFromBn of tivsFromBn) {
+      const existing = await db.select().from(receiptLinkedDocs)
+        .where(and(eq(receiptLinkedDocs.receiptId, result.id), eq(receiptLinkedDocs.docType, "TIV"), eq(receiptLinkedDocs.docId, tivFromBn.id)));
+      if (existing.length === 0) {
+        await db.insert(receiptLinkedDocs).values({
+          receiptId: result.id,
+          docType: "TIV",
+          docId: tivFromBn.id,
+          docNo: tivFromBn.taxInvoiceNo,
+          amount: tivFromBn.totalAmount,
+        });
+      }
+      await recomputePaymentStatus("taxInvoice", tivFromBn.id);
+    }
 
     let journalResult = null;
     try {
@@ -323,6 +340,26 @@ app.post("/api/finance/billing-notes/:id/create-tax-invoice", requireAuth, async
         paymentMethod: tivPaymentMethod || "เครดิต",
       });
     } catch (e: any) { console.error("[create-tiv-from-bn] journal error:", e.message); }
+
+    // if BN already has a receipt, link it to the new TIV and mark as paid
+    if (bn.receiptId) {
+      const [existingRe] = await db.select().from(receipts)
+        .where(and(eq(receipts.id, bn.receiptId), eq(receipts.companyId, bn.companyId)));
+      if (existingRe) {
+        const alreadyLinked = await db.select().from(receiptLinkedDocs)
+          .where(and(eq(receiptLinkedDocs.receiptId, bn.receiptId), eq(receiptLinkedDocs.docType, "TIV"), eq(receiptLinkedDocs.docId, result.id)));
+        if (alreadyLinked.length === 0) {
+          await db.insert(receiptLinkedDocs).values({
+            receiptId: bn.receiptId,
+            docType: "TIV",
+            docId: result.id,
+            docNo: result.taxInvoiceNo,
+            amount: String(totalAmt),
+          });
+        }
+        await recomputePaymentStatus("taxInvoice", result.id);
+      }
+    }
 
     res.json({ success: true, taxInvoice: result, journalResult });
   } catch (err: any) { res.status(500).json({ message: err.message }); }
