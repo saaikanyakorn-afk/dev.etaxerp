@@ -620,7 +620,7 @@ export default function InvoiceForm() {
       const vatAmount = vatIncluded - vatBase;
       const afterDiscount = vatBase + Math.max(nonVatItemsTotal - Math.max(discAmount - vatItemsTotal, 0), 0);
       const wht = whtIsPercent ? afterDiscount * (parseFloat(whtRaw) || 0) / 100 : (parseFloat(whtRaw) || 0);
-      const grandTotal = afterDiscount + vatAmount - wht;
+      const grandTotal = afterDiscount + vatAmount;
       return {
         rawTotal,
         discountAmount: discAmount,
@@ -634,7 +634,7 @@ export default function InvoiceForm() {
       const vatBase = Math.max(vatItemsTotal - discAmount, 0);
       const vatAmount = vatBase * 0.07;
       const wht = whtIsPercent ? afterDiscount * (parseFloat(whtRaw) || 0) / 100 : (parseFloat(whtRaw) || 0);
-      const grandTotal = afterDiscount + vatAmount - wht;
+      const grandTotal = afterDiscount + vatAmount;
       return {
         rawTotal,
         discountAmount: discAmount,

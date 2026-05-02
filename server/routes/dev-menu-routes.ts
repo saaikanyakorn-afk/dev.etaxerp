@@ -994,7 +994,7 @@ app.get("/api/dev/invoice-recompute-preview", requireAdmin, async (req, res) => 
         sources.includes("TIV") && sources.includes("WHT") && !sources.includes("Receipt") && !sources.includes("BatchReceipt") ? "Case6: TIV+WHT" :
         sources.includes("WHT") && !sources.includes("TIV") ? "Case5: เสร็จ+WHT" :
         "Case8: อื่นๆ";
-      const correctTotal = Math.round((subtotal + vatAmount - whtField) * 100) / 100;
+      const correctTotal = Math.round((subtotal + vatAmount) * 100) / 100;
       const totalWillChange = Math.abs(total - correctTotal) > 0.01;
       return {
         id: inv.id, invoiceNo: inv.invoice_no, docPrefix: inv.doc_prefix || "IV", customerName: inv.customer_name,
@@ -1016,11 +1016,11 @@ app.post("/api/dev/invoice-recompute-apply", requireAdmin, async (req, res) => {
     let updated = 0; let totalFixed = 0; const errors: string[] = [];
     for (const id of ids) {
       try {
-        // fix total_amount if wrong (subtotal + vat - wht)
+        // fix total_amount if wrong (correct = subtotal + vat, WHT is NOT deducted from total)
         const invRow = await db.execute(sql.raw(`SELECT subtotal, vat_amount, withholding_tax, total_amount FROM invoices WHERE id = ${id}`));
         const inv = ((invRow as any).rows || [])[0];
         if (inv) {
-          const correctTotal = Math.round((parseFloat(inv.subtotal||0) + parseFloat(inv.vat_amount||0) - parseFloat(inv.withholding_tax||0)) * 100) / 100;
+          const correctTotal = Math.round((parseFloat(inv.subtotal||0) + parseFloat(inv.vat_amount||0)) * 100) / 100;
           if (Math.abs(parseFloat(inv.total_amount||0) - correctTotal) > 0.01) {
             await db.execute(sql.raw(`UPDATE invoices SET total_amount = ${correctTotal} WHERE id = ${id}`));
             totalFixed++;
