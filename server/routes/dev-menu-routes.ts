@@ -949,8 +949,13 @@ app.get("/api/dev/invoice-recompute-preview", requireAdmin, async (req, res) => 
     const companyId = Number(req.query.companyId);
     if (!companyId) return res.status(400).json({ message: "companyId required" });
     const docPrefix = req.query.docPrefix ? String(req.query.docPrefix) : null;
-    const prefixClause = docPrefix ? ` AND doc_prefix = '${docPrefix.replace(/'/g,"''")}'` : "";
-    const invRows = await db.execute(sql.raw(`SELECT id, invoice_no, doc_prefix, customer_name, subtotal, vat_amount, total_amount, withholding_tax, payment_status FROM invoices WHERE company_id = ${companyId}${prefixClause} ORDER BY invoice_date DESC, id DESC`));
+    // return distinct prefixes only when asked
+    if (req.query.prefixesOnly === "1") {
+      const pr = await db.execute(sql.raw(`SELECT DISTINCT COALESCE(doc_prefix,'IV') AS prefix FROM invoices WHERE company_id = ${companyId} ORDER BY prefix`));
+      return res.json((pr as any).rows.map((r: any) => r.prefix));
+    }
+    const prefixClause = docPrefix ? ` AND COALESCE(doc_prefix,'IV') = '${docPrefix.replace(/'/g,"''")}'` : "";
+    const invRows = await db.execute(sql.raw(`SELECT id, invoice_no, COALESCE(doc_prefix,'IV') AS doc_prefix, customer_name, subtotal, vat_amount, total_amount, withholding_tax, payment_status FROM invoices WHERE company_id = ${companyId}${prefixClause} ORDER BY invoice_date DESC, id DESC`));
     const rows = (invRows as any).rows || [];
     if (rows.length === 0) return res.json([]);
     const idArr = `'{${rows.map((r: any) => r.id).join(",")}}'::int[]`;
@@ -1089,11 +1094,6 @@ tr.unknown-row td{background:#fff1f2;border-left:4px solid #dc2626}
   <label>ประเภท:
     <select id="docPrefix" style="border:1px solid #ccc;border-radius:4px;padding:5px 8px;font-size:13px;background:#fff">
       <option value="">ทั้งหมด</option>
-      <option value="IV">IV — ใบแจ้งหนี้</option>
-      <option value="BL">BL — ใบวางบิล</option>
-      <option value="RC">RC — ใบเสร็จ</option>
-      <option value="BN">BN — ใบวางบิล (BN)</option>
-      <option value="SO">SO — ใบสั่งขาย</option>
     </select>
   </label>
   <button class="btn-load" onclick="loadData()">โหลดข้อมูล</button>
@@ -1249,15 +1249,16 @@ function render(){
       '</tr>';
   }).join('');
 
-  document.getElementById('out').innerHTML = rows
-    ? '<table><thead><tr>'+
-      '<th>#</th><th>เลขที่</th><th>ประเภท</th><th>ลูกค้า</th>'+
-      '<th>หลังส่วนลด</th><th>แวท</th><th>WHT</th>'+
-      '<th>รวมสุทธิ (DB)</th><th>คำนวณ</th>'+
-      '<th>ยอดรับรวม</th><th>สถานะ</th>'+
-      '<th>Case</th><th>ผล</th>'+
-      '</tr></thead><tbody>'+rows+'</tbody></table>'
-    : '<div class="loading">ไม่มีรายการ</div>';
+  const thead = '<table><thead><tr>'+
+    '<th>#</th><th>เลขที่</th><th>ประเภท</th><th>ลูกค้า</th>'+
+    '<th>หลังส่วนลด</th><th>แวท</th><th>WHT</th>'+
+    '<th>รวมสุทธิ (DB)</th><th>คำนวณ</th>'+
+    '<th>ยอดรับรวม</th><th>สถานะ</th>'+
+    '<th>Case</th><th>ผล</th>'+
+    '</tr></thead><tbody>';
+  document.getElementById('out').innerHTML = thead +
+    (rows || '<tr><td colspan="13" style="text-align:center;color:#6b7280;padding:20px">ไม่มีรายการที่ต้องตรวจสอบ</td></tr>') +
+    '</tbody></table>';
 }
 
 /* ─── Step-by-step ─── */
@@ -1361,7 +1362,27 @@ function finishAll(){
   sumEl.scrollIntoView({behavior:'smooth'});
 }
 
-window.onload = loadData;
+async function loadPrefixes(){
+  const cid = document.getElementById('cid').value;
+  if(!cid) return;
+  try{
+    const r = await fetch('/api/dev/invoice-recompute-preview?companyId='+cid+'&prefixesOnly=1',{credentials:'include'});
+    if(!r.ok) return;
+    const prefixes = await r.json();
+    const sel = document.getElementById('docPrefix');
+    const cur = sel.value;
+    sel.innerHTML = '<option value="">ทั้งหมด ('+prefixes.length+' ประเภท)</option>';
+    prefixes.forEach(p => {
+      const labels = {IV:'ใบแจ้งหนี้',BL:'ใบวางบิล',BN:'ใบวางบิล',SO:'ใบสั่งขาย',QO:'ใบเสนอราคา',RC:'ใบเสร็จ',TIV:'ใบกำกับภาษี'};
+      const lbl = labels[p] || p;
+      sel.innerHTML += '<option value="'+p+'"'+(p===cur?' selected':'')+'>'+p+' — '+lbl+'</option>';
+    });
+  }catch(e){}
+}
+
+document.getElementById('cid').addEventListener('change', loadPrefixes);
+
+window.onload = async function(){ await loadPrefixes(); loadData(); };
 </script>
 </body>
 </html>`);
