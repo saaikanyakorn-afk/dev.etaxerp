@@ -192,7 +192,7 @@ export default function DashboardAnalytical() {
         </div>
 
         <div className="grid gap-3 sm:gap-4 grid-cols-1 min-[400px]:grid-cols-2 lg:grid-cols-4">
-          <Card className="shadow-sm border-slate-200 rounded-xl hover:shadow-md transition-all cursor-pointer" onClick={() => setLocation("/invoices")} data-testid="card-receivables">
+          <Card className="shadow-sm border-slate-200 rounded-xl hover:shadow-md transition-all cursor-pointer" onClick={() => setLocation("/sales/invoice")} data-testid="card-receivables">
             <CardContent className="p-3 sm:p-5">
               <div className="flex items-center gap-2 sm:gap-3 mb-2 sm:mb-3">
                 <div className="p-2 sm:p-2.5 rounded-full" style={{ background: outstandingReceivables > 0 ? "#fff3ee" : "#e5f9fa" }}>
@@ -205,7 +205,7 @@ export default function DashboardAnalytical() {
             </CardContent>
           </Card>
 
-          <Card className="shadow-sm border-slate-200 rounded-xl hover:shadow-md transition-all cursor-pointer" onClick={() => setLocation("/expenses")} data-testid="card-payables">
+          <Card className="shadow-sm border-slate-200 rounded-xl hover:shadow-md transition-all cursor-pointer" onClick={() => setLocation("/purchases/expense")} data-testid="card-payables">
             <CardContent className="p-3 sm:p-5">
               <div className="flex items-center gap-2 sm:gap-3 mb-2 sm:mb-3">
                 <div className="p-2 sm:p-2.5 rounded-full" style={{ background: outstandingPayables > 0 ? "#fef3cd" : "#e5f9fa" }}>
@@ -429,8 +429,8 @@ export default function DashboardAnalytical() {
                 { icon: LineChart, label: "พยากรณ์เงินสด", desc: "วิเคราะห์กระแสเงินสด + ทุนหมุนเวียน", path: "/finance/cash-flow-forecast", color: "#05b187", bg: "#e8f8f0" },
                 { icon: ClipboardList, label: "รายงาน AR Aging", desc: "ลูกหนี้จัดตามอายุหนี้", path: "/reports/ar-aging", color: "#fb9678", bg: "#fff3ee" },
                 { icon: ArrowRightLeft, label: "รายงาน AP Aging", desc: "เจ้าหนี้จัดตามอายุหนี้", path: "/reports/ap-aging", color: "#fec90f", bg: "#fef9ec" },
-                { icon: FilePlus, label: "สร้างใบแจ้งหนี้", desc: "ออกเอกสารเรียกเก็บเงินลูกค้า", path: "/invoices/new", color: "#539BFF", bg: "#eff4ff" },
-                { icon: ShoppingBag, label: "สร้างใบซื้อ", desc: "บันทึกการซื้อสินค้า/บริการ", path: "/purchases/invoice/new", color: "#a855f7", bg: "#f5f0ff" },
+                { icon: FilePlus, label: "สร้างใบแจ้งหนี้", desc: "ออกเอกสารเรียกเก็บเงินลูกค้า", path: "/sales/invoice/new", color: "#539BFF", bg: "#eff4ff" },
+                { icon: ShoppingBag, label: "สร้างใบซื้อ", desc: "บันทึกการซื้อสินค้า/บริการ", path: "/purchases/invoice", color: "#a855f7", bg: "#f5f0ff" },
               ].map((item, i) => {
                 const Icon = item.icon;
                 return (
