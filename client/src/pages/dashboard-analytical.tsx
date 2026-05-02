@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import Layout from "@/components/layout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { DollarSign, TrendingUp, TrendingDown, Info, Wallet, BadgeDollarSign, ReceiptText, Scale, BarChart3, ShoppingCart, LayoutDashboard, PiggyBank } from "lucide-react";
+import { DollarSign, TrendingUp, TrendingDown, Info, Wallet, BadgeDollarSign, ReceiptText, Scale, BarChart3, ShoppingCart, LayoutDashboard, PiggyBank, CalendarClock, LineChart, ArrowRightLeft, ClipboardList, FilePlus, ShoppingBag, ChevronRight } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import { useQuery } from "@tanstack/react-query";
 import { useCompany } from "@/lib/company-context";
@@ -418,31 +418,39 @@ export default function DashboardAnalytical() {
         </div>
 
         <Card className="shadow-sm border-slate-200 rounded-xl">
-          <CardHeader>
-            <CardTitle className="text-base font-bold">สรุปฐานะทางการเงิน</CardTitle>
-            <CardDescription>ลูกหนี้ vs เจ้าหนี้คงค้าง</CardDescription>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base font-bold">ทางลัด</CardTitle>
+            <CardDescription>เข้าถึงหน้าที่ใช้บ่อยในการจัดการการเงิน</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid gap-3 sm:gap-6 grid-cols-1 sm:grid-cols-3">
-              <div className="text-center p-3 sm:p-4 rounded-xl" style={{ background: "#e5f9fa" }}>
-                <p className="text-sm text-muted-foreground mb-1 sm:mb-2">ลูกหนี้คงค้าง</p>
-                <p className="text-xl sm:text-2xl font-bold" style={{ color: "#03c9d7" }}>{formatMoney(outstandingReceivables)}</p>
-                <p className="text-xs text-muted-foreground mt-1">เงินที่ลูกค้าค้างจ่าย</p>
-              </div>
-              <div className="text-center p-3 sm:p-4 rounded-xl" style={{ background: "#fff3ee" }}>
-                <p className="text-sm text-muted-foreground mb-1 sm:mb-2">เจ้าหนี้คงค้าง</p>
-                <p className="text-xl sm:text-2xl font-bold" style={{ color: "#fb9678" }}>{formatMoney(outstandingPayables)}</p>
-                <p className="text-xs text-muted-foreground mt-1">เงินที่ค้างจ่ายผู้ขาย</p>
-              </div>
-              <div className="text-center p-3 sm:p-4 rounded-xl" style={{ background: netReceivablePayable >= 0 ? "#e8f8f0" : "#fef2f2" }}>
-                <p className="text-sm text-muted-foreground mb-1 sm:mb-2">สุทธิ (ลูกหนี้ - เจ้าหนี้)</p>
-                <p className="text-xl sm:text-2xl font-bold" style={{ color: netReceivablePayable >= 0 ? "#05b187" : "#f94d4d" }}>
-                  {netReceivablePayable >= 0 ? "+" : ""}{formatMoney(netReceivablePayable)}
-                </p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {netReceivablePayable >= 0 ? "มีเงินค้างรับมากกว่าค้างจ่าย" : "มีเงินค้างจ่ายมากกว่าค้างรับ"}
-                </p>
-              </div>
+            <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+              {[
+                { icon: CalendarClock, label: "ปฏิทินครบกำหนดชำระ", desc: "ดูรายการที่ถึงกำหนดชำระ", path: "/finance/due-calendar", color: "#03c9d7", bg: "#e5f9fa" },
+                { icon: LineChart, label: "พยากรณ์เงินสด", desc: "วิเคราะห์กระแสเงินสด + ทุนหมุนเวียน", path: "/finance/cash-flow-forecast", color: "#05b187", bg: "#e8f8f0" },
+                { icon: ClipboardList, label: "รายงาน AR Aging", desc: "ลูกหนี้จัดตามอายุหนี้", path: "/reports/ar-aging", color: "#fb9678", bg: "#fff3ee" },
+                { icon: ArrowRightLeft, label: "รายงาน AP Aging", desc: "เจ้าหนี้จัดตามอายุหนี้", path: "/reports/ap-aging", color: "#fec90f", bg: "#fef9ec" },
+                { icon: FilePlus, label: "สร้างใบแจ้งหนี้", desc: "ออกเอกสารเรียกเก็บเงินลูกค้า", path: "/invoices/new", color: "#539BFF", bg: "#eff4ff" },
+                { icon: ShoppingBag, label: "สร้างใบซื้อ", desc: "บันทึกการซื้อสินค้า/บริการ", path: "/purchases/invoice/new", color: "#a855f7", bg: "#f5f0ff" },
+              ].map((item, i) => {
+                const Icon = item.icon;
+                return (
+                  <button
+                    key={i}
+                    className="flex items-center gap-3 p-3 sm:p-4 rounded-xl border border-slate-100 hover:border-slate-200 hover:shadow-sm transition-all text-left w-full group"
+                    onClick={() => setLocation(item.path)}
+                    data-testid={`quicklink-${i}`}
+                  >
+                    <div className="p-2 sm:p-2.5 rounded-full shrink-0" style={{ background: item.bg }}>
+                      <Icon className="h-4 sm:h-5 w-4 sm:w-5" style={{ color: item.color }} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-foreground truncate">{item.label}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5 truncate">{item.desc}</p>
+                    </div>
+                    <ChevronRight className="h-4 w-4 text-muted-foreground/40 shrink-0 group-hover:text-muted-foreground transition-colors" />
+                  </button>
+                );
+              })}
             </div>
           </CardContent>
         </Card>
