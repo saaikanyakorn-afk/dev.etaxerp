@@ -8,10 +8,11 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { FileText, Search, DollarSign, Clock, AlertTriangle, CheckCircle, Users, CreditCard, Loader2, Receipt, ChevronDown, ChevronRight, Link2, Plus, ArrowLeft, X, CalendarDays, Printer, Pencil, Trash2, Send, MoreHorizontal, Copy, FileCheck, BookOpen } from "lucide-react";
+import { FileText, Search, DollarSign, Clock, AlertTriangle, CheckCircle, Users, CreditCard, Loader2, Receipt, ChevronDown, ChevronRight, Link2, Plus, ArrowLeft, X, CalendarDays, Printer, Pencil, Trash2, Send, MoreHorizontal, Copy, FileCheck, BookOpen, ExternalLink } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Textarea } from "@/components/ui/textarea";
 import { useLocation } from "wouter";
+import RelatedDocsDialog from "@/components/related-docs-dialog";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useCompany } from "@/lib/company-context";
 import { formatDate } from "@/lib/format";
@@ -106,6 +107,8 @@ export default function BillingNotes() {
   const [editNotes, setEditNotes] = useState("");
   const [editWhtRate, setEditWhtRate] = useState("");
   const [editWht, setEditWht] = useState(""); // computed amount
+
+  const [relatedDocDialog, setRelatedDocDialog] = useState<{ open: boolean; id: number; docNo: string }>({ open: false, id: 0, docNo: "" });
 
   const [sendDialogOpen, setSendDialogOpen] = useState(false);
   const [sendBn, setSendBn] = useState<any>(null);
@@ -977,6 +980,14 @@ export default function BillingNotes() {
                               )}
                               <DropdownMenuSeparator />
                               <DropdownMenuItem
+                                onClick={() => setRelatedDocDialog({ open: true, id: bn.id, docNo: bn.billingNo })}
+                                data-testid={`menu-related-${bn.id}`}
+                              >
+                                <ExternalLink className="h-3.5 w-3.5 mr-2 text-[#03c9d7]" />
+                                เอกสารที่เกี่ยวข้อง
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
                                 className="text-red-600 focus:text-red-600"
                                 onClick={() => { setDeleteBn(bn); setDeleteConfirmOpen(true); }}
                                 data-testid={`menu-delete-${bn.id}`}
@@ -1288,6 +1299,13 @@ export default function BillingNotes() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <RelatedDocsDialog
+        open={relatedDocDialog.open}
+        onOpenChange={(open) => setRelatedDocDialog(prev => ({ ...prev, open }))}
+        docType="billing_note"
+        docId={relatedDocDialog.id}
+      />
 
       <LineSendDialog
         open={lineDialog.open}

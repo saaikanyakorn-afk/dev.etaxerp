@@ -3186,6 +3186,35 @@ app.get("/api/related-documents/:docType/:docId", requireAuth, async (req, res) 
       // lookup billing note linked to this receipt (receipt_id added via migration, not in schema)
       const bnByReceiptRaw = await db.execute(sql.raw(`SELECT id, billing_no, billing_date, payment_status, status, total_amount FROM billing_notes WHERE receipt_id = ${id} AND company_id = ${companyId}`));
       for (const bn of (bnByReceiptRaw.rows || []) as any[]) addUnique({ type: "billing_note", id: bn.id, docNo: bn.billing_no, date: bn.billing_date, status: bn.payment_status || bn.status, totalAmount: String(bn.total_amount) });
+    } else if (docType === "billing_note") {
+      const bnRaw = await db.execute(sql.raw(`SELECT * FROM billing_notes WHERE id = ${id} AND company_id = ${companyId} LIMIT 1`));
+      const bn = (bnRaw.rows || [])[0] as any;
+      if (!bn) return res.status(404).json({ message: "Document not found" });
+      const seenIds = new Set<string>();
+      const addUnique = (doc: any) => {
+        const key = `${doc.type}-${doc.id}`;
+        if (!seenIds.has(key)) { seenIds.add(key); related.push(doc); }
+      };
+      // source docs linked to this BN (IV or TIV)
+      const bnLinked = await db.select().from(billingNoteLinkedDocs).where(eq(billingNoteLinkedDocs.billingNoteId, id));
+      for (const ld of bnLinked) {
+        if (ld.docType === "IV" && ld.docId) {
+          const [iv] = await db.select().from(invoices).where(and(eq(invoices.id, ld.docId), eq(invoices.companyId, companyId)));
+          if (iv) addUnique({ type: "invoice", id: iv.id, docNo: iv.invoiceNo, date: iv.invoiceDate, status: iv.status, totalAmount: iv.totalAmount });
+        } else if (ld.docType === "TIV" && ld.docId) {
+          const [tx] = await db.select().from(taxInvoices).where(and(eq(taxInvoices.id, ld.docId), eq(taxInvoices.companyId, companyId)));
+          if (tx) addUnique({ type: "tax_invoice", id: tx.id, docNo: tx.taxInvoiceNo, date: tx.taxInvoiceDate, status: tx.status, totalAmount: tx.totalAmount });
+        }
+      }
+      // TIV created from this BN (refDoc = bn.billing_no)
+      const tivsFromBn = await db.select().from(taxInvoices).where(and(eq(taxInvoices.refDoc, bn.billing_no), eq(taxInvoices.companyId, companyId)));
+      for (const tx of tivsFromBn) addUnique({ type: "tax_invoice", id: tx.id, docNo: tx.taxInvoiceNo, date: tx.taxInvoiceDate, status: tx.status, totalAmount: tx.totalAmount });
+      // Receipt created from this BN
+      if (bn.receipt_id) {
+        const [rc] = await db.select().from(receipts).where(and(eq(receipts.id, Number(bn.receipt_id)), eq(receipts.companyId, companyId)));
+        if (rc) addUnique({ type: "receipt", id: rc.id, docNo: rc.receiptNo, date: rc.receiptDate, status: rc.status, totalAmount: rc.totalAmount });
+      }
+
     } else if (docType === "purchase-request") {
       const [pr] = await db.select().from(purchaseRequests).where(and(eq(purchaseRequests.id, id), eq(purchaseRequests.companyId, companyId)));
       if (!pr) return res.status(404).json({ message: "Document not found" });
