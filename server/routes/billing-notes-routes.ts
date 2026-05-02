@@ -365,6 +365,11 @@ app.post("/api/finance/billing-notes/:id/create-tax-invoice", requireAuth, async
       }
     }
 
+    // mark BN as "invoiced" to prevent re-creating TIV
+    await db.update(billingNotes)
+      .set({ status: "invoiced", updatedBy: user.id, updatedAt: new Date() })
+      .where(eq(billingNotes.id, bnId));
+
     res.json({ success: true, taxInvoice: result, journalResult });
   } catch (err: any) { res.status(500).json({ message: err.message }); }
 });

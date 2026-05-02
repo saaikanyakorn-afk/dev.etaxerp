@@ -30,6 +30,7 @@ function fmt(n: number) {
 function billingStatusBadge(status: string) {
   switch (status) {
     case "paid": return <Badge className="text-[10px] bg-green-100 text-green-700 border-0"><CheckCircle className="h-3 w-3 mr-0.5" />ชำระแล้ว</Badge>;
+    case "invoiced": return <Badge className="text-[10px] bg-purple-100 text-purple-700 border-0"><FileCheck className="h-3 w-3 mr-0.5" />ออกใบกำกับแล้ว</Badge>;
     case "approved": return <Badge className="text-[10px] bg-blue-100 text-blue-700 border-0"><CheckCircle className="h-3 w-3 mr-0.5" />อนุมัติ</Badge>;
     case "cancelled": return <Badge className="text-[10px] bg-red-100 text-red-700 border-0"><X className="h-3 w-3 mr-0.5" />ยกเลิก</Badge>;
     case "draft": return <Badge className="text-[10px] bg-gray-100 text-gray-700 border-0"><Clock className="h-3 w-3 mr-0.5" />ร่าง</Badge>;
@@ -976,12 +977,15 @@ export default function BillingNotes() {
                               {bn.status !== "paid" && bn.paymentStatus !== "paid" && (
                                 <>
                                   <DropdownMenuSeparator />
-                                  {getBnPrimaryDocType(bn) === "IV" ? (
+                                  {/* ปุ่มสร้างใบกำกับ: แสดงเฉพาะเมื่อ BN จาก IV และยังไม่เคยออกใบกำกับ */}
+                                  {getBnPrimaryDocType(bn) === "IV" && bn.status !== "invoiced" && (
                                     <DropdownMenuItem onClick={() => openTIVDialog(bn)} data-testid={`menu-create-tiv-${bn.id}`}>
                                       <FileCheck className="h-3.5 w-3.5 mr-2 text-cyan-500" />
                                       สร้างใบกำกับภาษี
                                     </DropdownMenuItem>
-                                  ) : (
+                                  )}
+                                  {/* ปุ่มสร้างใบเสร็จ: แสดงเมื่อ BN จาก TIV/mixed หรือออกใบกำกับแล้ว (invoiced) */}
+                                  {(getBnPrimaryDocType(bn) !== "IV" || bn.status === "invoiced") && (
                                     <DropdownMenuItem onClick={() => openReceiptDialog(bn)} data-testid={`menu-receipt-${bn.id}`}>
                                       <Receipt className="h-3.5 w-3.5 mr-2 text-green-500" />
                                       สร้างใบเสร็จรับเงิน
