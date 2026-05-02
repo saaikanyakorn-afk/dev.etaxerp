@@ -262,7 +262,7 @@ export default function BillingNotes() {
       queryClient.invalidateQueries({ queryKey: ["/api/finance/billing-notes", companyId] });
       setTivDialogOpen(false);
       setTivBillingNote(null);
-      navigate(`/sales/tax-invoices?companyId=${companyId}`);
+      navigate(`/sales/tax-invoice?companyId=${companyId}`);
     },
     onError: (err: any) => {
       toast({ title: "เกิดข้อผิดพลาด", description: err.message, variant: "destructive" });
