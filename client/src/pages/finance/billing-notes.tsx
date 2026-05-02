@@ -75,7 +75,7 @@ export default function BillingNotes() {
 
   const [receiptDialogOpen, setReceiptDialogOpen] = useState(false);
   const [receiptBillingNote, setReceiptBillingNote] = useState<any>(null);
-  const [receiptPayMethod, setReceiptPayMethod] = useState("โอนเงิน");
+  const [receiptPayMethod, setReceiptPayMethod] = useState("");
   const [receiptPayDate, setReceiptPayDate] = useState(() => toLocalDateStr(new Date()));
   const [receiptWht, setReceiptWht] = useState("");
   const receiptWhtAmt = useMemo(() => {
@@ -408,7 +408,7 @@ export default function BillingNotes() {
 
   const openReceiptDialog = (bn: any) => {
     setReceiptBillingNote(bn);
-    setReceiptPayMethod("โอนเงิน");
+    setReceiptPayMethod(paymentMethodsList?.[0]?.name || "");
     setReceiptPayDate(toLocalDateStr(new Date()));
     setReceiptWht("");
     setReceiptNotes("");
@@ -1035,11 +1035,7 @@ export default function BillingNotes() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="โอนเงิน">โอนเงิน</SelectItem>
-                  <SelectItem value="เงินสด">เงินสด</SelectItem>
-                  <SelectItem value="เช็ค">เช็ค</SelectItem>
-                  <SelectItem value="บัตรเครดิต">บัตรเครดิต</SelectItem>
-                  {(paymentMethodsList || []).filter((m: any) => !["โอนเงิน","เงินสด","เช็ค","บัตรเครดิต"].includes(m.name)).map((m: any) => (
+                  {(paymentMethodsList || []).map((m: any) => (
                     <SelectItem key={m.id} value={m.name}>{m.name}</SelectItem>
                   ))}
                 </SelectContent>
