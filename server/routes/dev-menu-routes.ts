@@ -948,7 +948,7 @@ app.get("/api/dev/invoice-recompute-preview", requireAdmin, async (req, res) => 
   try {
     const companyId = Number(req.query.companyId);
     if (!companyId) return res.status(400).json({ message: "companyId required" });
-    const invRows = await db.execute(sql.raw(`SELECT id, invoice_no, customer_name, total_amount, withholding_tax, payment_status FROM invoices WHERE company_id = ${companyId} ORDER BY invoice_date DESC, id DESC`));
+    const invRows = await db.execute(sql.raw(`SELECT id, invoice_no, customer_name, subtotal, vat_amount, total_amount, withholding_tax, payment_status FROM invoices WHERE company_id = ${companyId} ORDER BY invoice_date DESC, id DESC`));
     const rows = (invRows as any).rows || [];
     if (rows.length === 0) return res.json([]);
     const idArr = `'{${rows.map((r: any) => r.id).join(",")}}'::int[]`;
@@ -965,6 +965,8 @@ app.get("/api/dev/invoice-recompute-preview", requireAdmin, async (req, res) => 
     for (const r of (tivRes as any).rows || []) tivMap[r.invoice_id] = parseFloat(r.paid || 0);
     const result = rows.map((inv: any) => {
       const total = parseFloat(inv.total_amount || 0);
+      const subtotal = parseFloat(inv.subtotal || 0);
+      const vatAmount = parseFloat(inv.vat_amount || 0);
       const whtField = parseFloat(inv.withholding_tax || 0);
       const direct = directMap[inv.id] || 0;
       const batch = batchMap[inv.id] || 0;
@@ -987,7 +989,7 @@ app.get("/api/dev/invoice-recompute-preview", requireAdmin, async (req, res) => 
         "Case8: อื่นๆ";
       return {
         id: inv.id, invoiceNo: inv.invoice_no, customerName: inv.customer_name,
-        total, whtField, direct, batch, tiv, rawPaid, whtCounted, effectivePaid,
+        total, subtotal, vatAmount, whtField, direct, batch, tiv, rawPaid, whtCounted, effectivePaid,
         currentStatus: inv.payment_status, newStatus, caseLabel,
         willChange: inv.payment_status !== newStatus,
       };
@@ -1181,36 +1183,32 @@ function render(){
   document.getElementById('stats').innerHTML =
     '<div class="stat"><div class="stat-n stat-total">'+total+'</div><div>ทั้งหมด</div></div>'+
     '<div class="stat"><div class="stat-n stat-will">'+willChange+'</div><div>จะเปลี่ยน</div></div>'+
-    '<div class="stat"><div class="stat-n stat-ok">'+(total-willChange)+'</div><div>ถูกต้องแล้ว</div></div>'+
-    (displayOnly ? '<div class="stat" style="border-color:#7c3aed"><div class="stat-n" style="color:#7c3aed">'+total+'</div><div>แสดงทั้งหมด</div></div>' : '');
+    '<div class="stat"><div class="stat-n stat-ok">'+(total-willChange)+'</div><div>ถูกต้องแล้ว</div></div>';
 
-  if(!displayOnly && toChange.length===0 && allData.length>0){
+  if(toChange.length===0 && allData.length>0){
     document.getElementById('out').innerHTML='<div class="loading" style="color:#16a34a;font-weight:600">✅ ทุก invoice มีสถานะถูกต้องแล้ว ไม่มีรายการที่ต้องเปลี่ยน</div>';
     return;
   }
 
-  // In display-only mode: show ALL records; otherwise show only willChange
-  const sourceRows = displayOnly ? allData : toChange;
-
-  const rows = sourceRows.map((d,i)=>{
+  const rows = toChange.map((d,i)=>{
     const unknown = isUnknownCase(d.caseLabel);
-    const isOk = !d.willChange;
-    const rowCls = isOk ? 'ok-row' : (unknown ? 'will-change unknown-row' : 'will-change');
+    const rowCls = unknown ? 'will-change unknown-row' : 'will-change';
     const caseBadgeCls = unknown ? 'case-badge case-unknown' : 'case-badge';
     const unknownFlag = unknown ? ' <span style="color:#dc2626;font-weight:700">⚠ ไม่รู้จัก</span>' : '';
     const actionCell = displayOnly
-      ? (isOk
-          ? '<td class="row-status" style="color:#16a34a">✅ ถูกต้องแล้ว</td>'
-          : '<td class="row-status" style="color:#d97706">⏳ รอแก้ไข</td>')
+      ? '<td class="row-status" style="color:#d97706">⏳ รอแก้ไข</td>'
       : '<td class="row-status" id="rs-'+d.id+'">รอดำเนินการ</td>';
     return '<tr class="'+rowCls+'" id="row-'+d.id+'">'+
       '<td class="num">'+(i+1)+'</td>'+
       '<td><b>'+d.invoiceNo+'</b></td>'+
       '<td>'+d.customerName+'</td>'+
+      '<td class="num">'+fmt(d.subtotal)+'</td>'+
+      '<td class="num">'+fmt(d.vatAmount)+'</td>'+
+      '<td class="num">'+fmt(d.whtField)+'</td>'+
       '<td class="num">'+fmt(d.total)+'</td>'+
       '<td class="num">'+fmt(d.effectivePaid)+'</td>'+
       '<td>'+badge(d.currentStatus)+'</td>'+
-      '<td>'+(isOk ? '<span style="color:#6b7280;font-size:11px">ไม่เปลี่ยน</span>' : '→ '+badge(d.newStatus))+'</td>'+
+      '<td>→ '+badge(d.newStatus)+'</td>'+
       '<td><span class="'+caseBadgeCls+'">'+d.caseLabel+'</span>'+unknownFlag+'</td>'+
       actionCell+
       '</tr>';
@@ -1219,8 +1217,9 @@ function render(){
   document.getElementById('out').innerHTML = rows
     ? '<table><thead><tr>'+
       '<th>#</th><th>เลขที่</th><th>ลูกค้า</th>'+
-      '<th>ยอดรวม</th><th>ยอดรับรวม</th><th>สถานะปัจจุบัน</th><th>สถานะใหม่</th>'+
-      '<th>Case</th><th>'+(displayOnly ? 'สถานะ' : 'ผล')+'</th>'+
+      '<th>หลังส่วนลด</th><th>แวท</th><th>WHT</th><th>รวมสุทธิ</th>'+
+      '<th>ยอดรับรวม</th><th>สถานะปัจจุบัน</th><th>สถานะใหม่</th>'+
+      '<th>Case</th><th>ผล</th>'+
       '</tr></thead><tbody>'+rows+'</tbody></table>'
     : '<div class="loading">ไม่มีรายการ</div>';
 }
