@@ -68,11 +68,12 @@ app.post("/api/payment-methods", requireAuth, async (req, res) => {
       isDefault: isDefault || false,
       sortOrder: sortOrder || 0,
     }).returning();
-    if (bankName !== undefined || bankAccountNo !== undefined) {
+    if (!method?.id) return res.status(500).json({ message: "บันทึกไม่สำเร็จ กรุณาลองใหม่" });
+    if (bankName || bankAccountNo) {
       await db.execute(sql`UPDATE payment_methods SET bank_name = ${bankName || null}, bank_account_no = ${bankAccountNo || null} WHERE id = ${method.id}`);
     }
     const finalRow = await db.execute(sql`SELECT *, name_th AS "nameTh", account_code AS "accountCode", account_id AS "accountId", is_default AS "isDefault", sort_order AS "sortOrder", company_id AS "companyId", bank_name AS "bankName", bank_account_no AS "bankAccountNo" FROM payment_methods WHERE id = ${method.id} LIMIT 1`);
-    res.status(201).json(finalRow.rows[0]);
+    res.status(201).json(finalRow.rows[0] ?? method);
   } catch (err: any) { res.status(400).json({ message: err.message }); }
 });
 

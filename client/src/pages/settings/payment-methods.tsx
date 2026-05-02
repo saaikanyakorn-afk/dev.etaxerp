@@ -70,7 +70,11 @@ export default function PaymentMethodSettings() {
         credentials: "include",
         body: JSON.stringify({ ...data, companyId: selectedCompanyId }),
       });
-      if (!r.ok) throw new Error((await r.json()).message);
+      if (!r.ok) {
+        const ct = r.headers.get("content-type") || "";
+        if (ct.includes("application/json")) throw new Error((await r.json()).message);
+        throw new Error(`เซิร์ฟเวอร์ตอบสนองผิดพลาด (${r.status}) — กรุณาลองใหม่`);
+      }
       return r.json();
     },
     onSuccess: () => {
