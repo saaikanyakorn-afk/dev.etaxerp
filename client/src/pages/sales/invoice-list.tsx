@@ -152,13 +152,17 @@ export default function InvoiceList() {
   const filtered = invoices.filter((q: any) => {
     if (filterStatus && filterStatus !== "all") {
       if (filterStatus === "overdue") {
-        const isUnpaid = !["paid", "cancelled", "cancel"].includes(q.status);
-        const isOverdue = q.dueDate && q.dueDate < today;
-        if (!isUnpaid || !isOverdue) return false;
+        const ps = getPaymentStatus(q);
+        if (ps !== "overdue" && ps !== "partial_overdue") return false;
       } else if (filterStatus === "cancelled") {
         if (q.status !== "cancelled" && q.status !== "cancel") return false;
       } else if (filterStatus === "paid") {
-        if (q.status !== "paid" && q.paymentStatus !== "paid") return false;
+        if (getPaymentStatus(q) !== "paid" && getPaymentStatus(q) !== "overpaid") return false;
+      } else if (filterStatus === "debtor") {
+        if (getPaymentStatus(q) !== "unpaid") return false;
+      } else if (filterStatus === "partially_paid") {
+        const ps = getPaymentStatus(q);
+        if (ps !== "partial" && ps !== "partial_overdue") return false;
       } else {
         if (q.status !== filterStatus) return false;
       }
