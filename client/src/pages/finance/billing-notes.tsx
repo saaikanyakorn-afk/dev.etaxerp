@@ -898,17 +898,28 @@ export default function BillingNotes() {
                       onClick={() => toggleNoteExpand(bn.id)}
                     >
                       <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          {isExpanded ? <ChevronDown className="h-4 w-4 text-gray-400" /> : <ChevronRight className="h-4 w-4 text-gray-400" />}
-                          <Badge className="text-[9px] border-0" style={{ background: "#fec90f", color: "#000" }}>BN</Badge>
-                          <span className="text-sm font-medium text-gray-800">{bn.billingNo}</span>
-                          <span className="text-sm text-muted-foreground">{bn.customerName}</span>
-                          {bn.linkedDocs?.length > 0 && (
-                            <Badge variant="outline" className="text-[9px]">
-                              <Link2 className="h-3 w-3 mr-0.5" />
-                              {bn.linkedDocs.length} เอกสาร
-                            </Badge>
-                          )}
+                        <div className="flex flex-col gap-0.5">
+                          <div className="flex items-center gap-2">
+                            {isExpanded ? <ChevronDown className="h-4 w-4 text-gray-400" /> : <ChevronRight className="h-4 w-4 text-gray-400" />}
+                            <Badge className="text-[9px] border-0" style={{ background: "#fec90f", color: "#000" }}>BN</Badge>
+                            <span className="text-sm font-medium text-gray-800">{bn.billingNo}</span>
+                            <span className="text-sm text-muted-foreground">{bn.customerName}</span>
+                            {bn.linkedDocs?.length > 0 && (
+                              <Badge variant="outline" className="text-[9px]">
+                                <Link2 className="h-3 w-3 mr-0.5" />
+                                {bn.linkedDocs.length} เอกสาร
+                              </Badge>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 pl-6 text-xs">
+                            <span
+                              className="flex items-center gap-0.5 text-[#03c9d7] cursor-pointer hover:underline"
+                              onClick={(e) => { e.stopPropagation(); setRelatedDocDialog({ open: true, id: bn.id, docNo: bn.billingNo }); }}
+                              data-testid={`link-related-${bn.id}`}
+                            >
+                              <ExternalLink className="h-3 w-3" /> เอกสารที่เกี่ยวข้อง
+                            </span>
+                          </div>
                         </div>
                         <div className="flex items-center gap-3">
                           <span className="text-xs text-muted-foreground">{formatDate(bn.billingDate, dateEra, dateFmt)}</span>
@@ -978,14 +989,6 @@ export default function BillingNotes() {
                                   )}
                                 </>
                               )}
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem
-                                onClick={() => setRelatedDocDialog({ open: true, id: bn.id, docNo: bn.billingNo })}
-                                data-testid={`menu-related-${bn.id}`}
-                              >
-                                <ExternalLink className="h-3.5 w-3.5 mr-2 text-[#03c9d7]" />
-                                เอกสารที่เกี่ยวข้อง
-                              </DropdownMenuItem>
                               <DropdownMenuSeparator />
                               <DropdownMenuItem
                                 className="text-red-600 focus:text-red-600"
