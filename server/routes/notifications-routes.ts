@@ -595,14 +595,21 @@ app.post("/api/finance/batch-receipt", requireAuth, async (req, res) => {
     for (const doc of documents) {
       if (doc.docType === "IV") {
         const [iv] = await db.select().from(invoices).where(eq(invoices.id, doc.docId));
-        if (iv) { actualVatAmount += parseFloat(iv.vatAmount || "0"); actualSubtotal += parseFloat(iv.subtotal || "0"); }
+        if (!iv) throw new Error(`batch-receipt: invoice id=${doc.docId} not found`);
+        const sub = parseFloat(iv.subtotal ?? "");
+        if (isNaN(sub)) throw new Error(`batch-receipt: invoice id=${doc.docId} is missing subtotal`);
+        actualVatAmount += parseFloat(iv.vatAmount || "0");
+        actualSubtotal += sub;
       } else if (doc.docType === "TIV") {
         const [tiv] = await db.select().from(taxInvoices).where(eq(taxInvoices.id, doc.docId));
-        if (tiv) { actualVatAmount += parseFloat(tiv.vatAmount || "0"); actualSubtotal += parseFloat(tiv.subtotal || "0"); }
+        if (!tiv) throw new Error(`batch-receipt: tax invoice id=${doc.docId} not found`);
+        const sub = parseFloat(tiv.subtotal ?? "");
+        if (isNaN(sub)) throw new Error(`batch-receipt: tax invoice id=${doc.docId} is missing subtotal`);
+        actualVatAmount += parseFloat(tiv.vatAmount || "0");
+        actualSubtotal += sub;
       }
     }
-    // fallback: if no VAT from docs, treat grossAmount as subtotal
-    if (actualSubtotal === 0) actualSubtotal = grossAmount;
+    if (actualSubtotal <= 0) throw new Error(`batch-receipt: actualSubtotal is ${actualSubtotal} — all linked documents must have a valid subtotal`);
 
     const result = await db.transaction(async (tx) => {
       const [receipt] = await tx.insert(receipts).values({
