@@ -350,6 +350,13 @@ export default function TaxInvoiceForm() {
   });
   const activePaymentMethods = paymentMethodsList.filter((m: any) => m.active !== false);
 
+  const isCashMethod = (pm: string) => {
+    if (!pm) return false;
+    if (pm === "เงินสด") return true; // backward compat for old saved records
+    const found = activePaymentMethods.find((m: any) => m.accountCode === pm);
+    return !!(found && (found.name === "เงินสด" || found.nameTh === "เงินสด"));
+  };
+
   const { data: warehouses = [] } = useQuery<any[]>({
     queryKey: ["/api/warehouses", companyId],
     queryFn: async () => {
@@ -365,7 +372,7 @@ export default function TaxInvoiceForm() {
     if (!editingId && activePaymentMethods.length > 0 && !form.paymentMethod) {
       const defaultPm = activePaymentMethods.find((m: any) => m.isDefault);
       if (defaultPm) {
-        setForm(p => ({ ...p, paymentMethod: defaultPm.name }));
+        setForm(p => ({ ...p, paymentMethod: defaultPm.accountCode || defaultPm.name }));
       }
     }
   }, [activePaymentMethods, editingId]);
@@ -392,7 +399,7 @@ export default function TaxInvoiceForm() {
     if (isNew && activePaymentMethods.length > 0 && form.paymentMethod === "เครดิต") {
       const defaultMethod = activePaymentMethods.find((m: any) => m.isDefault);
       if (defaultMethod) {
-        setForm(p => ({ ...p, paymentMethod: defaultMethod.name || defaultMethod.nameTh || defaultMethod.accountCode }));
+        setForm(p => ({ ...p, paymentMethod: defaultMethod.accountCode || defaultMethod.name || defaultMethod.nameTh }));
       }
     }
   }, [activePaymentMethods, isNew, form.paymentMethod]);
@@ -619,7 +626,7 @@ export default function TaxInvoiceForm() {
               contactPerson: src.contactPerson || "", contactPhone: src.contactPhone || "",
               contactEmail: src.contactEmail || "", creditDays: src.creditDays ? String(src.creditDays) : "",
               notes: src.notes || "", internalNotes: src.internalNotes || "",
-              status: src.paymentMethod === "เงินสด" ? "cash" : "debtor", paymentStatus: "unpaid",
+              status: isCashMethod(src.paymentMethod) ? "cash" : "debtor", paymentStatus: "unpaid",
               salesperson: src.salesperson || "", department: src.department || "",
               project: src.project || "", refDoc: src.refDoc || "",
               paymentTerms: src.paymentTerms || "",
@@ -1000,7 +1007,7 @@ export default function TaxInvoiceForm() {
     const totals = calcTotals();
     const computedStatus = (() => {
       if (editingId && ["issued", "cancelled", "voided"].includes(form.status)) return form.status;
-      return form.paymentMethod === "เงินสด" ? "cash" : "debtor";
+      return isCashMethod(form.paymentMethod) ? "cash" : "debtor";
     })();
     const payload = {
       ...form,
@@ -1289,7 +1296,7 @@ export default function TaxInvoiceForm() {
                           <SelectItem value="เครดิต">เครดิต (ตั้งลูกหนี้)</SelectItem>
                           {activePaymentMethods.length > 0 ? (
                             activePaymentMethods.map((m: any) => (
-                              <SelectItem key={m.id} value={m.name || m.nameTh}>
+                              <SelectItem key={m.id} value={m.accountCode}>
                                 {acctName(m)}{m.bankName ? ` · ${m.bankName}` : ""}{m.bankAccountNo ? ` ${m.bankAccountNo}` : ""}
                               </SelectItem>
                             ))

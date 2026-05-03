@@ -283,7 +283,12 @@ git push github-dev main
 | Remote | Repo | Purpose |
 |--------|------|---------|
 | `github-dev` | saaikanyakorn-afk/dev.etaxerp | Dev backup — push every change, no auth needed |
-| `github-production` | saaikanyakorn-afk/etaxcenter | Production source — push only verified/approved files |
+| `github-production` | saaikanyakorn-afk/etaxcenter | Production source — cherry-pick only verified/approved files |
+
+**github-production push authorization rules:**
+- **New file (never pushed this session)** → ต้องขออนุญาตพี่ช้างก่อน ✅
+- **Same file, same session (continuing fix/iteration)** → ไม่ต้องขออนุญาตซ้ำ — push ได้ทันที ✅
+- "Same session" = same conversation context, same file being iterated on
 
 **If github-dev push is blocked by Secret Scanning:**
 - Ask พี่ช้าง to allow at: `https://github.com/saaikanyakorn-afk/dev.etaxerp/security/secret-scanning`
