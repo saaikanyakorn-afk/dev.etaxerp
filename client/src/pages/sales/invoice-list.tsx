@@ -207,7 +207,11 @@ export default function InvoiceList() {
 
   function getPaymentStatus(inv: any): string {
     const total = parseFloat(String(inv.totalAmount || 0));
+    const subtotal = parseFloat(String(inv.subtotal || 0));
+    const vatAmt = parseFloat(String(inv.vatAmount || 0));
+    const grossTotal = (subtotal + vatAmt) > 0 ? subtotal + vatAmt : total;
     const paidAmount = parseFloat(String(inv.paidAmount || 0));
+    if (grossTotal > 0 && paidAmount >= grossTotal) return "paid";
     if (total > 0 && paidAmount > total) return "overpaid";
     if (inv.paymentStatus === "paid" || inv.status === "paid") return "paid";
     if (inv.status === "partially_paid" || inv.paymentStatus === "partial") {
@@ -466,9 +470,10 @@ export default function InvoiceList() {
                               const netTotal = parseFloat(String(inv.totalAmount || 0));
                               const grossTotal = parseFloat(String(inv.subtotal || 0)) + parseFloat(String(inv.vatAmount || 0));
                               const displayTotal = grossTotal > 0 ? grossTotal : netTotal;
+                              const effectiveTotal = grossTotal > 0 ? grossTotal : netTotal;
                               const paidAmt = parseFloat(String(inv.paidAmount ?? 0));
-                              const isPaid = inv.status === "paid" || inv.paymentStatus === "paid" || inv.paymentStatus === "success";
-                              const outstanding = isPaid ? 0 : Math.max(0, netTotal - paidAmt);
+                              const isPaid = inv.status === "paid" || inv.paymentStatus === "paid" || inv.paymentStatus === "success" || (paidAmt > 0 && paidAmt >= effectiveTotal);
+                              const outstanding = isPaid ? 0 : Math.max(0, effectiveTotal - paidAmt);
                               return (
                                 <>
                                   <div className="text-xs text-muted-foreground">{fmt(outstanding)}</div>
