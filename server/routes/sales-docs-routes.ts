@@ -2014,6 +2014,14 @@ app.post("/api/tax-invoices", requireAuth, requireAnyModule("sales", "ecommerce"
       }
     }
     logActivity({ companyId, userId: user.id, userName: user.username, action: "create", entityType: "tax_invoice", entityId: String(result.id), entityName: taxInvoiceNo }).catch(() => {});
+    // ถ้า paymentMethod ไม่ใช่เครดิต → ถือว่าชำระแล้วทันที
+    if (result.paymentMethod && result.paymentMethod !== "เครดิต") {
+      try {
+        await db.update(taxInvoices).set({ paymentStatus: "paid", status: "paid" }).where(eq(taxInvoices.id, result.id));
+        result.paymentStatus = "paid";
+        result.status = "paid";
+      } catch (e: any) { console.error(`[TIV-CREATE] mark paid failed:`, e.message); }
+    }
     if (result.invoiceId) {
       try { await recomputePaymentStatus("invoice", result.invoiceId); } catch (e: any) { console.error(`[TIV-CREATE] recomputePaymentStatus invoice#${result.invoiceId} failed:`, e.message); }
     }

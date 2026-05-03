@@ -448,11 +448,12 @@ export default function TaxInvoiceList() {
                             <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1 text-xs text-muted-foreground">
                               {inv.paymentMethod === "เครดิต" ? (
                                 <span className="text-purple-600">Credit[TIV]</span>
-                              ) : (inv.refDoc || inv.referenceNo) ? (
-                                <span className="text-green-600">Cash[BL-TIV]</span>
-                              ) : inv.paymentMethod ? (
-                                <span className="text-green-600">Cash[TIV]</span>
-                              ) : null}
+                              ) : (() => {
+                                const ref = inv.refDoc || inv.referenceNo;
+                                const refPrefix = ref ? ref.replace(/\d.*$/, "").toUpperCase() : null;
+                                const label = refPrefix ? `Cash[${refPrefix}-TIV]` : "Cash[TIV]";
+                                return inv.paymentMethod ? <span className="text-green-600">{label}</span> : null;
+                              })()}
                               {inv.customerAddress && (
                                 <span className="flex items-center gap-0.5 text-blue-500 cursor-pointer hover:underline" onClick={() => window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(inv.customerAddress)}`, '_blank')}>
                                   <ExternalLink className="h-3 w-3" /> ดูแผนที่
