@@ -9,8 +9,8 @@ export default function BillingNotePdf() {
   const [, navigate] = useLocation();
   const [docNo, setDocNo] = useState("billing-note");
   const [loading, setLoading] = useState(true);
-  const [iframeLoaded, setIframeLoaded] = useState(false);
   const [error, setError] = useState("");
+  const [blobUrl, setBlobUrl] = useState<string | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const pdfApiUrl = `/api/documents/billing_note/${id}/pdf`;
 
@@ -19,10 +19,31 @@ export default function BillingNotePdf() {
       try {
         const res = await fetch(`/api/finance/billing-notes/${id}`, { credentials: "include" });
         if (res.ok) { const d = await res.json(); setDocNo(d.billingNo || "billing-note"); }
-      } catch (err: any) { setError(err.message || "เกิดข้อผิดพลาด"); }
-      setLoading(false);
+      } catch {}
     })();
   }, [id]);
+
+  useEffect(() => {
+    let url: string | null = null;
+    (async () => {
+      try {
+        const res = await fetch(pdfApiUrl, { credentials: "include" });
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          setError(body.message || `โหลด PDF ไม่สำเร็จ (${res.status})`);
+          setLoading(false);
+          return;
+        }
+        const blob = await res.blob();
+        url = URL.createObjectURL(blob);
+        setBlobUrl(url);
+      } catch (err: any) {
+        setError(err.message || "เกิดข้อผิดพลาด");
+      }
+      setLoading(false);
+    })();
+    return () => { if (url) URL.revokeObjectURL(url); };
+  }, [pdfApiUrl]);
 
   useEffect(() => {
     if (!docNo || docNo === "billing-note") return;
@@ -44,8 +65,19 @@ export default function BillingNotePdf() {
     } catch {}
   };
 
-  if (loading) return <Layout><div className="flex items-center justify-center py-24"><Loader2 className="h-8 w-8 animate-spin text-slate-400" /></div></Layout>;
-  if (error) return <Layout><div className="text-center py-12 text-red-500">{error}</div></Layout>;
+  if (loading) return (
+    <Layout>
+      <div className="flex items-center justify-center py-24">
+        <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
+      </div>
+    </Layout>
+  );
+
+  if (error) return (
+    <Layout>
+      <div className="text-center py-12 text-red-500">{error}</div>
+    </Layout>
+  );
 
   return (
     <Layout>
@@ -63,8 +95,15 @@ export default function BillingNotePdf() {
             </Button>
           </div>
         </div>
-        {!iframeLoaded && <div className="flex-1 flex items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-slate-400" /></div>}
-        <iframe ref={iframeRef} src={pdfApiUrl} className={`flex-1 w-full border-0 rounded ${iframeLoaded ? "" : "hidden"}`} title={docNo} onLoad={() => setIframeLoaded(true)} data-testid="pdf-iframe" />
+        {blobUrl && (
+          <iframe
+            ref={iframeRef}
+            src={blobUrl}
+            className="flex-1 w-full border-0 rounded"
+            title={docNo}
+            data-testid="pdf-iframe"
+          />
+        )}
       </div>
     </Layout>
   );
