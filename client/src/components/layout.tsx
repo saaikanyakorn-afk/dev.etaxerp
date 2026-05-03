@@ -361,6 +361,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         const filteredChildren = item.children.filter(child => {
           if (hiddenMenusByBiz.includes(child.href)) return false;
           if (isPrimaryCompany && PRIMARY_COMPANY_HIDDEN_MENUS.includes(child.href)) return false;
+          if (!selectedCompany?.vatRegistered && ["/sales/tax-invoice", "/sales/etax-sent"].includes(child.href)) return false;
           if (myPermissions.subModules) {
             const subMod = SUB_MODULES.find(s => s.href === child.href);
             if (subMod && !myPermissions.subModules.includes(subMod.key)) return false;
@@ -382,7 +383,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       return item.children?.some((c: any) => location === c.href || (c.href !== "/" && location.startsWith(c.href + "/")));
     }) || null;
     return { coreNavItems, addonNavItems, activeAddonModule };
-  }, [user, myPermissions, hiddenMenusByBiz, isPrimaryCompany, location]);
+  }, [user, myPermissions, hiddenMenusByBiz, isPrimaryCompany, location, selectedCompany?.vatRegistered]);
 
   const globalSearchResults = useMemo(() => {
     if (!globalSearch.trim()) return [];
