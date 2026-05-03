@@ -1288,11 +1288,6 @@ export default function TaxInvoiceForm() {
                     </td>
                     <td className="px-3 pt-1.5 pb-1 border-r align-top bg-amber-50/70" colSpan={2}>
                       <div className="text-[10px] text-amber-600 font-semibold mb-0.5">วิธีชำระเงิน</div>
-                      {/* DEBUG - remove after production fix */}
-                      <pre style={{fontSize:8,background:'#fee2e2',color:'#991b1b',padding:3,marginBottom:3,borderRadius:3,whiteSpace:'pre-wrap',wordBreak:'break-all'}}>
-                        {`KEYS:${JSON.stringify(activePaymentMethods[0]?Object.keys(activePaymentMethods[0]):[])}\nDATA:${JSON.stringify(activePaymentMethods.map((m:any)=>({id:m.id,aC:m.accountCode,ac:m['account_code'],v:m.accountCode||m['account_code']})))}\nFORM_PM:${form.paymentMethod}`}
-                      </pre>
-                      {/* END DEBUG */}
                       <Select value={form.paymentMethod || "เครดิต"} onValueChange={v => setForm(p => ({ ...p, paymentMethod: v }))}>
                         <SelectTrigger data-testid="select-payment-method" className="h-7 text-xs border-dashed border-amber-300 bg-white focus:border-amber-500 focus:ring-amber-200">
                           <SelectValue placeholder="เลือกวิธีชำระเงิน" />
