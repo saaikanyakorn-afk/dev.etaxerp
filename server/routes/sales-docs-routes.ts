@@ -3608,7 +3608,7 @@ app.get("/api/invoices/:id/issued-tiv-amount", requireAuth, async (req, res) => 
       .where(and(
         eq(taxInvoices.invoiceId, invoiceId),
         eq(taxInvoices.companyId, companyId),
-        sql`status IN ('cash', 'approved')`
+        sql`(payment_method IS NULL OR payment_method != 'เครดิต') AND status NOT IN ('cancelled','voided','cancel')`
       ));
     // Use subtotal (before VAT) for both sides so ratio is consistent regardless of WHT
     const issuedAmount = tivRows.reduce((s, r) => s + parseFloat(String(r.subtotal || "0")), 0);
