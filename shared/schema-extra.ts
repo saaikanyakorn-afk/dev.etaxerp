@@ -557,10 +557,10 @@ export async function runWarehouseColumnsMigration(db: any) {
 }
 */
 
-// ── billing_notes WHT columns — 2026-05-03 ──────────────────────────────────
-// Adds withholding_tax, wht_rate, wht_base to billing_notes.
-// Pure DDL — ADD COLUMN IF NOT EXISTS — no flag, no backup needed.
-// Called from registerBillingNotesRoutes() in billing-notes-routes.ts.
+/* DONE 2026-05-03 — billing_notes WHT columns migration
+   Added: withholding_tax DECIMAL(15,2), wht_rate DECIMAL(5,2), wht_base DECIMAL(15,2)
+   Verified BY EYES on deep-main: all 3 columns present, DEFAULT 0 ✅
+   Never run again.
 export async function runBillingNotesWhtMigration(db: any) {
   try {
     await db.execute(sql.raw(`ALTER TABLE billing_notes ADD COLUMN IF NOT EXISTS withholding_tax DECIMAL(15,2) DEFAULT 0`));
@@ -570,4 +570,9 @@ export async function runBillingNotesWhtMigration(db: any) {
   } catch (e: any) {
     console.error("[migration] ❌ runBillingNotesWhtMigration FAILED:", e.message);
   }
+}
+*/
+
+export async function runBillingNotesWhtMigration(_db: any) {
+  // migration done 2026-05-03 — no-op
 }
