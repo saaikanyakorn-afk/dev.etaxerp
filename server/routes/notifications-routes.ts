@@ -340,8 +340,16 @@ app.get("/api/finance/receipt-billing", requireAuth, async (req, res) => {
     )).orderBy(taxInvoices.dueDate);
 
     const documents = [
-      ...ivRows.map(r => ({ ...r, docType: "IV", totalAmount: parseFloat(r.totalAmount || "0"), subtotal: parseFloat(r.subtotal || r.totalAmount || "0") })),
-      ...tivRows.map(r => ({ ...r, docType: "TIV", totalAmount: parseFloat(r.totalAmount || "0"), subtotal: parseFloat(r.subtotal || r.totalAmount || "0") })),
+      ...ivRows.map(r => {
+        const sub = parseFloat(r.subtotal ?? "");
+        if (isNaN(sub)) throw new Error(`receipt-billing IV ${r.docNo ?? r.id} is missing subtotal`);
+        return { ...r, docType: "IV", totalAmount: parseFloat(r.totalAmount || "0"), subtotal: sub };
+      }),
+      ...tivRows.map(r => {
+        const sub = parseFloat(r.subtotal ?? "");
+        if (isNaN(sub)) throw new Error(`receipt-billing TIV ${r.docNo ?? r.id} is missing subtotal`);
+        return { ...r, docType: "TIV", totalAmount: parseFloat(r.totalAmount || "0"), subtotal: sub };
+      }),
     ];
 
     const rcRows = await db.select({
@@ -509,12 +517,18 @@ app.get("/api/finance/customer-outstanding-docs", requireAuth, async (req, res) 
     )).orderBy(taxInvoices.dueDate);
 
     const documents = [
-      ...ivRows.map(r => ({ ...r, docType: "IV", totalAmount: parseFloat(r.totalAmount || "0"), subtotal: parseFloat(r.subtotal || r.totalAmount || "0") })),
+      ...ivRows.map(r => {
+        const sub = parseFloat(r.subtotal ?? "");
+        if (isNaN(sub)) throw new Error(`customer-outstanding-docs IV ${r.docNo ?? r.id} is missing subtotal`);
+        return { ...r, docType: "IV", totalAmount: parseFloat(r.totalAmount || "0"), subtotal: sub };
+      }),
       ...tivRows.map(r => {
+        const sub = parseFloat(r.subtotal ?? "");
+        if (isNaN(sub)) throw new Error(`customer-outstanding-docs TIV ${r.docNo ?? r.id} is missing subtotal`);
         const net = parseFloat(r.totalAmount || "0");
         const wht = parseFloat(r.withholdingTax || "0");
         const gross = net + wht;
-        return { ...r, docType: "TIV", totalAmount: gross, withholdingTax: wht, subtotal: parseFloat(r.subtotal || "0") };
+        return { ...r, docType: "TIV", totalAmount: gross, withholdingTax: wht, subtotal: sub };
       }),
     ];
 

@@ -18,6 +18,8 @@ import { useAuth } from "@/lib/auth";
 
 const CreditNotePdf = lazy(() => import("@/pages/sales/credit-note-pdf"));
 const CreditNoteShare = lazy(() => import("@/pages/sales/credit-note-share"));
+const BillingNotes = lazy(() => import("@/pages/finance/billing-notes"));
+const BillingNotePdf = lazy(() => import("@/pages/finance/billing-note-pdf"));
 
 export default function AppExtra() {
   const { user, loading } = useAuth();
@@ -64,6 +66,8 @@ export default function AppExtra() {
     <Suspense fallback={null}>
       <Route path="/sales/credit-note/pdf/:id" component={CreditNotePdf} />
       <Route path="/share/credit-note/:token" component={CreditNoteShare} />
+      <Route path="/finance/billing-notes" component={BillingNotes} />
+      <Route path="/finance/billing-notes/pdf/:id" component={BillingNotePdf} />
     </Suspense>
   );
 }
