@@ -1,5 +1,6 @@
 import { Component, type ErrorInfo, type ReactNode, useState, useEffect, useCallback, lazy, Suspense } from "react";
 import { Switch, Route, useLocation } from "wouter";
+import AppExtra from "./app-extra";
 import { queryClient, setUpgradeCallback } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -590,6 +591,7 @@ function Router() {
   return (
     <Suspense fallback={<PageLoader />}>
     <TrialGuard>
+    <AppExtra />
     <Switch>
       <Route path="/landing" component={LandingPage} />
       <Route path="/features" component={FeaturesPage} />
