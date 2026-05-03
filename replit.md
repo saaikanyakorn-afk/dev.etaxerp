@@ -456,16 +456,15 @@ Files to pull (<N> total):
 
 STEPS:
   [ ] 1. All files pushed to push-batch branch on github-production
-  [ ] 2. พี่ทราย approval obtained (if migration → 2 restarts)
+  [ ] 2. พี่ช้าง approval obtained (if migration → 2 restarts)
   [ ] 3. พี่ช้าง: git fetch + git checkout ALL files above + npm run build
   [ ] 4. Restart #1 — pm2 restart etax-center
-  [ ] 5. Kai: verify migration ran (flag + columns) — print console output
-  [ ] 6. If migration silent fail → run SQL directly on deep-main, print output
-  [ ] 7. Kai: comment out migration block in schema-extra.ts AND remove/comment the hook call in every file that was modified to invoke it (e.g. server/index.ts) → push ALL clean files
-  [ ] 8. พี่ช้าง: pull ALL clean files (schema-extra.ts + every hook file) + npm run build
-  [ ] 9. Restart #2 — pm2 restart etax-center (clean build)
-  [ ] 10. พี่ทราย: verify ALL features work (not just migration)
-  [ ] 11. Loop closed ✅
+  [ ] 5. Kai: query production DB BY EYES — confirm columns exist (Kai has credentials to look)
+  [ ] 6. Kai: comment out migration block in schema-extra.ts AND remove/comment the hook call in every file that was modified to invoke it (e.g. server/index.ts) → push ALL clean files
+  [ ] 7. พี่ช้าง: pull ALL clean files (schema-extra.ts + every hook file) + npm run build
+  [ ] 8. Restart #2 — pm2 restart etax-center (clean build)
+  [ ] 9. พี่ช้าง: verify ALL features work (not just migration)
+  [ ] 10. Loop closed ✅
 ```
 
 **RULE: If interrupted mid-checklist, note which step you're on. Resume from that step — do NOT assume earlier steps are complete unless explicitly verified.**
