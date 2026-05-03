@@ -365,12 +365,16 @@ process.env.DB_PROD_URL
 
 ### GitHub Production PAT (github-production remote → saaikanyakorn-afk/etaxcenter)
 - **env var**: `GITHUB_PAT_PRODUCTION` — stored in Replit Secrets (shared), updated 2026-05-03
+- **Token name on GitHub**: `etaxerp` — Fine-grained PAT, All repositories, Contents: Read and write
+- **⏰ EXPIRATION: Aug 01, 2026** — alert พี่ช้าง on **Jul 30, 2026** (2 days before)
 - **`.git/config` PAT may be expired** — Replit blocks editing it directly
-- **Always push using URL directly:**
-  ```bash
-  git push "https://x-access-token:${GITHUB_PAT_PRODUCTION}@github.com/saaikanyakorn-afk/etaxcenter.git" main
+- **Always push using URL directly from code_execution (NOT bash shell):**
+  ```javascript
+  const { execSync } = await import('child_process');
+  const pat = process.env.GITHUB_PAT_PRODUCTION;
+  execSync(`git push "https://x-access-token:${pat}@github.com/saaikanyakorn-afk/etaxcenter.git" main`, { encoding: 'utf8' });
   ```
-- If token expired → ask พี่ช้าง to regenerate token named **"etaxerp"** on GitHub → Settings → Developer settings → Fine-grained tokens → then update `GITHUB_PAT_PRODUCTION` in Replit Secrets
+- If token expired → ask พี่ช้าง to create new token named **"etaxerp"** on GitHub → Settings → Developer settings → Fine-grained tokens → Generate new token → then update `GITHUB_PAT_PRODUCTION` in Replit Secrets
 
 ### GitHub Dev PAT (github-dev remote → saaikanyakorn-afk/dev.etaxerp)
 - PAT stored in `.git/config` — still valid as of 2026-05-03
