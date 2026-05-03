@@ -1219,10 +1219,10 @@ export async function recomputePaymentStatus(docType: "taxInvoice" | "invoice", 
   const batchSum = linkedDocs.reduce((sum: number, ld: any) => sum + parseFloat(ld.amount || "0"), 0);
   let tivSum = 0;
   if (docType === "invoice") {
-    const nonCreditTIVs = await db.select({ totalAmount: taxInvoices.totalAmount })
+    const nonCreditTIVs = await db.select({ subtotal: taxInvoices.subtotal, vatAmount: taxInvoices.vatAmount })
       .from(taxInvoices)
       .where(sql`invoice_id = ${docId} AND (payment_method IS NULL OR payment_method != 'เครดิต') AND status NOT IN ('cancelled','voided','cancel')`);
-    tivSum = nonCreditTIVs.reduce((sum: number, tiv: any) => sum + parseFloat(String(tiv.totalAmount || "0")), 0);
+    tivSum = nonCreditTIVs.reduce((sum: number, tiv: any) => sum + parseFloat(String(tiv.subtotal || "0")) + parseFloat(String(tiv.vatAmount || "0")), 0);
   }
   const rawPaid = directSum + batchSum + tivSum;
   // WHT ถือว่าชำระแล้ว (ลูกค้าหักแล้วโอนส่วนที่เหลือ) เฉพาะเมื่อมีการชำระจริงเกิดขึ้น

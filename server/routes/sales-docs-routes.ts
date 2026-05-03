@@ -757,7 +757,7 @@ async function computeInvoicePaidAmounts(invoiceIds: number[]): Promise<Record<n
   const idArr = `'{${invoiceIds.join(",")}}'::int[]`;
   const directPaid = await db.execute(sql.raw(`SELECT invoice_id, SUM(total_amount) AS paid FROM receipts WHERE invoice_id = ANY(${idArr}) GROUP BY invoice_id`));
   const batchPaid = await db.execute(sql.raw(`SELECT doc_id, SUM(amount) AS paid FROM receipt_linked_docs WHERE doc_type = 'IV' AND doc_id = ANY(${idArr}) GROUP BY doc_id`));
-  const tivPaid = await db.execute(sql.raw(`SELECT invoice_id, SUM(total_amount) AS paid FROM tax_invoices WHERE invoice_id = ANY(${idArr}) AND (payment_method IS NULL OR payment_method != 'เครดิต') AND status NOT IN ('cancelled','voided','cancel') GROUP BY invoice_id`));
+  const tivPaid = await db.execute(sql.raw(`SELECT invoice_id, SUM(COALESCE(subtotal,0) + COALESCE(vat_amount,0)) AS paid FROM tax_invoices WHERE invoice_id = ANY(${idArr}) AND (payment_method IS NULL OR payment_method != 'เครดิต') AND status NOT IN ('cancelled','voided','cancel') GROUP BY invoice_id`));
   // track receipt-only paid separately (WHT applies only to receipt payments, not TIV)
   const receiptOnlyMap: Record<number, number> = {};
   for (const r of (directPaid as any).rows || []) {
