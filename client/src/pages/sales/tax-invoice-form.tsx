@@ -372,7 +372,7 @@ export default function TaxInvoiceForm() {
     if (!editingId && activePaymentMethods.length > 0 && !form.paymentMethod) {
       const defaultPm = activePaymentMethods.find((m: any) => m.isDefault);
       if (defaultPm) {
-        setForm(p => ({ ...p, paymentMethod: defaultPm.accountCode || defaultPm.name }));
+        setForm(p => ({ ...p, paymentMethod: defaultPm.accountCode }));
       }
     }
   }, [activePaymentMethods, editingId]);
@@ -399,7 +399,7 @@ export default function TaxInvoiceForm() {
     if (isNew && activePaymentMethods.length > 0 && form.paymentMethod === "เครดิต") {
       const defaultMethod = activePaymentMethods.find((m: any) => m.isDefault);
       if (defaultMethod) {
-        setForm(p => ({ ...p, paymentMethod: defaultMethod.accountCode || defaultMethod.name || defaultMethod.nameTh }));
+        setForm(p => ({ ...p, paymentMethod: defaultMethod.accountCode }));
       }
     }
   }, [activePaymentMethods, isNew, form.paymentMethod]);
