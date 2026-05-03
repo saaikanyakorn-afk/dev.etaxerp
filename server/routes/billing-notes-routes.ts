@@ -35,7 +35,23 @@ app.get("/api/finance/billing-notes", requireAuth, async (req, res) => {
     for (const bn of bnRows) {
       const linkedDocs = await db.select().from(billingNoteLinkedDocs)
         .where(eq(billingNoteLinkedDocs.billingNoteId, bn.id));
-      result.push({ ...bn, withholdingTax: whtMap[bn.id]?.amount ?? "0", whtRate: whtMap[bn.id]?.rate ?? "0", whtBase: whtMap[bn.id]?.base ?? "0", linkedDocs });
+      let linkedSubtotal = 0;
+      for (const doc of linkedDocs) {
+        if (doc.docType === "IV") {
+          const [iv] = await db.select({ subtotal: invoices.subtotal }).from(invoices).where(eq(invoices.id, doc.docId));
+          if (!iv) throw new Error(`BN id=${bn.id} linked IV id=${doc.docId} not found`);
+          const sub = parseFloat(iv.subtotal ?? "");
+          if (isNaN(sub)) throw new Error(`BN id=${bn.id} linked IV id=${doc.docId} is missing subtotal`);
+          linkedSubtotal += sub;
+        } else if (doc.docType === "TIV") {
+          const [tiv] = await db.select({ subtotal: taxInvoices.subtotal }).from(taxInvoices).where(eq(taxInvoices.id, doc.docId));
+          if (!tiv) throw new Error(`BN id=${bn.id} linked TIV id=${doc.docId} not found`);
+          const sub = parseFloat(tiv.subtotal ?? "");
+          if (isNaN(sub)) throw new Error(`BN id=${bn.id} linked TIV id=${doc.docId} is missing subtotal`);
+          linkedSubtotal += sub;
+        }
+      }
+      result.push({ ...bn, withholdingTax: whtMap[bn.id]?.amount ?? "0", whtRate: whtMap[bn.id]?.rate ?? "0", whtBase: whtMap[bn.id]?.base ?? "0", linkedDocs, linkedSubtotal });
     }
 
     res.json(result);
@@ -119,7 +135,24 @@ app.get("/api/finance/billing-notes/:id", requireAuth, async (req, res) => {
       }
     } catch {}
 
-    res.json({ ...bn, withholdingTax: whtVal, whtRate: whtRateVal, whtBase: whtBaseVal, linkedDocs });
+    let linkedSubtotal = 0;
+    for (const doc of linkedDocs) {
+      if (doc.docType === "IV") {
+        const [iv] = await db.select({ subtotal: invoices.subtotal }).from(invoices).where(eq(invoices.id, doc.docId));
+        if (!iv) throw new Error(`BN id=${id} linked IV id=${doc.docId} not found`);
+        const sub = parseFloat(iv.subtotal ?? "");
+        if (isNaN(sub)) throw new Error(`BN id=${id} linked IV id=${doc.docId} is missing subtotal`);
+        linkedSubtotal += sub;
+      } else if (doc.docType === "TIV") {
+        const [tiv] = await db.select({ subtotal: taxInvoices.subtotal }).from(taxInvoices).where(eq(taxInvoices.id, doc.docId));
+        if (!tiv) throw new Error(`BN id=${id} linked TIV id=${doc.docId} not found`);
+        const sub = parseFloat(tiv.subtotal ?? "");
+        if (isNaN(sub)) throw new Error(`BN id=${id} linked TIV id=${doc.docId} is missing subtotal`);
+        linkedSubtotal += sub;
+      }
+    }
+
+    res.json({ ...bn, withholdingTax: whtVal, whtRate: whtRateVal, whtBase: whtBaseVal, linkedDocs, linkedSubtotal });
   } catch (err: any) { res.status(500).json({ message: err.message }); }
 });
 
