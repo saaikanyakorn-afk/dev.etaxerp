@@ -3,15 +3,21 @@
  * Called AFTER App.tsx renders — same pattern as schema-extra.ts extends schema.ts.
  * Injected as a global guard inside the Router in App.tsx (which is not protected).
  *
- * Purpose: employees who land on /hr/attendance but have access to more than one
+ * Purpose 1: employees who land on /hr/attendance but have access to more than one
  * module (e.g. inventory) should see the module-select page instead of being
  * silently locked to HR.  module-select.tsx is protected so we intercept here.
+ *
+ * Purpose 2: New routes that cannot be added to App.tsx (protected) are registered
+ * here — CreditNotePdf, CreditNoteShare.
  */
 
-import { useEffect } from "react";
-import { useLocation } from "wouter";
+import { lazy, Suspense, useEffect } from "react";
+import { Route, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/lib/auth";
+
+const CreditNotePdf = lazy(() => import("@/pages/sales/credit-note-pdf"));
+const CreditNoteShare = lazy(() => import("@/pages/sales/credit-note-share"));
 
 export default function AppExtra() {
   const { user, loading } = useAuth();
@@ -54,5 +60,10 @@ export default function AppExtra() {
     }
   }, [isEmployee, onAttendance, roleData, user, setLocation]);
 
-  return null;
+  return (
+    <Suspense fallback={null}>
+      <Route path="/sales/credit-note/pdf/:id" component={CreditNotePdf} />
+      <Route path="/share/credit-note/:token" component={CreditNoteShare} />
+    </Suspense>
+  );
 }
