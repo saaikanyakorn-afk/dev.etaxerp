@@ -48,6 +48,7 @@ NODE_OPTIONS = "--max-old-space-size=4096"
 DATABASE_URL_TEST = "postgresql://etaxusr:nJKsyhE4583Hz@deep-main.hopto.org:5432/etax_center_test"
 VITE_RECAPTCHA_SITE_KEY = "6Lf9rI4sAAAAAFXzChYyznnqeZ6fyzI5qGuyPyB4"
 SYNC_API_KEY = "46ae5b4efcdcd130de848dfc137b49fdebba0a197e032f6d937a5fe60304719d"
+GITHUB_PAT_PRODUCTION = "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"
 
 [userenv.development]
 
