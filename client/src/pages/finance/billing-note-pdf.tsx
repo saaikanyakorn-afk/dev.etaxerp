@@ -12,7 +12,7 @@ export default function BillingNotePdf() {
   const [error, setError] = useState("");
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
-  const pdfApiUrl = `/api/documents/billing_note/${id}/pdf`;
+  const pdfApiUrl = `/api/finance/billing-notes/${id}/pdf`;
 
   useEffect(() => {
     (async () => {

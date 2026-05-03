@@ -494,6 +494,27 @@ app.post("/api/finance/billing-notes/:id/send-email", requireAuth, async (req, r
   } catch (err: any) { res.status(500).json({ message: err.message }); }
 });
 
+app.get("/api/finance/billing-notes/:id/pdf", requireAuth, async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const { buildBillingNotePdfData } = await import("../pdf-data-fetcher");
+    const { generatePdfMake } = await import("../pdf-pdfmake-generator");
+    const pdfOpts = await buildBillingNotePdfData(id);
+    const docNo = pdfOpts.document.docNo || "billing-note";
+    const pdfBuffer = await generatePdfMake(pdfOpts);
+    const filename = encodeURIComponent(`${docNo}.pdf`);
+    res.set({
+      "Content-Type": "application/pdf",
+      "Content-Disposition": `inline; filename="${filename}"; filename*=UTF-8''${filename}`,
+      "Content-Length": pdfBuffer.length.toString(),
+    });
+    res.send(pdfBuffer);
+  } catch (err: any) {
+    console.error("[BN-PDF]", err);
+    res.status(500).json({ message: "ไม่สามารถสร้าง PDF ได้: " + err.message });
+  }
+});
+
 app.patch("/api/finance/billing-notes/:id/void", requireAuth, async (req, res) => {
   try {
     const id = Number(req.params.id);
