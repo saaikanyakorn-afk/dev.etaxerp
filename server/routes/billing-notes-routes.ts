@@ -5,13 +5,11 @@ import { billingNotes, billingNoteLinkedDocs, receipts, receiptLinkedDocs, purch
 import { requireAuth, requireModule } from "../route-middleware";
 import { getNextDocNo, createAutoJournalEntry, resolvePaymentMethodAccountCode, recomputePaymentStatus, recomputeAPPaymentStatus } from "../route-helpers";
 import { verifyCompanyAccess } from "../route-factory";
+import { runBillingNotesWhtMigration } from "@shared/schema-extra";
 import multer from "multer";
 
 export function registerBillingNotesRoutes(app: Express) {
-// One-shot migration: add withholding_tax, wht_rate, wht_base columns to billing_notes
-db.execute(sql`ALTER TABLE billing_notes ADD COLUMN IF NOT EXISTS withholding_tax DECIMAL(15,2) DEFAULT 0`).catch(() => {});
-db.execute(sql`ALTER TABLE billing_notes ADD COLUMN IF NOT EXISTS wht_rate DECIMAL(5,2) DEFAULT 0`).catch(() => {});
-db.execute(sql`ALTER TABLE billing_notes ADD COLUMN IF NOT EXISTS wht_base DECIMAL(15,2) DEFAULT 0`).catch(() => {});
+  runBillingNotesWhtMigration(db);
 
 // ========== Billing Notes (ใบวางบิล) ==========
 app.get("/api/finance/billing-notes", requireAuth, async (req, res) => {

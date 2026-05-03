@@ -440,7 +440,7 @@ If the SQL will **modify or delete existing data** (e.g. ALTER column type, bulk
   ```
 - Record backup table name in the history entry (Step 6).
 
-### Step 5 — Get พี่ทราย Approval, Deploy, Verify BY EYES
+### Step 5 — Get พี่ช้าง Approval, Deploy, Verify BY EYES
 
 **⚠️ DEPLOYMENT CHECKLIST — create this BEFORE every batch push, track it throughout:**
 
