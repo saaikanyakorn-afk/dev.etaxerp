@@ -988,12 +988,12 @@ app.get("/api/dev/invoice-recompute-preview", requireAdmin, async (req, res) => 
       if (batch > 0) sources.push("BatchReceipt");
       if (tiv > 0) sources.push("TIV");
       if (whtCounted > 0) sources.push("WHT");
-      let caseLabel = sources.length === 0 ? "Case1: ไม่มีชำระ" :
-        effectivePaid > total + 0.01 ? "Case9: เกิน" :
-        sources.includes("TIV") && !sources.includes("WHT") && !sources.includes("Receipt") && !sources.includes("BatchReceipt") ? "Case4: TIV" :
-        sources.includes("TIV") && sources.includes("WHT") && !sources.includes("Receipt") && !sources.includes("BatchReceipt") ? "Case6: TIV+WHT" :
-        sources.includes("WHT") && !sources.includes("TIV") ? "Case5: เสร็จ+WHT" :
-        "Case8: อื่นๆ";
+      let caseLabel = sources.length === 0 ? "Case 1: ไม่มีการชำระเงิน" :
+        effectivePaid > total + 0.01 ? "Case 5: ยอดชำระเกินกว่าใบแจ้งหนี้" :
+        sources.includes("TIV") && !sources.includes("WHT") && !sources.includes("Receipt") && !sources.includes("BatchReceipt") ? "Case 2: ชำระผ่านใบกำกับภาษี" :
+        sources.includes("TIV") && sources.includes("WHT") && !sources.includes("Receipt") && !sources.includes("BatchReceipt") ? "Case 4: ใบกำกับภาษี + หักภาษี ณ ที่จ่าย" :
+        sources.includes("WHT") && !sources.includes("TIV") ? "Case 3: ชำระแล้ว หักภาษี ณ ที่จ่าย" :
+        "Unknown: ไม่ทราบประเภท";
       const correctTotal = Math.round((subtotal + vatAmount - whtField) * 100) / 100;
       const totalWillChange = Math.abs(total - correctTotal) > 0.01;
       return {
@@ -1158,7 +1158,7 @@ function badge(s,big){
 }
 function fmt(n){ return Number(n||0).toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2}); }
 
-const KNOWN_CASES = ['Case1','Case4','Case5','Case6','Case9'];
+const KNOWN_CASES = ['Case 1','Case 2','Case 3','Case 4','Case 5'];
 
 function isUnknownCase(caseLabel){ return !KNOWN_CASES.some(c => caseLabel.startsWith(c)); }
 
