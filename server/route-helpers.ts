@@ -1221,7 +1221,7 @@ export async function recomputePaymentStatus(docType: "taxInvoice" | "invoice", 
   if (docType === "invoice") {
     const nonCreditTIVs = await db.select({ totalAmount: taxInvoices.totalAmount })
       .from(taxInvoices)
-      .where(sql`invoice_id = ${docId} AND status IN ('cash', 'approved')`);
+      .where(sql`invoice_id = ${docId} AND (payment_method IS NULL OR payment_method != 'เครดิต') AND status NOT IN ('cancelled','voided','cancel')`);
     tivSum = nonCreditTIVs.reduce((sum: number, tiv: any) => sum + parseFloat(String(tiv.totalAmount || "0")), 0);
   }
   const rawPaid = directSum + batchSum + tivSum;
