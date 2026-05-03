@@ -758,13 +758,21 @@ async function computeInvoicePaidAmounts(invoiceIds: number[]): Promise<Record<n
   const directPaid = await db.execute(sql.raw(`SELECT invoice_id, SUM(total_amount) AS paid FROM receipts WHERE invoice_id = ANY(${idArr}) GROUP BY invoice_id`));
   const batchPaid = await db.execute(sql.raw(`SELECT doc_id, SUM(amount) AS paid FROM receipt_linked_docs WHERE doc_type = 'IV' AND doc_id = ANY(${idArr}) GROUP BY doc_id`));
   const tivPaid = await db.execute(sql.raw(`SELECT invoice_id, SUM(total_amount) AS paid FROM tax_invoices WHERE invoice_id = ANY(${idArr}) AND (payment_method IS NULL OR payment_method != 'เครดิต') AND status NOT IN ('cancelled','voided','cancel') GROUP BY invoice_id`));
-  for (const r of (directPaid as any).rows || []) paidMap[r.invoice_id] = (paidMap[r.invoice_id] || 0) + parseFloat(r.paid || 0);
-  for (const r of (batchPaid as any).rows || []) paidMap[r.doc_id] = (paidMap[r.doc_id] || 0) + parseFloat(r.paid || 0);
+  // track receipt-only paid separately (WHT applies only to receipt payments, not TIV)
+  const receiptOnlyMap: Record<number, number> = {};
+  for (const r of (directPaid as any).rows || []) {
+    paidMap[r.invoice_id] = (paidMap[r.invoice_id] || 0) + parseFloat(r.paid || 0);
+    receiptOnlyMap[r.invoice_id] = (receiptOnlyMap[r.invoice_id] || 0) + parseFloat(r.paid || 0);
+  }
+  for (const r of (batchPaid as any).rows || []) {
+    paidMap[r.doc_id] = (paidMap[r.doc_id] || 0) + parseFloat(r.paid || 0);
+    receiptOnlyMap[r.doc_id] = (receiptOnlyMap[r.doc_id] || 0) + parseFloat(r.paid || 0);
+  }
   for (const r of (tivPaid as any).rows || []) paidMap[r.invoice_id] = (paidMap[r.invoice_id] || 0) + parseFloat(r.paid || 0);
-  // WHT ถือว่าชำระแล้ว เฉพาะ invoice ที่มีการชำระจริงเกิดขึ้น
+  // WHT ถือว่าชำระแล้ว เฉพาะ invoice ที่ชำระผ่าน receipt (ไม่ใช่ TIV) เพราะ TIV.totalAmount รวม VAT อยู่แล้ว
   const whtRows = await db.execute(sql.raw(`SELECT id, CAST(withholding_tax AS NUMERIC) AS wht FROM invoices WHERE id = ANY(${idArr}) AND withholding_tax IS NOT NULL AND CAST(withholding_tax AS NUMERIC) > 0`));
   for (const r of (whtRows as any).rows || []) {
-    if ((paidMap[r.id] || 0) > 0) paidMap[r.id] = (paidMap[r.id] || 0) + parseFloat(r.wht || 0);
+    if ((receiptOnlyMap[r.id] || 0) > 0) paidMap[r.id] = (paidMap[r.id] || 0) + parseFloat(r.wht || 0);
   }
   return paidMap;
 }
