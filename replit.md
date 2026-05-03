@@ -263,6 +263,34 @@ pm2 stop etax-center
 git fetch origin && git checkout origin/main -- client/src/components/etax-send-dialog.tsx && npm run build && pm2 start etax-center
 ```
 
+## 🔵 GITHUB-DEV PUSH RULE — MANDATORY AFTER EVERY CODE CHANGE
+
+**Kai must cherry-pick push changed files to `github-dev` immediately after every code change — NO authorization needed.**
+
+**Why:**
+1. พี่ช้าง does not read the code — no comments on what/how Kai writes
+2. When agent switches (Kai won't know it happened), the new agent MUST compare `github-dev` repo against current dev code to find what changed
+
+**Command (run after every file change):**
+```bash
+git push github-dev main
+```
+⚠️ This is a cherry-pick push of only changed files — NOT a full branch push.
+⚠️ github-dev = `saaikanyakorn-afk/dev.etaxerp` (dev backup only — NOT for production)
+⚠️ github-production = `saaikanyakorn-afk/etaxcenter` (production cherry-pick — พี่ช้าง pulls from here)
+
+**Two separate repos — never confuse them:**
+| Remote | Repo | Purpose |
+|--------|------|---------|
+| `github-dev` | saaikanyakorn-afk/dev.etaxerp | Dev backup — push every change, no auth needed |
+| `github-production` | saaikanyakorn-afk/etaxcenter | Production source — push only verified/approved files |
+
+**If github-dev push is blocked by Secret Scanning:**
+- Ask พี่ช้าง to allow at: `https://github.com/saaikanyakorn-afk/dev.etaxerp/security/secret-scanning`
+- Never embed raw PAT tokens in any file — always use `$GITHUB_PAT`
+
+---
+
 ## 🔴 GOLDEN RULE — PULL-BEFORE-TOUCH (MANDATORY for any protected/sensitive file)
 
 **Applies to: Kai AND any request from พี่ทราย. พี่ช้าง is not always watching.**
@@ -271,7 +299,7 @@ Before modifying ANY file on the protected/review-carefully lists — even small
 
 1. **Pull the production version** via GitHub API (not `git fetch` — it times out):
    ```bash
-   PAT="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"
+   PAT="$GITHUB_PAT"
    curl -s -H "Authorization: token $PAT" \
      "https://api.github.com/repos/saaikanyakorn-afk/etaxcenter/contents/<FILE_PATH>" \
      | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{const j=JSON.parse(d);console.log(Buffer.from(j.content,'base64').toString())})" \
