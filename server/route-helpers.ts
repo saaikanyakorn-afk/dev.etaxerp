@@ -1226,7 +1226,7 @@ export async function recomputePaymentStatus(docType: "taxInvoice" | "invoice", 
   }
   const rawPaid = directSum + batchSum + tivSum;
   // WHT ถือว่าชำระแล้ว (ลูกค้าหักแล้วโอนส่วนที่เหลือ) เฉพาะเมื่อมีการชำระจริงเกิดขึ้น
-  const whtAmount = (docType === "invoice" && rawPaid > 0)
+  const whtAmount = rawPaid > 0
     ? parseFloat((doc as any).withholdingTax || "0")
     : 0;
   const totalPaid = rawPaid + whtAmount;

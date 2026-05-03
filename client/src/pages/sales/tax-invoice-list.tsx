@@ -446,12 +446,12 @@ export default function TaxInvoiceList() {
                               <span className="font-semibold text-slate-800">{inv.customerName}</span>
                             </div>
                             <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1 text-xs text-muted-foreground">
-                              {(inv.paymentMethod === "เงินสด" || (inv.status === "cash" && inv.paymentMethod !== "เครดิต")) ? (
-                                <span className="text-green-600">
-                                  {(inv.refDoc || inv.referenceNo) ? "Cash[BL-IV]" : "Cash[TIV]"}
-                                </span>
-                              ) : inv.paymentMethod === "เครดิต" ? (
+                              {inv.paymentMethod === "เครดิต" ? (
                                 <span className="text-purple-600">Credit[TIV]</span>
+                              ) : (inv.refDoc || inv.referenceNo) ? (
+                                <span className="text-green-600">Cash[BL-TIV]</span>
+                              ) : inv.paymentMethod ? (
+                                <span className="text-green-600">Cash[TIV]</span>
                               ) : null}
                               {inv.customerAddress && (
                                 <span className="flex items-center gap-0.5 text-blue-500 cursor-pointer hover:underline" onClick={() => window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(inv.customerAddress)}`, '_blank')}>
@@ -535,7 +535,7 @@ export default function TaxInvoiceList() {
                                 transfer_done: { label: "โอนแล้ว", cls: "bg-emerald-50 text-emerald-600 border-emerald-200" },
                                 completed: { label: "เสร็จสิ้น", cls: "bg-emerald-50 text-emerald-600 border-emerald-200" },
                               };
-                              const effectiveStatus = inv.hasBillingNote && !["paid", "cancel", "cancelled"].includes(inv.status) ? "billing_note" : inv.status;
+                              const effectiveStatus = inv.hasBillingNote && !["paid", "transfer_done", "completed", "cash", "credit_card", "cheque_done", "cancel", "cancelled"].includes(inv.status) ? "billing_note" : inv.status;
                               const a = approvalMap[effectiveStatus] || { label: "-", cls: "bg-slate-50 text-slate-500 border-slate-200" };
                               return (
                                 <>
