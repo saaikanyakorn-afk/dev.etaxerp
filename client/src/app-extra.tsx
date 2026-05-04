@@ -11,33 +11,20 @@
  *
  * Purpose 2: New routes that cannot be added to App.tsx (production is source of truth)
  * are registered here — CreditNotePdf, CreditNoteShare.
+ *
  * Because AppExtra renders OUTSIDE the <Switch>, the Switch catch-all <Route component={NotFound}>
- * will also render for these paths. We work around this by rendering our pages in a
- * position:fixed full-screen overlay (z-index 9999) so they visually cover the NotFound page.
+ * will also match these paths. Fix: wrap each extra-route component in a position:fixed
+ * full-screen overlay (z-index 9999) so it covers the NotFound page visually.
+ * We still use <Route> so that wouter's useParams() works correctly inside each component.
  */
 
 import { lazy, Suspense, useEffect } from "react";
-import { useLocation } from "wouter";
+import { Route, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/lib/auth";
 
 const CreditNotePdf = lazy(() => import("@/pages/sales/credit-note-pdf"));
 const CreditNoteShare = lazy(() => import("@/pages/sales/credit-note-share"));
-
-function matchPath(pattern: string, location: string): Record<string, string> | null {
-  const patternParts = pattern.split("/");
-  const locationParts = location.split("?")[0].split("/");
-  if (patternParts.length !== locationParts.length) return null;
-  const params: Record<string, string> = {};
-  for (let i = 0; i < patternParts.length; i++) {
-    if (patternParts[i].startsWith(":")) {
-      params[patternParts[i].slice(1)] = locationParts[i];
-    } else if (patternParts[i] !== locationParts[i]) {
-      return null;
-    }
-  }
-  return params;
-}
 
 function FullPageOverlay({ children }: { children: React.ReactNode }) {
   return (
@@ -45,6 +32,14 @@ function FullPageOverlay({ children }: { children: React.ReactNode }) {
       {children}
     </div>
   );
+}
+
+function CreditNotePdfOverlay() {
+  return <FullPageOverlay><CreditNotePdf /></FullPageOverlay>;
+}
+
+function CreditNoteShareOverlay() {
+  return <FullPageOverlay><CreditNoteShare /></FullPageOverlay>;
 }
 
 export default function AppExtra() {
@@ -84,30 +79,10 @@ export default function AppExtra() {
     }
   }, [isEmployee, onAttendance, roleData, user, setLocation]);
 
-  const creditNotePdfMatch = matchPath("/sales/credit-note/pdf/:id", location);
-  const creditNoteShareMatch = matchPath("/share/credit-note/:token", location);
-
-  if (creditNotePdfMatch) {
-    const { id } = creditNotePdfMatch;
-    return (
-      <FullPageOverlay>
-        <Suspense fallback={null}>
-          <CreditNotePdf key={id} />
-        </Suspense>
-      </FullPageOverlay>
-    );
-  }
-
-  if (creditNoteShareMatch) {
-    const { token } = creditNoteShareMatch;
-    return (
-      <FullPageOverlay>
-        <Suspense fallback={null}>
-          <CreditNoteShare key={token} />
-        </Suspense>
-      </FullPageOverlay>
-    );
-  }
-
-  return null;
+  return (
+    <Suspense fallback={null}>
+      <Route path="/sales/credit-note/pdf/:id" component={CreditNotePdfOverlay} />
+      <Route path="/share/credit-note/:token" component={CreditNoteShareOverlay} />
+    </Suspense>
+  );
 }
