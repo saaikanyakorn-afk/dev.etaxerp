@@ -1,13 +1,13 @@
 import type { Express } from "express";
 import { z } from "zod";
 import { db } from "../db";
-import { companies, taxInvoices, taxInvoiceItems, contacts } from "@shared/schema";
+import { companies, taxInvoices, taxInvoiceItems, contacts, salesCreditNotes, salesCreditNoteItems } from "@shared/schema";
 import { eq, and, isNotNull, gte, lte, sql, desc } from "drizzle-orm";
 import { requireAuth } from "../route-middleware";
 import { generateEtaxXml, type EtaxInvoiceData, type EtaxLineItem } from "@shared/etax-xml";
 import { convertToPdfA3, getDocumentTypeFromInvoice } from "../etax-pdf-a3";
 import { generatePdfMake } from "../pdf-pdfmake-generator";
-import { buildPdfDataById } from "../pdf-data-fetcher";
+import { buildPdfDataById, buildCreditNotePdfData } from "../pdf-data-fetcher";
 
 function parseDateToBE(dateVal: string | Date | null | undefined): string {
   const s = dateVal ? String(dateVal) : "";
@@ -834,6 +834,321 @@ export function registerEtaxRoutes(app: Express) {
     } catch (err: any) {
       console.error("[PDF/A-3 debug] error:", err.message);
       res.status(500).json({ message: err.message });
+    }
+  });
+
+  // ─── Credit Note e-Tax endpoints ─────────────────────────────────────────
+
+  async function buildEtaxDataFromCreditNote(creditNoteId: number, companyId: number) {
+    const [company] = await db.select().from(companies).where(eq(companies.id, companyId));
+    if (!company) throw new Error("Company not found");
+
+    const [cn] = await db.select().from(salesCreditNotes).where(
+      and(eq(salesCreditNotes.id, creditNoteId), eq(salesCreditNotes.companyId, companyId))
+    );
+    if (!cn) throw new Error("ไม่พบใบลดหนี้");
+
+    const items = await db.select().from(salesCreditNoteItems).where(eq(salesCreditNoteItems.creditNoteId, creditNoteId));
+
+    let buyerPostcode = "";
+    let buyerBuildingName = "";
+    let buyerBuildingNumber = "";
+    let buyerBranchId = "00000";
+    let buyerPhone = "";
+    let buyerEmail = "";
+    let buyerDistrictCode = "";
+    let buyerSubdistrictCode = "";
+    let buyerProvinceCode = "";
+    if (cn.customerId) {
+      const [contact] = await db.select().from(contacts).where(eq(contacts.id, cn.customerId));
+      if (contact) {
+        buyerPostcode = contact.postcode || "";
+        buyerBuildingName = (contact as any).buildingName || "";
+        buyerBuildingNumber = contact.buildingNumber || "";
+        buyerBranchId = (contact as any).branch || "00000";
+        buyerPhone = contact.phone || "";
+        buyerEmail = cn.contactEmail || "";
+        buyerDistrictCode = contact.districtCode || "";
+        buyerSubdistrictCode = contact.subdistrictCode || "";
+        buyerProvinceCode = contact.provinceCode || "";
+      }
+    }
+
+    const etaxItems: EtaxLineItem[] = items.map((item, idx) => {
+      const qty = parseFloat(String(item.qty || "1"));
+      const unitPrice = parseFloat(String(item.unitPrice || "0"));
+      const total = parseFloat(String(item.total || "0"));
+      const vatRate = item.vatType === "vat7" ? 7 : 0;
+      const vatAmt = vatRate > 0 ? total * vatRate / 100 : 0;
+      return {
+        lineNo: idx + 1,
+        productCode: item.productCode || "",
+        productName: item.productName || `รายการ ${idx + 1}`,
+        qty,
+        unit: item.unit || "ชิ้น",
+        unitPrice,
+        discount: parseFloat(String(item.discount || "0")),
+        total,
+        vatRate,
+        vatAmount: vatAmt,
+      };
+    });
+
+    const data: EtaxInvoiceData = {
+      documentType: "CreditNote",
+      typeCode: "81",
+      documentNo: cn.creditNoteNo || "",
+      documentDate: cn.creditNoteDate ? String(cn.creditNoteDate) : new Date().toISOString(),
+      sellerName: company.name,
+      sellerTaxId: company.taxId || "",
+      sellerTaxIdType: (company as any).sellerTaxIdType || "TXID",
+      sellerBranchId: company.sellerBranchId || "00000",
+      sellerAddress: company.address || "",
+      sellerPostcode: company.sellerPostcode || "",
+      sellerBuildingName: company.sellerBuildingName || "",
+      sellerBuildingNumber: company.sellerBuildingNumber || "",
+      sellerPhone: company.phone || "",
+      sellerEmail: company.etaxEmail || company.email || "",
+      sellerDistrictCode: company.sellerDistrictCode || "",
+      sellerSubdistrictCode: company.sellerSubdistrictCode || "",
+      sellerProvinceCode: company.sellerProvinceCode || "",
+      sellerCountryCode: "TH",
+      buyerName: cn.customerName || "",
+      buyerTaxId: cn.customerTaxId || "",
+      buyerTaxIdType: "TXID",
+      buyerCountryCode: "TH",
+      buyerBranchId,
+      buyerAddress: cn.customerAddress || "",
+      buyerPostcode,
+      buyerBuildingName,
+      buyerBuildingNumber,
+      buyerPhone,
+      buyerEmail,
+      buyerDistrictCode,
+      buyerSubdistrictCode,
+      buyerProvinceCode,
+      currencyCode: cn.currencyCode || "THB",
+      items: etaxItems,
+      subtotal: parseFloat(String(cn.subtotal || "0")),
+      discountAmount: parseFloat(String(cn.discountAmount || "0")),
+      vatRate: 7,
+      vatAmount: parseFloat(String(cn.vatAmount || "0")),
+      totalAmount: parseFloat(String(cn.totalAmount || "0")),
+      originalDocumentNo: cn.refTaxInvoiceNo || undefined,
+      originalDocumentDate: cn.refTaxInvoiceDate ? String(cn.refTaxInvoiceDate) : undefined,
+      reason: cn.reason || undefined,
+    };
+
+    return { company, cn, data };
+  }
+
+  app.post("/api/etax/credit-note/email-subject", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { creditNoteId, companyId } = req.body;
+      if (!creditNoteId || !companyId) return res.status(400).json({ message: "creditNoteId and companyId required" });
+
+      const [company] = await db.select().from(companies).where(eq(companies.id, Number(companyId)));
+      if (!company || !checkCompanyAccess(company, user)) return res.status(403).json({ message: "ไม่มีสิทธิ์" });
+
+      const [cn] = await db.select().from(salesCreditNotes).where(
+        and(eq(salesCreditNotes.id, creditNoteId), eq(salesCreditNotes.companyId, Number(companyId)))
+      );
+      if (!cn) return res.status(404).json({ message: "ไม่พบใบลดหนี้" });
+
+      const dateStr = parseDateToBE(cn.creditNoteDate);
+      const subject = `[${dateStr}][CRN][${cn.creditNoteNo}]${cn.refTaxInvoiceNo ? `[${cn.refTaxInvoiceNo}]` : ""}`;
+      res.json({ subject, documentNo: cn.creditNoteNo, documentDate: dateStr });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/etax/credit-note/generate-xml", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { creditNoteId, companyId } = req.body;
+      if (!creditNoteId || !companyId) return res.status(400).json({ message: "creditNoteId and companyId are required" });
+
+      const [company] = await db.select().from(companies).where(eq(companies.id, companyId));
+      if (!company) return res.status(404).json({ message: "Company not found" });
+      if (!checkCompanyAccess(company, user)) return res.status(403).json({ message: "ไม่มีสิทธิ์" });
+
+      const { cn, data } = await buildEtaxDataFromCreditNote(creditNoteId, companyId);
+      const xml = generateEtaxXml(data);
+      const filename = `${cn.creditNoteNo || "etax-cn"}.xml`;
+      res.json({ xml, filename, data });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/etax/credit-note/generate-pdf", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { creditNoteId, companyId } = req.body;
+      if (!creditNoteId || !companyId) return res.status(400).json({ message: "creditNoteId and companyId are required" });
+
+      const [company] = await db.select().from(companies).where(eq(companies.id, companyId));
+      if (!company) return res.status(404).json({ message: "Company not found" });
+      if (!checkCompanyAccess(company, user)) return res.status(403).json({ message: "ไม่มีสิทธิ์" });
+
+      const { cn, data } = await buildEtaxDataFromCreditNote(creditNoteId, companyId);
+      const xml = generateEtaxXml(data);
+      const xmlFileName = "ETDA-invoice.xml";
+
+      const pdfOpts = await buildCreditNotePdfData(creditNoteId);
+      const pdfBuffer = await generatePdfMake(pdfOpts);
+      const pdfA3Buffer = await convertToPdfA3(pdfBuffer, xml, xmlFileName, "CreditNote");
+
+      const filename = `${cn.creditNoteNo || "etax-cn"}_PDFA3.pdf`;
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", `attachment; filename="${encodeURIComponent(filename)}"`);
+      res.send(pdfA3Buffer);
+    } catch (err: any) {
+      console.error("e-Tax credit-note PDF/A-3 error:", err);
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/etax/credit-note/send-email", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { creditNoteId, companyId } = req.body;
+      if (!creditNoteId || !companyId) return res.status(400).json({ message: "creditNoteId and companyId are required" });
+
+      const [comp] = await db.select().from(companies).where(eq(companies.id, companyId));
+      if (!comp) return res.status(404).json({ message: "Company not found" });
+      if (!checkCompanyAccess(comp, user)) return res.status(403).json({ message: "ไม่มีสิทธิ์" });
+      if (!comp.etaxEnabled) return res.status(400).json({ message: "e-Tax Invoice ยังไม่เปิดใช้งาน" });
+
+      if (!comp.etaxTimestampEmail) {
+        return res.status(400).json({ message: "ยังไม่ได้ตั้งค่าอีเมล TEDA (Timestamp Email) ในหน้าตั้งค่า e-Tax Invoice" });
+      }
+      const isValidEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+      if (!isValidEmail(comp.etaxTimestampEmail)) {
+        return res.status(400).json({ message: `รูปแบบอีเมล TEDA ไม่ถูกต้อง "${comp.etaxTimestampEmail}"` });
+      }
+      const timestampEmail = comp.etaxTimestampEmail;
+
+      const { cn, data } = await buildEtaxDataFromCreditNote(creditNoteId, companyId);
+
+      if (!data.buyerEmail) {
+        return res.status(400).json({ message: "ไม่พบอีเมลลูกค้าในเอกสาร กรุณากรอกอีเมลลูกค้าในหน้าแก้ไขเอกสารก่อนส่ง e-Tax", errorCode: "MISSING_BUYER_EMAIL" });
+      }
+      if (!isValidEmail(data.buyerEmail)) {
+        return res.status(400).json({ message: `รูปแบบอีเมลลูกค้าไม่ถูกต้อง "${data.buyerEmail}"`, errorCode: "INVALID_BUYER_EMAIL" });
+      }
+
+      const debugLogs: string[] = [];
+      const dlog = (msg: string) => { console.log(msg); debugLogs.push(msg); };
+
+      const xml = generateEtaxXml(data);
+      const xmlFileName = "ETDA-invoice.xml";
+      dlog(`[XML] creditNoteNo: "${cn.creditNoteNo}" | to: "${timestampEmail}"`);
+
+      const pdfOpts = await buildCreditNotePdfData(creditNoteId);
+      const pdfBuffer = await generatePdfMake(pdfOpts);
+      dlog(`[PDF] pdfmake: ${pdfBuffer.length} bytes`);
+      const pdfA3Buffer = await convertToPdfA3(pdfBuffer, xml, xmlFileName, "CreditNote");
+      dlog(`[PDF] PDF/A-3: ${pdfA3Buffer.length} bytes`);
+
+      const dateStr = parseDateToBE(cn.creditNoteDate);
+      const subject = `[${dateStr}][CRN][${cn.creditNoteNo}]${cn.refTaxInvoiceNo ? `[${cn.refTaxInvoiceNo}]` : ""}`;
+      const pdfFilename = `${cn.creditNoteNo}.pdf`;
+      const docTypeLabel = "ใบลดหนี้";
+
+      const htmlBodyEtda = `
+        <div style="font-family: 'Sarabun', Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <div style="background: #fb9678; color: white; padding: 20px; border-radius: 8px 8px 0 0;">
+            <h2 style="margin: 0;">e-Tax Invoice Submission</h2>
+            <p style="margin: 5px 0 0; opacity: 0.9;">${comp.name}</p>
+          </div>
+          <div style="padding: 20px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
+            <p>ส่ง${docTypeLabel}อิเล็กทรอนิกส์เพื่อประทับเวลา</p>
+            <table style="width: 100%; border-collapse: collapse; margin: 15px 0;">
+              <tr><td style="padding: 6px 0; color: #666;">ประเภทเอกสาร:</td><td style="padding: 6px 0; font-weight: 600;">${docTypeLabel}</td></tr>
+              <tr><td style="padding: 6px 0; color: #666;">เลขที่เอกสาร:</td><td style="padding: 6px 0; font-weight: 600;">${cn.creditNoteNo}</td></tr>
+              <tr><td style="padding: 6px 0; color: #666;">จำนวนเงินรวม:</td><td style="padding: 6px 0; font-weight: 600;">฿${parseFloat(String(cn.totalAmount || "0")).toLocaleString("th-TH", { minimumFractionDigits: 2 })}</td></tr>
+            </table>
+            <p style="font-size: 13px; color: #888;">ไฟล์แนบ: ${pdfFilename} (PDF/A-3 พร้อม XML ตามมาตรฐาน สพธอ.)</p>
+            <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 15px 0;">
+            <p style="font-size: 12px; color: #999;">เอกสารนี้จัดทำและส่งข้อมูลให้แก่กรมสรรพากรด้วยวิธีการทางอิเล็กทรอนิกส์ ตามประกาศอธิบดีกรมสรรพากร</p>
+          </div>
+        </div>`;
+
+      const validProviders = ["resend", "gmail", "smtp"] as const;
+      type EmailProvider = typeof validProviders[number];
+      if (!comp.etaxEmailProvider || !validProviders.includes(comp.etaxEmailProvider as EmailProvider)) {
+        return res.status(400).json({ message: "ยังไม่ได้ตั้งค่าผู้ให้บริการอีเมล (Email Provider) ในหน้าตั้งค่า e-Tax Invoice" });
+      }
+      const provider = comp.etaxEmailProvider as EmailProvider;
+      let messageId: string | null = null;
+
+      if (provider === "gmail" || provider === "smtp") {
+        if (!comp.smtpUser || !comp.smtpPass) {
+          return res.status(400).json({ message: "ยังไม่ได้ตั้งค่า SMTP Email/Password ในหน้าตั้งค่า e-Tax Invoice" });
+        }
+        if (provider === "smtp" && !comp.smtpHost) {
+          return res.status(400).json({ message: "ยังไม่ได้ตั้งค่า SMTP Host ในหน้าตั้งค่า e-Tax Invoice" });
+        }
+        const nodemailer = await import("nodemailer");
+        const smtpConfig: any = {
+          host: provider === "gmail" ? "smtp.gmail.com" : comp.smtpHost,
+          port: provider === "gmail" ? 587 : (comp.smtpPort || 587),
+          secure: false,
+          auth: { user: comp.smtpUser, pass: comp.smtpPass },
+        };
+        const transporter = nodemailer.default.createTransport(smtpConfig);
+        const mailOptions: any = {
+          from: `"${comp.name}" <${comp.smtpUser}>`,
+          to: data.buyerEmail,
+          cc: timestampEmail,
+          subject,
+          html: htmlBodyEtda,
+          attachments: [{ filename: pdfFilename, content: pdfA3Buffer, contentType: "application/pdf" }],
+        };
+        const info = await transporter.sendMail(mailOptions);
+        messageId = info.messageId || null;
+        dlog(`[EMAIL] SMTP sent | to: ${data.buyerEmail} | cc: ${timestampEmail} | msgId: ${messageId}`);
+      } else {
+        if (!process.env.RESEND_API_KEY) {
+          return res.status(400).json({ message: "ยังไม่ได้ตั้งค่า RESEND_API_KEY" });
+        }
+        const { Resend } = await import("resend");
+        const resend = new Resend(process.env.RESEND_API_KEY);
+        const rawFrom = process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev";
+        const isTestEmail = rawFrom.includes("onboarding@resend.dev");
+        const fromEmail = rawFrom.includes("<") ? rawFrom : (isTestEmail ? rawFrom : `${comp.name.slice(0, 200)} <${rawFrom}>`);
+        const emailPayload: any = {
+          from: fromEmail,
+          to: [data.buyerEmail],
+          cc: [timestampEmail],
+          subject,
+          html: htmlBodyEtda,
+          attachments: [{ filename: pdfFilename, content: pdfA3Buffer.toString("base64") }],
+        };
+        const sendResult = await resend.emails.send(emailPayload) as any;
+        if (sendResult?.error || !sendResult?.data?.id) {
+          const errMsg = sendResult?.error?.message || "ส่งอีเมลไม่สำเร็จ (Resend error)";
+          dlog(`[EMAIL] Resend error: ${errMsg}`);
+          return res.status(500).json({ message: errMsg, debugInfo: debugLogs });
+        }
+        messageId = sendResult.data.id;
+        dlog(`[EMAIL] Resend sent | to: ${data.buyerEmail} | cc: ${timestampEmail} | msgId: ${messageId}`);
+      }
+
+      await db.update(salesCreditNotes).set({
+        etaxSentAt: new Date(),
+        etaxSentTo: data.buyerEmail,
+        etaxSentCc: timestampEmail,
+        etaxMessageId: messageId,
+      }).where(eq(salesCreditNotes.id, creditNoteId));
+
+      res.json({ success: true, provider, to: timestampEmail, subject, messageId, debugInfo: debugLogs });
+    } catch (err: any) {
+      console.error("e-Tax credit-note email error:", err);
+      res.status(500).json({ message: err.message, debugInfo: [`[ERROR] ${err.message}`] });
     }
   });
 }

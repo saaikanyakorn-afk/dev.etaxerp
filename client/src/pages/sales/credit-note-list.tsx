@@ -12,7 +12,7 @@ import { useCompany } from "@/lib/company-context";
 import {
   Search, Plus, FileText, Edit2, Trash2, Eye,
   CheckCircle2, Clock, MoreHorizontal, Calendar as CalendarIcon,
-  AlertCircle, XCircle, Printer, Link2, MessageSquare, BookOpen
+  AlertCircle, XCircle, Printer, Link2, MessageSquare, BookOpen, Send
 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
@@ -32,6 +32,7 @@ import { useDateSettings } from "@/hooks/use-date-settings";
 import { toLocalDateStr } from "@/lib/utils";
 import LineSendDialog from "@/components/line-send-dialog";
 import JournalViewDialog from "@/components/journal-view-dialog";
+import { EtaxSendDialog } from "@/components/etax-send-dialog";
 
 const STATUS_MAP: Record<string, { label: string; color: string; icon: any }> = {
   draft: { label: "ร่าง", color: "bg-slate-100 text-slate-700 border-slate-200", icon: Clock },
@@ -65,6 +66,7 @@ export default function CreditNoteList() {
   const [dateTo, setDateTo] = useState("");
   const [lineDialog, setLineDialog] = useState<{ open: boolean; url: string; docNo: string; customerName: string }>({ open: false, url: "", docNo: "", customerName: "" });
   const [journalDoc, setJournalDoc] = useState<{ open: boolean; id: number | null }>({ open: false, id: null });
+  const [etaxDialog, setEtaxDialog] = useState<{ open: boolean; creditNoteId: number; creditNoteNo: string }>({ open: false, creditNoteId: 0, creditNoteNo: "" });
 
   const bulk = useBulkDelete({ endpoint: "/api/sales-credit-notes/bulk-delete", queryKey: "/api/sales-credit-notes", docLabel: "ใบลดหนี้", companyId });
   const { dateEra, dateFmt } = useDateSettings();
@@ -279,6 +281,15 @@ export default function CreditNoteList() {
                               <DropdownMenuItem onClick={() => navigate(`/sales/credit-note/pdf/${cn.id}`)} className="flex gap-2">
                                 <Printer className="h-3.5 w-3.5 text-purple-500" /> ดูตัวอย่าง / สั่งพิมพ์
                               </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => setEtaxDialog({ open: true, creditNoteId: cn.id, creditNoteNo: cn.creditNoteNo })}
+                                className="flex gap-2 text-blue-600"
+                                data-testid={`button-etax-cn-${cn.id}`}
+                              >
+                                <Send className="h-3.5 w-3.5" />
+                                ส่ง e-Tax Invoice
+                                {cn.etaxSentAt && <span className="ml-auto text-[10px] bg-green-100 text-green-700 px-1 rounded">ส่งแล้ว</span>}
+                              </DropdownMenuItem>
                               <DropdownMenuItem onClick={async () => {
                                 try {
                                   const res = await fetch(`/api/sales-credit-notes/${cn.id}/share`, { method: "POST", credentials: "include" });
@@ -333,6 +344,13 @@ export default function CreditNoteList() {
         </Card>
       </div>
       <BulkDeleteConfirmDialog open={bulk.showConfirm} onOpenChange={bulk.setShowConfirm} count={bulk.selectedIds.size} docLabel="ใบลดหนี้" onConfirm={bulk.confirmDelete} />
+      <EtaxSendDialog
+        open={etaxDialog.open}
+        onOpenChange={(open) => setEtaxDialog(prev => ({ ...prev, open }))}
+        docType="credit_note"
+        creditNoteId={etaxDialog.creditNoteId}
+        creditNoteNo={etaxDialog.creditNoteNo}
+      />
       <LineSendDialog
         open={lineDialog.open}
         onOpenChange={(open) => setLineDialog(prev => ({ ...prev, open }))}

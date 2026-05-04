@@ -3773,13 +3773,17 @@ export const salesCreditNotes = pgTable("sales_credit_notes", {
   correctInvoiceAmount: decimal("correct_invoice_amount", { precision: 15, scale: 2 }),
   linkJournal: boolean("link_journal").default(false),
   shareToken: text("share_token"),
+  etaxSentAt: timestamp("etax_sent_at"),
+  etaxSentTo: text("etax_sent_to"),
+  etaxSentCc: text("etax_sent_cc"),
+  etaxMessageId: text("etax_message_id"),
   createdBy: integer("created_by").references(() => users.id),
   updatedBy: integer("updated_by").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-export const insertSalesCreditNoteSchema = createInsertSchema(salesCreditNotes).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertSalesCreditNoteSchema = createInsertSchema(salesCreditNotes).omit({ id: true, createdAt: true, updatedAt: true, etaxSentAt: true, etaxSentTo: true, etaxSentCc: true, etaxMessageId: true });
 export type InsertSalesCreditNote = z.infer<typeof insertSalesCreditNoteSchema>;
 export type SalesCreditNote = typeof salesCreditNotes.$inferSelect;
 

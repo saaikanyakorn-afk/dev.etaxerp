@@ -17,13 +17,22 @@ const FORM_OPTIONS: { key: FormType; label: string }[] = [
 interface EtaxSendDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  taxInvoiceId: number;
-  taxInvoiceNo: string;
+  taxInvoiceId?: number;
+  taxInvoiceNo?: string;
+  creditNoteId?: number;
+  creditNoteNo?: string;
+  docType?: "tax_invoice" | "credit_note";
   defaultPrintType?: FormType;
   onPrintTypeChange?: (pt: FormType) => void;
 }
 
-export function EtaxSendDialog({ open, onOpenChange, taxInvoiceId, taxInvoiceNo, defaultPrintType, onPrintTypeChange }: EtaxSendDialogProps) {
+export function EtaxSendDialog({
+  open, onOpenChange,
+  taxInvoiceId, taxInvoiceNo,
+  creditNoteId, creditNoteNo,
+  docType = "tax_invoice",
+  defaultPrintType, onPrintTypeChange,
+}: EtaxSendDialogProps) {
   const { toast } = useToast();
   const { selectedCompany } = useCompany();
   const companyId = selectedCompany?.id;
@@ -38,6 +47,9 @@ export function EtaxSendDialog({ open, onOpenChange, taxInvoiceId, taxInvoiceNo,
   const [rawDebugLoading, setRawDebugLoading] = useState(false);
   const [rawDebugResult, setRawDebugResult] = useState<any>(null);
 
+  const isCreditNote = docType === "credit_note";
+  const displayDocNo = isCreditNote ? (creditNoteNo || "") : (taxInvoiceNo || "");
+
   useEffect(() => {
     if (defaultPrintType) setFormType(defaultPrintType);
   }, [defaultPrintType]);
@@ -48,7 +60,8 @@ export function EtaxSendDialog({ open, onOpenChange, taxInvoiceId, taxInvoiceNo,
     setShowDebug(false);
     setSendSuccess(false);
     setErrorAlert(null);
-  }, [open, taxInvoiceId]);
+    setRawDebugResult(null);
+  }, [open, taxInvoiceId, creditNoteId]);
 
   const handleDebugEmailRaw = async (sendReal: boolean) => {
     setRawDebugLoading(true);
@@ -75,15 +88,24 @@ export function EtaxSendDialog({ open, onOpenChange, taxInvoiceId, taxInvoiceNo,
     setShowDebug(false);
     setErrorAlert(null);
     try {
-      const res = await fetch("/api/etax/send-email", {
+      let url: string;
+      let body: Record<string, any>;
+
+      if (isCreditNote) {
+        if (!creditNoteId) throw new Error("ไม่พบ creditNoteId");
+        url = "/api/etax/credit-note/send-email";
+        body = { creditNoteId, companyId };
+      } else {
+        if (!taxInvoiceId) throw new Error("ไม่พบ taxInvoiceId");
+        url = "/api/etax/send-email";
+        body = { taxInvoiceId, companyId, printType: formType };
+      }
+
+      const res = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({
-          taxInvoiceId,
-          companyId,
-          printType: formType,
-        }),
+        body: JSON.stringify(body),
       });
       const data = await res.json();
       if (data.debugInfo?.length) {
@@ -100,8 +122,12 @@ export function EtaxSendDialog({ open, onOpenChange, taxInvoiceId, taxInvoiceNo,
         return;
       }
       setSendSuccess(true);
-      queryClient.invalidateQueries({ queryKey: ["/api/tax-invoices"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/etax/sent-list"] });
+      if (isCreditNote) {
+        queryClient.invalidateQueries({ queryKey: ["/api/sales-credit-notes"] });
+      } else {
+        queryClient.invalidateQueries({ queryKey: ["/api/tax-invoices"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/etax/sent-list"] });
+      }
     } catch (err: any) {
       toast({ title: "ส่ง e-Tax ไม่สำเร็จ", description: err.message, variant: "destructive" });
     }
@@ -120,32 +146,41 @@ export function EtaxSendDialog({ open, onOpenChange, taxInvoiceId, taxInvoiceNo,
 
         <div className="space-y-4 py-2">
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-700">
-            <p>เอกสาร: <span className="font-semibold">{taxInvoiceNo}</span></p>
+            <p>เอกสาร: <span className="font-semibold">{displayDocNo}</span></p>
             <p className="text-xs mt-1.5">ระบบจะสร้าง PDF/A-3 พร้อม XML ตามมาตรฐาน สพธอ. และส่งไปยังกรมสรรพากรเพื่อประทับเวลา กรมสรรพากรจะส่งเอกสารต่อให้ลูกค้าเอง</p>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">
-              รูปแบบเอกสาร
-            </label>
-            <div className="flex flex-col gap-1.5">
-              {FORM_OPTIONS.map(opt => (
-                <button
-                  key={opt.key}
-                  type="button"
-                  onClick={() => { setFormType(opt.key); onPrintTypeChange?.(opt.key); }}
-                  className={`text-left px-3 py-2 rounded-md border text-sm transition-colors ${
-                    formType === opt.key
-                      ? "bg-blue-50 border-blue-400 text-blue-700 font-medium"
-                      : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
-                  }`}
-                  data-testid={`btn-form-type-${opt.key}`}
-                >
-                  {opt.label}
-                </button>
-              ))}
+          {!isCreditNote && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                รูปแบบเอกสาร
+              </label>
+              <div className="flex flex-col gap-1.5">
+                {FORM_OPTIONS.map(opt => (
+                  <button
+                    key={opt.key}
+                    type="button"
+                    onClick={() => { setFormType(opt.key); onPrintTypeChange?.(opt.key); }}
+                    className={`text-left px-3 py-2 rounded-md border text-sm transition-colors ${
+                      formType === opt.key
+                        ? "bg-blue-50 border-blue-400 text-blue-700 font-medium"
+                        : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
+                    }`}
+                    data-testid={`btn-form-type-${opt.key}`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
+
+          {isCreditNote && (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-700">
+              <p className="font-medium">ใบลดหนี้ (typeCode: 81)</p>
+              <p className="text-xs mt-1">จะส่งในรูปแบบ PDF/A-3 ฝัง XML มาตรฐาน สพธอ. ใบลดหนี้</p>
+            </div>
+          )}
 
           {errorAlert && (
             <div className="flex items-start gap-2 bg-red-50 border border-red-300 rounded-lg p-3 text-sm text-red-700" data-testid="alert-etax-email-error">
@@ -189,70 +224,71 @@ export function EtaxSendDialog({ open, onOpenChange, taxInvoiceId, taxInvoiceNo,
           )}
         </div>
 
-        {/* Debug Email Headers section */}
-        <div className="border border-dashed border-gray-300 rounded-lg p-3 bg-gray-50 space-y-2">
-          <div className="flex items-center gap-1.5 text-xs font-medium text-gray-500">
-            <Bug className="h-3.5 w-3.5" />
-            Debug Email Headers
-          </div>
-          <div className="flex gap-2 flex-wrap">
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              disabled={rawDebugLoading}
-              onClick={() => handleDebugEmailRaw(false)}
-              className="text-xs h-7"
-              data-testid="btn-debug-ethereal"
-            >
-              {rawDebugLoading ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
-              Capture via Ethereal (ไม่ส่งจริง)
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              disabled={rawDebugLoading}
-              onClick={() => handleDebugEmailRaw(true)}
-              className="text-xs h-7 border-orange-300 text-orange-700 hover:bg-orange-50"
-              data-testid="btn-debug-real-send"
-            >
-              {rawDebugLoading ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
-              ส่งจริง + ดู Headers (To: buyer, CC: ETDA)
-            </Button>
-          </div>
-          {rawDebugResult && (
-            <div className="space-y-2">
-              <div className="bg-white border border-gray-200 rounded p-2 text-xs font-mono space-y-1">
-                <div><span className="text-gray-400">From:</span> <span className="text-blue-700">{rawDebugResult.emailStructure?.from}</span></div>
-                <div><span className="text-gray-400">To:</span> <span className="text-green-700">{rawDebugResult.emailStructure?.to}</span></div>
-                <div><span className="text-gray-400">CC:</span> <span className="text-orange-700">{rawDebugResult.emailStructure?.cc}</span></div>
-                <div><span className="text-gray-400">Subject:</span> {rawDebugResult.emailStructure?.subject}</div>
-                <div><span className="text-gray-400">Attachment:</span> {rawDebugResult.emailStructure?.attachments?.[0]?.filename} ({Math.round((rawDebugResult.emailStructure?.attachments?.[0]?.size || 0) / 1024)} KB)</div>
-                <div><span className="text-gray-400">MessageId:</span> {rawDebugResult.etherealMessageId}</div>
-              </div>
-              {rawDebugResult.etherealPreviewUrl && (
-                <a
-                  href={rawDebugResult.etherealPreviewUrl as string}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="block text-xs text-blue-600 underline hover:text-blue-800 break-all"
-                  data-testid="link-ethereal-preview"
-                >
-                  คลิกดู Raw Email Headers (Ethereal) →
-                </a>
-              )}
-              {rawDebugResult.realSmtp && (
-                <div className={`rounded p-2 text-xs ${rawDebugResult.realSmtp.sent ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
-                  {rawDebugResult.realSmtp.sent
-                    ? <>✓ ส่งจริงสำเร็จ — MessageId: {rawDebugResult.realSmtp.messageId}<br />{rawDebugResult.realSmtp.note}</>
-                    : <>✗ SMTP error: {rawDebugResult.realSmtp.error}</>
-                  }
-                </div>
-              )}
+        {!isCreditNote && (
+          <div className="border border-dashed border-gray-300 rounded-lg p-3 bg-gray-50 space-y-2">
+            <div className="flex items-center gap-1.5 text-xs font-medium text-gray-500">
+              <Bug className="h-3.5 w-3.5" />
+              Debug Email Headers
             </div>
-          )}
-        </div>
+            <div className="flex gap-2 flex-wrap">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={rawDebugLoading}
+                onClick={() => handleDebugEmailRaw(false)}
+                className="text-xs h-7"
+                data-testid="btn-debug-ethereal"
+              >
+                {rawDebugLoading ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
+                Capture via Ethereal (ไม่ส่งจริง)
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={rawDebugLoading}
+                onClick={() => handleDebugEmailRaw(true)}
+                className="text-xs h-7 border-orange-300 text-orange-700 hover:bg-orange-50"
+                data-testid="btn-debug-real-send"
+              >
+                {rawDebugLoading ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
+                ส่งจริง + ดู Headers (To: buyer, CC: ETDA)
+              </Button>
+            </div>
+            {rawDebugResult && (
+              <div className="space-y-2">
+                <div className="bg-white border border-gray-200 rounded p-2 text-xs font-mono space-y-1">
+                  <div><span className="text-gray-400">From:</span> <span className="text-blue-700">{rawDebugResult.emailStructure?.from}</span></div>
+                  <div><span className="text-gray-400">To:</span> <span className="text-green-700">{rawDebugResult.emailStructure?.to}</span></div>
+                  <div><span className="text-gray-400">CC:</span> <span className="text-orange-700">{rawDebugResult.emailStructure?.cc}</span></div>
+                  <div><span className="text-gray-400">Subject:</span> {rawDebugResult.emailStructure?.subject}</div>
+                  <div><span className="text-gray-400">Attachment:</span> {rawDebugResult.emailStructure?.attachments?.[0]?.filename} ({Math.round((rawDebugResult.emailStructure?.attachments?.[0]?.size || 0) / 1024)} KB)</div>
+                  <div><span className="text-gray-400">MessageId:</span> {rawDebugResult.etherealMessageId}</div>
+                </div>
+                {rawDebugResult.etherealPreviewUrl && (
+                  <a
+                    href={rawDebugResult.etherealPreviewUrl as string}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block text-xs text-blue-600 underline hover:text-blue-800 break-all"
+                    data-testid="link-ethereal-preview"
+                  >
+                    คลิกดู Raw Email Headers (Ethereal) →
+                  </a>
+                )}
+                {rawDebugResult.realSmtp && (
+                  <div className={`rounded p-2 text-xs ${rawDebugResult.realSmtp.sent ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+                    {rawDebugResult.realSmtp.sent
+                      ? <>✓ ส่งจริงสำเร็จ — MessageId: {rawDebugResult.realSmtp.messageId}<br />{rawDebugResult.realSmtp.note}</>
+                      : <>✗ SMTP error: {rawDebugResult.realSmtp.error}</>
+                    }
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
 
         <DialogFooter>
           {sendSuccess ? (
