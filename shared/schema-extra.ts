@@ -576,3 +576,12 @@ export async function runBillingNotesWhtMigration(db: any) {
 export async function runBillingNotesWhtMigration(_db: any) {
   // migration done 2026-05-03 — no-op
 }
+
+export async function runFirmClientMigration(db: any) {
+  try {
+    await db.execute(sql.raw(`ALTER TABLE firm_clients ADD COLUMN IF NOT EXISTS target_db_machine_id INTEGER`));
+    console.log("[migration] ✅ firm_clients.target_db_machine_id ready");
+  } catch (e: any) {
+    console.error("[migration] ❌ runFirmClientMigration FAILED:", e.message);
+  }
+}
