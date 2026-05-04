@@ -399,8 +399,9 @@ process.env.DB_PROD_URL
 - **env var**: `GITHUB_PAT_PRODUCTION` — stored in Replit Secrets (shared), **intentionally set to OLD/wrong value as a safety trap** — do NOT use env var for push; always use token from `.git/config`
 - **Token name on GitHub**: `etaxerp` — Fine-grained PAT, All repositories, Contents: Read and write
 - **⏰ EXPIRATION: Aug 01, 2026** — alert พี่ช้าง on **Jul 30, 2026** (2 days before)
-- **Token lives in `.git/config`** (NOT env vars) — use `git remote get-url github-production` to read it
 - **✅ Production token (etaxerp) regenerated 2026-05-04** — confirmed working from both Replit and production server
+- **Token lives in `.git/config`** — retrieve via `git remote get-url github-production` in code_execution → extract from URL
+- **Token suffix (last 5 chars): `kkRTt`** — verify this matches; if different, token was changed/regenerated
 - **ONLY safe push method = GitHub API PUT (single file)** — tested 2026-05-04 ✅
   ```javascript
   // Push ONE file only — NEVER push entire project
