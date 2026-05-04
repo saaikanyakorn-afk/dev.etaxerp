@@ -98,6 +98,8 @@ const ROLE_CONFIG: Record<string, { label: string; color: string; bgColor: strin
   backup:     { label: "Backup",     color: "text-gray-700",   bgColor: "bg-gray-100" },
 };
 
+type TabId = "network" | "database" | "hardware" | "sysadmin";
+
 // ─── MachineCard ──────────────────────────────────────────────────────────────
 
 function MachineCard({
@@ -107,7 +109,7 @@ function MachineCard({
   machine: MachineRecord;
   expanded: boolean;
   onToggle: () => void;
-  onEdit: (m: MachineRecord) => void;
+  onEdit: (m: MachineRecord, tab: TabId) => void;
   onToggleOfficial: (id: number, val: boolean) => void;
   allMachines: MachineRecord[];
   allNics: NicRecord[];
@@ -227,7 +229,7 @@ function MachineCard({
                 size="sm"
                 variant="outline"
                 className="h-6 text-[11px] px-2"
-                onClick={e => { e.stopPropagation(); onEdit(machine); }}
+                onClick={e => { e.stopPropagation(); onEdit(machine, activeTab); }}
                 data-testid={`btn-edit-machine-${machine.id}`}
               >
                 <Pencil className="h-3 w-3 mr-0.5" /> แก้ไข
@@ -367,10 +369,18 @@ function MachineCard({
 
 // ─── EditMachineDialog ────────────────────────────────────────────────────────
 
+const EDIT_TABS: { id: TabId; label: string; icon: React.ReactNode }[] = [
+  { id: "network",  label: "Network",  icon: <Globe className="h-3.5 w-3.5" /> },
+  { id: "database", label: "Database", icon: <Database className="h-3.5 w-3.5" /> },
+  { id: "hardware", label: "Hardware", icon: <Cpu className="h-3.5 w-3.5" /> },
+  { id: "sysadmin", label: "Sysadmin", icon: <UserCog className="h-3.5 w-3.5" /> },
+];
+
 function EditMachineDialog({
-  machine, locations, routers, onSave, onCancel, onDelete, saving,
+  machine, initialTab, locations, routers, onSave, onCancel, onDelete, saving,
 }: {
   machine: MachineRecord | null;
+  initialTab: TabId;
   locations: LocationRecord[];
   routers: RouterRecord[];
   onSave: (data: any) => void;
@@ -379,6 +389,7 @@ function EditMachineDialog({
   saving?: boolean;
 }) {
   const isNew = !machine;
+  const [activeTab, setActiveTab] = useState<TabId>(initialTab);
   const [showDbPw, setShowDbPw] = useState(false);
   const [form, setForm] = useState({
     localName:        machine?.localName        || "",
@@ -410,265 +421,285 @@ function EditMachineDialog({
     physicalLocation: machine?.physicalLocation || "",
     locationId:       machine?.locationId ? String(machine.locationId) : "",
   });
+  const f = (field: string, val: any) => setForm(prev => ({ ...prev, [field]: val }));
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" data-testid="dialog-edit-machine">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-        <div className="p-6 border-b">
-          <h2 className="text-lg font-bold">
-            {isNew ? "เพิ่มเครื่องใหม่" : `แก้ไข: ${machine.localName}`}
-          </h2>
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl flex flex-col max-h-[90vh]">
+
+        {/* Header + tab bar */}
+        <div className="px-6 pt-5 pb-0 border-b shrink-0">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-lg font-bold">
+              {isNew ? "เพิ่มเครื่องใหม่" : `แก้ไข: ${machine.localName}`}
+            </h2>
+            <button onClick={onCancel} className="text-gray-400 hover:text-gray-600" data-testid="button-close-dialog">
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+          <div className="flex gap-0">
+            {EDIT_TABS.map(t => (
+              <button
+                key={t.id}
+                onClick={() => setActiveTab(t.id)}
+                className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                  activeTab === t.id
+                    ? "border-[#fb9678] text-[#fb9678]"
+                    : "border-transparent text-gray-500 hover:text-gray-800"
+                }`}
+                data-testid={`edit-tab-${t.id}`}
+              >
+                {t.icon} {t.label}
+              </button>
+            ))}
+          </div>
         </div>
 
-        <div className="p-6 space-y-4">
-          {/* ชื่อเครื่อง */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label className="text-sm font-medium">ชื่อเครื่อง (ชื่อเรียก) *</Label>
-              <Input value={form.localName} onChange={e => setForm({ ...form, localName: e.target.value })} placeholder="เช่น server-e5, etaxerp" data-testid="input-local-name" />
-            </div>
-            <div>
-              <Label className="text-sm font-medium">ชื่อแสดงผล (สำหรับผู้ใช้)</Label>
-              <Input value={form.displayName} onChange={e => setForm({ ...form, displayName: e.target.value })} placeholder="เช่น etax1, etax2" data-testid="input-display-name" />
-              <p className="text-xs text-muted-foreground mt-0.5">ชื่อที่ผู้ใช้เห็นเมื่อเลือกเซิร์ฟเวอร์</p>
-            </div>
-          </div>
+        {/* Body — scrollable */}
+        <div className="overflow-y-auto flex-1 p-6">
 
-          {/* Network */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label className="text-sm font-medium">Domain Name</Label>
-              <Input value={form.domainName} onChange={e => setForm({ ...form, domainName: e.target.value })} placeholder="เช่น deep-main.hopto.org" data-testid="input-domain-name" />
-            </div>
-            <div>
-              <Label className="text-sm font-medium">Windows Computer Name</Label>
-              <Input value={form.windowsName} onChange={e => setForm({ ...form, windowsName: e.target.value })} placeholder="เช่น ETAXERP-PC" data-testid="input-windows-name" />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label className="text-sm font-medium">FQDN</Label>
-              <Input value={form.fqdn} onChange={e => setForm({ ...form, fqdn: e.target.value })} placeholder="เช่น etaxerp.com" data-testid="input-fqdn" />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label className="text-sm font-medium">LAN IP</Label>
-              <Input value={form.lanIp} onChange={e => setForm({ ...form, lanIp: e.target.value })} placeholder="เช่น 192.168.1.100" data-testid="input-lan-ip" />
-            </div>
-            <div>
-              <Label className="text-sm font-medium">WAN IP</Label>
-              <Input value={form.wanIp} onChange={e => setForm({ ...form, wanIp: e.target.value })} placeholder="เช่น 184.82.211.214" data-testid="input-wan-ip" />
-            </div>
-          </div>
-
-          {/* Location */}
-          <div>
-            <Label className="text-sm font-medium">สถานที่ตั้ง (Location)</Label>
-            <Select value={form.locationId || "none"} onValueChange={v => setForm({ ...form, locationId: v === "none" ? "" : v })}>
-              <SelectTrigger data-testid="select-machine-location"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">— ยังไม่กำหนด</SelectItem>
-                {locations.filter(l => !l.parentId).map(parent => {
-                  const children = locations.filter(c => c.parentId === parent.id);
-                  return [
-                    <SelectItem key={parent.id} value={String(parent.id)}>{parent.name}</SelectItem>,
-                    ...children.map(c => (
-                      <SelectItem key={c.id} value={String(c.id)}>&nbsp;&nbsp;└ {c.name}</SelectItem>
-                    )),
-                  ];
-                })}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Hardware */}
-          <div className="border-t pt-4">
-            <h3 className="text-sm font-semibold mb-3">ข้อมูลฮาร์ดแวร์</h3>
-            <div className="grid grid-cols-3 gap-4">
-              <div>
-                <Label className="text-sm font-medium">รุ่นเครื่อง</Label>
-                <Input value={form.machineModel} onChange={e => setForm({ ...form, machineModel: e.target.value })} placeholder="เช่น Dell OptiPlex 7060" data-testid="input-machine-model" />
-              </div>
-              <div>
-                <Label className="text-sm font-medium">CPU</Label>
-                <Input value={form.cpuModel} onChange={e => setForm({ ...form, cpuModel: e.target.value })} placeholder="เช่น Xeon E3-1280 V2" data-testid="input-cpu-model" />
-              </div>
-              <div>
-                <Label className="text-sm font-medium">RAM</Label>
-                <Input value={form.ramSize} onChange={e => setForm({ ...form, ramSize: e.target.value })} placeholder="เช่น 32GB DDR3" data-testid="input-ram-size" />
-              </div>
-            </div>
-          </div>
-
-          {/* OS / Type / Role */}
-          <div className="grid grid-cols-3 gap-4">
-            <div>
-              <Label className="text-sm font-medium">ระบบปฏิบัติการ *</Label>
-              <Select value={form.os} onValueChange={(v: any) => setForm({ ...form, os: v })}>
-                <SelectTrigger data-testid="select-os"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="windows">Windows</SelectItem>
-                  <SelectItem value="linux">Linux</SelectItem>
-                  <SelectItem value="cloud">Cloud</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label className="text-sm font-medium">ประเภท *</Label>
-              <Select value={form.serverType} onValueChange={(v: any) => setForm({ ...form, serverType: v })}>
-                <SelectTrigger data-testid="select-server-type"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="app">App Server</SelectItem>
-                  <SelectItem value="database">Database Server</SelectItem>
-                  <SelectItem value="app_database">App + Database</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label className="text-sm font-medium">บทบาท (Role) *</Label>
-              <Select value={form.role} onValueChange={(v: any) => setForm({ ...form, role: v })}>
-                <SelectTrigger data-testid="select-role"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="dev_source">Dev Source</SelectItem>
-                  <SelectItem value="production">Production</SelectItem>
-                  <SelectItem value="testing">Testing</SelectItem>
-                  <SelectItem value="backup">Backup</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          {/* Internet / Router */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label className="text-sm font-medium">Internet Type</Label>
-              <Select value={form.internetType} onValueChange={(v: any) => setForm({ ...form, internetType: v })}>
-                <SelectTrigger data-testid="select-internet-type"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="fixed">Fixed IP</SelectItem>
-                  <SelectItem value="dynamic">Dynamic (DDNS)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label className="text-sm font-medium">Router</Label>
-              <Select value={form.routerId || "none"} onValueChange={v => setForm({ ...form, routerId: v === "none" ? "" : v })}>
-                <SelectTrigger data-testid="select-machine-router"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">-- ยังไม่กำหนด --</SelectItem>
-                  {routers.map(r => (
-                    <SelectItem key={r.id} value={String(r.id)}>
-                      {r.name} {r.lanIp ? `(${r.lanIp})` : ""}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          {/* Git */}
-          {(form.serverType === "app" || form.serverType === "app_database") && (
-            <div className="border-t pt-4">
-              <h3 className="text-sm font-semibold mb-3">Git Repository</h3>
-              <div className="grid grid-cols-3 gap-4">
+          {/* ── Network ── */}
+          {activeTab === "network" && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label className="text-sm font-medium">Repo Name</Label>
-                  <Select value={form.repoName || "none"} onValueChange={v => setForm({ ...form, repoName: v === "none" ? "" : v })}>
-                    <SelectTrigger data-testid="select-repo-name"><SelectValue /></SelectTrigger>
+                  <Label className="text-sm font-medium">ชื่อเครื่อง (ชื่อเรียก) *</Label>
+                  <Input value={form.localName} onChange={e => f("localName", e.target.value)} placeholder="เช่น server-e5, etaxerp" data-testid="input-local-name" />
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">ชื่อแสดงผล (สำหรับผู้ใช้)</Label>
+                  <Input value={form.displayName} onChange={e => f("displayName", e.target.value)} placeholder="เช่น etax1, etax2" data-testid="input-display-name" />
+                  <p className="text-xs text-muted-foreground mt-0.5">ชื่อที่ผู้ใช้เห็นเมื่อเลือกเซิร์ฟเวอร์</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-sm font-medium">Domain Name</Label>
+                  <Input value={form.domainName} onChange={e => f("domainName", e.target.value)} placeholder="เช่น deep-main.hopto.org" data-testid="input-domain-name" />
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Windows Computer Name</Label>
+                  <Input value={form.windowsName} onChange={e => f("windowsName", e.target.value)} placeholder="เช่น ETAXERP-PC" data-testid="input-windows-name" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-sm font-medium">FQDN</Label>
+                  <Input value={form.fqdn} onChange={e => f("fqdn", e.target.value)} placeholder="เช่น etaxerp.com" data-testid="input-fqdn" />
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Internet Type</Label>
+                  <Select value={form.internetType} onValueChange={v => f("internetType", v)}>
+                    <SelectTrigger data-testid="select-internet-type"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="none">-- ยังไม่กำหนด --</SelectItem>
-                      <SelectItem value="github-production">github-production</SelectItem>
-                      <SelectItem value="github-dev">github-dev</SelectItem>
-                      <SelectItem value="replit">replit</SelectItem>
+                      <SelectItem value="fixed">Fixed IP</SelectItem>
+                      <SelectItem value="dynamic">Dynamic (DDNS)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-sm font-medium">LAN IP</Label>
+                  <Input value={form.lanIp} onChange={e => f("lanIp", e.target.value)} placeholder="เช่น 192.168.1.100" data-testid="input-lan-ip" />
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">WAN IP</Label>
+                  <Input value={form.wanIp} onChange={e => f("wanIp", e.target.value)} placeholder="เช่น 184.82.211.214" data-testid="input-wan-ip" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-sm font-medium">สถานที่ตั้ง (Location)</Label>
+                  <Select value={form.locationId || "none"} onValueChange={v => f("locationId", v === "none" ? "" : v)}>
+                    <SelectTrigger data-testid="select-machine-location"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">— ยังไม่กำหนด</SelectItem>
+                      {locations.filter(l => !l.parentId).map(parent => {
+                        const children = locations.filter(c => c.parentId === parent.id);
+                        return [
+                          <SelectItem key={parent.id} value={String(parent.id)}>{parent.name}</SelectItem>,
+                          ...children.map(c => (
+                            <SelectItem key={c.id} value={String(c.id)}>&nbsp;&nbsp;└ {c.name}</SelectItem>
+                          )),
+                        ];
+                      })}
                     </SelectContent>
                   </Select>
                 </div>
                 <div>
-                  <Label className="text-sm font-medium">Repo URL</Label>
-                  <Input className="font-mono text-xs" value={form.repoUrl} onChange={e => setForm({ ...form, repoUrl: e.target.value })} placeholder="https://github.com/..." data-testid="input-repo-url" />
+                  <Label className="text-sm font-medium">Router</Label>
+                  <Select value={form.routerId || "none"} onValueChange={v => f("routerId", v === "none" ? "" : v)}>
+                    <SelectTrigger data-testid="select-machine-router"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">-- ยังไม่กำหนด --</SelectItem>
+                      {routers.map(r => (
+                        <SelectItem key={r.id} value={String(r.id)}>
+                          {r.name} {r.lanIp ? `(${r.lanIp})` : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── Database ── */}
+          {activeTab === "database" && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <Label className="text-sm font-medium">Port</Label>
+                  <Input value={form.dbPort} onChange={e => f("dbPort", e.target.value)} placeholder="5432" data-testid="input-db-port" />
                 </div>
                 <div>
-                  <Label className="text-sm font-medium">Branch</Label>
-                  <Input className="font-mono" value={form.repoBranch} onChange={e => setForm({ ...form, repoBranch: e.target.value })} placeholder="main" data-testid="input-repo-branch" />
+                  <Label className="text-sm font-medium">Database Name</Label>
+                  <Input className="font-mono" value={form.dbName} onChange={e => f("dbName", e.target.value)} placeholder="เช่น db_rp_pdt" data-testid="input-db-name" />
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Username</Label>
+                  <Input className="font-mono" value={form.dbUser} onChange={e => f("dbUser", e.target.value)} placeholder="เช่น replit_pdt" data-testid="input-db-user" />
+                </div>
+              </div>
+              <div>
+                <Label className="text-sm font-medium">Password</Label>
+                <div className="flex gap-2">
+                  <Input
+                    className="font-mono flex-1"
+                    type={showDbPw ? "text" : "password"}
+                    value={form.dbPassword}
+                    onChange={e => f("dbPassword", e.target.value)}
+                    placeholder="รหัสผ่าน"
+                    data-testid="input-db-password"
+                  />
+                  <Button type="button" variant="outline" size="icon" onClick={() => setShowDbPw(!showDbPw)} data-testid="btn-toggle-password">
+                    {showDbPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </Button>
                 </div>
               </div>
             </div>
           )}
 
-          {/* DB */}
-          <div className="border-t pt-4">
-            <h3 className="text-sm font-semibold mb-3">Local Config Database</h3>
-            <div className="grid grid-cols-3 gap-4">
-              <div>
-                <Label className="text-sm font-medium">Port</Label>
-                <Input value={form.dbPort} onChange={e => setForm({ ...form, dbPort: e.target.value })} placeholder="5432" data-testid="input-db-port" />
+          {/* ── Hardware ── */}
+          {activeTab === "hardware" && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <Label className="text-sm font-medium">รุ่นเครื่อง</Label>
+                  <Input value={form.machineModel} onChange={e => f("machineModel", e.target.value)} placeholder="เช่น Dell OptiPlex 7060" data-testid="input-machine-model" />
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">CPU</Label>
+                  <Input value={form.cpuModel} onChange={e => f("cpuModel", e.target.value)} placeholder="เช่น Xeon E3-1280 V2" data-testid="input-cpu-model" />
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">RAM</Label>
+                  <Input value={form.ramSize} onChange={e => f("ramSize", e.target.value)} placeholder="เช่น 32GB DDR3" data-testid="input-ram-size" />
+                </div>
               </div>
-              <div>
-                <Label className="text-sm font-medium">Database Name</Label>
-                <Input className="font-mono" value={form.dbName} onChange={e => setForm({ ...form, dbName: e.target.value })} placeholder="เช่น db_rp_pdt" data-testid="input-db-name" />
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <Label className="text-sm font-medium">ระบบปฏิบัติการ *</Label>
+                  <Select value={form.os} onValueChange={v => f("os", v)}>
+                    <SelectTrigger data-testid="select-os"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="windows">Windows</SelectItem>
+                      <SelectItem value="linux">Linux</SelectItem>
+                      <SelectItem value="cloud">Cloud</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">ประเภท *</Label>
+                  <Select value={form.serverType} onValueChange={v => f("serverType", v)}>
+                    <SelectTrigger data-testid="select-server-type"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="app">App Server</SelectItem>
+                      <SelectItem value="database">Database Server</SelectItem>
+                      <SelectItem value="app_database">App + Database</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">บทบาท (Role) *</Label>
+                  <Select value={form.role} onValueChange={v => f("role", v)}>
+                    <SelectTrigger data-testid="select-role"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="dev_source">Dev Source</SelectItem>
+                      <SelectItem value="production">Production</SelectItem>
+                      <SelectItem value="testing">Testing</SelectItem>
+                      <SelectItem value="backup">Backup</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
-              <div>
-                <Label className="text-sm font-medium">Username</Label>
-                <Input className="font-mono" value={form.dbUser} onChange={e => setForm({ ...form, dbUser: e.target.value })} placeholder="เช่น replit_pdt" data-testid="input-db-user" />
-              </div>
-            </div>
-            <div className="mt-3">
-              <Label className="text-sm font-medium">Password</Label>
-              <div className="flex gap-2">
-                <Input className="font-mono flex-1" type={showDbPw ? "text" : "password"} value={form.dbPassword} onChange={e => setForm({ ...form, dbPassword: e.target.value })} placeholder="รหัสผ่าน" data-testid="input-db-password" />
-                <Button type="button" variant="outline" size="icon" onClick={() => setShowDbPw(!showDbPw)} data-testid="btn-toggle-password">
-                  {showDbPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </Button>
-              </div>
-            </div>
-          </div>
-
-          {/* .env */}
-          {(form.serverType === "app" || form.serverType === "app_database") && (
-            <div className="border-t pt-4">
-              <Label className="text-sm font-semibold flex items-center gap-1 mb-2">
-                <Shield className="h-4 w-4" /> .env (Environment Variables)
-              </Label>
-              <textarea
-                className="w-full font-mono text-sm border rounded-lg p-3 bg-gray-900 text-green-400 min-h-[120px] resize-y focus:outline-none focus:ring-2 focus:ring-[#fb9678]"
-                value={form.envContent}
-                onChange={e => setForm({ ...form, envContent: e.target.value })}
-                placeholder={"NODE_ENV=production\nPORT=5000\nMACHINE_NAME=etaxerp.com"}
-                spellCheck={false}
-                data-testid="textarea-env-content"
-              />
-              <p className="text-xs text-gray-400 mt-1">ใส่เฉพาะ non-secret variables (ห้ามใส่ password / connection string)</p>
             </div>
           )}
 
-          {/* Sysadmin Alert */}
-          {(form.serverType === "app" || form.serverType === "app_database") && (
-            <div className="border-t pt-4">
-              <h3 className="text-sm font-semibold mb-2 flex items-center gap-1">
-                <AlertTriangle className="h-4 w-4 text-amber-500" /> Sysadmin Alert
-              </h3>
+          {/* ── Sysadmin ── */}
+          {activeTab === "sysadmin" && (
+            <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label className="text-sm font-medium">Sysadmin Email</Label>
-                  <Input value={form.sysadminEmail} onChange={e => setForm({ ...form, sysadminEmail: e.target.value })} placeholder="admin@example.com" data-testid="input-sysadmin-email" />
+                  <Input value={form.sysadminEmail} onChange={e => f("sysadminEmail", e.target.value)} placeholder="admin@example.com" data-testid="input-sysadmin-email" />
                 </div>
                 <div>
                   <Label className="text-sm font-medium">Sysadmin LINE ID</Label>
-                  <Input className="font-mono" value={form.sysadminLineId} onChange={e => setForm({ ...form, sysadminLineId: e.target.value })} placeholder="U1234567890abcdef..." data-testid="input-sysadmin-line-id" />
+                  <Input className="font-mono" value={form.sysadminLineId} onChange={e => f("sysadminLineId", e.target.value)} placeholder="U1234567890abcdef..." data-testid="input-sysadmin-line-id" />
                 </div>
+              </div>
+              {(form.serverType === "app" || form.serverType === "app_database") && (
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <Label className="text-sm font-medium">Repo Name</Label>
+                    <Select value={form.repoName || "none"} onValueChange={v => f("repoName", v === "none" ? "" : v)}>
+                      <SelectTrigger data-testid="select-repo-name"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">-- ยังไม่กำหนด --</SelectItem>
+                        <SelectItem value="github-production">github-production</SelectItem>
+                        <SelectItem value="github-dev">github-dev</SelectItem>
+                        <SelectItem value="replit">replit</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className="text-sm font-medium">Repo URL</Label>
+                    <Input className="font-mono text-xs" value={form.repoUrl} onChange={e => f("repoUrl", e.target.value)} placeholder="https://github.com/..." data-testid="input-repo-url" />
+                  </div>
+                  <div>
+                    <Label className="text-sm font-medium">Branch</Label>
+                    <Input className="font-mono" value={form.repoBranch} onChange={e => f("repoBranch", e.target.value)} placeholder="main" data-testid="input-repo-branch" />
+                  </div>
+                </div>
+              )}
+              {(form.serverType === "app" || form.serverType === "app_database") && (
+                <div>
+                  <Label className="text-sm font-semibold flex items-center gap-1 mb-2">
+                    <Shield className="h-4 w-4" /> .env (Environment Variables)
+                  </Label>
+                  <textarea
+                    className="w-full font-mono text-sm border rounded-lg p-3 bg-gray-900 text-green-400 min-h-[140px] resize-y focus:outline-none focus:ring-2 focus:ring-[#fb9678]"
+                    value={form.envContent}
+                    onChange={e => f("envContent", e.target.value)}
+                    placeholder={"NODE_ENV=production\nPORT=5000\nMACHINE_NAME=etaxerp.com"}
+                    spellCheck={false}
+                    data-testid="textarea-env-content"
+                  />
+                  <p className="text-xs text-gray-400 mt-1">ใส่เฉพาะ non-secret variables (ห้ามใส่ password / connection string)</p>
+                </div>
+              )}
+              <div>
+                <Label className="text-sm font-medium">หมายเหตุ</Label>
+                <Input value={form.notes} onChange={e => f("notes", e.target.value)} placeholder="ข้อมูลเพิ่มเติม" data-testid="input-notes" />
               </div>
             </div>
           )}
-
-          {/* Notes */}
-          <div>
-            <Label className="text-sm font-medium">หมายเหตุ</Label>
-            <Input value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} placeholder="ข้อมูลเพิ่มเติม" data-testid="input-notes" />
-          </div>
         </div>
 
-        <div className="p-6 border-t flex items-center justify-between">
+        {/* Footer */}
+        <div className="px-6 py-4 border-t flex items-center justify-between shrink-0">
           <div>
             {!isNew && onDelete && (
               <Button variant="ghost" className="text-red-500 hover:text-red-700" onClick={() => onDelete(machine.id)} data-testid="button-delete-machine">
@@ -678,7 +709,7 @@ function EditMachineDialog({
           </div>
           <div className="flex gap-2">
             <Button variant="outline" onClick={onCancel} data-testid="button-cancel-edit">
-              <X className="h-4 w-4 mr-1" /> ยกเลิก
+              ยกเลิก
             </Button>
             <Button className="bg-[#fb9678] hover:bg-[#e8855a] text-white" onClick={() => onSave(form)} disabled={saving} data-testid="button-save-machine">
               <Check className="h-4 w-4 mr-1" /> {saving ? "กำลังบันทึก..." : isNew ? "เพิ่มเครื่อง" : "บันทึก"}
@@ -698,6 +729,7 @@ export default function InfraMachinesPage() {
 
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [editingMachine, setEditingMachine] = useState<MachineRecord | null | undefined>(undefined);
+  const [editingTab, setEditingTab] = useState<TabId>("network");
   const [credentialsUnlocked, setCredentialsUnlocked] = useState(false);
   const [showPasswordPrompt, setShowPasswordPrompt] = useState(false);
   const [masterPwInput, setMasterPwInput] = useState("");
@@ -888,7 +920,7 @@ export default function InfraMachinesPage() {
               machine={m}
               expanded={expandedId === m.id}
               onToggle={() => setExpandedId(expandedId === m.id ? null : m.id)}
-              onEdit={setEditingMachine}
+              onEdit={(m, tab) => { setEditingMachine(m); setEditingTab(tab); }}
               onToggleOfficial={(id, val) => officialMut.mutate({ id, isOfficial: val })}
               allMachines={machines}
               allNics={allNics}
@@ -928,7 +960,7 @@ export default function InfraMachinesPage() {
                 <Lock className="h-3.5 w-3.5 mr-1" /> Unlock Credentials
               </Button>
             )}
-            <Button className="bg-[#fb9678] hover:bg-[#e8855a] text-white" onClick={() => setEditingMachine(null)} data-testid="button-add-machine">
+            <Button className="bg-[#fb9678] hover:bg-[#e8855a] text-white" onClick={() => { setEditingMachine(null); setEditingTab("network"); }} data-testid="button-add-machine">
               <Plus className="h-4 w-4 mr-1" /> เพิ่มเครื่อง
             </Button>
           </div>
@@ -997,6 +1029,7 @@ export default function InfraMachinesPage() {
       {editingMachine !== undefined && (
         <EditMachineDialog
           machine={editingMachine}
+          initialTab={editingTab}
           locations={locations}
           routers={routers}
           onSave={handleSave}
