@@ -150,8 +150,7 @@ export default function AppExtra() {
     );
   }
 
-  // [sys-k7x9] Render Machines page — AllServers component auto-switches to SysAdminLayout
-  // when path starts with /sys-k7x9, so no extra layout wrapping needed here
+  // [sys-k7x9] Render dedicated Machines page — InfraMachinesPage manages SysAdminLayout internally
   if (isMachines) {
     return (
       <FullPageOverlay>
