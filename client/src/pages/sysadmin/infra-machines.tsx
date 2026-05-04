@@ -2,7 +2,7 @@
 // Part of the /sys-k7x9 SysAdmin portal.  Route is registered in app-extra.tsx via matchInfraMachines().
 // DO NOT import this from App.tsx — use app-extra.tsx pattern.
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import SysAdminLayout from "@/components/sysadmin-layout";
 import { Badge } from "@/components/ui/badge";
@@ -79,9 +79,33 @@ interface NicRecord {
   nicName: string;
   macAddress: string | null;
   ipAddress: string;
+  subnetMask: string;
   forwardedFor: string | null;
   routerId: number | null;
+  notes: string | null;
 }
+
+interface NicIpRecord {
+  id: number;
+  nicId: number;
+  ipAddress: string;
+  subnetMask: string;
+  label: string | null;
+  isPrimary: boolean;
+}
+
+type DraftIp = { _key: string; id?: number; ipAddress: string; subnetMask: string; label: string };
+type DraftNic = {
+  _key: string;
+  id?: number;
+  nicName: string;
+  macAddress: string;
+  routerId: string;
+  notes: string;
+  primaryIp: string;
+  primarySubnet: string;
+  extraIps: DraftIp[];
+};
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
@@ -367,6 +391,111 @@ function MachineCard({
   );
 }
 
+// ─── NicCard ──────────────────────────────────────────────────────────────────
+
+function NicCard({ nic, routers, onChange, onRemove }: {
+  nic: DraftNic;
+  routers: RouterRecord[];
+  onChange: (n: DraftNic) => void;
+  onRemove: () => void;
+}) {
+  const set = (k: keyof DraftNic, v: any) => onChange({ ...nic, [k]: v });
+  const newKey = () => Math.random().toString(36).slice(2);
+
+  return (
+    <div className="border rounded-lg p-3 bg-gray-50 space-y-2.5">
+      {/* Row 1: name + MAC + delete */}
+      <div className="flex items-end gap-2">
+        <div className="flex-1">
+          <Label className="text-xs font-medium text-gray-600">NIC Name *</Label>
+          <Input value={nic.nicName} onChange={e => set("nicName", e.target.value)} placeholder="eth0, LAN1, Wi-Fi" className="h-8 text-sm" />
+        </div>
+        <div className="flex-1">
+          <Label className="text-xs font-medium text-gray-600">MAC Address</Label>
+          <Input value={nic.macAddress} onChange={e => set("macAddress", e.target.value)} placeholder="AA:BB:CC:DD:EE:FF" className="h-8 text-sm font-mono" />
+        </div>
+        <div className="w-36">
+          <Label className="text-xs font-medium text-gray-600">Router</Label>
+          <Select value={nic.routerId || "none"} onValueChange={v => set("routerId", v === "none" ? "" : v)}>
+            <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="-- ไม่ระบุ --" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">-- ไม่ระบุ --</SelectItem>
+              {routers.map(r => <SelectItem key={r.id} value={String(r.id)}>{r.name}{r.lanIp ? ` (${r.lanIp})` : ""}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+        <button onClick={onRemove} className="mb-0.5 p-1.5 text-gray-300 hover:text-red-500 transition-colors rounded" title="Remove NIC">
+          <Trash2 className="h-4 w-4" />
+        </button>
+      </div>
+
+      {/* IP list */}
+      <div>
+        <Label className="text-xs font-medium text-gray-600 mb-1.5 block">IP Addresses</Label>
+        <div className="space-y-1">
+          {/* Primary IP */}
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-semibold w-14 text-center shrink-0">Primary</span>
+            <Input
+              value={nic.primaryIp}
+              onChange={e => set("primaryIp", e.target.value)}
+              placeholder="192.168.1.100"
+              className="h-7 text-xs font-mono flex-1"
+            />
+            <span className="text-gray-400 text-xs shrink-0">/</span>
+            <Input
+              value={nic.primarySubnet}
+              onChange={e => set("primarySubnet", e.target.value)}
+              placeholder="255.255.255.0"
+              className="h-7 text-xs font-mono w-32 shrink-0"
+            />
+            <div className="w-5 shrink-0" />
+          </div>
+
+          {/* Extra IPs */}
+          {nic.extraIps.map((ip, idx) => (
+            <div key={ip._key} className="flex items-center gap-1.5">
+              <Input
+                value={ip.label}
+                onChange={e => { const u = [...nic.extraIps]; u[idx] = { ...ip, label: e.target.value }; onChange({ ...nic, extraIps: u }); }}
+                placeholder="label"
+                className="h-7 text-xs w-14 shrink-0 text-center"
+              />
+              <Input
+                value={ip.ipAddress}
+                onChange={e => { const u = [...nic.extraIps]; u[idx] = { ...ip, ipAddress: e.target.value }; onChange({ ...nic, extraIps: u }); }}
+                placeholder="IP Address"
+                className="h-7 text-xs font-mono flex-1"
+              />
+              <span className="text-gray-400 text-xs shrink-0">/</span>
+              <Input
+                value={ip.subnetMask}
+                onChange={e => { const u = [...nic.extraIps]; u[idx] = { ...ip, subnetMask: e.target.value }; onChange({ ...nic, extraIps: u }); }}
+                placeholder="255.255.255.0"
+                className="h-7 text-xs font-mono w-32 shrink-0"
+              />
+              <button
+                onClick={() => onChange({ ...nic, extraIps: nic.extraIps.filter((_, i) => i !== idx) })}
+                className="text-gray-300 hover:text-red-500 shrink-0 transition-colors"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          ))}
+
+          {/* Add IP */}
+          <button
+            onClick={() => onChange({ ...nic, extraIps: [...nic.extraIps, { _key: newKey(), ipAddress: "", subnetMask: "255.255.255.0", label: "" }] })}
+            className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 pl-[3.9rem] mt-0.5 transition-colors"
+          >
+            <Plus className="h-3 w-3" /> Add IP
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── EditMachineDialog ────────────────────────────────────────────────────────
 
 const EDIT_TABS: { id: TabId; label: string; icon: React.ReactNode }[] = [
@@ -377,10 +506,11 @@ const EDIT_TABS: { id: TabId; label: string; icon: React.ReactNode }[] = [
 ];
 
 function EditMachineDialog({
-  machine, initialTab, locations, routers, onSave, onCancel, onDelete, saving,
+  machine, initialTab, allNics, locations, routers, onSave, onCancel, onDelete, saving,
 }: {
   machine: MachineRecord | null;
   initialTab: TabId;
+  allNics: NicRecord[];
   locations: LocationRecord[];
   routers: RouterRecord[];
   onSave: (data: any) => void;
@@ -389,8 +519,89 @@ function EditMachineDialog({
   saving?: boolean;
 }) {
   const isNew = !machine;
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<TabId>(initialTab);
   const [showDbPw, setShowDbPw] = useState(false);
+  const [savingNics, setSavingNics] = useState(false);
+
+  // ── NIC draft state ────────────────────────────────────────────────────────
+  const newKey = () => Math.random().toString(36).slice(2);
+  const [draftNics, setDraftNics] = useState<DraftNic[]>([]);
+
+  useEffect(() => {
+    if (isNew || !machine) { setDraftNics([]); return; }
+    const myNics = allNics.filter(n => n.machineId === machine.id);
+    if (myNics.length === 0) { setDraftNics([]); return; }
+    // Load extra IPs for each NIC
+    (async () => {
+      const allIps: NicIpRecord[] = await fetch("/api/platform/all-nic-ips", { credentials: "include" })
+        .then(r => r.ok ? r.json() : []).catch(() => []);
+      setDraftNics(myNics.map(n => ({
+        _key: newKey(),
+        id: n.id,
+        nicName: n.nicName,
+        macAddress: n.macAddress || "",
+        routerId: n.routerId ? String(n.routerId) : "",
+        notes: n.notes || "",
+        primaryIp: n.ipAddress,
+        primarySubnet: n.subnetMask || "255.255.255.0",
+        extraIps: allIps.filter(ip => ip.nicId === n.id).map(ip => ({
+          _key: newKey(),
+          id: ip.id,
+          ipAddress: ip.ipAddress,
+          subnetMask: ip.subnetMask,
+          label: ip.label || "",
+        })),
+      })));
+    })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [machine?.id]);
+
+  const saveNics = async (machineId: number) => {
+    for (const nic of draftNics) {
+      let nicId = nic.id;
+      if (!nicId) {
+        if (!nic.nicName.trim() || !nic.primaryIp.trim()) continue;
+        const r = await fetch(`/api/platform/machines/${machineId}/nics`, {
+          method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
+          body: JSON.stringify({ nicName: nic.nicName, macAddress: nic.macAddress || null, ipAddress: nic.primaryIp, subnetMask: nic.primarySubnet || "255.255.255.0", routerId: nic.routerId ? Number(nic.routerId) : null }),
+        });
+        if (r.ok) nicId = (await r.json()).id;
+      } else {
+        await fetch(`/api/platform/machine-nics/${nicId}`, {
+          method: "PATCH", headers: { "Content-Type": "application/json" }, credentials: "include",
+          body: JSON.stringify({ nicName: nic.nicName, macAddress: nic.macAddress || null, ipAddress: nic.primaryIp, subnetMask: nic.primarySubnet || "255.255.255.0", routerId: nic.routerId ? Number(nic.routerId) : null }),
+        });
+      }
+      if (nicId) {
+        for (const ip of nic.extraIps) {
+          if (!ip.ipAddress.trim()) continue;
+          if (!ip.id) {
+            await fetch(`/api/platform/nics/${nicId}/ips`, {
+              method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
+              body: JSON.stringify({ ipAddress: ip.ipAddress, subnetMask: ip.subnetMask || "255.255.255.0", label: ip.label || null }),
+            });
+          } else {
+            await fetch(`/api/platform/nic-ips/${ip.id}`, {
+              method: "PATCH", headers: { "Content-Type": "application/json" }, credentials: "include",
+              body: JSON.stringify({ ipAddress: ip.ipAddress, subnetMask: ip.subnetMask || "255.255.255.0", label: ip.label || null }),
+            });
+          }
+        }
+      }
+    }
+  };
+
+  const handleSaveAll = async () => {
+    if (!isNew && machine?.id) {
+      setSavingNics(true);
+      try { await saveNics(machine.id); } catch {}
+      setSavingNics(false);
+      queryClient.invalidateQueries({ queryKey: ["/api/platform/all-nics"] });
+    }
+    onSave(form);
+  };
   const [form, setForm] = useState({
     localName:        machine?.localName        || "",
     displayName:      machine?.displayName      || "",
@@ -461,6 +672,7 @@ function EditMachineDialog({
           {/* ── Network ── */}
           {activeTab === "network" && (
             <div className="space-y-4">
+              {/* Identity fields */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label className="text-sm font-medium">ชื่อเครื่อง (ชื่อเรียก) *</Label>
@@ -500,16 +712,6 @@ function EditMachineDialog({
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label className="text-sm font-medium">LAN IP</Label>
-                  <Input value={form.lanIp} onChange={e => f("lanIp", e.target.value)} placeholder="เช่น 192.168.1.100" data-testid="input-lan-ip" />
-                </div>
-                <div>
-                  <Label className="text-sm font-medium">WAN IP</Label>
-                  <Input value={form.wanIp} onChange={e => f("wanIp", e.target.value)} placeholder="เช่น 184.82.211.214" data-testid="input-wan-ip" />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
                   <Label className="text-sm font-medium">สถานที่ตั้ง (Location)</Label>
                   <Select value={form.locationId || "none"} onValueChange={v => f("locationId", v === "none" ? "" : v)}>
                     <SelectTrigger data-testid="select-machine-location"><SelectValue /></SelectTrigger>
@@ -527,20 +729,45 @@ function EditMachineDialog({
                     </SelectContent>
                   </Select>
                 </div>
-                <div>
-                  <Label className="text-sm font-medium">Router</Label>
-                  <Select value={form.routerId || "none"} onValueChange={v => f("routerId", v === "none" ? "" : v)}>
-                    <SelectTrigger data-testid="select-machine-router"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">-- ยังไม่กำหนด --</SelectItem>
-                      {routers.map(r => (
-                        <SelectItem key={r.id} value={String(r.id)}>
-                          {r.name} {r.lanIp ? `(${r.lanIp})` : ""}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+              </div>
+
+              {/* NIC cards */}
+              <div className="border-t pt-3">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-semibold text-gray-700 flex items-center gap-1.5">
+                    <Network className="h-4 w-4 text-gray-400" /> Network Cards (NICs)
+                  </span>
+                  {isNew && (
+                    <span className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded px-2 py-0.5">
+                      บันทึกเครื่องก่อน แล้วค่อยเพิ่ม NIC
+                    </span>
+                  )}
                 </div>
+                {isNew ? (
+                  <p className="text-xs text-gray-400 italic py-2">NICs จะสามารถเพิ่มได้หลังจากสร้างเครื่องเสร็จแล้ว</p>
+                ) : (
+                  <div className="space-y-2">
+                    {draftNics.map((nic, idx) => (
+                      <NicCard
+                        key={nic._key}
+                        nic={nic}
+                        routers={routers}
+                        onChange={updated => setDraftNics(prev => prev.map((n, i) => i === idx ? updated : n))}
+                        onRemove={() => setDraftNics(prev => prev.filter((_, i) => i !== idx))}
+                      />
+                    ))}
+                    <button
+                      onClick={() => setDraftNics(prev => [...prev, {
+                        _key: newKey(), nicName: "", macAddress: "", routerId: "",
+                        notes: "", primaryIp: "", primarySubnet: "255.255.255.0", extraIps: [],
+                      }])}
+                      className="w-full flex items-center justify-center gap-1.5 py-2 border-2 border-dashed border-gray-200 rounded-lg text-sm text-gray-500 hover:border-[#fb9678] hover:text-[#fb9678] transition-colors"
+                      data-testid="btn-add-nic"
+                    >
+                      <Plus className="h-4 w-4" /> Add Network Card
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -711,8 +938,8 @@ function EditMachineDialog({
             <Button variant="outline" onClick={onCancel} data-testid="button-cancel-edit">
               ยกเลิก
             </Button>
-            <Button className="bg-[#fb9678] hover:bg-[#e8855a] text-white" onClick={() => onSave(form)} disabled={saving} data-testid="button-save-machine">
-              <Check className="h-4 w-4 mr-1" /> {saving ? "กำลังบันทึก..." : isNew ? "เพิ่มเครื่อง" : "บันทึก"}
+            <Button className="bg-[#fb9678] hover:bg-[#e8855a] text-white" onClick={handleSaveAll} disabled={saving || savingNics} data-testid="button-save-machine">
+              <Check className="h-4 w-4 mr-1" /> {saving || savingNics ? "กำลังบันทึก..." : isNew ? "เพิ่มเครื่อง" : "บันทึก"}
             </Button>
           </div>
         </div>
@@ -1030,6 +1257,7 @@ export default function InfraMachinesPage() {
         <EditMachineDialog
           machine={editingMachine}
           initialTab={editingTab}
+          allNics={allNics}
           locations={locations}
           routers={routers}
           onSave={handleSave}
