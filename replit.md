@@ -402,6 +402,7 @@ process.env.DB_PROD_URL
 - **✅ Production token (etaxerp) regenerated 2026-05-04** — confirmed working from both Replit and production server
 - **Token lives in `.git/config`** — retrieve via `git remote get-url github-production` in code_execution → extract from URL
 - **Token suffix (last 5 chars): `kkRTt`** — verify this matches; if different, token was changed/regenerated
+- **Production PAT (for push)**: `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`
 - **ONLY safe push method = GitHub API PUT (single file)** — tested 2026-05-04 ✅
   ```javascript
   // Push ONE file only — NEVER push entire project
