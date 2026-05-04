@@ -26,8 +26,10 @@ PUSH AUTHORIZATION RULES:
 2. Exception: if พี่ช้าง already authorized file X in this session, and the fix didn't work,
    you may edit that SAME file again and push it again WITHOUT asking for new auth.
    Reason: the authorization covers that file/problem — it's the same scope.
-3. MANDATORY before every push: TEST the fix on dev first. If dev looks correct,
-   THEN push to production. Never push without verifying on dev. This step is not optional.
+3. MANDATORY before every push: TEST the fix on dev first. Two types:
+   - Type A (can test yourself): routing, compile errors, UI screenshot, console logs — do it yourself.
+   - Type B (cannot test yourself): requires login + real data interaction — ask พี่ทราย to test on dev.
+   Either way: dev must pass first. Only then is it worthy to "try" pushing to production. Not before.
 
 WHAT DOES NOT WORK (tested 2026-05-04):
 - git push github-production main  → pushes entire project (FORBIDDEN)
