@@ -26,6 +26,7 @@ const CreditNotePdf = lazy(() => import("@/pages/sales/credit-note-pdf"));
 const CreditNoteShare = lazy(() => import("@/pages/sales/credit-note-share"));
 const WhtCertShare = lazy(() => import("@/pages/purchases/wht-cert-share"));
 const BillingNoteShare = lazy(() => import("@/pages/finance/billing-note-share"));
+const InfraMachines = lazy(() => import("@/pages/sysadmin/infra-machines"));
 
 function FullPageOverlay({ children }: { children: React.ReactNode }) {
   return (
@@ -57,6 +58,11 @@ function matchWhtCertShare(location: string): string | null {
 function matchBillingNoteShare(location: string): string | null {
   const m = location.replace(/\?.*$/, "").match(/^\/share\/billing-note\/([^/]+)$/);
   return m ? m[1] : null;
+}
+
+/** Match /sys-k7x9/infra/machines */
+function matchInfraMachines(location: string): boolean {
+  return location.replace(/\?.*$/, "") === "/sys-k7x9/infra/machines";
 }
 
 export default function AppExtra() {
@@ -100,6 +106,7 @@ export default function AppExtra() {
   const shareToken = matchCreditNoteShare(location);
   const whtShareToken = matchWhtCertShare(location);
   const bnShareToken = matchBillingNoteShare(location);
+  const isMachines = matchInfraMachines(location);
 
   if (pdfId) {
     return (
@@ -136,6 +143,16 @@ export default function AppExtra() {
       <FullPageOverlay>
         <Suspense fallback={null}>
           <BillingNoteShare tokenProp={bnShareToken} />
+        </Suspense>
+      </FullPageOverlay>
+    );
+  }
+
+  if (isMachines) {
+    return (
+      <FullPageOverlay>
+        <Suspense fallback={null}>
+          <InfraMachines />
         </Suspense>
       </FullPageOverlay>
     );
