@@ -358,6 +358,11 @@ Before modifying ANY file on the protected/review-carefully lists — even small
 
 **Why:** Production (etaxerp) and dev may have diverged silently. The only safety net is the rule "don't push protected files" — but that doesn't mean dev is safe. Glitches may already exist.
 
+**What "protected" REALLY means (พี่ช้าง rule 2026-05-04):**
+1. **Protected files on production = THE ONLY SOURCE OF TRUTH** for their code — not Replit dev
+2. **Protected files on production must remain untouched** — if dev code is different, use `*-extra` files (app-extra.tsx, schema-extra.ts) to extend, NEVER modify the protected file on dev and push it
+3. Example: new routes → add to `app-extra.tsx`, never to `App.tsx`; new tables → add to `schema-extra.ts`, never to `schema.ts`
+
 **Protected files (NEVER modify without pull-compare):**
 - `shared/schema.ts`, `server/index.ts`, `client/src/App.tsx` — NEVER push to production
 - `server/db.ts`, `server/ecom-db.ts`, `server/pos-db.ts`, `server/db-schema-sync.ts`

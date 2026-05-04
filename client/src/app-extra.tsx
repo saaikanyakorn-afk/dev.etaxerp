@@ -1,14 +1,16 @@
 /**
  * app-extra.tsx
  * Called AFTER App.tsx renders — same pattern as schema-extra.ts extends schema.ts.
- * Injected as a global guard inside the Router in App.tsx (which is not protected).
+ * Injected as a global guard inside the Router in App.tsx.
+ * App.tsx on production = SOURCE OF TRUTH — never modify it on dev and push.
+ * All new routes must be added here, not in App.tsx.
  *
  * Purpose 1: employees who land on /hr/attendance but have access to more than one
  * module (e.g. inventory) should see the module-select page instead of being
  * silently locked to HR.  module-select.tsx is protected so we intercept here.
  *
- * Purpose 2: New routes that cannot be added to App.tsx (protected) are registered
- * here — CreditNotePdf, CreditNoteShare.
+ * Purpose 2: New routes that cannot be added to App.tsx (production is source of truth)
+ * are registered here — CreditNotePdf, CreditNoteShare.
  */
 
 import { lazy, Suspense, useEffect } from "react";
@@ -18,8 +20,6 @@ import { useAuth } from "@/lib/auth";
 
 const CreditNotePdf = lazy(() => import("@/pages/sales/credit-note-pdf"));
 const CreditNoteShare = lazy(() => import("@/pages/sales/credit-note-share"));
-const BillingNotes = lazy(() => import("@/pages/finance/billing-notes"));
-const BillingNotePdf = lazy(() => import("@/pages/finance/billing-note-pdf"));
 
 export default function AppExtra() {
   const { user, loading } = useAuth();
@@ -66,8 +66,6 @@ export default function AppExtra() {
     <Suspense fallback={null}>
       <Route path="/sales/credit-note/pdf/:id" component={CreditNotePdf} />
       <Route path="/share/credit-note/:token" component={CreditNoteShare} />
-      <Route path="/finance/billing-notes" component={BillingNotes} />
-      <Route path="/finance/billing-notes/pdf/:id" component={BillingNotePdf} />
     </Suspense>
   );
 }
