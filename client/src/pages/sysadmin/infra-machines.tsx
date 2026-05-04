@@ -17,6 +17,7 @@ import {
   ArrowRight, Database, MapPin,
   Shield, Lock, Unlock, AlertTriangle,
   ChevronDown, ChevronRight, Star, Network, Radio,
+  Globe, Cpu, GitBranch, UserCog,
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -113,6 +114,7 @@ function MachineCard({
   credentialsUnlocked: boolean;
 }) {
   const [showPw, setShowPw] = useState(false);
+  const [activeTab, setActiveTab] = useState<"network" | "database" | "hardware" | "sysadmin">("network");
   const osConfig = OS_CONFIG[machine.os] || OS_CONFIG.linux;
   const roleConfig = ROLE_CONFIG[machine.role] || ROLE_CONFIG.testing;
   const OsIcon = osConfig.icon;
@@ -124,12 +126,29 @@ function MachineCard({
   const targetLabel = isSelfTarget ? "local DB" : targetDb ? targetDb.localName : null;
   const myNics = allNics.filter(n => n.machineId === machine.id);
   const hasForwarding = myNics.some(n => n.forwardedFor);
+  const hasHardware = !!(machine.machineModel || machine.cpuModel || machine.ramSize);
+  const hasSysadmin = !!(machine.sysadminEmail || machine.sysadminLineId || machine.notes || machine.repoName || machine.envContent);
+
+  const tabs = [
+    { id: "network" as const,  icon: Globe,    label: "Network" },
+    { id: "database" as const, icon: Database, label: "Database" },
+    { id: "hardware" as const, icon: Cpu,      label: "Hardware", dim: !hasHardware },
+    { id: "sysadmin" as const, icon: UserCog,  label: "Sysadmin", dim: !hasSysadmin },
+  ];
+
+  const Field = ({ label, value, mono = false, color }: { label: string; value: React.ReactNode; mono?: boolean; color?: string }) => (
+    <div>
+      <span className="text-gray-400 text-[10px] uppercase tracking-wide block mb-0.5">{label}</span>
+      <span className={`text-xs ${mono ? "font-mono" : ""} ${color || "text-gray-800"}`}>{value}</span>
+    </div>
+  );
 
   return (
     <div
       className={`border rounded-lg transition-all ${isOfficial ? "border-amber-400 bg-amber-50/50 ring-1 ring-amber-300" : osConfig.color} ${expanded ? "shadow-md" : "hover:shadow-sm"}`}
       data-testid={`card-machine-${machine.id}`}
     >
+      {/* ── Card header row ── */}
       <button
         onClick={onToggle}
         className="w-full flex items-center gap-3 px-4 py-3 text-left"
@@ -159,8 +178,7 @@ function MachineCard({
           </Badge>
           {myNics.length > 0 && (
             <span className="hidden sm:inline-flex items-center gap-0.5 text-[10px] text-gray-400">
-              <Network className="h-3 w-3" />
-              {myNics.length}
+              <Network className="h-3 w-3" />{myNics.length}
               {hasForwarding && <Radio className="h-2.5 w-2.5 text-purple-400" />}
             </span>
           )}
@@ -169,119 +187,177 @@ function MachineCard({
         </div>
       </button>
 
+      {/* ── Expanded tabbed panel ── */}
       {expanded && (
-        <div className="px-4 pb-4 pt-1 border-t space-y-3">
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-2 text-sm">
-            {machine.fqdn && (
-              <div>
-                <span className="text-gray-400 text-xs block">FQDN</span>
-                <span className="font-mono text-xs">{machine.fqdn}</span>
-              </div>
-            )}
-            {machine.windowsName && (
-              <div>
-                <span className="text-gray-400 text-xs block">Windows Name</span>
-                <span className="font-mono text-xs">{machine.windowsName}</span>
-              </div>
-            )}
-            <div>
-              <span className="text-gray-400 text-xs block">Domain</span>
-              <span className="font-mono text-xs">{machine.domainName || "—"}</span>
+        <div className="border-t">
+          {/* Tab bar + action buttons on same row */}
+          <div className="flex items-center justify-between px-3 pt-2 pb-0 gap-2">
+            <div className="flex gap-1">
+              {tabs.map(({ id, icon: Icon, label, dim }) => (
+                <button
+                  key={id}
+                  onClick={e => { e.stopPropagation(); setActiveTab(id); }}
+                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors ${
+                    activeTab === id
+                      ? "bg-[#fb9678] text-white shadow-sm"
+                      : dim
+                        ? "text-gray-300 hover:text-gray-400 hover:bg-gray-100"
+                        : "text-gray-500 hover:text-gray-700 hover:bg-gray-100"
+                  }`}
+                  data-testid={`tab-${id}-machine-${machine.id}`}
+                >
+                  <Icon className="h-3 w-3" />
+                  {label}
+                </button>
+              ))}
             </div>
-            <div>
-              <span className="text-gray-400 text-xs block">LAN IP</span>
-              <span className="font-mono text-xs">{machine.lanIp || "—"}</span>
+            {/* Actions always visible */}
+            <div className="flex items-center gap-1.5 shrink-0">
+              <Button
+                size="sm"
+                variant="outline"
+                className={`h-6 text-[11px] px-2 ${isOfficial ? "border-amber-400 text-amber-700 hover:bg-amber-100" : "border-gray-300 text-gray-500 hover:bg-gray-100"}`}
+                onClick={e => { e.stopPropagation(); onToggleOfficial(machine.id, !isOfficial); }}
+                data-testid={`btn-official-machine-${machine.id}`}
+              >
+                <Star className={`h-3 w-3 mr-0.5 ${isOfficial ? "fill-amber-400 text-amber-500" : ""}`} />
+                {isOfficial ? "ยกเลิก" : "Official"}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-6 text-[11px] px-2"
+                onClick={e => { e.stopPropagation(); onEdit(machine); }}
+                data-testid={`btn-edit-machine-${machine.id}`}
+              >
+                <Pencil className="h-3 w-3 mr-0.5" /> แก้ไข
+              </Button>
             </div>
-            <div>
-              <span className="text-gray-400 text-xs block">WAN IP</span>
-              <span className="font-mono text-xs">{machine.wanIp || "—"}</span>
-            </div>
-            <div>
-              <span className="text-gray-400 text-xs block">Internet</span>
-              <span className={`text-xs font-medium ${machine.internetType === "fixed" ? "text-green-600" : "text-orange-500"}`}>
-                {machine.internetType === "fixed" ? "Fixed IP" : "Dynamic (DDNS)"}
-              </span>
-            </div>
-            <div>
-              <span className="text-gray-400 text-xs block">DB</span>
-              <span className="font-mono text-xs">{machine.dbName}:{machine.dbPort}</span>
-            </div>
-            {credentialsUnlocked ? (
-              <>
-                <div>
-                  <span className="text-gray-400 text-xs block">DB User</span>
-                  <span className="font-mono text-xs">{machine.dbUser}</span>
-                </div>
-                <div>
-                  <span className="text-gray-400 text-xs block">DB Password</span>
-                  <div className="flex items-center gap-1">
-                    <span className="font-mono text-xs">{showPw ? machine.dbPassword : "••••••••"}</span>
-                    <button
-                      onClick={e => { e.stopPropagation(); setShowPw(!showPw); }}
-                      className="p-0.5 hover:bg-gray-200 rounded"
-                      data-testid={`btn-toggle-pw-${machine.id}`}
-                    >
-                      {showPw ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
-                    </button>
-                  </div>
-                </div>
-              </>
-            ) : (
-              <div>
-                <span className="text-gray-400 text-xs block">DB Credentials</span>
-                <span className="text-xs text-amber-500 flex items-center gap-1">
-                  <Lock className="h-3 w-3" /> Locked
-                </span>
-              </div>
-            )}
-            {machine.repoName && (
-              <div>
-                <span className="text-gray-400 text-xs block">Repo</span>
-                <span className="text-xs font-mono">
-                  {machine.repoName}{machine.repoBranch && machine.repoBranch !== "main" ? ` (${machine.repoBranch})` : ""}
-                </span>
-              </div>
-            )}
-            {machine.sysadminEmail && (
-              <div>
-                <span className="text-gray-400 text-xs block">Sysadmin Email</span>
-                <span className="text-xs font-mono">{machine.sysadminEmail}</span>
-              </div>
-            )}
           </div>
 
-          {(machine.machineModel || machine.cpuModel || machine.ramSize) && (
-            <div className="flex gap-4 text-xs text-gray-500">
-              {machine.machineModel && <span>{machine.machineModel}</span>}
-              {machine.cpuModel && <span>CPU: {machine.cpuModel}</span>}
-              {machine.ramSize && <span>RAM: {machine.ramSize}</span>}
-            </div>
-          )}
+          {/* Tab content — fixed-height, no scroll */}
+          <div className="px-4 py-3">
 
-          {machine.notes && (
-            <p className="text-xs text-gray-400 italic">{machine.notes}</p>
-          )}
+            {/* ── Network tab ── */}
+            {activeTab === "network" && (
+              <div className="grid grid-cols-3 gap-x-8 gap-y-2.5">
+                <Field label="Domain" value={machine.domainName || "—"} mono />
+                <Field label="LAN IP" value={machine.lanIp || "—"} mono />
+                <Field label="WAN IP" value={machine.wanIp || "—"} mono />
+                <Field label="Internet" value={
+                  machine.internetType === "fixed"
+                    ? <span className="text-green-600 font-medium">Fixed IP</span>
+                    : <span className="text-orange-500 font-medium">Dynamic (DDNS)</span>
+                } />
+                {machine.fqdn && <Field label="FQDN" value={machine.fqdn} mono />}
+                {machine.windowsName && <Field label="Windows Name" value={machine.windowsName} mono />}
+                {myNics.length > 0 && (
+                  <Field label="NICs" value={
+                    <span className="flex items-center gap-1">
+                      <Network className="h-3 w-3 text-gray-400" /> {myNics.length} NIC{myNics.length > 1 ? "s" : ""}
+                      {hasForwarding && <span className="text-purple-500 text-[10px]">• forwarding</span>}
+                    </span>
+                  } />
+                )}
+              </div>
+            )}
 
-          <div className="flex items-center justify-end gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              className={`h-7 text-xs ${isOfficial ? "border-amber-400 text-amber-700 hover:bg-amber-100" : "border-gray-300 text-gray-500 hover:bg-gray-100"}`}
-              onClick={e => { e.stopPropagation(); onToggleOfficial(machine.id, !isOfficial); }}
-              data-testid={`btn-official-machine-${machine.id}`}
-            >
-              <Star className={`h-3 w-3 mr-1 ${isOfficial ? "fill-amber-400 text-amber-500" : ""}`} />
-              {isOfficial ? "ยกเลิก Official" : "ตั้งเป็น Official"}
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-7 text-xs"
-              onClick={e => { e.stopPropagation(); onEdit(machine); }}
-              data-testid={`btn-edit-machine-${machine.id}`}
-            >
-              <Pencil className="h-3 w-3 mr-1" /> แก้ไข
-            </Button>
+            {/* ── Database tab ── */}
+            {activeTab === "database" && (
+              <div className="grid grid-cols-3 gap-x-8 gap-y-2.5">
+                <Field label="Database" value={machine.dbName || "—"} mono />
+                <Field label="Port" value={machine.dbPort} mono />
+                {targetLabel && (
+                  <Field label="Target DB" value={
+                    <span className={`flex items-center gap-1 font-mono ${isSelfTarget ? "text-blue-500" : "text-purple-500"}`}>
+                      <Database className="h-3 w-3" />{targetLabel}
+                    </span>
+                  } />
+                )}
+                {credentialsUnlocked ? (
+                  <>
+                    <Field label="DB User" value={machine.dbUser} mono />
+                    <div className="col-span-2">
+                      <span className="text-gray-400 text-[10px] uppercase tracking-wide block mb-0.5">DB Password</span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-mono text-xs">{showPw ? machine.dbPassword : "••••••••••"}</span>
+                        <button
+                          onClick={e => { e.stopPropagation(); setShowPw(!showPw); }}
+                          className="p-0.5 hover:bg-gray-200 rounded"
+                          data-testid={`btn-toggle-pw-${machine.id}`}
+                        >
+                          {showPw ? <EyeOff className="h-3 w-3 text-gray-400" /> : <Eye className="h-3 w-3 text-gray-400" />}
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div className="col-span-3 flex items-center gap-2 text-xs text-amber-500 bg-amber-50 rounded px-2 py-1.5 border border-amber-200">
+                    <Lock className="h-3.5 w-3.5 shrink-0" />
+                    <span>Credentials locked — ใช้ "Unlock Credentials" ที่หน้าหลักเพื่อดูข้อมูล</span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ── Hardware tab ── */}
+            {activeTab === "hardware" && (
+              hasHardware ? (
+                <div className="grid grid-cols-3 gap-x-8 gap-y-2.5">
+                  {machine.machineModel && <Field label="Model" value={machine.machineModel} />}
+                  {machine.cpuModel && <Field label="CPU" value={machine.cpuModel} />}
+                  {machine.ramSize && <Field label="RAM" value={machine.ramSize} />}
+                  <Field label="OS" value={osConfig.label} />
+                  <Field label="Server Type" value={
+                    machine.serverType === "app" ? "App Server"
+                    : machine.serverType === "database" ? "Database Server"
+                    : "App + Database"
+                  } />
+                  <Field label="Role" value={
+                    <span className={`${roleConfig.color} font-medium`}>{roleConfig.label}</span>
+                  } />
+                </div>
+              ) : (
+                <p className="text-xs text-gray-400 italic py-2">ยังไม่ได้บันทึกข้อมูลฮาร์ดแวร์ — กด แก้ไข เพื่อเพิ่ม</p>
+              )
+            )}
+
+            {/* ── Sysadmin tab ── */}
+            {activeTab === "sysadmin" && (
+              hasSysadmin ? (
+                <div className="grid grid-cols-3 gap-x-8 gap-y-2.5">
+                  {machine.sysadminEmail && <Field label="Sysadmin Email" value={machine.sysadminEmail} mono />}
+                  {machine.sysadminLineId && <Field label="LINE ID" value={machine.sysadminLineId} mono />}
+                  {machine.repoName && (
+                    <Field label="Repo" value={
+                      <span className="flex items-center gap-1">
+                        <GitBranch className="h-3 w-3 text-gray-400" />
+                        {machine.repoName}
+                        {machine.repoBranch && machine.repoBranch !== "main" && (
+                          <span className="text-gray-400">({machine.repoBranch})</span>
+                        )}
+                      </span>
+                    } />
+                  )}
+                  {machine.envContent && (
+                    <Field label=".env vars" value={
+                      <span className="flex items-center gap-1 text-green-600">
+                        <Shield className="h-3 w-3" />
+                        {machine.envContent.trim().split("\n").filter(Boolean).length} variables
+                      </span>
+                    } />
+                  )}
+                  {machine.notes && (
+                    <div className="col-span-3">
+                      <span className="text-gray-400 text-[10px] uppercase tracking-wide block mb-0.5">Notes</span>
+                      <p className="text-xs text-gray-600 italic">{machine.notes}</p>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <p className="text-xs text-gray-400 italic py-2">ยังไม่ได้บันทึกข้อมูล Sysadmin — กด แก้ไข เพื่อเพิ่ม</p>
+              )
+            )}
           </div>
         </div>
       )}
