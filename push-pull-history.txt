@@ -15,11 +15,32 @@ HOW TO PUSH TO PRODUCTION REPO (etaxcenter) — CORRECT METHOD:
 
 3. Run in code_execution (NOT bash — bash blocks git config changes)
 
+STANDARD SERVER COMMAND (4 steps — ALWAYS all 4):
+   git fetch origin
+   git checkout origin/main -- <file1> <file2> ...
+   npm run build
+   pm2 restart etax-center
+
 WHAT DOES NOT WORK (tested 2026-05-04):
 - git push github-production main  → pushes entire project (FORBIDDEN)
 - bash git remote set-url          → blocked by Replit
 - GITHUB_PAT_PRODUCTION env var    → intentionally wrong (trap)
 - SSH key                          → libcrypto version mismatch in container
+----------------------------------------------------------------
+DEPLOY LOG (latest first):
+
+[#33] 2026-05-04 — Fix WHT calculation (billing-notes.tsx + billing-notes-routes.ts)
+  Commits: f229775c (billing-notes.tsx), 8fc26d32 (billing-notes-routes.ts)
+  Fix: linkedSubtotal real-time from IV/TIV subtotal (batch query) — replaces wrong whtBase in DB
+  Server: git fetch origin && git checkout origin/main -- client/src/pages/finance/billing-notes.tsx server/routes/billing-notes-routes.ts && npm run build && pm2 restart etax-center
+  Result: ✅ online 85.3mb
+
+[#32] 2026-05-04 — Remove duplicate BillingNotes routes from app-extra.tsx
+  Commit: eedaf409
+  ⚠️ Kai sent fetch/checkout ONLY — forgot npm run build + pm2 restart → production still ran old code
+  Server: git fetch origin && git checkout origin/main -- client/src/app-extra.tsx && npm run build && pm2 restart etax-center
+  Result: ✅ fixed in batch with #33
+
 ----------------------------------------------------------------
 ================================================================
 E-TAX CENTER — SSH DEPLOY KEY BACKUP
