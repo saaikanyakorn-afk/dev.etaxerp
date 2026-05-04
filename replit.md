@@ -396,7 +396,7 @@ process.env.DB_PROD_URL
 - Do NOT use port 5432 — custom port is **20541**
 
 ### GitHub Production PAT (github-production remote → saaikanyakorn-afk/etaxcenter)
-- **env var**: `GITHUB_PAT_PRODUCTION` — stored in Replit Secrets (shared), updated 2026-05-03
+- **env var**: `GITHUB_PAT_PRODUCTION` — stored in Replit Secrets (shared), updated 2026-05-04
 - **Token name on GitHub**: `etaxerp` — Fine-grained PAT, All repositories, Contents: Read and write
 - **⏰ EXPIRATION: Aug 01, 2026** — alert พี่ช้าง on **Jul 30, 2026** (2 days before)
 - **`.git/config` PAT may be expired** — Replit blocks editing it directly
@@ -574,7 +574,7 @@ VALUES ('vXXX', 'What changed', 'alter_column|add_column|data_migration', 'etaxe
 8. **New table definitions for production = shared/schema-extra.ts** — not schema.ts
 
 ## Daily Git Push Rule
-- **GitHub PAT expiry check**: Current token expires **Jun 24, 2026**. If within 7 days of expiry, warn the first person in conversation that morning.
+- **GitHub PAT expiry check**: Current token (`etaxerp`) expires **Aug 01, 2026**. If within 7 days of expiry, warn the first person in conversation that morning.
 - **GitHub remote**: `github-replit` → `https://github.com/saaikanyakorn-afk/replit.dev.git`, `github-production` → `https://github.com/saaikanyakorn-afk/etaxcenter.git`
 
 ## ⚠️ PUSH ALSO CHERRY — CRITICAL RULE (confirmed by พี่ช้าง 2026-04-23)
