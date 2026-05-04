@@ -963,10 +963,14 @@ export default function BillingNotes() {
                               </DropdownMenuItem>
                               <DropdownMenuItem
                                 onClick={async () => {
-                                  const base = await getShareBaseUrl();
-                                  const url = `${base}/finance/billing-notes/pdf/${bn.id}`;
-                                  navigator.clipboard.writeText(url).catch(() => {});
-                                  toast({ title: "คัดลอกลิงค์แล้ว" });
+                                  try {
+                                    const res = await fetch(`/api/finance/billing-notes/${bn.id}/share`, { method: "POST", credentials: "include" });
+                                    const data = await res.json();
+                                    const base = await getShareBaseUrl();
+                                    const url = `${base}/share/billing-note/${data.shareToken}`;
+                                    navigator.clipboard.writeText(url).catch(() => {});
+                                    toast({ title: "คัดลอกลิงค์แล้ว" });
+                                  } catch { toast({ title: "ไม่สามารถสร้างลิงค์ได้", variant: "destructive" }); }
                                 }}
                                 data-testid={`menu-copy-link-${bn.id}`}
                               >
@@ -975,9 +979,13 @@ export default function BillingNotes() {
                               </DropdownMenuItem>
                               <DropdownMenuItem
                                 onClick={async () => {
-                                  const base = await getShareBaseUrl();
-                                  const url = `${base}/finance/billing-notes/pdf/${bn.id}`;
-                                  setTimeout(() => setLineDialog({ open: true, url, docNo: bn.billingNo, customerName: bn.customerName || "" }), 150);
+                                  try {
+                                    const res = await fetch(`/api/finance/billing-notes/${bn.id}/share`, { method: "POST", credentials: "include" });
+                                    const data = await res.json();
+                                    const base = await getShareBaseUrl();
+                                    const url = `${base}/share/billing-note/${data.shareToken}`;
+                                    setTimeout(() => setLineDialog({ open: true, url, docNo: bn.billingNo, customerName: bn.customerName || "" }), 150);
+                                  } catch { toast({ title: "ไม่สามารถสร้างลิงค์ได้", variant: "destructive" }); }
                                 }}
                                 data-testid={`menu-line-${bn.id}`}
                               >

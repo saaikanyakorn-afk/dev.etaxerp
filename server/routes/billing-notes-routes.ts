@@ -1706,4 +1706,52 @@ app.get("/api/bank-reconciliation/journal-entries", requireAuth, requireModule("
   } catch (err: any) { res.status(500).json({ message: err.message }); }
 });
 
+// ========== Billing Note Share (Public) ==========
+app.post("/api/finance/billing-notes/:id/share", requireAuth, async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    // auto-add column if missing
+    await db.execute(sql.raw(`ALTER TABLE billing_notes ADD COLUMN IF NOT EXISTS share_token TEXT`));
+    const [bn] = await db.select().from(billingNotes).where(eq(billingNotes.id, id));
+    if (!bn) return res.status(404).json({ message: "ไม่พบใบวางบิล" });
+    const ac = await verifyCompanyAccess(req.user as any, bn.companyId);
+    if (!ac) return res.status(403).json({ message: "ไม่มีสิทธิ์" });
+    const rows = await db.execute(sql.raw(`SELECT share_token FROM billing_notes WHERE id = ${id}`));
+    let token = (rows as any).rows?.[0]?.share_token;
+    if (!token) {
+      const { randomBytes } = await import("crypto");
+      token = randomBytes(24).toString("hex");
+      await db.execute(sql.raw(`UPDATE billing_notes SET share_token = '${token}' WHERE id = ${id}`));
+    }
+    res.json({ shareToken: token });
+  } catch (err: any) { res.status(500).json({ message: err.message }); }
+});
+
+app.get("/api/share/billing-note/:token", async (req, res) => {
+  try {
+    await db.execute(sql.raw(`ALTER TABLE billing_notes ADD COLUMN IF NOT EXISTS share_token TEXT`));
+    const rows = await db.execute(sql.raw(`SELECT * FROM billing_notes WHERE share_token = '${req.params.token.replace(/'/g, "''")}' LIMIT 1`));
+    const bn = (rows as any).rows?.[0];
+    if (!bn) return res.status(404).json({ message: "ไม่พบเอกสาร" });
+    res.json({ id: bn.id, billingNo: bn.billing_no, customerName: bn.customer_name, totalAmount: bn.total_amount });
+  } catch (err: any) { res.status(500).json({ message: err.message }); }
+});
+
+app.get("/api/share/billing-note/:token/pdf", async (req, res) => {
+  try {
+    await db.execute(sql.raw(`ALTER TABLE billing_notes ADD COLUMN IF NOT EXISTS share_token TEXT`));
+    const safeToken = req.params.token.replace(/'/g, "''");
+    const rows = await db.execute(sql.raw(`SELECT id, billing_no FROM billing_notes WHERE share_token = '${safeToken}' LIMIT 1`));
+    const bn = (rows as any).rows?.[0];
+    if (!bn) return res.status(404).json({ message: "ไม่พบเอกสาร" });
+    const { buildBillingNotePdfData } = await import("../pdf-data-fetcher");
+    const { generatePdfMake } = await import("../pdf-pdfmake-generator");
+    const pdfOpts = await buildBillingNotePdfData(Number(bn.id));
+    const pdfBuffer = await generatePdfMake(pdfOpts);
+    const filename = encodeURIComponent(`${bn.billing_no || "billing-note"}.pdf`);
+    res.set({ "Content-Type": "application/pdf", "Content-Disposition": `inline; filename="${filename}"; filename*=UTF-8''${filename}` });
+    res.send(pdfBuffer);
+  } catch (err: any) { res.status(500).json({ message: err.message }); }
+});
+
 }

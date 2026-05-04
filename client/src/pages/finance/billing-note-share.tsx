@@ -1,0 +1,113 @@
+import { useState, useEffect, useRef } from "react";
+import { useParams } from "wouter";
+import { Button } from "@/components/ui/button";
+import { Printer, Download, Loader2, FileText } from "lucide-react";
+import { isAndroid, redirectToChrome } from "@/lib/line-android-redirect";
+
+export default function BillingNoteShare({ tokenProp }: { tokenProp?: string } = {}) {
+  const params = useParams<{ token: string }>();
+  const token = tokenProp ?? params.token;
+  const [docNo, setDocNo] = useState("ใบวางบิล");
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [downloading, setDownloading] = useState(false);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const objUrlRef = useRef<string>("");
+  const android = isAndroid();
+
+  useEffect(() => {
+    redirectToChrome();
+    (async () => {
+      try {
+        const infoRes = await fetch(`/api/share/billing-note/${token}`);
+        if (!infoRes.ok) throw new Error("ไม่พบเอกสาร หรือลิงก์หมดอายุ");
+        const d = await infoRes.json();
+        const name = d.billingNo ? `ใบวางบิล เลขที่ ${d.billingNo}` : "ใบวางบิล";
+        setDocNo(name);
+
+        const pdfRes = await fetch(`/api/share/billing-note/${token}/pdf`);
+        if (!pdfRes.ok) throw new Error("สร้าง PDF ไม่สำเร็จ");
+        const blob = await pdfRes.blob();
+        objUrlRef.current = URL.createObjectURL(new File([blob], `${name}.pdf`, { type: "application/pdf" }));
+        setPdfUrl(objUrlRef.current);
+      } catch (err: any) {
+        setError(err.message);
+      }
+      setLoading(false);
+    })();
+    return () => { if (objUrlRef.current) URL.revokeObjectURL(objUrlRef.current); };
+  }, [token]);
+
+  const handlePrint = () => {
+    if (!iframeRef.current?.contentWindow) return;
+    const prev = document.title;
+    document.title = docNo;
+    setTimeout(() => { document.title = prev; }, 1000);
+    iframeRef.current.contentWindow.print();
+  };
+
+  const handleDownload = async () => {
+    if (!pdfUrl) return;
+    setDownloading(true);
+    const a = document.createElement("a");
+    a.href = pdfUrl;
+    a.download = `${docNo}.pdf`;
+    a.click();
+    setDownloading(false);
+  };
+
+  if (loading) return (
+    <div className="flex items-center justify-center min-h-screen text-slate-500">
+      <Loader2 className="h-6 w-6 animate-spin mr-2" />กำลังโหลด...
+    </div>
+  );
+  if (error) return (
+    <div className="flex items-center justify-center min-h-screen">
+      <div className="bg-white rounded-xl shadow p-8 text-center max-w-md">
+        <div className="text-red-500 text-xl mb-2">ไม่พบเอกสาร</div>
+        <p className="text-gray-500 text-sm">{error}</p>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="flex flex-col min-h-screen bg-slate-700">
+      <div className="sticky top-0 z-50 bg-slate-800 border-b border-slate-600 px-4 py-2.5 flex items-center justify-between">
+        <div className="flex items-center gap-2 text-white min-w-0">
+          <FileText className="h-5 w-5 text-[var(--theme-primary)] flex-shrink-0" />
+          <span className="text-sm font-medium truncate">{docNo}</span>
+        </div>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {!android && (
+            <Button variant="ghost" size="sm" onClick={handlePrint} className="text-slate-300 hover:text-white hover:bg-slate-700 gap-1.5 h-8 text-xs" data-testid="button-print">
+              <Printer className="h-4 w-4" />
+              <span className="hidden sm:inline">พิมพ์</span>
+            </Button>
+          )}
+          <Button size="sm" onClick={handleDownload} disabled={downloading} className="bg-[var(--theme-primary)] hover:opacity-90 text-white gap-1.5 h-8 text-xs" data-testid="button-download-pdf">
+            {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+            <span className="hidden sm:inline">{downloading ? "กำลังสร้าง..." : "ดาวน์โหลด PDF"}</span>
+            <span className="sm:hidden">{downloading ? "..." : "PDF"}</span>
+          </Button>
+        </div>
+      </div>
+
+      {android ? (
+        <div className="flex flex-col items-center justify-center flex-1 gap-6 p-8">
+          <FileText className="h-20 w-20 text-slate-400" />
+          <div className="text-center">
+            <div className="text-white text-lg font-medium mb-1">{docNo}</div>
+            <div className="text-slate-400 text-sm">กดปุ่มด้านล่างเพื่อเปิดไฟล์ PDF</div>
+          </div>
+          <Button size="lg" onClick={handleDownload} disabled={downloading} className="bg-[var(--theme-primary)] hover:opacity-90 text-white gap-2 px-8 py-3 text-base" data-testid="button-download-pdf-android">
+            {downloading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Download className="h-5 w-5" />}
+            {downloading ? "กำลังโหลด..." : "เปิด PDF"}
+          </Button>
+        </div>
+      ) : (
+        <iframe ref={iframeRef} src={pdfUrl!} className="flex-1 w-full border-0" title={docNo} data-testid="pdf-iframe" />
+      )}
+    </div>
+  );
+}

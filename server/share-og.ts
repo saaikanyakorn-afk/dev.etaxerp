@@ -1,6 +1,6 @@
 import { type Request, type Response, type NextFunction } from "express";
 import { db } from "./db";
-import { quotations, invoices, taxInvoices, receipts, salesOrders, companies, whiteLabelSettings, contracts, withholdingTaxCerts } from "@shared/schema";
+import { quotations, invoices, taxInvoices, receipts, salesOrders, companies, whiteLabelSettings, contracts, withholdingTaxCerts, salesCreditNotes, billingNotes } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import sharp from "sharp";
 
@@ -17,6 +17,8 @@ const DOC_TYPE_COLORS: Record<string, { bg: string; accent: string; icon: string
   order:         { bg: "#fce7f3", accent: "#db2777", icon: "SO" },
   contract:      { bg: "#ede9fe", accent: "#7c3aed", icon: "CT" },
   "wht-cert":    { bg: "#fdf2f8", accent: "#9333ea", icon: "50" },
+  "credit-note": { bg: "#fff7ed", accent: "#ea580c", icon: "CN" },
+  "billing-note":{ bg: "#f0fdf4", accent: "#16a34a", icon: "BN" },
 };
 
 function truncate(s: string, max: number): string {
@@ -107,6 +109,8 @@ const DOC_TYPE_LABELS: Record<string, string> = {
   order: "SALES ORDER",
   contract: "SERVICE CONTRACT",
   "wht-cert": "WHT 50 THAWI",
+  "credit-note": "CREDIT NOTE",
+  "billing-note": "BILLING NOTE",
 };
 
 const DOC_TYPE_LABELS_TH: Record<string, string> = {
@@ -117,6 +121,8 @@ const DOC_TYPE_LABELS_TH: Record<string, string> = {
   order: "ใบสั่งขาย",
   contract: "สัญญาบริการ",
   "wht-cert": "หนังสือรับรองหักภาษี ณ ที่จ่าย",
+  "credit-note": "ใบลดหนี้",
+  "billing-note": "ใบวางบิล",
 };
 
 async function lookupDoc(docType: string, token: string) {
@@ -160,6 +166,19 @@ async function lookupDoc(docType: string, token: string) {
     case "wht-cert": {
       const [wht] = await db.select().from(withholdingTaxCerts).where(eq(withholdingTaxCerts.shareToken, token));
       if (wht) { docNo = wht.certNo || ""; customerName = (wht as any).payeeName || ""; total = (wht as any).taxWithheld || ""; companyId = wht.companyId; amountLabel = "ภาษีที่หัก"; }
+      break;
+    }
+    case "credit-note": {
+      const [cn] = await db.select().from(salesCreditNotes).where(eq(salesCreditNotes.shareToken, token));
+      if (cn) { docNo = (cn as any).creditNoteNo || ""; customerName = (cn as any).customerName || ""; total = (cn as any).totalAmount || ""; companyId = cn.companyId; amountLabel = "ยอดลดหนี้"; }
+      break;
+    }
+    case "billing-note": {
+      try {
+        const rows = await db.execute({ sql: `SELECT * FROM billing_notes WHERE share_token = $1 LIMIT 1`, args: [token] } as any);
+        const bn = (rows as any).rows?.[0];
+        if (bn) { docNo = bn.billing_no || ""; customerName = bn.customer_name || ""; total = bn.total_amount || ""; companyId = Number(bn.company_id); amountLabel = "ยอดวางบิล"; }
+      } catch {}
       break;
     }
   }
