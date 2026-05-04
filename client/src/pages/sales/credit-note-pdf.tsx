@@ -32,6 +32,7 @@ export default function CreditNotePdf({ idProp, onClose }: { idProp?: string; on
   const [loading, setLoading] = useState(true);
   const [serverError, setServerError] = useState(false);
   const [iframeLoaded, setIframeLoaded] = useState(false);
+  const [blobUrl, setBlobUrl] = useState<string | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const pdfApiUrl = `/api/documents/credit_note/${id}/pdf`;
 
@@ -45,6 +46,26 @@ export default function CreditNotePdf({ idProp, onClose }: { idProp?: string; on
       }
       setLoading(false);
     })();
+  }, [id]);
+
+  useEffect(() => {
+    if (!id) return;
+    let url: string | null = null;
+    (async () => {
+      try {
+        const res = await fetch(pdfApiUrl, { credentials: "include" });
+        if (res.ok) {
+          const blob = await res.blob();
+          url = URL.createObjectURL(blob);
+          setBlobUrl(url);
+        } else {
+          setServerError(true);
+        }
+      } catch {
+        setServerError(true);
+      }
+    })();
+    return () => { if (url) URL.revokeObjectURL(url); };
   }, [id]);
 
   useEffect(() => {
@@ -94,8 +115,8 @@ export default function CreditNotePdf({ idProp, onClose }: { idProp?: string; on
             </div>
           </div>
         </div>
-        {!iframeLoaded && <div className="flex-1 flex items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-slate-400" /></div>}
-        <iframe ref={iframeRef} src={pdfApiUrl} className={`flex-1 w-full border-0 rounded mt-2 ${iframeLoaded ? "" : "hidden"}`} title={data.creditNoteNo} onLoad={() => setIframeLoaded(true)} data-testid="pdf-iframe" />
+        {(!iframeLoaded || !blobUrl) && <div className="flex-1 flex items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-slate-400" /></div>}
+        {blobUrl && <iframe ref={iframeRef} src={blobUrl} className={`flex-1 w-full border-0 rounded mt-2 ${iframeLoaded ? "" : "hidden"}`} title={data.creditNoteNo} onLoad={() => setIframeLoaded(true)} data-testid="pdf-iframe" />}
       </div>
     </Layout>
   );
