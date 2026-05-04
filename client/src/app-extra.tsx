@@ -12,14 +12,13 @@
  * Purpose 2: New routes that cannot be added to App.tsx (production is source of truth)
  * are registered here — CreditNotePdf, CreditNoteShare.
  *
- * Because AppExtra renders OUTSIDE the <Switch>, the Switch catch-all <Route component={NotFound}>
- * will also match these paths. Fix: wrap each extra-route component in a position:fixed
- * full-screen overlay (z-index 9999) so it covers the NotFound page visually.
- * We still use <Route> so that wouter's useParams() works correctly inside each component.
+ * Strategy: use manual useLocation() path matching instead of wouter <Route> to avoid
+ * differences between wouter <Route> outside <Switch> in dev vs production compiled bundle.
+ * Extract id/token from the path string directly and pass as props — no useParams() needed.
  */
 
 import { lazy, Suspense, useEffect } from "react";
-import { Route, useLocation } from "wouter";
+import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/lib/auth";
 
@@ -34,12 +33,16 @@ function FullPageOverlay({ children }: { children: React.ReactNode }) {
   );
 }
 
-function CreditNotePdfOverlay() {
-  return <FullPageOverlay><CreditNotePdf /></FullPageOverlay>;
+/** Extract id from /sales/credit-note/pdf/:id (ignores query string) */
+function matchCreditNotePdf(location: string): string | null {
+  const m = location.replace(/\?.*$/, "").match(/^\/sales\/credit-note\/pdf\/([^/]+)$/);
+  return m ? m[1] : null;
 }
 
-function CreditNoteShareOverlay() {
-  return <FullPageOverlay><CreditNoteShare /></FullPageOverlay>;
+/** Extract token from /share/credit-note/:token (ignores query string) */
+function matchCreditNoteShare(location: string): string | null {
+  const m = location.replace(/\?.*$/, "").match(/^\/share\/credit-note\/([^/]+)$/);
+  return m ? m[1] : null;
 }
 
 export default function AppExtra() {
@@ -79,10 +82,28 @@ export default function AppExtra() {
     }
   }, [isEmployee, onAttendance, roleData, user, setLocation]);
 
-  return (
-    <Suspense fallback={null}>
-      <Route path="/sales/credit-note/pdf/:id" component={CreditNotePdfOverlay} />
-      <Route path="/share/credit-note/:token" component={CreditNoteShareOverlay} />
-    </Suspense>
-  );
+  const pdfId = matchCreditNotePdf(location);
+  const shareToken = matchCreditNoteShare(location);
+
+  if (pdfId) {
+    return (
+      <FullPageOverlay>
+        <Suspense fallback={null}>
+          <CreditNotePdf idProp={pdfId} />
+        </Suspense>
+      </FullPageOverlay>
+    );
+  }
+
+  if (shareToken) {
+    return (
+      <FullPageOverlay>
+        <Suspense fallback={null}>
+          <CreditNoteShare tokenProp={shareToken} />
+        </Suspense>
+      </FullPageOverlay>
+    );
+  }
+
+  return null;
 }
