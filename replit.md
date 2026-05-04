@@ -400,7 +400,7 @@ process.env.DB_PROD_URL
 - **Token name on GitHub**: `etaxerp` — Fine-grained PAT, All repositories, Contents: Read and write
 - **⏰ EXPIRATION: Aug 01, 2026** — alert พี่ช้าง on **Jul 30, 2026** (2 days before)
 - **Token lives in `.git/config`** (NOT env vars) — use `git remote get-url github-production` to read it
-- **⚠️ Production token (etaxerp) returns 401 from Replit** as of 2026-05-04 — root cause unknown; git push via bash/code_execution both fail authentication
+- **✅ Production token (etaxerp) regenerated 2026-05-04** — confirmed working from both Replit and production server
 - **ONLY safe push method = GitHub API PUT (single file)** — tested 2026-05-04 ✅
   ```javascript
   // Push ONE file only — NEVER push entire project
