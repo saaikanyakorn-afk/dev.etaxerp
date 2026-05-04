@@ -21,6 +21,14 @@ STANDARD SERVER COMMAND (4 steps — ALWAYS all 4):
    npm run build
    pm2 restart etax-center
 
+PUSH AUTHORIZATION RULES:
+1. Every push to production requires authorization from พี่ช้าง or พี่ทราย FIRST.
+2. Exception: if พี่ช้าง already authorized file X in this session, and the fix didn't work,
+   you may edit that SAME file again and push it again WITHOUT asking for new auth.
+   Reason: the authorization covers that file/problem — it's the same scope.
+3. MANDATORY before every push: TEST the fix on dev first. If dev looks correct,
+   THEN push to production. Never push without verifying on dev. This step is not optional.
+
 WHAT DOES NOT WORK (tested 2026-05-04):
 - git push github-production main  → pushes entire project (FORBIDDEN)
 - bash git remote set-url          → blocked by Replit
