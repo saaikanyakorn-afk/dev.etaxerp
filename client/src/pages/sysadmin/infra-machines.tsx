@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import {
   Server, Plus, Eye, EyeOff, Pencil, Trash2, Check, X,
@@ -726,17 +726,27 @@ function EditMachineDialog({
                 <div>
                   <Label className="text-sm font-medium">สถานที่ตั้ง (Location)</Label>
                   <Select value={form.locationId || "none"} onValueChange={v => f("locationId", v === "none" ? "" : v)}>
-                    <SelectTrigger data-testid="select-machine-location"><SelectValue /></SelectTrigger>
+                    <SelectTrigger data-testid="select-machine-location">
+                      <SelectValue>
+                        {form.locationId
+                          ? (locations.find(l => String(l.id) === form.locationId)?.name ?? "—")
+                          : "— ยังไม่กำหนด"}
+                      </SelectValue>
+                    </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">— ยังไม่กำหนด</SelectItem>
                       {locations.filter(l => !l.parentId).map(parent => {
                         const children = locations.filter(c => c.parentId === parent.id);
-                        return [
-                          <SelectItem key={parent.id} value={String(parent.id)}>{parent.name}</SelectItem>,
-                          ...children.map(c => (
-                            <SelectItem key={c.id} value={String(c.id)}>&nbsp;&nbsp;└ {c.name}</SelectItem>
-                          )),
-                        ];
+                        return children.length > 0 ? (
+                          <SelectGroup key={parent.id}>
+                            <SelectLabel className="text-xs font-semibold text-gray-500 px-2">{parent.name}</SelectLabel>
+                            {children.map(c => (
+                              <SelectItem key={c.id} value={String(c.id)} className="pl-5">{c.name}</SelectItem>
+                            ))}
+                          </SelectGroup>
+                        ) : (
+                          <SelectItem key={parent.id} value={String(parent.id)}>{parent.name}</SelectItem>
+                        );
                       })}
                     </SelectContent>
                   </Select>
