@@ -1,3 +1,4 @@
+import AppExtra from "@/app-extra";
 import { useState, Fragment } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
@@ -113,6 +114,7 @@ export default function CreditNoteList() {
 
   return (
     <Layout>
+      <AppExtra />
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
