@@ -5,7 +5,6 @@ import { eq, desc, and, isNull, asc, ilike, inArray, count , sql } from "drizzle
 import { employees, firmClients, firmClientTeam, companies, contacts, accounts, workBoards, workBoardItems, workBoardColumns, contracts, accountingFormulaLines, accountingFormulas, paymentMethods, invoices, quotations, receipts, expenses, products, firmClientImportLogs, workStatusRows, workBoardGroups, clientUploadLinks, insertFirmClientSchema, machines } from "@shared/schema";
 import { requireAuth, requireAdmin, requireModule } from "../route-middleware";
 import { logActivity, isDbConnectionError, deleteCompaniesCascade } from "../route-helpers";
-import { runFirmClientMigration } from "@shared/schema-extra";
 import multer from "multer";
 import * as XLSX from "xlsx";
 import { z } from "zod";
@@ -14,7 +13,6 @@ import { CHART_TO_BUSINESS_TYPE } from "@shared/accounting-formulas";
 import { decodeMulterFilename } from "../utils/safe-filename";
 
 export function registerFirmRoutes(app: Express) {
-  runFirmClientMigration(db);
 app.get("/api/firm-clients", requireAuth, requireModule("firm-mgmt"), async (req, res) => {
   const user = req.user as any;
   const isManager = user.role === "admin" || user.role === "super_admin" || user.role === "owner" || user.role === "manager";

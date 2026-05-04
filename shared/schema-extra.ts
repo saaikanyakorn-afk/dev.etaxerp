@@ -577,6 +577,8 @@ export async function runBillingNotesWhtMigration(_db: any) {
   // migration done 2026-05-03 — no-op
 }
 
+/* DONE 2026-05-04 — firm_clients.target_db_machine_id
+   Verified column already exists on production DB. Migration not needed.
 export async function runFirmClientMigration(db: any) {
   try {
     await db.execute(sql.raw(`ALTER TABLE firm_clients ADD COLUMN IF NOT EXISTS target_db_machine_id INTEGER`));
@@ -585,3 +587,4 @@ export async function runFirmClientMigration(db: any) {
     console.error("[migration] ❌ runFirmClientMigration FAILED:", e.message);
   }
 }
+*/
