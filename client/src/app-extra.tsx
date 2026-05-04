@@ -26,6 +26,8 @@ const CreditNotePdf = lazy(() => import("@/pages/sales/credit-note-pdf"));
 const CreditNoteShare = lazy(() => import("@/pages/sales/credit-note-share"));
 const WhtCertShare = lazy(() => import("@/pages/purchases/wht-cert-share"));
 const BillingNoteShare = lazy(() => import("@/pages/finance/billing-note-share"));
+// [sys-k7x9] Machines sub-page — route /sys-k7x9/infra/machines cannot be added to App.tsx
+// (App.tsx = production source of truth, never modify). Registered here via matchInfraMachines().
 const InfraMachines = lazy(() => import("@/pages/sysadmin/infra-machines"));
 
 function FullPageOverlay({ children }: { children: React.ReactNode }) {
@@ -60,7 +62,7 @@ function matchBillingNoteShare(location: string): string | null {
   return m ? m[1] : null;
 }
 
-/** Match /sys-k7x9/infra/machines */
+// [sys-k7x9] Exact match for /sys-k7x9/infra/machines — no param needed, just presence check
 function matchInfraMachines(location: string): boolean {
   return location.replace(/\?.*$/, "") === "/sys-k7x9/infra/machines";
 }
@@ -148,6 +150,8 @@ export default function AppExtra() {
     );
   }
 
+  // [sys-k7x9] Render Machines page — AllServers component auto-switches to SysAdminLayout
+  // when path starts with /sys-k7x9, so no extra layout wrapping needed here
   if (isMachines) {
     return (
       <FullPageOverlay>
