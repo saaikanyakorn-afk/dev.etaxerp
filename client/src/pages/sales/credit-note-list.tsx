@@ -1,5 +1,5 @@
-import AppExtra from "@/app-extra";
-import { useState, Fragment } from "react";
+import { useState, Fragment, lazy, Suspense } from "react";
+const CreditNotePdf = lazy(() => import("@/pages/sales/credit-note-pdf"));
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import Layout from "@/components/layout";
@@ -68,6 +68,7 @@ export default function CreditNoteList() {
   const [lineDialog, setLineDialog] = useState<{ open: boolean; url: string; docNo: string; customerName: string }>({ open: false, url: "", docNo: "", customerName: "" });
   const [journalDoc, setJournalDoc] = useState<{ open: boolean; id: number | null }>({ open: false, id: null });
   const [etaxDialog, setEtaxDialog] = useState<{ open: boolean; creditNoteId: number; creditNoteNo: string }>({ open: false, creditNoteId: 0, creditNoteNo: "" });
+  const [pdfId, setPdfId] = useState<string | null>(null);
 
   const bulk = useBulkDelete({ endpoint: "/api/sales-credit-notes/bulk-delete", queryKey: "/api/sales-credit-notes", docLabel: "ใบลดหนี้", companyId });
   const { dateEra, dateFmt } = useDateSettings();
@@ -114,7 +115,6 @@ export default function CreditNoteList() {
 
   return (
     <Layout>
-      <AppExtra />
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -280,7 +280,7 @@ export default function CreditNoteList() {
                               <DropdownMenuItem onClick={() => navigate(`/sales/credit-note/edit/${cn.id}`)} className="flex gap-2">
                                 <Edit2 className="h-3.5 w-3.5" /> แก้ไข
                               </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => navigate(`/sales/credit-note/pdf/${cn.id}`)} className="flex gap-2">
+                              <DropdownMenuItem onClick={() => setPdfId(String(cn.id))} className="flex gap-2">
                                 <Printer className="h-3.5 w-3.5 text-purple-500" /> ดูตัวอย่าง / สั่งพิมพ์
                               </DropdownMenuItem>
                               <DropdownMenuItem
@@ -368,6 +368,13 @@ export default function CreditNoteList() {
         docType="credit_note"
         docId={journalDoc.id ?? 0}
       />
+      {pdfId && (
+        <div style={{ position: "fixed", inset: 0, background: "white", zIndex: 9999, overflow: "auto" }}>
+          <Suspense fallback={null}>
+            <CreditNotePdf idProp={pdfId} onClose={() => setPdfId(null)} />
+          </Suspense>
+        </div>
+      )}
     </Layout>
   );
 }

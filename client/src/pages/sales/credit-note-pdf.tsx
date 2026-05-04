@@ -23,10 +23,11 @@ function ServerErrorScreen({ onRetry, onGoBack }: { onRetry: () => void; onGoBac
   );
 }
 
-export default function CreditNotePdf({ idProp }: { idProp?: string } = {}) {
+export default function CreditNotePdf({ idProp, onClose }: { idProp?: string; onClose?: () => void } = {}) {
   const params = useParams<{ id: string }>();
   const id = idProp ?? params.id;
   const [, navigate] = useLocation();
+  const goBack = () => { if (onClose) { onClose(); } else { navigate("/sales/credit-note"); } };
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [serverError, setServerError] = useState(false);
@@ -68,7 +69,7 @@ export default function CreditNotePdf({ idProp }: { idProp?: string } = {}) {
   };
 
   if (serverError) {
-    return <ServerErrorScreen onRetry={() => { setServerError(false); window.location.reload(); }} onGoBack={() => navigate("/sales/credit-note")} />;
+    return <ServerErrorScreen onRetry={() => { setServerError(false); window.location.reload(); }} onGoBack={goBack} />;
   }
 
   if (loading) return <Layout><div className="flex items-center justify-center py-24"><Loader2 className="h-8 w-8 animate-spin text-slate-400" /></div></Layout>;
@@ -79,7 +80,7 @@ export default function CreditNotePdf({ idProp }: { idProp?: string } = {}) {
       <div className="flex flex-col" style={{ height: "calc(100vh - 64px)" }}>
         <div className="space-y-2 flex-shrink-0">
           <div className="flex items-center justify-between py-2 no-print">
-            <Button variant="ghost" size="sm" className="gap-1.5" onClick={() => navigate("/sales/credit-note")}>
+            <Button variant="ghost" size="sm" className="gap-1.5" onClick={goBack}>
               <ArrowLeft className="h-4 w-4" /> กลับ
             </Button>
             <div className="flex items-center gap-2">
