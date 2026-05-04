@@ -48,7 +48,7 @@ const SYSADMIN_NAV: NavItem[] = [
     label: "Infrastructure",
     href: "/sys-k7x9/infrastructure",
     children: [
-      { icon: LayoutDashboard, label: "ภาพรวมทั้งหมด", href: "/sys-k7x9/infrastructure" },
+      { icon: LayoutDashboard, label: "Overview", href: "/sys-k7x9/infrastructure" },
       { icon: Server,   label: "Machines",   href: "/sys-k7x9/infra/machines" },
       { icon: MapPin,   label: "Locations",  href: "/sys-k7x9/infra/locations" },
       { icon: Router,   label: "Routers",    href: "/sys-k7x9/infra/routers" },
