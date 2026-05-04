@@ -1706,28 +1706,57 @@ export default function SysAdminManagement() {
         </div>
 
         {activeTab === "users" && policy && (
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
-            <div className="bg-white border rounded-lg p-3 text-center">
-              <div className="text-lg font-bold text-[#fb9678]">{policy.minLength}</div>
-              <div className="text-xs text-gray-500">ความยาวขั้นต่ำ</div>
+          <>
+            {/* TODO banner — policy scope */}
+            <div className="flex items-start gap-2 rounded-md border border-dashed border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-700 mb-3">
+              <span className="mt-0.5 shrink-0 rounded bg-amber-200 px-1.5 py-0.5 font-bold uppercase tracking-wide text-amber-800 text-[10px]">TODO</span>
+              <span>
+                Policy นี้ตอนนี้เป็น <span className="font-semibold">Global</span> (ใช้ร่วมกันทุก server){" "}
+                — ควรเปลี่ยนให้เป็น <span className="font-semibold">Per-Server</span> คือแต่ละ server มี policy ของตัวเอง
+                (ต้องเพิ่ม <code className="bg-amber-100 px-1 rounded">machine_id</code> FK ใน <code className="bg-amber-100 px-1 rounded">sys_admin_password_policy</code> — backend task)
+              </span>
             </div>
-            <div className="bg-white border rounded-lg p-3 text-center">
-              <div className="text-lg font-bold text-[#fb9678]">{policy.expiryDays}</div>
-              <div className="text-xs text-gray-500">วันหมดอายุ</div>
+
+            <div className="flex items-center gap-3 mb-6">
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-3 flex-1">
+                <div className="bg-white border rounded-lg p-3 text-center">
+                  <div className="text-lg font-bold text-[#fb9678]">{policy.minLength}</div>
+                  <div className="text-xs text-gray-500">ความยาวขั้นต่ำ</div>
+                </div>
+                <div className="bg-white border rounded-lg p-3 text-center">
+                  <div className="text-lg font-bold text-[#fb9678]">{policy.expiryDays}</div>
+                  <div className="text-xs text-gray-500">วันหมดอายุ</div>
+                </div>
+                <div className="bg-white border rounded-lg p-3 text-center">
+                  <div className="text-lg font-bold text-[#fb9678]">{policy.historyCount}</div>
+                  <div className="text-xs text-gray-500">จำรหัสเก่า</div>
+                </div>
+                <div className="bg-white border rounded-lg p-3 text-center">
+                  <div className="text-lg font-bold text-[#fb9678]">{policy.maxFailedAttempts}</div>
+                  <div className="text-xs text-gray-500">ใส่ผิดก่อนล็อค</div>
+                </div>
+                <div className="bg-white border rounded-lg p-3 text-center">
+                  <div className="text-lg font-bold text-[#fb9678]">{policy.lockoutMinutes}</div>
+                  <div className="text-xs text-gray-500">นาทีล็อค</div>
+                </div>
+              </div>
+              {/* Edit button — master only */}
+              <div className="shrink-0 flex flex-col items-center gap-1">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => isMasterCaller && setShowPolicy(true)}
+                  disabled={!isMasterCaller}
+                  title={isMasterCaller ? "แก้ไข Password Policy" : "เฉพาะ Master เท่านั้น"}
+                  className="h-9 w-9 p-0"
+                  data-testid="btn-open-policy"
+                >
+                  {isMasterCaller ? <Settings className="h-4 w-4" /> : <Lock className="h-4 w-4 text-gray-300" />}
+                </Button>
+                <span className="text-[10px] text-gray-400">{isMasterCaller ? "แก้ไข" : "Master only"}</span>
+              </div>
             </div>
-            <div className="bg-white border rounded-lg p-3 text-center">
-              <div className="text-lg font-bold text-[#fb9678]">{policy.historyCount}</div>
-              <div className="text-xs text-gray-500">จำรหัสเก่า</div>
-            </div>
-            <div className="bg-white border rounded-lg p-3 text-center">
-              <div className="text-lg font-bold text-[#fb9678]">{policy.maxFailedAttempts}</div>
-              <div className="text-xs text-gray-500">ใส่ผิดก่อนล็อค</div>
-            </div>
-            <div className="bg-white border rounded-lg p-3 text-center">
-              <div className="text-lg font-bold text-[#fb9678]">{policy.lockoutMinutes}</div>
-              <div className="text-xs text-gray-500">นาทีล็อค</div>
-            </div>
-          </div>
+          </>
         )}
 
         {activeTab === "users" && (isLoading ? (
