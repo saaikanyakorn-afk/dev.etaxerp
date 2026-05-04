@@ -1,6 +1,6 @@
 import type { Express, Request, Response } from "express";
 import { db } from "../db";
-import { eq, desc, and, asc, gte, lte , sql } from "drizzle-orm";
+import { eq, desc, and, asc, gte, lte, sql, inArray } from "drizzle-orm";
 import { billingNotes, billingNoteLinkedDocs, receipts, receiptLinkedDocs, purchaseInvoices, expenses, paymentVouchers, paymentVoucherLinkedDocs, invoices, firmClients, contacts, invoiceItems, journalEntries, companies, journalLines, accounts, bankStatements, lineGroupMappings, taxInvoices, taxInvoiceItems } from "@shared/schema";
 import { requireAuth, requireModule } from "../route-middleware";
 import { getNextDocNo, createAutoJournalEntry, resolvePaymentMethodAccountCode, recomputePaymentStatus, recomputeAPPaymentStatus } from "../route-helpers";
@@ -31,11 +31,39 @@ app.get("/api/finance/billing-notes", requireAuth, async (req, res) => {
       }
     } catch {}
 
+    const bnIds = bnRows.map(bn => bn.id);
+    const allLinkedDocs = bnIds.length > 0
+      ? await db.select().from(billingNoteLinkedDocs).where(inArray(billingNoteLinkedDocs.billingNoteId, bnIds))
+      : [];
+
+    const ivIds = allLinkedDocs.filter(d => d.docType === "IV").map(d => d.docId);
+    const tivIds = allLinkedDocs.filter(d => d.docType === "TIV").map(d => d.docId);
+    const ivSubMap: Record<number, number> = {};
+    const tivSubMap: Record<number, number> = {};
+    if (ivIds.length > 0) {
+      const ivRows = await db.select({ id: invoices.id, subtotal: invoices.subtotal }).from(invoices).where(inArray(invoices.id, ivIds));
+      for (const r of ivRows) ivSubMap[r.id] = parseFloat(r.subtotal ?? "0") || 0;
+    }
+    if (tivIds.length > 0) {
+      const tivRows = await db.select({ id: taxInvoices.id, subtotal: taxInvoices.subtotal }).from(taxInvoices).where(inArray(taxInvoices.id, tivIds));
+      for (const r of tivRows) tivSubMap[r.id] = parseFloat(r.subtotal ?? "0") || 0;
+    }
+
+    const linkedDocsByBn: Record<number, typeof allLinkedDocs> = {};
+    for (const d of allLinkedDocs) {
+      if (!linkedDocsByBn[d.billingNoteId]) linkedDocsByBn[d.billingNoteId] = [];
+      linkedDocsByBn[d.billingNoteId].push(d);
+    }
+
     const result = [];
     for (const bn of bnRows) {
-      const linkedDocs = await db.select().from(billingNoteLinkedDocs)
-        .where(eq(billingNoteLinkedDocs.billingNoteId, bn.id));
-      result.push({ ...bn, withholdingTax: whtMap[bn.id]?.amount ?? "0", whtRate: whtMap[bn.id]?.rate ?? "0", whtBase: whtMap[bn.id]?.base ?? "0", linkedDocs });
+      const linkedDocs = linkedDocsByBn[bn.id] || [];
+      const linkedSubtotal = linkedDocs.reduce((sum, d) => {
+        if (d.docType === "IV") return sum + (ivSubMap[d.docId] || 0);
+        if (d.docType === "TIV") return sum + (tivSubMap[d.docId] || 0);
+        return sum;
+      }, 0);
+      result.push({ ...bn, withholdingTax: whtMap[bn.id]?.amount ?? "0", whtRate: whtMap[bn.id]?.rate ?? "0", whtBase: whtMap[bn.id]?.base ?? "0", linkedDocs, linkedSubtotal });
     }
 
     res.json(result);
@@ -119,7 +147,19 @@ app.get("/api/finance/billing-notes/:id", requireAuth, async (req, res) => {
       }
     } catch {}
 
-    res.json({ ...bn, withholdingTax: whtVal, whtRate: whtRateVal, whtBase: whtBaseVal, linkedDocs });
+    const ivIds2 = linkedDocs.filter(d => d.docType === "IV").map(d => d.docId);
+    const tivIds2 = linkedDocs.filter(d => d.docType === "TIV").map(d => d.docId);
+    let linkedSubtotal = 0;
+    if (ivIds2.length > 0) {
+      const ivRows2 = await db.select({ id: invoices.id, subtotal: invoices.subtotal }).from(invoices).where(inArray(invoices.id, ivIds2));
+      for (const r of ivRows2) linkedSubtotal += parseFloat(r.subtotal ?? "0") || 0;
+    }
+    if (tivIds2.length > 0) {
+      const tivRows2 = await db.select({ id: taxInvoices.id, subtotal: taxInvoices.subtotal }).from(taxInvoices).where(inArray(taxInvoices.id, tivIds2));
+      for (const r of tivRows2) linkedSubtotal += parseFloat(r.subtotal ?? "0") || 0;
+    }
+
+    res.json({ ...bn, withholdingTax: whtVal, whtRate: whtRateVal, whtBase: whtBaseVal, linkedDocs, linkedSubtotal });
   } catch (err: any) { res.status(500).json({ message: err.message }); }
 });
 

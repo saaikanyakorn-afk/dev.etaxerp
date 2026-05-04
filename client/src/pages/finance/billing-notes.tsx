@@ -83,8 +83,8 @@ export default function BillingNotes() {
   const receiptWhtAmt = useMemo(() => {
     const rate = parseFloat(receiptWht) || 0;
     if (rate <= 0 || !receiptBillingNote) return 0;
-    const base = parseFloat(receiptBillingNote.whtBase);
-    if (isNaN(base) || base <= 0) throw new Error(`receiptWhtAmt: billing note id=${receiptBillingNote.id} is missing whtBase — cannot calculate WHT`);
+    const base = parseFloat(String(receiptBillingNote.linkedSubtotal));
+    if (isNaN(base) || base <= 0) throw new Error(`receiptWhtAmt: billing note id=${receiptBillingNote.id} is missing linkedSubtotal — cannot calculate WHT`);
     return Math.round(rate / 100 * base * 100) / 100;
   }, [receiptWht, receiptBillingNote]);
   const [receiptNotes, setReceiptNotes] = useState("");
@@ -98,8 +98,8 @@ export default function BillingNotes() {
   const tivWhtAmt = useMemo(() => {
     const rate = parseFloat(tivWht) || 0;
     if (rate <= 0 || !tivBillingNote) return 0;
-    const base = parseFloat(tivBillingNote.whtBase);
-    if (isNaN(base) || base <= 0) throw new Error(`tivWhtAmt: billing note id=${tivBillingNote.id} is missing whtBase — cannot calculate WHT`);
+    const base = parseFloat(String(tivBillingNote.linkedSubtotal));
+    if (isNaN(base) || base <= 0) throw new Error(`tivWhtAmt: billing note id=${tivBillingNote.id} is missing linkedSubtotal — cannot calculate WHT`);
     return Math.round(rate / 100 * base * 100) / 100;
   }, [tivWht, tivBillingNote]);
 
@@ -494,8 +494,8 @@ export default function BillingNotes() {
     const rate = parseFloat(editWhtRate) || 0;
     let base = 0;
     if (rate > 0) {
-      base = parseFloat(editBn.whtBase);
-      if (isNaN(base) || base <= 0) throw new Error(`submitEdit: billing note id=${editBn.id} is missing whtBase — cannot calculate WHT`);
+      base = parseFloat(String(editBn.linkedSubtotal));
+      if (isNaN(base) || base <= 0) throw new Error(`submitEdit: billing note id=${editBn.id} is missing linkedSubtotal — cannot calculate WHT`);
     }
     const whtAmt = rate > 0 && base > 0 ? Math.round(rate / 100 * base * 100) / 100 : 0;
     updateBillingNote.mutate({
@@ -1247,9 +1247,9 @@ export default function BillingNotes() {
               {(() => {
                 const rate = parseFloat(editWhtRate) || 0;
                 if (rate <= 0 || !editBn) return null;
-                const base = parseFloat(editBn.whtBase);
+                const base = parseFloat(String(editBn.linkedSubtotal));
                 if (isNaN(base) || base <= 0) return (
-                  <p className="text-[11px] text-red-500 mt-1">ข้อผิดพลาด: ไม่พบยอดก่อน VAT (whtBase) สำหรับใบวางบิลนี้</p>
+                  <p className="text-[11px] text-red-500 mt-1">ข้อผิดพลาด: ไม่พบยอดก่อน VAT สำหรับใบวางบิลนี้</p>
                 );
                 const amt = Math.round(rate / 100 * base * 100) / 100;
                 return amt > 0 ? (
