@@ -492,6 +492,18 @@ function NicCard({ nic, routers, onChange, onRemove }: {
           </button>
         </div>
       </div>
+
+      {/* ── Pending: Gateway + DNS ── */}
+      <div className="flex items-start gap-2 rounded-md border border-dashed border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+        <span className="mt-0.5 shrink-0 rounded bg-amber-200 px-1.5 py-0.5 font-bold uppercase tracking-wide text-amber-800 text-[10px]">TODO</span>
+        <span>
+          <span className="font-semibold">Gateway</span> และ <span className="font-semibold">DNS</span> ยังขาดอยู่ใน schema{" "}
+          — ต้องเพิ่ม column <code className="bg-amber-100 px-1 rounded">gateway</code>,{" "}
+          <code className="bg-amber-100 px-1 rounded">dns_primary</code>,{" "}
+          <code className="bg-amber-100 px-1 rounded">dns_secondary</code> ใน <code className="bg-amber-100 px-1 rounded">machine_nics</code> table
+          (backend task)
+        </span>
+      </div>
     </div>
   );
 }
