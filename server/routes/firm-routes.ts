@@ -218,7 +218,6 @@ app.post("/api/firm-clients", requireAuth, requireModule("firm-mgmt"), async (re
 
     res.status(201).json(result.client);
   } catch (err: any) {
-    console.error("[POST /api/firm-clients] error:", err?.message, err?.code, err?.detail);
     if (err instanceof z.ZodError) {
       return res.status(400).json({ message: err.errors[0].message });
     }
