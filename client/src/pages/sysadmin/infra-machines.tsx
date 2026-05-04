@@ -425,7 +425,7 @@ function EditMachineDialog({
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center" data-testid="dialog-edit-machine">
-      <div className="bg-white rounded-xl shadow-2xl flex flex-col" style={{ width: 700, height: 590 }}>
+      <div className="bg-white rounded-xl shadow-2xl flex flex-col" style={{ width: 700, height: 760 }}>
 
         {/* Header + tab bar */}
         <div className="px-6 pt-5 pb-0 border-b shrink-0">
