@@ -23,8 +23,9 @@ function ServerErrorScreen({ onRetry, onGoBack }: { onRetry: () => void; onGoBac
   );
 }
 
-export default function CreditNotePdf() {
-  const { id } = useParams<{ id: string }>();
+export default function CreditNotePdf({ idProp }: { idProp?: string } = {}) {
+  const params = useParams<{ id: string }>();
+  const id = idProp ?? params.id;
   const [, navigate] = useLocation();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
