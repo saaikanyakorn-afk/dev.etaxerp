@@ -508,6 +508,164 @@ function NicCard({ nic, routers, onChange, onRemove }: {
   );
 }
 
+// ─── AddMachineDialog ─────────────────────────────────────────────────────────
+
+function generatePortalPath() {
+  const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
+  let s = "";
+  for (let i = 0; i < 4; i++) s += chars[Math.floor(Math.random() * chars.length)];
+  return `/sys-${s}`;
+}
+
+function AddMachineDialog({
+  locations, onSave, onCancel, saving,
+}: {
+  locations: LocationRecord[];
+  onSave: (data: any) => void;
+  onCancel: () => void;
+  saving?: boolean;
+}) {
+  const [form, setForm] = useState({
+    localName: "",
+    displayName: "",
+    locationId: "",
+    internetType: "fixed",
+  });
+  const [portalPath] = useState(() => generatePortalPath());
+  const f = (k: string, v: any) => setForm(prev => ({ ...prev, [k]: v }));
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-md flex flex-col">
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b">
+          <div className="flex items-center gap-2">
+            <Server className="h-5 w-5 text-[#fb9678]" />
+            <h2 className="text-lg font-semibold">เพิ่มเครื่องใหม่</h2>
+          </div>
+          <button onClick={onCancel} className="text-gray-400 hover:text-gray-600">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="p-6 space-y-4">
+          {/* Portal path — auto-generated, permanent */}
+          <div>
+            <Label className="text-sm font-medium flex items-center gap-1.5">
+              <Lock className="h-3.5 w-3.5 text-gray-400" /> Portal Path
+            </Label>
+            <div className="flex items-center gap-2 mt-1">
+              <div className="flex-1 font-mono text-sm bg-gray-50 border border-gray-200 rounded-md px-3 py-2 text-gray-700 select-all">
+                {portalPath}
+              </div>
+              <span className="text-[10px] bg-gray-100 text-gray-500 border rounded px-2 py-1 shrink-0">
+                ถาวร · แก้ไขไม่ได้
+              </span>
+            </div>
+            <p className="text-xs text-gray-400 mt-1">
+              path นี้จะถูกสร้างให้อัตโนมัติและล็อคถาวร แม้แต่ Master ก็เปลี่ยนไม่ได้
+            </p>
+            {/* TODO */}
+            <div className="flex items-start gap-2 rounded-md border border-dashed border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-700 mt-2">
+              <span className="mt-0.5 shrink-0 rounded bg-amber-200 px-1.5 py-0.5 font-bold uppercase tracking-wide text-amber-800 text-[10px]">TODO</span>
+              <span>
+                ต้องเพิ่ม column <code className="bg-amber-100 px-1 rounded">portal_path</code> ใน <code className="bg-amber-100 px-1 rounded">machines</code> table
+                เพื่อบันทึก path นี้ลง DB (backend task)
+              </span>
+            </div>
+          </div>
+
+          <div className="border-t pt-4 space-y-4">
+            {/* Name */}
+            <div>
+              <Label className="text-sm font-medium">ชื่อเครื่อง (ชื่อเรียก) *</Label>
+              <Input
+                value={form.localName}
+                onChange={e => f("localName", e.target.value)}
+                placeholder="เช่น server-e5, etaxerp"
+                className="mt-1"
+                data-testid="input-add-local-name"
+              />
+            </div>
+
+            {/* Display name */}
+            <div>
+              <Label className="text-sm font-medium">ชื่อแสดงผล (สำหรับผู้ใช้)</Label>
+              <Input
+                value={form.displayName}
+                onChange={e => f("displayName", e.target.value)}
+                placeholder="เช่น etax1, etax2"
+                className="mt-1"
+                data-testid="input-add-display-name"
+              />
+              <p className="text-xs text-muted-foreground mt-0.5">ชื่อที่ผู้ใช้เห็นเมื่อเลือกเซิร์ฟเวอร์</p>
+            </div>
+
+            {/* Location */}
+            <div>
+              <Label className="text-sm font-medium">สถานที่ตั้ง (Location)</Label>
+              <Select value={form.locationId || "none"} onValueChange={v => f("locationId", v === "none" ? "" : v)}>
+                <SelectTrigger className="mt-1" data-testid="select-add-location">
+                  <SelectValue>
+                    {form.locationId
+                      ? (locations.find(l => String(l.id) === form.locationId)?.name ?? "—")
+                      : "— ยังไม่กำหนด"}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">— ยังไม่กำหนด</SelectItem>
+                  {locations.filter(l => !l.parentId).map(parent => {
+                    const children = locations.filter(c => c.parentId === parent.id);
+                    return children.length > 0 ? (
+                      <SelectGroup key={parent.id}>
+                        <SelectLabel className="text-xs font-semibold text-gray-500">{parent.name}</SelectLabel>
+                        {children.map(c => (
+                          <SelectItem key={c.id} value={String(c.id)} className="pl-5">{c.name}</SelectItem>
+                        ))}
+                      </SelectGroup>
+                    ) : (
+                      <SelectItem key={parent.id} value={String(parent.id)}>{parent.name}</SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Internet type */}
+            <div>
+              <Label className="text-sm font-medium">Internet Type</Label>
+              <Select value={form.internetType} onValueChange={v => f("internetType", v)}>
+                <SelectTrigger className="mt-1" data-testid="select-add-internet-type"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="fixed">Fixed IP</SelectItem>
+                  <SelectItem value="dynamic">Dynamic (DDNS)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="flex justify-end gap-2 px-6 py-4 border-t bg-gray-50 rounded-b-xl">
+          <Button variant="outline" onClick={onCancel} data-testid="button-cancel-add">ยกเลิก</Button>
+          <Button
+            className="bg-[#fb9678] hover:bg-[#e8855a] text-white"
+            onClick={() => {
+              if (!form.localName.trim()) return;
+              onSave({ ...form, locationId: form.locationId ? Number(form.locationId) : null });
+            }}
+            disabled={!form.localName.trim() || saving}
+            data-testid="button-confirm-add"
+          >
+            <Plus className="h-4 w-4 mr-1" /> {saving ? "กำลังบันทึก..." : "เพิ่มเครื่อง"}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── EditMachineDialog ────────────────────────────────────────────────────────
 
 const EDIT_TABS: { id: TabId; label: string; icon: React.ReactNode }[] = [
@@ -977,6 +1135,7 @@ export default function InfraMachinesPage() {
   const queryClient = useQueryClient();
 
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [showAddMachine, setShowAddMachine] = useState(false);
   const [editingMachine, setEditingMachine] = useState<MachineRecord | null | undefined>(undefined);
   const [editingTab, setEditingTab] = useState<TabId>("network");
   const [credentialsUnlocked, setCredentialsUnlocked] = useState(false);
@@ -1055,7 +1214,7 @@ export default function InfraMachinesPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/platform/machines"] });
-      setEditingMachine(undefined);
+      setShowAddMachine(false);
       toast({ title: "เพิ่มเครื่องสำเร็จ" });
     },
     onError: (err: any) => toast({ title: "เกิดข้อผิดพลาด", description: err.message, variant: "destructive" }),
@@ -1209,7 +1368,7 @@ export default function InfraMachinesPage() {
                 <Lock className="h-3.5 w-3.5 mr-1" /> Unlock Credentials
               </Button>
             )}
-            <Button className="bg-[#fb9678] hover:bg-[#e8855a] text-white" onClick={() => { setEditingMachine(null); setEditingTab("network"); }} data-testid="button-add-machine">
+            <Button className="bg-[#fb9678] hover:bg-[#e8855a] text-white" onClick={() => setShowAddMachine(true)} data-testid="button-add-machine">
               <Plus className="h-4 w-4 mr-1" /> เพิ่มเครื่อง
             </Button>
           </div>
@@ -1274,7 +1433,17 @@ export default function InfraMachinesPage() {
         )}
       </div>
 
-      {/* Edit / Add Dialog */}
+      {/* Add Machine Dialog */}
+      {showAddMachine && (
+        <AddMachineDialog
+          locations={locations}
+          onSave={data => createMut.mutate(data)}
+          onCancel={() => setShowAddMachine(false)}
+          saving={createMut.isPending}
+        />
+      )}
+
+      {/* Edit Dialog */}
       {editingMachine !== undefined && (
         <EditMachineDialog
           machine={editingMachine}
