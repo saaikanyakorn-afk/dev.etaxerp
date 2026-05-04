@@ -24,6 +24,7 @@ import { useAuth } from "@/lib/auth";
 
 const CreditNotePdf = lazy(() => import("@/pages/sales/credit-note-pdf"));
 const CreditNoteShare = lazy(() => import("@/pages/sales/credit-note-share"));
+const WhtCertShare = lazy(() => import("@/pages/purchases/wht-cert-share"));
 
 function FullPageOverlay({ children }: { children: React.ReactNode }) {
   return (
@@ -42,6 +43,12 @@ function matchCreditNotePdf(location: string): string | null {
 /** Extract token from /share/credit-note/:token (ignores query string) */
 function matchCreditNoteShare(location: string): string | null {
   const m = location.replace(/\?.*$/, "").match(/^\/share\/credit-note\/([^/]+)$/);
+  return m ? m[1] : null;
+}
+
+/** Extract token from /share/wht-cert/:token (ignores query string) */
+function matchWhtCertShare(location: string): string | null {
+  const m = location.replace(/\?.*$/, "").match(/^\/share\/wht-cert\/([^/]+)$/);
   return m ? m[1] : null;
 }
 
@@ -84,6 +91,7 @@ export default function AppExtra() {
 
   const pdfId = matchCreditNotePdf(location);
   const shareToken = matchCreditNoteShare(location);
+  const whtShareToken = matchWhtCertShare(location);
 
   if (pdfId) {
     return (
@@ -100,6 +108,16 @@ export default function AppExtra() {
       <FullPageOverlay>
         <Suspense fallback={null}>
           <CreditNoteShare tokenProp={shareToken} />
+        </Suspense>
+      </FullPageOverlay>
+    );
+  }
+
+  if (whtShareToken) {
+    return (
+      <FullPageOverlay>
+        <Suspense fallback={null}>
+          <WhtCertShare tokenProp={whtShareToken} />
         </Suspense>
       </FullPageOverlay>
     );

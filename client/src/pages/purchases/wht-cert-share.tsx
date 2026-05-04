@@ -4,8 +4,9 @@ import { Button } from "@/components/ui/button";
 import { Printer, Download, Loader2, FileText } from "lucide-react";
 import { isAndroid, redirectToChrome } from "@/lib/line-android-redirect";
 
-export default function WhtCertShare() {
-  const { token } = useParams<{ token: string }>();
+export default function WhtCertShare({ tokenProp }: { tokenProp?: string } = {}) {
+  const params = useParams<{ token: string }>();
+  const token = tokenProp ?? params.token;
   const [docNo, setDocNo] = useState("ใบ 50 ทวิ");
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
