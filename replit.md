@@ -26,9 +26,10 @@ GIT_SSH_COMMAND="ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no" git push 
 - After push confirms `xxx..yyy  main -> main` → production server can cherry-pick
 
 **Deploy key details** (for reference only — do not regenerate):
-- Name: `Replit Deploy` on `saaikanyakorn-afk/etaxcenter`
-- Fingerprint: `SHA256:7LXAwl0o9xyKld+ERBzS3+NM9px8ZauWmxp47gN3Urk`
-- Added: 2026-05-03 — Read/write access
+- Name: `2nd Replit Deploy key` on `saaikanyakorn-afk/etaxcenter`
+- Fingerprint: `SHA256:s3XbtpDfpueLtIeYgrBCr570te8NsX6eYqS1eaae6tk`
+- Added: 2026-05-04 — Read/write access
+- Restore procedure: see `push-pull-history.txt` in repo root
 
 ---
 
