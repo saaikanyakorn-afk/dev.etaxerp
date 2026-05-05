@@ -232,6 +232,13 @@ NEVER ask พี่ช้าง to run pm2 logs manually.
 NEVER use fetch_deployment_logs as first resort (it often returns nothing).
 The correct tool is: add log to code → push → ask พี่ทราย for screenshot → clean up.
 
+WHY pm2 log IS NOT THE RIGHT WAY (พี่ช้าง 2026-05-05):
+1. Production server IS NOT your debug tool.
+2. pm2 log will scroll and does not respond to Ctrl+C on remote desktop.
+   พี่ช้าง has to WALK to the physical server and use the server keyboard
+   to force-stop it and capture the screen — just for you to see a log line.
+   This is unacceptable. Never cause this.
+
 ----------------------------------------------------------------
 WHAT DOES NOT WORK (tested 2026-05-04):
 - git push github-production main  → pushes entire project (FORBIDDEN)
