@@ -169,8 +169,11 @@ async function lookupDoc(docType: string, token: string) {
       break;
     }
     case "credit-note": {
-      const [cn] = await db.select().from(salesCreditNotes).where(eq(salesCreditNotes.shareToken, token));
-      if (cn) { docNo = (cn as any).creditNoteNo || ""; customerName = (cn as any).customerName || ""; total = (cn as any).totalAmount || ""; companyId = cn.companyId; amountLabel = "ยอดลดหนี้"; }
+      try {
+        const rows = await db.execute({ sql: `SELECT credit_note_no, customer_name, total_amount, company_id FROM sales_credit_notes WHERE share_token = $1 LIMIT 1`, args: [token] } as any);
+        const cn = (rows as any).rows?.[0];
+        if (cn) { docNo = cn.credit_note_no || ""; customerName = cn.customer_name || ""; total = cn.total_amount || ""; companyId = Number(cn.company_id); amountLabel = "ยอดลดหนี้"; }
+      } catch {}
       break;
     }
     case "billing-note": {
@@ -327,15 +330,19 @@ var isIOS=/iphone|ipad|ipod/i.test(ua);
 var pdfUrl=${JSON.stringify(pdfUrl)};
 var docTitle=${JSON.stringify(title)};
 var content=document.getElementById('content');
-if(isMobile){
+if(isIOS){
   document.getElementById('btnPrint').style.display='none';
-  if(isIOS){
-    document.getElementById('btnDl').setAttribute('href',pdfUrl);
-    document.getElementById('btnDl').setAttribute('target','_blank');
-    document.getElementById('btnDl').removeAttribute('download');
-  }
+  document.getElementById('btnDl').setAttribute('href',pdfUrl);
+  document.getElementById('btnDl').setAttribute('target','_blank');
+  document.getElementById('btnDl').removeAttribute('download');
+  var emb=document.createElement('embed');
+  emb.setAttribute('src',pdfUrl);
+  emb.style.cssText='width:100%;height:calc(100vh - 48px);display:block';
+  content.appendChild(emb);
+}else if(isMobile){
+  document.getElementById('btnPrint').style.display='none';
   content.className='mobile-wrap';
-  content.innerHTML='<div class="mobile-icon">📄</div><div><div class="mobile-title">'+docTitle+'</div><div class="mobile-sub">กดปุ่มด้านล่างเพื่อเปิดหรือดาวน์โหลด PDF</div></div><a class="btn-open" href="'+pdfUrl+'"'+(isIOS?' target="_blank"':'')+'>📄 เปิด PDF</a>';
+  content.innerHTML='<div class="mobile-icon">📄</div><div><div class="mobile-title">'+docTitle+'</div><div class="mobile-sub">กดปุ่มด้านล่างเพื่อเปิดหรือดาวน์โหลด PDF</div></div><a class="btn-open" href="'+pdfUrl+'">📄 เปิด / ดาวน์โหลด PDF</a>';
 }else{
   var ifr=document.createElement('iframe');
   ifr.id='pdfFrame';
@@ -350,10 +357,7 @@ if(isMobile){
       var blobUrl=URL.createObjectURL(new File([blob],docTitle+'.pdf',{type:'application/pdf'}));
       ifr.src=blobUrl;
     })
-    .catch(function(e){
-      /* LOG — remove after debug */
-      content.innerHTML='<div style="padding:24px;color:#ef4444;font-family:sans-serif;font-size:13px"><b>PDF Error (debug):</b><br>'+e.message+'</div>';
-    });
+    .catch(function(){ifr.src=pdfUrl;});
 }
 function doPrint(){
   var f=document.getElementById('pdfFrame');
