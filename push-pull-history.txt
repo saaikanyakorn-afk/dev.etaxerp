@@ -56,6 +56,49 @@ PUSH AUTHORIZATION RULES:
    - Type B (cannot test yourself): requires login + real data interaction — ask พี่ทราย to test on dev.
    Either way: dev must pass first. Only then is it worthy to "try" pushing to production. Not before.
 
+----------------------------------------------------------------
+CHECKLIST — WHEN FIX INVOLVES schema-extra.ts (ADD COLUMN / MIGRATION):
+
+If any file in your fix requires a new column on production DB, you MUST follow
+this checklist IN ORDER. Do NOT skip steps or merge phases.
+
+PHASE 0 — VERIFY FIRST (before writing any code)
+  □ Query production DB directly (pg client via code_execution):
+      host: deep-main.hopto.org  port: 20541
+      db: etax-production  user: etaxusr
+      Credentials: find in machines table (dev DB) — NOT from env vars (trap)
+  □ SELECT column_name FROM information_schema.columns
+      WHERE table_name='<table>' AND column_name='<col>'
+  □ If column EXISTS → skip to removing inline ALTER TABLE, no migration needed
+  □ If column MISSING → proceed to Phase 1
+
+PHASE 1 — DB MIGRATION ONLY (no feature code)
+  □ Write migration function in shared/schema-extra.ts
+      - Pure DDL only → no flag, no backup needed
+      - If data backfill → backup + history + flag required (see schema-extra.ts rules)
+  □ Import + call migration inside register function of the relevant route file
+  □ Remove any inline ALTER TABLE from route handlers (must NEVER be in handlers)
+  □ Push ONLY: schema-extra.ts + the route file (nothing else)
+  □ Tell พี่ช้าง to run standard 4-step server command
+  □ Verify column now exists in production DB (query again)
+
+PHASE 1b — CLEAN UP IMMEDIATELY (before anything else)
+  □ Comment out the migration block in schema-extra.ts with date/reason
+  □ Replace with no-op: export async function runXxx(_db: any) { // done YYYY-MM-DD }
+  □ Push clean schema-extra.ts to production GitHub immediately
+  □ Do NOT proceed to Phase 2 until clean code is pushed
+
+PHASE 2 — FEATURE FILES
+  □ Push remaining feature files (frontend, static, share-og, etc.)
+  □ Tell พี่ช้าง to run standard 4-step server command (include clean schema-extra.ts)
+
+WHY THIS ORDER MATTERS:
+  - If you push feature files before Phase 1b, migration block stays live on server
+  - Migration runs on every server restart until commented out
+  - Phase 1b push + Phase 2 push can be combined in ONE server command if timed right
+  - But Phase 1b push must ALWAYS happen before Phase 2 push is issued
+
+----------------------------------------------------------------
 WHAT DOES NOT WORK (tested 2026-05-04):
 - git push github-production main  → pushes entire project (FORBIDDEN)
 - bash git remote set-url          → blocked by Replit
@@ -63,6 +106,30 @@ WHAT DOES NOT WORK (tested 2026-05-04):
 - SSH key                          → libcrypto version mismatch in container
 ----------------------------------------------------------------
 DEPLOY LOG (latest first):
+
+[#37] 2026-05-05 — Billing-Note Share Phase 2 (feature files) + clean schema-extra.ts
+  Commits: 8b63a520 (schema-extra.ts clean), 568ef6a5 (billing-note-share.tsx),
+           f4b1fe74 (app-extra.tsx), 1d50e184 (static.ts), a1ff3db0 (share-og.ts)
+  Note: Phase 1b (clean schema-extra) should have been pushed before Phase 2 files.
+        Lesson captured in CHECKLIST above.
+  Server: git fetch origin && git checkout origin/main -- shared/schema-extra.ts client/src/pages/finance/billing-note-share.tsx client/src/app-extra.tsx server/static.ts server/share-og.ts && npm run build && pm2 restart etax-center
+  Result: pending พี่ช้าง server command
+
+[#36] 2026-05-05 — Billing-Note Share Phase 1b (clean schema-extra.ts — comment out migration)
+  Commit: 8b63a520
+  Note: runBillingNoteShareTokenMigration commented out after column verified in prod DB
+  (combined with #37 server command)
+
+[#35] 2026-05-05 — Billing-Note Share Phase 1 (DB migration only)
+  Commits: dedceaf4 (schema-extra.ts), 7a17ed41 (billing-notes-routes.ts)
+  Fix: share_token TEXT column added to billing_notes via proper migration function
+       Removed 3 inline ALTER TABLE from route handlers (violated procedure)
+  Server: git fetch origin && git checkout origin/main -- shared/schema-extra.ts server/routes/billing-notes-routes.ts && npm run build && pm2 restart etax-center
+  Result: ✅ column verified in production DB — share_token TEXT exists
+
+[#34] 2026-05-05 — Session context & push-pull-history.txt update
+  Commit: (local only — push-pull-history.txt not pushed to prod)
+  Added: CRITICAL protected files section, schema-extra checklist, agent switch context
 
 [#33] 2026-05-04 — Fix WHT calculation (billing-notes.tsx + billing-notes-routes.ts)
   Commits: f229775c (billing-notes.tsx), 8fc26d32 (billing-notes-routes.ts)
