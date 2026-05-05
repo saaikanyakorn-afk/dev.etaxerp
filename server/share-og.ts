@@ -369,7 +369,7 @@ function doPrint(){
 function sendBillingNoteHtml(res: Response, opts: {
   token: string; docNo: string; customerName: string; companyName: string; totalAmount: string; baseUrl: string; fullUrl: string;
 }) {
-  const pdfUrl = `${opts.baseUrl}/api/share/billing-note/${opts.token}/pdf`;
+  const pdfUrl = `/api/share/billing-note/${opts.token}/pdf`;
   const ogImage = `${opts.baseUrl}/api/og-image/billing-note/${opts.token}.png`;
   const title = escHtml(opts.docNo ? `ใบวางบิล ${opts.docNo}` : "ใบวางบิล");
   const desc = escHtml(`${opts.companyName}${opts.customerName ? ` → ${opts.customerName}` : ""}${opts.totalAmount ? ` | ยอด ฿${opts.totalAmount}` : ""}`);
@@ -429,7 +429,7 @@ export async function creditNoteShareHandler(req: Request, res: Response, next: 
     return shareOgHandler(req, res, next);
   }
 
-  const pdfUrl = `${baseUrl}/api/share/credit-note/${token}/pdf`;
+  const pdfUrl = `/api/share/credit-note/${token}/pdf`;
   const ogImage = `${baseUrl}/api/og-image/credit-note/${token}.png`;
 
   let docNo = "ใบลดหนี้";
