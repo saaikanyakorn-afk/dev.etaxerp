@@ -91,6 +91,7 @@ export default function ChatWidget() {
   const isLanding = pathname === "/" || pathname === "/landing";
   const isPosTerminal = pathname === "/pos/terminal" || pathname === "/restaurant-pos";
   const isDashboard = pathname === "/dashboard" || pathname.startsWith("/dashboard/");
+  const isSysAdmin = pathname.startsWith("/sys-k7x9");
   const showButtons = user
     ? (isDashboard && !isPosTerminal)
     : (isLanding ? pastHero : !isPosTerminal);
@@ -206,8 +207,9 @@ export default function ChatWidget() {
 
   const unreadCount = unreadData?.count || 0;
 
-  let lastDate = "";
+  if (isSysAdmin) return null;
 
+  let lastDate = "";
 
   return (
     <div className={`fixed bottom-4 right-4 z-40 print:!hidden flex flex-col items-center gap-3 transition-all duration-500 ${showButtons ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8 pointer-events-none"}`}>
