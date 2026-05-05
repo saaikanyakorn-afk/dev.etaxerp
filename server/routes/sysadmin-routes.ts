@@ -901,7 +901,9 @@ export function registerSysAdminRoutes(app: Express) {
       }
 
       const [updated] = await db.update(sysAdmins).set(updates).where(eq(sysAdmins.id, targetId)).returning();
-      await logAudit(req, "update_sysadmin", "sysadmin", targetId, target.username, JSON.stringify(updates));
+      const fieldLabels: Record<string, string> = { fullName: "ชื่อ", email: "email", active: "สถานะ", lineUserId: "LINE ID", twoFactorVerified: "2FA verified" };
+      const humanUpdates = Object.entries(updates).filter(([k]) => k !== "twoFactorVerified").map(([k, v]) => `${fieldLabels[k] ?? k}: ${v}`).join(" · ");
+      await logAudit(req, "update_sysadmin", "sysadmin", targetId, target.username, `by ${caller?.username} · ${humanUpdates}`);
       const { password: _, ...safe } = updated;
       res.json(safe);
     } catch (err: any) {
@@ -1301,7 +1303,7 @@ export function registerSysAdminRoutes(app: Express) {
         emailVerified: false,
         twoFactorVerified: target.twoFactorMethod === "email" ? false : target.twoFactorVerified,
       }).where(eq(sysAdmins.id, targetId));
-      await logAudit(req, "set_email_by_master", "sysadmin", targetId, target.username, `Set by Master`);
+      await logAudit(req, "set_email_by_master", "sysadmin", targetId, target.username, `set by ${caller?.username} · email: ${email || "(ลบออก)"}`);
       res.json({ message: "บันทึก email สำเร็จ" });
     } catch (err: any) {
       res.status(500).json({ message: err.message });
