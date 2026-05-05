@@ -321,6 +321,18 @@ DEPLOY #45 — 2026-05-05
   pm2: online 84.8mb ✅
 
 ----------------------------------------------------------------
+DEPLOY #46 — 2026-05-05
+  Commit: 194743dc
+  File: server/static.ts
+  Fix: เปลี่ยน credit-note + billing-note share จาก standalone HTML handler
+       → shareOgHandler (bot → OG HTML, human → next() → index.html → React)
+       app-extra.tsx จับ /share/credit-note/:token และ /share/billing-note/:token
+       → render CreditNoteShare + BillingNoteShare React component (fetch blob URL → iframe)
+  ROOT CAUSE: standalone HTML handler ดัก route ก่อน React ทำให้ app-extra.tsx ไม่ทำงาน
+  LESSON (พี่ช้าง): ดูสิ่งที่ทำงานได้ก่อนเสมอ — อย่า guess
+  pm2: online 84.1mb ✅
+
+----------------------------------------------------------------
 ================================================================
 E-TAX CENTER — SSH DEPLOY KEY BACKUP
 ================================================================
