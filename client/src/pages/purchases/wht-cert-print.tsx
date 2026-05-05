@@ -400,7 +400,7 @@ export function WhtCertContent({ data, dateEra = "CE", dateFmt = "DD/MM/YYYY" }:
                     <span style={{ ...S.dotline, width: "25px", textAlign: "center", display: "inline-block" }}>{dateParts.day}</span> / <span style={{ ...S.dotline, width: "55px", textAlign: "center", display: "inline-block" }}>{dateParts.month}</span> / <span style={{ ...S.dotline, width: "35px", textAlign: "center", display: "inline-block" }}>{dateParts.year}</span>
                   </td>
                   <td style={{ border: "none", paddingTop: "4px" }}></td>
-                  <td style={{ textAlign: "left", whiteSpace: "nowrap", paddingLeft: "8px", paddingTop: "4px", fontSize: "9px", color: "#666", border: "none" }}>(ถ้ามี)</td>
+                  {!data.stampUrl && <td style={{ textAlign: "left", whiteSpace: "nowrap", paddingLeft: "8px", paddingTop: "4px", fontSize: "9px", color: "#666", border: "none" }}>(ถ้ามี)</td>}
                 </tr>
                 <tr>
                   <td style={{ border: "none" }}></td>
