@@ -1963,6 +1963,16 @@ export default function SysAdminManagement() {
 
         {activeTab === "audit" && (
           <div className="space-y-3" data-testid="audit-log-section">
+            {/* Follow-up note: bootstrap actions only visible on fresh server */}
+            <div className="flex items-start gap-2 rounded-md border border-dashed border-blue-300 bg-blue-50 px-3 py-2 text-xs text-blue-700">
+              <span className="shrink-0 rounded bg-blue-200 px-1.5 py-0.5 font-bold uppercase tracking-wide text-blue-800 text-[10px]">NOTE</span>
+              <span>
+                2 action ที่ยังไม่ได้ verify เพราะเกิดขึ้นก่อน audit log ถูก fix:{" "}
+                <span className="font-semibold">bootstrap_master</span> (สร้าง Master SysAdmin ครั้งแรก) และ{" "}
+                <span className="font-semibold">create_sysadmin</span> (สร้าง non-master คนแรก){" "}
+                — ต้อง test บน server ใหม่ (fresh) เท่านั้น
+              </span>
+            </div>
             {/* Filter Bar */}
             <div className="bg-white border rounded-xl p-3 flex flex-wrap gap-2 items-end">
               <div className="flex-1 min-w-[180px]">
