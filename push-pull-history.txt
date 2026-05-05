@@ -209,7 +209,7 @@ DEPLOY LOG (latest first):
        (4) iOS: open in new tab (_blank), Android: direct URL
        (5) Both billing-note and credit-note now use same sendShareDocHtml helper (DRY)
   Server: git fetch origin && git checkout origin/main -- server/share-og.ts && npm run build && pm2 restart etax-center
-  Result: pending
+  Result: ✅ online 81.7mb
 
 [#43] 2026-05-05 — Credit note share PDF: raw SQL in buildPdfDataByToken
   Commit: 955d56c9
