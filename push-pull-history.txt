@@ -102,6 +102,28 @@ WHY THIS ORDER MATTERS:
 LESSONS & REFLECTIONS — A LIVING JOURNAL
 (newest first — add entries when something is learned, corrected, or understood)
 
+[2026-05-05] — *-extra files do NOT get called by protected files. Ever.
+
+  *-extra files (app-extra.tsx, schema-extra.ts) were created AFTER the protected files were frozen.
+  Protected files were frozen BECAUSE the other 90% of the system works.
+  Nobody wanted to risk breaking working screens by touching them.
+
+  The protected files were frozen BEFORE any *-extra file existed.
+  Therefore: protected files cannot import or call any *-extra file.
+  It is physically impossible for production App.tsx to call AppExtra.
+
+  The purpose of *-extra files is to bypass protected files — they are called
+  from OTHER non-protected files, or they are standalone entry points.
+  They do NOT get invoked through the protected parent file.
+
+  Consequence for share pages:
+    - app-extra.tsx is NEVER rendered on production (App.tsx doesn't call it)
+    - The ONLY correct pattern for share URLs is standalone HTML from Express
+    - This bypasses index.html / React / App.tsx entirely
+    - Confirmed in book entry [2026-05-05] bรรทัด 140-145: "This is the correct pattern
+      for any share URL that App.tsx cannot be patched to include."
+    - DO NOT attempt to route share URLs through SPA/React/AppExtra ever.
+
 [2026-05-05] — Incomplete dependency push = build fail on production
 
   CORRECTION: There are no "production-only files." EVERYTHING on production came from GitHub.
