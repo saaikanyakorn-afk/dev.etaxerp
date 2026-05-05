@@ -1378,8 +1378,8 @@ function PolicySettingsDialog({ policy, onClose }: { policy: PasswordPolicy; onC
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <div>
-                  <Label className="text-sm">2FA (Two-Factor Authentication)</Label>
-                  <p className="text-xs text-gray-400">บังคับยืนยันตัวตน 2 ขั้นตอน</p>
+                  <Label className="text-sm">บังคับ 2FA ทุกคน (Require 2FA for all)</Label>
+                  <p className="text-xs text-gray-400">SysAdmin ทุกคนต้องตั้งค่า 2FA ก่อน login ได้ — ไม่เกี่ยวกับสถานะ 2FA ส่วนตัว</p>
                 </div>
                 <Switch checked={form.require2fa} onCheckedChange={v => setForm({ ...form, require2fa: v })} data-testid="switch-policy-2fa" />
               </div>
