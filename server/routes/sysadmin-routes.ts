@@ -19,6 +19,8 @@ async function requireSysAdminAuth(req: Request, res: Response, next: NextFuncti
   if (session.sysAdminLastActivity) {
     const elapsed = Date.now() - session.sysAdminLastActivity;
     if (elapsed > policy.sessionTimeoutMinutes * 60000) {
+      await logAudit(req, "session_timeout", "sysadmin", session.sysAdminId, undefined,
+        `Session หมดอายุหลังไม่มีการใช้งาน ${policy.sessionTimeoutMinutes} นาที`);
       delete session.sysAdminId;
       delete session.sysAdminLastActivity;
       return res.status(440).json({ message: `Session หมดอายุ (ไม่มีการใช้งาน ${policy.sessionTimeoutMinutes} นาที)`, sessionExpired: true });
@@ -1016,7 +1018,7 @@ export function registerSysAdminRoutes(app: Express) {
   });
 
   const AUDIT_CATEGORY_ACTIONS: Record<string, string[]> = {
-    auth: ["login_success", "login_failed", "login_blocked", "login_blocked_ip", "login_locked", "login_2fa_pending", "login_2fa_otp_sent", "login_2fa_verified", "logout", "account_locked"],
+    auth: ["login_success", "login_failed", "login_blocked", "login_blocked_ip", "login_locked", "login_2fa_pending", "login_2fa_otp_sent", "login_2fa_verified", "logout", "session_timeout", "account_locked"],
     setup: ["bootstrap_master", "bootstrap_2fa_sent", "bootstrap_2fa_email_pending", "bootstrap_2fa_verified", "bootstrap_2fa_email_skipped"],
     user_mgmt: ["create_sysadmin", "update_sysadmin", "delete_sysadmin"],
     security: ["change_password", "reset_password", "force_change_password", "unlock_account", "update_password_policy", "reset_2fa", "delete_audit_logs"],

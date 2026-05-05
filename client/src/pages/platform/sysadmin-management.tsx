@@ -1518,7 +1518,7 @@ const AUDIT_CATEGORIES: Record<string, { label: string; style: string; icon: Rea
     label: "Authentication",
     style: "bg-blue-50 text-blue-700 border-blue-200",
     icon: <LogIn className="h-3 w-3" />,
-    actions: ["login_success", "login_failed", "login_blocked", "login_blocked_ip", "login_locked", "login_2fa_pending", "login_2fa_otp_sent", "login_2fa_verified", "logout", "account_locked"],
+    actions: ["login_success", "login_failed", "login_blocked", "login_blocked_ip", "login_locked", "login_2fa_pending", "login_2fa_otp_sent", "login_2fa_verified", "logout", "session_timeout", "account_locked"],
   },
   user_mgmt: {
     label: "User Mgmt",
@@ -1550,7 +1550,7 @@ function getAuditCategory(action: string) {
 function getActionBadgeColor(action: string): string {
   const red = ["login_failed", "login_blocked", "login_blocked_ip", "account_locked", "delete_sysadmin", "delete_audit_logs"];
   const green = ["login_success", "login_2fa_verified", "create_sysadmin", "unlock_account", "bootstrap_2fa_verified"];
-  const amber = ["login_locked", "login_blocked", "force_change_password", "login_2fa_pending"];
+  const amber = ["login_locked", "login_blocked", "force_change_password", "login_2fa_pending", "session_timeout"];
   const gray = ["logout", "login_2fa_otp_sent", "login_2fa_pending", "bootstrap_2fa_sent", "bootstrap_2fa_email_pending"];
   if (red.includes(action)) return "border-rose-300 text-rose-700 bg-rose-50";
   if (green.includes(action)) return "border-emerald-300 text-emerald-700 bg-emerald-50";

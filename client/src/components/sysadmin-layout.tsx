@@ -27,6 +27,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useToast } from "@/hooks/use-toast";
 
 interface NavChild {
   label: string;
@@ -309,6 +310,7 @@ function NavGroup({ item, location }: { item: NavItem; location: string }) {
 export default function SysAdminLayout({ children }: { children: React.ReactNode }) {
   const [location, setLocation] = useLocation();
   const queryClient = useQueryClient();
+  const { toast } = useToast();
 
   const { data: me, isLoading, isError } = useQuery<SysAdminMe>({
     queryKey: ["/api/sysadmin/me"],
@@ -323,8 +325,14 @@ export default function SysAdminLayout({ children }: { children: React.ReactNode
 
   const handleSessionExpired = useCallback(() => {
     queryClient.removeQueries({ queryKey: ["/api/sysadmin/me"] });
-    setLocation("/sys-k7x9");
-  }, [queryClient, setLocation]);
+    toast({
+      title: "Session หมดอายุ",
+      description: "ไม่มีการใช้งานเกินกำหนด — กรุณาเข้าสู่ระบบใหม่",
+      variant: "destructive",
+      duration: 5000,
+    });
+    setTimeout(() => setLocation("/sys-k7x9"), 1500);
+  }, [queryClient, setLocation, toast]);
 
   useEffect(() => {
     const interceptor = (event: PromiseRejectionEvent) => {
