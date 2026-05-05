@@ -1253,9 +1253,14 @@ function ResetPasswordDialog({ admin, onClose, policy }: { admin: SysAdminUser; 
   );
 }
 
-function PolicySettingsDialog({ policy, onClose }: { policy: PasswordPolicy; onClose: () => void }) {
+function PolicySettingsDialog({ policy, me, onClose }: { policy: PasswordPolicy; me: SysAdminUser; onClose: () => void }) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
+
+  // require2fa reflects THIS user's status:
+  // master → always true (forced), non-master → true if they have a 2FA method set
+  const my2faValue = me.isMaster ? true : !!(me.twoFactorMethod);
+
   const [form, setForm] = useState({
     minLength: policy.minLength,
     requireUppercase: policy.requireUppercase,
@@ -1267,7 +1272,7 @@ function PolicySettingsDialog({ policy, onClose }: { policy: PasswordPolicy; onC
     maxFailedAttempts: policy.maxFailedAttempts,
     lockoutMinutes: policy.lockoutMinutes,
     sessionTimeoutMinutes: policy.sessionTimeoutMinutes,
-    require2fa: policy.require2fa,
+    require2fa: my2faValue,
     ipWhitelistEnabled: policy.ipWhitelistEnabled,
     ipWhitelist: (policy.ipWhitelist || []).join("\n"),
   });
@@ -1378,10 +1383,26 @@ function PolicySettingsDialog({ policy, onClose }: { policy: PasswordPolicy; onC
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <div>
-                  <Label className="text-sm">บังคับ 2FA ทุกคน (Require 2FA for all)</Label>
-                  <p className="text-xs text-gray-400">SysAdmin ทุกคนต้องตั้งค่า 2FA ก่อน login ได้ — ไม่เกี่ยวกับสถานะ 2FA ส่วนตัว</p>
+                  <Label className="text-sm flex items-center gap-1.5">
+                    2FA (สำหรับฉัน)
+                    {me.isMaster && <span className="text-[10px] bg-red-100 text-red-600 border border-red-200 rounded px-1.5 py-0.5 font-semibold">Master — บังคับเสมอ</span>}
+                  </Label>
+                  <p className="text-xs text-gray-400">
+                    {me.isMaster
+                      ? "Master SysAdmin ต้องผ่าน 2FA ทุกครั้งที่ login — เปลี่ยนไม่ได้"
+                      : "เปิด = ต้องผ่าน 2FA ทุกครั้ง · ปิด = ข้าม 2FA ได้"}
+                  </p>
+                  <div className="flex items-start gap-2 rounded-md border border-dashed border-amber-300 bg-amber-50 px-2 py-1.5 text-xs text-amber-700 mt-1">
+                    <span className="shrink-0 rounded bg-amber-200 px-1.5 py-0.5 font-bold uppercase tracking-wide text-amber-800 text-[10px]">TODO</span>
+                    <span>ต้องเพิ่ม column <code className="bg-amber-100 px-1 rounded">require_2fa</code> ใน <code className="bg-amber-100 px-1 rounded">sys_admins</code> (per-user) + enforce ใน login flow (backend task)</span>
+                  </div>
                 </div>
-                <Switch checked={form.require2fa} onCheckedChange={v => setForm({ ...form, require2fa: v })} data-testid="switch-policy-2fa" />
+                <Switch
+                  checked={form.require2fa}
+                  onCheckedChange={v => !me.isMaster && setForm({ ...form, require2fa: v })}
+                  disabled={me.isMaster}
+                  data-testid="switch-policy-2fa"
+                />
               </div>
               <div className="flex items-center justify-between">
                 <div>
@@ -2119,7 +2140,7 @@ export default function SysAdminManagement() {
       {showAdd && <AddSysAdminDialog onClose={() => setShowAdd(false)} policy={policy || null} />}
       {editTarget && <EditSysAdminDialog admin={editTarget} me={meData} onClose={() => setEditTarget(null)} />}
       {resetTarget && <ResetPasswordDialog admin={resetTarget} onClose={() => setResetTarget(null)} policy={policy || null} />}
-      {showPolicy && policy && <PolicySettingsDialog policy={policy} onClose={() => setShowPolicy(false)} />}
+      {showPolicy && policy && meData && <PolicySettingsDialog policy={policy} me={meData as SysAdminUser} onClose={() => setShowPolicy(false)} />}
       {show2FA && meData && <My2FADialog me={meData as SysAdminUser} onClose={() => setShow2FA(false)} />}
       {showSmtp && <SmtpConfigDialog onClose={() => setShowSmtp(false)} />}
 
