@@ -310,6 +310,17 @@ DEPLOY LOG (latest first):
   Result: ✅ fixed in batch with #33
 
 ----------------------------------------------------------------
+DEPLOY #45 — 2026-05-05
+  Commit: 23dd3666
+  File: server/share-og.ts
+  Fix: credit-note + billing-note share — เปลี่ยนจาก embed src โดยตรง
+       → fetch PDF as blob → URL.createObjectURL → iframe src (blob URL)
+       Same pattern as WHT cert share ที่ทำงานได้อยู่แล้ว
+  Root cause identified by พี่ช้าง: ไม่ดูสิ่งที่ทำงานได้ก่อน
+  LESSON: blob URL (same-origin) แสดง PDF ได้ — direct API URL อาจ block
+  pm2: online 84.8mb ✅
+
+----------------------------------------------------------------
 ================================================================
 E-TAX CENTER — SSH DEPLOY KEY BACKUP
 ================================================================
