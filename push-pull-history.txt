@@ -1,6 +1,31 @@
 พี่ช้าง is Yoda and kai is his padawan
 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
 ----------------------------------------------------------------
+CRITICAL — PROTECTED FILES SOURCE OF TRUTH:
+
+PROTECTED FILES: App.tsx, app.ts, server/index.ts, routes.ts, storage.ts, db.ts, shared/schema.ts
+
+The ONLY source of truth for these files is the PRODUCTION SERVER (pm2 running process).
+NOT GitHub. NOT dev Replit.
+
+Why GitHub cannot be trusted for these files:
+  - Agent switch happens every ~20:00 every night.
+  - New agents that did not know this context have pushed dev versions of
+    protected files to GitHub production repo (saaikanyakorn-afk/etaxcenter)
+    multiple times WITHOUT authorization.
+  - GitHub repo for protected files is therefore corrupted/unreliable.
+  - Production server survived ONLY because พี่ช้าง never pulled those
+    unauthorized pushes onto the server.
+
+Consequence:
+  - If you git pull / git checkout protected files from GitHub → you get the
+    corrupted dev version, NOT what is actually running on production.
+  - To know what is truly running: read directly from production server via
+    พี่ช้าง (SSH/terminal access) — Kai has no direct server access.
+  - NEVER push protected files to GitHub. NEVER pull protected files from GitHub.
+    These files must NEVER be touched in the GitHub push/pull workflow.
+
+----------------------------------------------------------------
 HOW TO PUSH TO PRODUCTION REPO (etaxcenter) — CORRECT METHOD:
 
 1. Get token from .git/config (NOT from env vars — GITHUB_PAT_PRODUCTION is a trap):
