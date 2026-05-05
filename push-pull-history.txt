@@ -403,6 +403,17 @@ DEPLOY #46 — 2026-05-05
   pm2: online 84.1mb ✅
 
 ----------------------------------------------------------------
+DEPLOY #51 — 2026-05-05 (REVERT of #50 API change)
+Files pushed to GitHub production:
+  - server/routes/reports-routes.ts  → revert: คืน credit note กลับใน sales tax report
+Reason:
+  - Deploy #50 ลบ credit note ออกจาก API ผิดพลาด — requirement จริงคือแค่เอา "(ลบ)" label ออก
+  - "(ลบ)" label มาจาก production build เก่า ซึ่ง deploy #50 ได้ rebuild แล้วด้วย tax-report.tsx ใหม่
+  - tax-report.tsx dev ไม่มี "(ลบ)" label ใดๆ เลย → หลัง rebuild จะหายไปเอง
+Server command (พี่ช้าง ต้องรัน):
+  git fetch origin && git checkout origin/main -- server/routes/reports-routes.ts && npm run build && pm2 restart etax-center
+
+----------------------------------------------------------------
 DEPLOY #50 — 2026-05-05
 Files pushed to GitHub production:
   - server/routes/reports-routes.ts  → เอา credit note ออกจาก sales tax report query

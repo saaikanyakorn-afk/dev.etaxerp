@@ -1861,12 +1861,27 @@ app.get("/api/reports/sales-tax", requireAuth, requireModule("accounting"), asyn
     if (filterDepartment) tivConditions.push(sql`${taxInvoices.department} = ${filterDepartment}`);
     if (filterSalesperson) tivConditions.push(sql`${taxInvoices.salesperson} = ${filterSalesperson}`);
 
-    const [taxInvs] = await Promise.all([
+    const cnConditions: any[] = [
+      eq(salesCreditNotes.companyId, companyId),
+      sql`${salesCreditNotes.creditNoteDate} >= ${startDate}`,
+      sql`${salesCreditNotes.creditNoteDate} <= ${endDate}`,
+      sql`${salesCreditNotes.status} != 'cancelled'`,
+    ];
+    if (filterBranch) cnConditions.push(sql`${salesCreditNotes.branch} = ${filterBranch}`);
+    if (filterSellerBranch) cnConditions.push(sql`${salesCreditNotes.sellerBranchId} = ${filterSellerBranch}`);
+
+    const [taxInvs, creditNotes] = await Promise.all([
       db.select().from(taxInvoices)
         .where(and(...tivConditions))
         .orderBy(
           sortBy === "number" ? taxInvoices.taxInvoiceNo : taxInvoices.taxInvoiceDate,
           taxInvoices.id,
+        ),
+      db.select().from(salesCreditNotes)
+        .where(and(...cnConditions))
+        .orderBy(
+          sortBy === "number" ? salesCreditNotes.creditNoteNo : salesCreditNotes.creditNoteDate,
+          salesCreditNotes.id,
         ),
     ]);
 
@@ -1894,6 +1909,26 @@ app.get("/api/reports/sales-tax", requireAuth, requireModule("accounting"), asyn
         posSessionId: inv.posSessionId || null,
         sortDate: inv.taxInvoiceDate,
         sortNo: inv.taxInvoiceNo,
+      });
+    });
+
+    creditNotes.forEach((cn) => {
+      allRows.push({
+        id: cn.id,
+        date: cn.creditNoteDate,
+        taxInvoiceNo: cn.creditNoteNo,
+        customerName: cn.customerName,
+        customerTaxId: cn.customerTaxId || "-",
+        branch: cn.branch || "สำนักงานใหญ่",
+        subtotal: -parseFloat(cn.subtotal || "0"),
+        totalAmount: -parseFloat(cn.totalAmount || "0"),
+        vatAmount: -parseFloat(cn.vatAmount || "0"),
+        isCreditNote: true,
+        isDebitNote: false,
+        refTaxInvoiceNo: cn.refTaxInvoiceNo || null,
+        refTaxInvoiceDate: cn.refTaxInvoiceDate || null,
+        sortDate: cn.creditNoteDate,
+        sortNo: cn.creditNoteNo,
       });
     });
 
