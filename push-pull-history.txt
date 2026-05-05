@@ -102,33 +102,40 @@ WHY THIS ORDER MATTERS:
 LESSONS & REFLECTIONS — A LIVING JOURNAL
 (newest first — add entries when something is learned, corrected, or understood)
 
-[2026-05-05] — Production-only files and the static import trap
+[2026-05-05] — Incomplete dependency push = build fail on production
 
-  pdf-wht-cert.ts exists on the production server (C:\GitApp\etaxcenter\server\) but is NOT
-  in the GitHub repo and NOT in dev Replit. It is a production-only file.
+  CORRECTION: There are no "production-only files." EVERYTHING on production came from GitHub.
+  Nobody touches code on production directly. Ever. Not Kai, not พี่ช้าง.
+  The only exception is protected files — pulled from GitHub once, never pulled again.
 
-  The original production expense-routes.ts did NOT have a static import for it.
-  Dev expense-routes.ts DID — `import { generateWhtCertPdf } from "../pdf-wht-cert"`.
-  When Kai pushed the dev version to production, esbuild failed immediately:
-    "Could not resolve '../pdf-wht-cert'"
-  esbuild requires ALL static imports to resolve at build time. No file = build fails.
-  tsx/ts-node (dev) loads files lazily at runtime — so the same import never failed on dev.
-  This is why dev build passed but production build broke.
+  What actually happened with pdf-wht-cert.ts:
+    - pdf-wht-cert.ts does NOT exist in the GitHub repo.
+    - Production expense-routes.ts (the GitHub version at the time) did NOT import it.
+    - Dev expense-routes.ts DID import it — a dev-side feature addition that was never
+      completed (pdf-wht-cert.ts was written in dev but never pushed to GitHub).
+    - Kai pushed the dev expense-routes.ts to production without pushing pdf-wht-cert.ts.
+    - Production now had an import pointing to a file GitHub has never seen → esbuild fail.
 
-  The fix: replace static import with a dynamic try/require at runtime:
-    let generateWhtCertPdf = async () => { throw new Error("not available"); };
+  The real lesson:
+    Dev codebase and production codebase can DIVERGE.
+    Dev has features in progress, half-pushed files, imports to modules not yet in GitHub.
+    Production has only what was intentionally pushed and properly built.
+    When you push a server file from dev → always check every import in that file.
+    If the imported module is not in the GitHub repo → you MUST push it too (if safe),
+    or refactor the import away, before the push will build on production.
+
+  The mechanical difference between dev and production build:
+    Dev runs with tsx/ts-node — resolves imports lazily at runtime.
+      Missing file → only fails when that code path is actually called.
+    Production runs esbuild — resolves ALL static imports at build time.
+      Missing file → build fails immediately, nothing runs at all.
+    This is why "it works on dev" is not enough. Static imports are a build-time contract.
+
+  The fix applied (dynamic require):
+    Let generateWhtCertPdf = async () => { throw new Error("not available"); };
     try { generateWhtCertPdf = require("../pdf-wht-cert").generateWhtCertPdf; } catch {}
-  esbuild sees a runtime require() with no static analysis obligation → build passes.
-  If the file exists on the server, it loads at runtime correctly.
-  If it doesn't exist, the fallback error is thrown only when the function is called.
-
-  Rule going forward:
-    Before pushing a server file from dev to production — check every import.
-    If the imported module does not exist in the GitHub repo, it likely does not exist
-    in production's git-tracked tree either. Either:
-      (a) Push the dependency file too (if safe), OR
-      (b) Convert the import to dynamic require() to make it runtime-optional.
-    Static imports are a build-time contract. Production esbuild will enforce it.
+    esbuild skips runtime require() in static analysis → build passes.
+    If pdf-wht-cert.ts is later pushed to GitHub and pulled → it loads correctly at runtime.
 
   On the billing-note share bug (redirect to login):
     Root cause: App.tsx (protected) does not have `/share/billing-note/:token` as a
