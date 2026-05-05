@@ -201,6 +201,16 @@ WHAT DOES NOT WORK (tested 2026-05-04):
 ----------------------------------------------------------------
 DEPLOY LOG (latest first):
 
+[#44] 2026-05-05 — share-og.ts: refactor billing-note & credit-note to shared sendShareDocHtml
+  Commit: e4f2b1f5
+  Fix: (1) #content has flex:1;display:flex;flex-direction:column;min-height:0 → embed fills height
+       (2) Use <embed type="application/pdf"> instead of <iframe> — better browser compat
+       (3) Detect ALL mobile: /android|iphone|ipad|ipod/i → show "เปิด PDF" button instead of embed
+       (4) iOS: open in new tab (_blank), Android: direct URL
+       (5) Both billing-note and credit-note now use same sendShareDocHtml helper (DRY)
+  Server: git fetch origin && git checkout origin/main -- server/share-og.ts && npm run build && pm2 restart etax-center
+  Result: pending
+
 [#43] 2026-05-05 — Credit note share PDF: raw SQL in buildPdfDataByToken
   Commit: 955d56c9
   Fix: buildPdfDataByToken (pdf-data-fetcher.ts) — credit_note path now uses raw SQL to lookup id
