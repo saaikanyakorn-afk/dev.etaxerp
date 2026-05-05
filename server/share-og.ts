@@ -393,6 +393,118 @@ export async function billingNoteShareHandler(req: Request, res: Response, next:
   }
 }
 
+export async function creditNoteShareHandler(req: Request, res: Response, next: NextFunction) {
+  const token = req.params.token;
+  const ua = req.headers["user-agent"] || "";
+  const host = req.get("host") || "";
+  const proto = req.headers["x-forwarded-proto"] || req.protocol || "https";
+  const baseUrl = `${proto}://${host}`;
+  const fullUrl = baseUrl + req.originalUrl;
+
+  if (BOT_RE.test(ua)) {
+    req.params.docType = "credit-note";
+    return shareOgHandler(req, res, next);
+  }
+
+  const pdfUrl = `${baseUrl}/api/share/credit-note/${token}/pdf`;
+  const ogImage = `${baseUrl}/api/og-image/credit-note/${token}.png`;
+
+  let docNo = "ใบลดหนี้";
+  let customerName = "";
+  let companyName = "E-Tax Center";
+  let totalAmount = "";
+
+  try {
+    const safeToken = token.replace(/'/g, "''");
+    const { db } = await import("./db");
+    const { sql } = await import("drizzle-orm");
+    const rows = await db.execute(sql.raw(`SELECT credit_note_no, customer_name, total_amount, company_id FROM sales_credit_notes WHERE share_token = '${safeToken}' LIMIT 1`));
+    const cn = (rows as any).rows?.[0];
+    if (cn) {
+      if (cn.credit_note_no) docNo = `ใบลดหนี้ ${cn.credit_note_no}`;
+      customerName = cn.customer_name || "";
+      totalAmount = cn.total_amount ? Number(cn.total_amount).toLocaleString("th-TH", { minimumFractionDigits: 2 }) : "";
+      if (cn.company_id) {
+        const { companies } = await import("@shared/schema");
+        const { eq } = await import("drizzle-orm");
+        const [co] = await db.select().from(companies).where(eq(companies.id, Number(cn.company_id)));
+        if (co) companyName = co.name;
+      }
+    }
+  } catch {}
+
+  const title = escHtml(docNo);
+  const desc = escHtml(`${companyName}${customerName ? ` → ${customerName}` : ""}${totalAmount ? ` | ยอด ฿${totalAmount}` : ""}`);
+
+  res.status(200).set({ "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-cache" }).end(
+`<!DOCTYPE html><html lang="th"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${title} - E-Tax Center</title>
+<meta property="og:title" content="${title}" />
+<meta property="og:description" content="${desc}" />
+<meta property="og:type" content="website" />
+<meta property="og:image" content="${escHtml(ogImage)}" />
+<meta property="og:url" content="${escHtml(fullUrl)}" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="${title}" />
+<meta name="twitter:description" content="${desc}" />
+<meta name="twitter:image" content="${escHtml(ogImage)}" />
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{display:flex;flex-direction:column;min-height:100vh;background:#334155;font-family:sans-serif}
+.bar{position:sticky;top:0;z-index:50;background:#1e293b;border-bottom:1px solid #475569;padding:10px 16px;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.bar-left{display:flex;align-items:center;gap:8px;min-width:0;color:#fff;font-size:14px;font-weight:500;overflow:hidden}
+.bar-left svg{flex-shrink:0;color:#22c55e}
+.bar-left span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bar-right{display:flex;gap:8px;flex-shrink:0}
+.btn{display:flex;align-items:center;gap:6px;padding:6px 12px;border:none;border-radius:6px;font-size:12px;cursor:pointer;text-decoration:none}
+.btn-ghost{background:transparent;color:#94a3b8}.btn-ghost:hover{background:#334155;color:#fff}
+.btn-primary{background:#16a34a;color:#fff}.btn-primary:hover{opacity:.9}
+.android-wrap{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:24px;padding:32px;text-align:center}
+.android-icon{font-size:64px;opacity:.4}
+.android-title{color:#fff;font-size:18px;font-weight:600;margin-bottom:4px}
+.android-sub{color:#94a3b8;font-size:14px}
+</style></head>
+<body>
+<div class="bar">
+  <div class="bar-left">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+    <span>${title}</span>
+  </div>
+  <div class="bar-right">
+    <button class="btn btn-ghost" id="btnPrint" onclick="doPrint()">
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+      <span class="dsk">พิมพ์</span>
+    </button>
+    <a class="btn btn-primary" href="${escHtml(pdfUrl)}" download="${title}.pdf" id="btnDl">
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      <span class="dsk">ดาวน์โหลด PDF</span>
+    </a>
+  </div>
+</div>
+<div id="content"></div>
+<script>
+var isAndroid=/android/i.test(navigator.userAgent);
+var pdfUrl=${JSON.stringify(pdfUrl)};
+var docTitle=${JSON.stringify(docNo)};
+var content=document.getElementById('content');
+if(isAndroid){
+  content.className='android-wrap';
+  content.innerHTML='<div class="android-icon">📄</div><div><div class="android-title">'+docTitle+'</div><div class="android-sub">กดปุ่มดาวน์โหลดเพื่อเปิด PDF</div></div>';
+  document.getElementById('btnPrint').style.display='none';
+  document.getElementById('btnDl').setAttribute('href',pdfUrl);
+  document.getElementById('btnDl').removeAttribute('download');
+}else{
+  var ifr=document.createElement('iframe');
+  ifr.src=pdfUrl;ifr.id='pdfFrame';
+  ifr.style.cssText='flex:1;width:100%;border:0;min-height:calc(100vh - 48px)';
+  content.appendChild(ifr);
+}
+function doPrint(){var f=document.getElementById('pdfFrame');if(!f||!f.contentWindow)return;var p=document.title;document.title=docTitle;setTimeout(function(){document.title=p;},1000);f.contentWindow.print();}
+</script>
+</body></html>`);
+}
+
 export async function contractOgHandler(req: Request, res: Response, next: NextFunction) {
   const ua = req.headers["user-agent"] || "";
   if (!BOT_RE.test(ua)) return next();
