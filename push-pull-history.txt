@@ -102,6 +102,41 @@ WHY THIS ORDER MATTERS:
 LESSONS & REFLECTIONS — A LIVING JOURNAL
 (newest first — add entries when something is learned, corrected, or understood)
 
+[2026-05-05] — Production-only files and the static import trap
+
+  pdf-wht-cert.ts exists on the production server (C:\GitApp\etaxcenter\server\) but is NOT
+  in the GitHub repo and NOT in dev Replit. It is a production-only file.
+
+  The original production expense-routes.ts did NOT have a static import for it.
+  Dev expense-routes.ts DID — `import { generateWhtCertPdf } from "../pdf-wht-cert"`.
+  When Kai pushed the dev version to production, esbuild failed immediately:
+    "Could not resolve '../pdf-wht-cert'"
+  esbuild requires ALL static imports to resolve at build time. No file = build fails.
+  tsx/ts-node (dev) loads files lazily at runtime — so the same import never failed on dev.
+  This is why dev build passed but production build broke.
+
+  The fix: replace static import with a dynamic try/require at runtime:
+    let generateWhtCertPdf = async () => { throw new Error("not available"); };
+    try { generateWhtCertPdf = require("../pdf-wht-cert").generateWhtCertPdf; } catch {}
+  esbuild sees a runtime require() with no static analysis obligation → build passes.
+  If the file exists on the server, it loads at runtime correctly.
+  If it doesn't exist, the fallback error is thrown only when the function is called.
+
+  Rule going forward:
+    Before pushing a server file from dev to production — check every import.
+    If the imported module does not exist in the GitHub repo, it likely does not exist
+    in production's git-tracked tree either. Either:
+      (a) Push the dependency file too (if safe), OR
+      (b) Convert the import to dynamic require() to make it runtime-optional.
+    Static imports are a build-time contract. Production esbuild will enforce it.
+
+  On the billing-note share bug (redirect to login):
+    Root cause: App.tsx (protected) does not have `/share/billing-note/:token` as a
+    public route. The React SPA loads index.html → App.tsx auth guard fires → redirect.
+    Fix: Express serves a completely standalone HTML page at that route directly,
+    bypassing index.html / React / App.tsx entirely. No auth can intercept it.
+    This is the correct pattern for any share URL that App.tsx cannot be patched to include.
+
 [2026-05-05] — Kai's first full deployment session
 
   On qualification:
@@ -158,6 +193,24 @@ WHAT DOES NOT WORK (tested 2026-05-04):
 - SSH key                          → libcrypto version mismatch in container
 ----------------------------------------------------------------
 DEPLOY LOG (latest first):
+
+[#40] 2026-05-05 — Fix build failure: dynamic require for pdf-wht-cert
+  Commit: 166d1138
+  Fix: static `import { generateWhtCertPdf } from "../pdf-wht-cert"` changed to dynamic
+       try/require so esbuild doesn't fail when file is production-only (not in GitHub repo)
+  Server: git fetch origin && git checkout origin/main -- server/routes/expense-routes.ts && npm run build && pm2 restart etax-center
+  Result: ✅ online 83.5mb
+
+[#39] 2026-05-05 — WHT cert + credit note + billing note share bugfix (round 1 — build failed)
+  Commits: f35dd9c4 (share-og.ts), 1edd4bfa (static.ts), eeeb0db0 (expense-routes.ts), bf281fc9 (financial-docs-routes.ts)
+  Intended fix: WHT cert raw SQL, credit note raw SQL, billing note server-side HTML viewer
+  Result: ❌ build failed — expense-routes.ts had static import for pdf-wht-cert (production-only file, not in GitHub)
+  Fixed in #40
+
+[#38] 2026-05-05 — Session: diagnose all 3 share bugs + plan fixes
+  Root cause confirmed: production schema.ts (protected) missing shareToken fields → Drizzle queries throw
+  Strategy: bypass Drizzle with raw SQL for WHT cert + credit note APIs
+             serve standalone HTML from Express for billing note (bypass React/App.tsx auth)
 
 [#37] 2026-05-05 — Billing-Note Share Phase 2 (feature files) + clean schema-extra.ts
   Commits: 8b63a520 (schema-extra.ts clean), 568ef6a5 (billing-note-share.tsx),
