@@ -1,7 +1,7 @@
 import express, { type Express } from "express";
 import fs from "fs";
 import path from "path";
-import { shareOgHandler, contractOgHandler, billingNoteShareHandler, creditNoteShareHandler } from "./share-og";
+import { shareOgHandler, contractOgHandler } from "./share-og";
 
 export function serveStatic(app: Express) {
   const distPath = path.resolve(__dirname, "public");
@@ -19,8 +19,8 @@ export function serveStatic(app: Express) {
   app.get("/share/receipt/:token", (req, res, next) => { req.params.docType = "receipt"; shareOgHandler(req, res, next); });
   app.get("/share/order/:token", (req, res, next) => { req.params.docType = "order"; shareOgHandler(req, res, next); });
   app.get("/share/wht-cert/:token", (req, res, next) => { req.params.docType = "wht-cert"; shareOgHandler(req, res, next); });
-  app.get("/share/credit-note/:token", creditNoteShareHandler);
-  app.get("/share/billing-note/:token", billingNoteShareHandler);
+  app.get("/share/credit-note/:token", (req, res, next) => { req.params.docType = "credit-note"; shareOgHandler(req, res, next); });
+  app.get("/share/billing-note/:token", (req, res, next) => { req.params.docType = "billing-note"; shareOgHandler(req, res, next); });
   app.get("/sign/:token", contractOgHandler);
 
   app.use("/{*path}", (_req, res) => {
