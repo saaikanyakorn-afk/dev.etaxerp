@@ -767,6 +767,22 @@ function My2FADialog({ me, onClose }: { me: SysAdminUser; onClose: () => void })
               ? <span className="ml-2 text-green-600 text-[10px]">✓ Verified</span>
               : <span className="ml-2 text-amber-500 text-[10px]">⏳ ยังไม่ verify</span>}
           </p>
+          {/* Master lock banner */}
+          {me.isMaster && (
+            <div className="mt-2 flex items-center gap-2 rounded-md bg-red-50 border border-red-200 px-3 py-2 text-xs text-red-700">
+              <Lock className="h-3.5 w-3.5 shrink-0" />
+              <span><span className="font-semibold">Master SysAdmin</span> ต้องผ่าน 2FA ทุกครั้งที่ login — ไม่สามารถปิดได้ สามารถเปลี่ยน <span className="font-semibold">วิธี</span> 2FA ได้เท่านั้น</span>
+            </div>
+          )}
+          {/* Non-master info */}
+          {!me.isMaster && (
+            <div className="mt-2 flex items-center gap-2 rounded-md bg-blue-50 border border-blue-200 px-3 py-2 text-xs text-blue-700">
+              <ShieldCheck className="h-3.5 w-3.5 shrink-0" />
+              <span>เปลี่ยนวิธี 2FA ได้ที่นี่ · หากต้องการ<span className="font-semibold">ปิด</span> 2FA ทำได้ใน Password Policy settings
+                <span className="ml-1 text-[10px] text-blue-500">(TODO: backend enforce)</span>
+              </span>
+            </div>
+          )}
         </div>
 
         <div className="p-5 space-y-4">
