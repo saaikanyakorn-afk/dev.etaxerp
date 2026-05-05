@@ -113,7 +113,7 @@ DEPLOY LOG (latest first):
   Note: Phase 1b (clean schema-extra) should have been pushed before Phase 2 files.
         Lesson captured in CHECKLIST above.
   Server: git fetch origin && git checkout origin/main -- shared/schema-extra.ts client/src/pages/finance/billing-note-share.tsx client/src/app-extra.tsx server/static.ts server/share-og.ts && npm run build && pm2 restart etax-center
-  Result: pending พี่ช้าง server command
+  Result: ✅ online 83.8mb
 
 [#36] 2026-05-05 — Billing-Note Share Phase 1b (clean schema-extra.ts — comment out migration)
   Commit: 8b63a520
