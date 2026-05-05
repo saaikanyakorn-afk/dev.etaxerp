@@ -944,7 +944,7 @@ app.get("/api/dev/pdf-test-docs", requireAuth, async (req, res) => {
 });
 
 // ===================== Invoice Recompute Preview =====================
-app.get("/api/dev/invoice-recompute-preview", requireAdmin, async (req, res) => {
+app.get("/api/dev/invoice-recompute-preview", requireAuth, async (req, res) => {
   try {
     const companyId = Number(req.query.companyId);
     if (!companyId) return res.status(400).json({ message: "companyId required" });
