@@ -415,7 +415,7 @@ export function registerSysAdminRoutes(app: Express) {
         const session = req.session as any;
         session.sysAdmin2faPendingId = admin.id;
         session.sysAdmin2faAttempts = 0;
-        await logAudit(req, "login_2fa_pending", "sysadmin", admin.id, admin.username);
+        await logAudit(req, "login_2fa_pending", "sysadmin", admin.id, admin.username, `password OK · awaiting ${admin.twoFactorMethod} 2FA`);
         const passwordExpired = admin.passwordChangedAt
           ? (Date.now() - new Date(admin.passwordChangedAt).getTime()) > (admin.passwordExpiryDays * 86400000)
           : true;
@@ -434,7 +434,7 @@ export function registerSysAdminRoutes(app: Express) {
         ? (Date.now() - new Date(admin.passwordChangedAt).getTime()) > (admin.passwordExpiryDays * 86400000)
         : true;
 
-      await logAudit(req, "login_success", "sysadmin", admin.id, admin.username);
+      await logAudit(req, "login_success", "sysadmin", admin.id, admin.username, "no 2FA (direct login)");
 
       const { password: _, twoFactorSecret: _s, ...safeAdmin } = admin;
       res.json({
@@ -555,7 +555,7 @@ export function registerSysAdminRoutes(app: Express) {
       }
 
       const policy = await getPasswordPolicy();
-      await logAudit(req, "login_2fa_verified", "sysadmin", admin.id, admin.username);
+      await logAudit(req, "login_2fa_verified", "sysadmin", admin.id, admin.username, `${admin.twoFactorMethod} 2FA passed · login complete`);
 
       const { password: _, twoFactorSecret: _s, ...safeAdmin } = admin;
       const passwordExpired = admin.passwordChangedAt
@@ -574,7 +574,8 @@ export function registerSysAdminRoutes(app: Express) {
   app.post("/api/sysadmin/logout", async (req, res) => {
     const session = req.session as any;
     if (session.sysAdminId) {
-      await logAudit(req, "logout", "sysadmin", session.sysAdminId);
+      const [loggingOut] = await db.select({ id: sysAdmins.id, username: sysAdmins.username }).from(sysAdmins).where(eq(sysAdmins.id, session.sysAdminId)).limit(1);
+      await logAudit(req, "logout", "sysadmin", loggingOut?.id, loggingOut?.username, "session ended");
     }
     delete session.sysAdminId;
     delete session.sysAdminLastActivity;
@@ -734,7 +735,7 @@ export function registerSysAdminRoutes(app: Express) {
         passwordHash: hashed,
       });
 
-      await logAudit(req, "change_password", "sysadmin", admin.id, admin.username);
+      await logAudit(req, "change_password", "sysadmin", admin.id, admin.username, `new password: ${newPassword.length} chars`);
       res.json({ message: "เปลี่ยนรหัสผ่านสำเร็จ" });
     } catch (err: any) {
       res.status(500).json({ message: err.message });
@@ -816,6 +817,7 @@ export function registerSysAdminRoutes(app: Express) {
   app.post("/api/sysadmin/users", requireSysAdminAuth, async (req, res) => {
     try {
       const session = req.session as any;
+      const [callerAdmin] = await db.select().from(sysAdmins).where(eq(sysAdmins.id, session.sysAdminId)).limit(1);
       const { username, password, fullName, email, lineUserId, twoFactorMethod } = req.body;
       if (!username || !password || !fullName) {
         return res.status(400).json({ message: "กรุณากรอกข้อมูลให้ครบ" });
@@ -859,7 +861,7 @@ export function registerSysAdminRoutes(app: Express) {
         passwordHash: hashed,
       });
 
-      await logAudit(req, "create_sysadmin", "sysadmin", created.id, created.username, `Created by admin id=${session.sysAdminId}`);
+      await logAudit(req, "create_sysadmin", "sysadmin", created.id, created.username, `created by ${callerAdmin?.username} · 2FA: ${created.twoFactorMethod}`);
       const { password: _, ...safe } = created;
       res.status(201).json(safe);
     } catch (err: any) {
@@ -920,7 +922,7 @@ export function registerSysAdminRoutes(app: Express) {
       }
 
       await db.update(sysAdmins).set({ mustChangePassword: true }).where(eq(sysAdmins.id, targetId));
-      await logAudit(req, "force_change_password", "sysadmin", targetId, target.username);
+      await logAudit(req, "force_change_password", "sysadmin", targetId, target.username, `forced by ${caller?.username}`);
       res.json({ message: "ตั้งค่าให้ต้องเปลี่ยนรหัสผ่านครั้งถัดไปแล้ว" });
     } catch (err: any) {
       res.status(500).json({ message: err.message });
@@ -962,7 +964,7 @@ export function registerSysAdminRoutes(app: Express) {
         passwordHash: hashed,
       });
 
-      await logAudit(req, "reset_password", "sysadmin", targetId, target.username, `Reset by admin id=${session.sysAdminId}`);
+      await logAudit(req, "reset_password", "sysadmin", targetId, target.username, `reset by ${caller?.username} · new password: ${newPassword.length} chars`);
       res.json({ message: "รีเซ็ตรหัสผ่านสำเร็จ ผู้ใช้จะต้องเปลี่ยนรหัสผ่านในครั้งถัดไป" });
     } catch (err: any) {
       res.status(500).json({ message: err.message });
@@ -971,8 +973,12 @@ export function registerSysAdminRoutes(app: Express) {
 
   app.post("/api/sysadmin/users/:id/unlock", requireSysAdminAuth, async (req, res) => {
     try {
+      const session = req.session as any;
       const targetId = Number(req.params.id);
-      const [target] = await db.select().from(sysAdmins).where(eq(sysAdmins.id, targetId)).limit(1);
+      const [[target], [caller]] = await Promise.all([
+        db.select().from(sysAdmins).where(eq(sysAdmins.id, targetId)).limit(1),
+        db.select().from(sysAdmins).where(eq(sysAdmins.id, session.sysAdminId)).limit(1),
+      ]);
       if (!target) return res.status(404).json({ message: "ไม่พบ SysAdmin" });
 
       await db.update(sysAdmins).set({
@@ -980,7 +986,7 @@ export function registerSysAdminRoutes(app: Express) {
         lockedUntil: null,
       }).where(eq(sysAdmins.id, targetId));
 
-      await logAudit(req, "unlock_account", "sysadmin", targetId, target.username);
+      await logAudit(req, "unlock_account", "sysadmin", targetId, target.username, `unlocked by ${caller?.username}`);
       res.json({ message: "ปลดล็อคบัญชีสำเร็จ" });
     } catch (err: any) {
       res.status(500).json({ message: err.message });
@@ -1157,7 +1163,7 @@ export function registerSysAdminRoutes(app: Express) {
         totpSetupSecret: null,
         twoFactorVerified: true,
       }).where(eq(sysAdmins.id, admin.id));
-      await logAudit(req, "switch_2fa_totp", "sysadmin", admin.id, admin.username);
+      await logAudit(req, "switch_2fa_totp", "sysadmin", admin.id, admin.username, `${admin.twoFactorMethod || "none"} → totp`);
       res.json({ message: "เปิดใช้ TOTP/QR Code 2FA สำเร็จ" });
     } catch (err: any) {
       res.status(500).json({ message: err.message });
@@ -1172,7 +1178,7 @@ export function registerSysAdminRoutes(app: Express) {
       if (!admin) return res.status(404).json({ message: "ไม่พบ SysAdmin" });
       if (!admin.lineUserId) return res.status(400).json({ message: "ยังไม่มี LINE User ID กรุณาตั้งค่าใน Edit ก่อน" });
       await db.update(sysAdmins).set({ twoFactorMethod: "line", twoFactorVerified: false }).where(eq(sysAdmins.id, admin.id));
-      await logAudit(req, "switch_2fa_line", "sysadmin", admin.id, admin.username);
+      await logAudit(req, "switch_2fa_line", "sysadmin", admin.id, admin.username, `${admin.twoFactorMethod || "none"} → line`);
       res.json({ message: "เปลี่ยนไปใช้ LINE OTP แล้ว ต้อง verify ใหม่ครั้งถัดไป login" });
     } catch (err: any) {
       res.status(500).json({ message: err.message });
@@ -1219,7 +1225,7 @@ export function registerSysAdminRoutes(app: Express) {
         twoFactorMethod: "email",
         twoFactorVerified: true,
       }).where(eq(sysAdmins.id, admin.id));
-      await logAudit(req, "switch_2fa_email", "sysadmin", admin.id, admin.username);
+      await logAudit(req, "switch_2fa_email", "sysadmin", admin.id, admin.username, `${admin.twoFactorMethod || "none"} → email`);
       res.json({ message: "ยืนยัน Email สำเร็จ เปิดใช้ Email 2FA แล้ว" });
     } catch (err: any) {
       res.status(500).json({ message: err.message });
@@ -1322,7 +1328,7 @@ export function registerSysAdminRoutes(app: Express) {
       const { host, port, user, pass, from, secure } = req.body;
       if (!host || !user) return res.status(400).json({ message: "กรุณากรอก SMTP Host และ Username" });
       await saveSmtpConfig({ host, port: Number(port) || 587, user, pass, from: from || user, secure: !!secure });
-      await logAudit(req, "update_smtp_config", "sysadmin", caller.id, caller.username);
+      await logAudit(req, "update_smtp_config", "sysadmin", caller.id, caller.username, `host: ${host} · user: ${user}`);
       res.json({ message: "บันทึก SMTP config สำเร็จ" });
     } catch (err: any) {
       res.status(500).json({ message: err.message });
