@@ -616,6 +616,8 @@ function My2FADialog({ me, onClose }: { me: SysAdminUser; onClose: () => void })
   const [tab, setTab] = useState<"line" | "totp" | "email">(
     (me.twoFactorMethod as any) || "line"
   );
+  // master = always true, non-master = has method set
+  const [use2FA, setUse2FA] = useState(me.isMaster ? true : !!me.twoFactorMethod);
   const [totpUri, setTotpUri] = useState("");
   const [totpCode, setTotpCode] = useState("");
   const [totpLoading, setTotpLoading] = useState(false);
@@ -778,9 +780,7 @@ function My2FADialog({ me, onClose }: { me: SysAdminUser; onClose: () => void })
           {!me.isMaster && (
             <div className="mt-2 flex items-center gap-2 rounded-md bg-blue-50 border border-blue-200 px-3 py-2 text-xs text-blue-700">
               <ShieldCheck className="h-3.5 w-3.5 shrink-0" />
-              <span>เปลี่ยนวิธี 2FA ได้ที่นี่ · หากต้องการ<span className="font-semibold">ปิด</span> 2FA ทำได้ใน Password Policy settings
-                <span className="ml-1 text-[10px] text-blue-500">(TODO: backend enforce)</span>
-              </span>
+              <span>เปิด/ปิด และเปลี่ยนวิธี 2FA ของตัวเองได้ที่นี่</span>
             </div>
           )}
         </div>
@@ -821,8 +821,33 @@ function My2FADialog({ me, onClose }: { me: SysAdminUser; onClose: () => void })
             )}
           </div>
 
-          {/* 2FA Method tabs */}
-          <div>
+          {/* 2FA on/off toggle — non-master only */}
+          <div className="flex items-center justify-between rounded-lg border px-4 py-3">
+            <div>
+              <p className="text-sm font-medium flex items-center gap-1.5">
+                เปิดใช้ 2FA
+                {me.isMaster && <span className="text-[10px] bg-red-100 text-red-600 border border-red-200 rounded px-1.5 py-0.5 font-semibold">Master — บังคับเสมอ</span>}
+              </p>
+              <p className="text-xs text-gray-400 mt-0.5">
+                {me.isMaster ? "ไม่สามารถปิดได้" : use2FA ? "ต้องผ่าน 2FA ทุกครั้งที่ login" : "ข้าม 2FA ได้ (ยังไม่ enforce ใน backend)"}
+              </p>
+              {!me.isMaster && (
+                <div className="flex items-start gap-1.5 mt-1.5 rounded bg-amber-50 border border-dashed border-amber-300 px-2 py-1 text-[10px] text-amber-700">
+                  <span className="shrink-0 rounded bg-amber-200 px-1 py-0.5 font-bold uppercase tracking-wide text-amber-800">TODO</span>
+                  <span>ต้องเพิ่ม column <code className="bg-amber-100 px-0.5 rounded">require_2fa</code> ใน <code className="bg-amber-100 px-0.5 rounded">sys_admins</code> + enforce ใน login flow</span>
+                </div>
+              )}
+            </div>
+            <Switch
+              checked={use2FA}
+              onCheckedChange={v => !me.isMaster && setUse2FA(v)}
+              disabled={me.isMaster}
+              data-testid="switch-my-2fa-enabled"
+            />
+          </div>
+
+          {/* 2FA Method tabs — hidden when 2FA is off */}
+          <div className={use2FA ? "" : "hidden"}>
             <p className="text-sm font-medium mb-2">เลือกวิธี 2FA</p>
             <div className="grid grid-cols-3 gap-2 mb-4">
               {(["line", "totp", "email"] as const).map(m => (
