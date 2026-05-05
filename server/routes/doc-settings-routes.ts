@@ -112,6 +112,10 @@ app.get("/api/document-settings", requireAuth, async (req, res) => {
         }
       } catch {}
     }
+    try {
+      const sr = await db.execute((await import("drizzle-orm")).sql.raw(`SELECT stamp_url FROM document_settings WHERE company_id = ${companyId} LIMIT 1`));
+      (result as any).stampUrl = (sr as any).rows?.[0]?.stamp_url || null;
+    } catch {}
     res.json(result);
   } catch (err: any) {
     res.status(400).json({ message: err.message });
@@ -151,6 +155,10 @@ app.get("/api/document-settings/:companyId", requireAuth, async (req, res) => {
         }
       } catch {}
     }
+    try {
+      const sr = await db.execute((await import("drizzle-orm")).sql.raw(`SELECT stamp_url FROM document_settings WHERE company_id = ${companyId} LIMIT 1`));
+      (result as any).stampUrl = (sr as any).rows?.[0]?.stamp_url || null;
+    } catch {}
     res.json(result);
   } catch (err: any) {
     res.status(400).json({ message: err.message });
@@ -221,8 +229,15 @@ app.put("/api/document-settings/:companyId", requireAuth, requireRole("admin", "
       ecReceiptFooterText: z.string().nullable().optional(),
     });
     const validated = docSettingsSchema.parse(req.body);
-    const settings = await storage.upsertDocumentSettings(companyId, validated);
-    res.json(settings);
+    const { stampUrl, ...rest } = validated as any;
+    const settings = await storage.upsertDocumentSettings(companyId, rest);
+    if (stampUrl !== undefined) {
+      const val = stampUrl === null ? "NULL" : `'${String(stampUrl).replace(/'/g, "''")}'`;
+      await db.execute((await import("drizzle-orm")).sql.raw(`UPDATE document_settings SET stamp_url = ${val} WHERE company_id = ${companyId}`));
+    }
+    const stampRow = await db.execute((await import("drizzle-orm")).sql.raw(`SELECT stamp_url FROM document_settings WHERE company_id = ${companyId} LIMIT 1`));
+    const stampUrlResult = (stampRow as any).rows?.[0]?.stamp_url || null;
+    res.json({ ...settings, stampUrl: stampUrlResult });
   } catch (err: any) {
     if (err.name === "ZodError") {
       return res.status(400).json({ message: "ข้อมูลไม่ถูกต้อง", errors: err.errors });
