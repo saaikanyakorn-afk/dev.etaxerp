@@ -1,7 +1,7 @@
 import { type Request, type Response, type NextFunction } from "express";
 import { db } from "./db";
 import { quotations, invoices, taxInvoices, receipts, salesOrders, companies, whiteLabelSettings, contracts, withholdingTaxCerts, salesCreditNotes, billingNotes } from "@shared/schema";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import sharp from "sharp";
 
 const BOT_RE = /bot|crawler|spider|preview|facebookexternalhit|twitterbot|slackbot|facebook|twitter|telegram|slack|whatsapp|discord|linkedin|pinterest/i;
@@ -170,7 +170,8 @@ async function lookupDoc(docType: string, token: string) {
     }
     case "credit-note": {
       try {
-        const rows = await db.execute({ sql: `SELECT credit_note_no, customer_name, total_amount, company_id FROM sales_credit_notes WHERE share_token = $1 LIMIT 1`, args: [token] } as any);
+        const safeToken = token.replace(/'/g, "''");
+        const rows = await db.execute(sql.raw(`SELECT credit_note_no, customer_name, total_amount, company_id FROM sales_credit_notes WHERE share_token = '${safeToken}' LIMIT 1`));
         const cn = (rows as any).rows?.[0];
         if (cn) { docNo = cn.credit_note_no || ""; customerName = cn.customer_name || ""; total = cn.total_amount || ""; companyId = Number(cn.company_id); amountLabel = "ยอดลดหนี้"; }
       } catch {}
@@ -178,7 +179,8 @@ async function lookupDoc(docType: string, token: string) {
     }
     case "billing-note": {
       try {
-        const rows = await db.execute({ sql: `SELECT * FROM billing_notes WHERE share_token = $1 LIMIT 1`, args: [token] } as any);
+        const safeToken = token.replace(/'/g, "''");
+        const rows = await db.execute(sql.raw(`SELECT billing_no, customer_name, total_amount, company_id FROM billing_notes WHERE share_token = '${safeToken}' LIMIT 1`));
         const bn = (rows as any).rows?.[0];
         if (bn) { docNo = bn.billing_no || ""; customerName = bn.customer_name || ""; total = bn.total_amount || ""; companyId = Number(bn.company_id); amountLabel = "ยอดวางบิล"; }
       } catch {}
