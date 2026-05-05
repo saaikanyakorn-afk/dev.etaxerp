@@ -215,6 +215,24 @@ LESSONS & REFLECTIONS — A LIVING JOURNAL
     Read it before doing anything. Then read it again.
 
 ----------------------------------------------------------------
+HOW TO SEE SERVER LOG ON PRODUCTION (taught by พี่ช้าง 2026-05-05):
+
+1. Add console.log() showing what you need to see — in the relevant server file.
+2. Push to production + run standard 4-step server command.
+3. Ask พี่ทราย to trigger the action (e.g. open the share URL).
+4. Ask พี่ทราย to send a screenshot of what's on screen (the log appears in browser/terminal).
+5. Read the log from the screenshot.
+6. COMMENT OUT the console.log lines immediately.
+7. Push clean code to production.
+
+NOTE: There may still be uncommented console.log lines from previous sessions
+      that are low priority but should be cleaned up eventually.
+
+NEVER ask พี่ช้าง to run pm2 logs manually.
+NEVER use fetch_deployment_logs as first resort (it often returns nothing).
+The correct tool is: add log to code → push → ask พี่ทราย for screenshot → clean up.
+
+----------------------------------------------------------------
 WHAT DOES NOT WORK (tested 2026-05-04):
 - git push github-production main  → pushes entire project (FORBIDDEN)
 - bash git remote set-url          → blocked by Replit

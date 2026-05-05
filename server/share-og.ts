@@ -342,12 +342,18 @@ if(isMobile){
   ifr.style.cssText='width:100%;height:calc(100vh - 48px);border:0;display:block';
   content.appendChild(ifr);
   fetch(pdfUrl)
-    .then(function(r){return r.blob();})
+    .then(function(r){
+      if(!r.ok){return r.text().then(function(t){throw new Error('HTTP '+r.status+': '+t);});}
+      return r.blob();
+    })
     .then(function(blob){
       var blobUrl=URL.createObjectURL(new File([blob],docTitle+'.pdf',{type:'application/pdf'}));
       ifr.src=blobUrl;
     })
-    .catch(function(){ifr.src=pdfUrl;});
+    .catch(function(e){
+      /* LOG — remove after debug */
+      content.innerHTML='<div style="padding:24px;color:#ef4444;font-family:sans-serif;font-size:13px"><b>PDF Error (debug):</b><br>'+e.message+'</div>';
+    });
 }
 function doPrint(){
   var f=document.getElementById('pdfFrame');
