@@ -11,7 +11,9 @@ import multer from "multer";
 import crypto from "crypto";
 import * as XLSX from "xlsx";
 import * as path from "path";
-import { generateWhtCertPdf } from "../pdf-wht-cert";
+// pdf-wht-cert is a production-only file — use dynamic require to avoid build-time resolution failure
+let generateWhtCertPdf: (data: any) => Promise<Buffer> = async () => { throw new Error("pdf-wht-cert not available"); };
+try { generateWhtCertPdf = require("../pdf-wht-cert").generateWhtCertPdf; } catch {}
 
 function isAllowedRedirectUrl(url: string): boolean {
   if (!url) return false;
