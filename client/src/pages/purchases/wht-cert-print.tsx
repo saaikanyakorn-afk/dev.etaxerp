@@ -379,8 +379,8 @@ export function WhtCertContent({ data, dateEra = "CE", dateFmt = "DD/MM/YYYY" }:
                   </td>
                   <td style={{ textAlign: "left", whiteSpace: "nowrap", paddingLeft: "4px", border: "none" }}>ผู้จ่ายเงิน</td>
                   {data.stampUrl ? (
-                    <td rowSpan={2} style={{ textAlign: "center", paddingLeft: "8px", border: "none", verticalAlign: "middle", width: "100px" }}>
-                      <img src={objectPathToUrl(data.stampUrl) || data.stampUrl} alt="ตรายาง" style={{ maxHeight: "90px", maxWidth: "95px", objectFit: "contain", display: "block", margin: "0 auto" }} />
+                    <td rowSpan={2} style={{ textAlign: "center", paddingLeft: "8px", border: "none", verticalAlign: "middle", width: "120px" }}>
+                      <img src={objectPathToUrl(data.stampUrl) || data.stampUrl} alt="ตรายาง" style={{ maxHeight: "120px", maxWidth: "115px", objectFit: "contain", display: "block", margin: "0 auto" }} />
                     </td>
                   ) : (
                     <td style={{ textAlign: "left", whiteSpace: "nowrap", paddingLeft: "8px", fontSize: "10px", border: "none" }}>ประทับตรา</td>
