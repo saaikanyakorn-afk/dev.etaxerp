@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft, Printer } from "lucide-react";
 import { formatDate } from "@/lib/format";
 import Layout from "@/components/layout";
+import { objectPathToUrl } from "@/lib/utils";
 
 import { useDateSettings } from "@/hooks/use-date-settings";
 function formatDateParts(dateStr: string | null | undefined, era: string = "CE"): { day: string; month: string; year: string } {
@@ -377,7 +378,13 @@ export function WhtCertContent({ data, dateEra = "CE", dateFmt = "DD/MM/YYYY" }:
                     <span style={{ display: "inline-block", width: "100%" }}>&nbsp;</span>
                   </td>
                   <td style={{ textAlign: "left", whiteSpace: "nowrap", paddingLeft: "4px", border: "none" }}>ผู้จ่ายเงิน</td>
-                  <td style={{ textAlign: "left", whiteSpace: "nowrap", paddingLeft: "8px", fontSize: "10px", border: "none" }}>ประทับตรา</td>
+                  <td style={{ textAlign: "center", whiteSpace: "nowrap", paddingLeft: "8px", fontSize: "10px", border: "none", verticalAlign: "bottom", width: "90px" }}>
+                    {data.stampUrl ? (
+                      <img src={objectPathToUrl(data.stampUrl) || data.stampUrl} alt="ตรายาง" style={{ maxHeight: "70px", maxWidth: "80px", objectFit: "contain", display: "block", margin: "0 auto" }} />
+                    ) : (
+                      <span>ประทับตรา</span>
+                    )}
+                  </td>
                 </tr>
                 <tr>
                   <td style={{ textAlign: "right", whiteSpace: "nowrap", paddingRight: "4px", paddingTop: "4px", border: "none" }}>(</td>

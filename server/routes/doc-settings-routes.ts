@@ -6,8 +6,10 @@ import { generalSettings, documentSettings } from "@shared/schema";
 import { requireAuth, requireAdmin, requireRole } from "../route-middleware";
 import { getInventoryTriggers } from "../route-helpers";
 import { z } from "zod";
+import { runStampUrlMigration } from "../schema-extra";
 
 export function registerDocSettingsRoutes(app: Express) {
+  runStampUrlMigration(db).catch(() => {});
 // ========== Document Settings Routes ==========
 
 app.get("/api/settings/general", requireAuth, async (req, res) => {
@@ -197,6 +199,7 @@ app.put("/api/document-settings/:companyId", requireAuth, requireRole("admin", "
       dateFormat: z.string().optional(),
       documentLanguage: z.string().optional(),
       docPrefixes: z.string().nullable().optional(),
+      stampUrl: z.string().nullable().optional(),
       certSignerName: z.string().nullable().optional(),
       certSignerPosition: z.string().nullable().optional(),
       docFontSize: z.string().optional(),

@@ -1435,7 +1435,12 @@ export function registerExpenseRoutes(app: Express) {
         }
       }
       const items = await db.select().from(whtCertItems).where(eq(whtCertItems.whtCertId, doc.id));
-      res.json({ ...doc, items, createdByName, createdBySignatureName, createdBySignatureTitle, createdBySignatureUrl });
+      let stampUrl: string | null = null;
+      try {
+        const dsRows = await db.execute(sql.raw(`SELECT stamp_url FROM document_settings WHERE company_id = ${doc.companyId} LIMIT 1`));
+        stampUrl = ((dsRows as any).rows?.[0]?.stamp_url) || null;
+      } catch {}
+      res.json({ ...doc, items, createdByName, createdBySignatureName, createdBySignatureTitle, createdBySignatureUrl, stampUrl });
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 

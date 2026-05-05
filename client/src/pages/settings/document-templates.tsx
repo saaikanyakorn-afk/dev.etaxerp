@@ -10,7 +10,7 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { FileImage, Save, Upload, X, Eye, Loader2, Palette, CreditCard, ArrowRight, ArrowLeft, Hash, Calendar, Globe, Plus, Star } from "lucide-react";
+import { FileImage, Save, Upload, X, Eye, Loader2, Palette, CreditCard, ArrowRight, ArrowLeft, Hash, Calendar, Globe, Plus, Star, Fingerprint } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
@@ -66,6 +66,7 @@ interface DocSettings {
   bankNameEn?: string | null;
   bankNameZh?: string | null;
   qrCodeUrl?: string | null;
+  stampUrl?: string | null;
   promptpayId?: string | null;
   promptpayType?: string | null;
   promptpayEnabled?: boolean;
@@ -601,6 +602,7 @@ export default function DocumentTemplates() {
       dateFormat: currentSettings.dateFormat,
       documentLanguage: currentSettings.documentLanguage,
       docPrefixes: currentSettings.docPrefixes,
+      stampUrl: currentSettings.stampUrl,
       certSignerName: currentSettings.certSignerName,
       certSignerPosition: currentSettings.certSignerPosition,
     });
@@ -1107,6 +1109,25 @@ export default function DocumentTemplates() {
                       testId="qrcode"
                     />
                     <p className="text-[11px] text-muted-foreground mt-2">อัปโหลด QR Code จากธนาคาร (ใช้แทน PromptPay อัตโนมัติ)</p>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm flex items-center gap-2">
+                      <Fingerprint className="h-4 w-4" /> ตรายางบริษัท
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <ImageUploadBox
+                      label="ตรายางบริษัท (ใบ 50 ทวิ)"
+                      currentUrl={currentSettings.stampUrl}
+                      onUploaded={(path) => { updateLocal("stampUrl", path); autoSaveField("stampUrl", path); }}
+                      onClear={() => { updateLocal("stampUrl", null); autoSaveField("stampUrl", null); }}
+                      accept="image/png,image/jpeg,image/webp"
+                      testId="stamp"
+                    />
+                    <p className="text-[11px] text-muted-foreground mt-2">อัปโหลดรูปตรายางบริษัท แสดงในช่อง "ประทับตรา" ของใบ 50 ทวิ</p>
                   </CardContent>
                 </Card>
 
