@@ -378,13 +378,13 @@ export function WhtCertContent({ data, dateEra = "CE", dateFmt = "DD/MM/YYYY" }:
                     <span style={{ display: "inline-block", width: "100%" }}>&nbsp;</span>
                   </td>
                   <td style={{ textAlign: "left", whiteSpace: "nowrap", paddingLeft: "4px", border: "none" }}>ผู้จ่ายเงิน</td>
-                  <td style={{ textAlign: "center", whiteSpace: "nowrap", paddingLeft: "8px", fontSize: "10px", border: "none", verticalAlign: "bottom", width: "90px" }}>
-                    {data.stampUrl ? (
-                      <img src={objectPathToUrl(data.stampUrl) || data.stampUrl} alt="ตรายาง" style={{ maxHeight: "70px", maxWidth: "80px", objectFit: "contain", display: "block", margin: "0 auto" }} />
-                    ) : (
-                      <span>ประทับตรา</span>
-                    )}
-                  </td>
+                  {data.stampUrl ? (
+                    <td rowSpan={2} style={{ textAlign: "center", paddingLeft: "8px", border: "none", verticalAlign: "middle", width: "100px" }}>
+                      <img src={objectPathToUrl(data.stampUrl) || data.stampUrl} alt="ตรายาง" style={{ maxHeight: "90px", maxWidth: "95px", objectFit: "contain", display: "block", margin: "0 auto" }} />
+                    </td>
+                  ) : (
+                    <td style={{ textAlign: "left", whiteSpace: "nowrap", paddingLeft: "8px", fontSize: "10px", border: "none" }}>ประทับตรา</td>
+                  )}
                 </tr>
                 <tr>
                   <td style={{ textAlign: "right", whiteSpace: "nowrap", paddingRight: "4px", paddingTop: "4px", border: "none" }}>(</td>
@@ -392,7 +392,7 @@ export function WhtCertContent({ data, dateEra = "CE", dateFmt = "DD/MM/YYYY" }:
                     <span style={{ ...S.dotline, width: "100%", textAlign: "center" }}>{data.createdBySignatureName || data.createdByName || data.payerName}</span>
                   </td>
                   <td style={{ textAlign: "left", whiteSpace: "nowrap", paddingLeft: "4px", paddingTop: "4px", border: "none" }}>)</td>
-                  <td style={{ textAlign: "left", whiteSpace: "nowrap", paddingLeft: "8px", paddingTop: "4px", fontSize: "10px", border: "none" }}>นิติบุคคล</td>
+                  {!data.stampUrl && <td style={{ textAlign: "left", whiteSpace: "nowrap", paddingLeft: "8px", paddingTop: "4px", fontSize: "10px", border: "none" }}>นิติบุคคล</td>}
                 </tr>
                 <tr>
                   <td style={{ border: "none", paddingTop: "4px" }}></td>
