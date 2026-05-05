@@ -294,8 +294,8 @@ body{display:flex;flex-direction:column;background:#334155;font-family:sans-seri
 .btn{display:flex;align-items:center;gap:6px;padding:6px 12px;border:none;border-radius:6px;font-size:12px;cursor:pointer;text-decoration:none;font-family:sans-serif}
 .btn-ghost{background:transparent;color:#94a3b8}.btn-ghost:hover{background:#334155;color:#fff}
 .btn-primary{background:#16a34a;color:#fff}.btn-primary:hover{opacity:.9}
-#content{flex:1;display:flex;flex-direction:column;min-height:0}
-embed,iframe{flex:1;width:100%;border:0;display:block;height:100%}
+#content{flex:1}
+embed{width:100%;height:calc(100vh - 48px);border:0;display:block}
 .mobile-wrap{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:24px;padding:32px;text-align:center}
 .mobile-icon{font-size:64px;opacity:.4}
 .mobile-title{color:#fff;font-size:18px;font-weight:600;margin-bottom:4px}
