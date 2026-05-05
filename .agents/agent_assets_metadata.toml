@@ -78,3 +78,15 @@ id = "orjW-4tm5fVLKSFzL0l1S"
 uri = "file://attached_assets/batch-summary-2026-04-21.md"
 type = "text"
 title = "สรุป Batch รอพี่ช้างอนุมัติ — 25 ไฟล์ + 1 SQL"
+
+[[outputs]]
+id = "eTXgkOpxSzoJf-mlsxM7L"
+uri = "file://attached_assets/stamp_topverra_nobg.png"
+type = "image"
+title = "Top Verra Bedding — ตรายาง (ไม่มีพื้นหลัง)"
+
+[[outputs]]
+id = "3PmUDPNpUedmmCSvkofuz"
+uri = "file://attached_assets/stamp_subsombun_nobg.png"
+type = "image"
+title = "Subsombunpaisan Singto — ตรายาง (ไม่มีพื้นหลัง)"
