@@ -1599,6 +1599,17 @@ export function registerExpenseRoutes(app: Express) {
       const doc = (rows as any).rows?.[0];
       if (!doc) return res.status(404).json({ message: "ไม่พบเอกสาร" });
       const [company] = await db.select().from(companies).where(eq(companies.id, Number(doc.company_id)));
+      const itemRows = await db.execute(sql.raw(`SELECT * FROM wht_cert_items WHERE wht_cert_id = ${Number(doc.id)} ORDER BY id ASC`));
+      const rawItems = (itemRows as any).rows || [];
+      const items = rawItems.map((it: any) => ({
+        id: it.id,
+        incomeType: it.income_type,
+        incomeDescription: it.income_description,
+        paidDate: it.paid_date,
+        amountPaid: it.amount_paid,
+        taxWithheld: it.tax_withheld,
+        whtRate: it.wht_rate,
+      }));
       let createdByName = "";
       let createdBySignatureName = "";
       let createdBySignatureTitle = "";
@@ -1607,12 +1618,46 @@ export function registerExpenseRoutes(app: Express) {
         const u = await storage.getUser(Number(doc.created_by));
         if (u) {
           createdByName = u.fullName;
-          createdBySignatureName = u.signatureName || u.fullName;
-          createdBySignatureTitle = u.signatureTitle || "";
-          createdBySignatureUrl = u.signatureUrl || "";
+          createdBySignatureName = (u as any).signatureName || u.fullName;
+          createdBySignatureTitle = (u as any).signatureTitle || "";
+          createdBySignatureUrl = (u as any).signatureUrl || "";
         }
       }
-      res.json({ ...doc, company, createdByName, createdBySignatureName, createdBySignatureTitle, createdBySignatureUrl });
+      res.json({
+        id: doc.id,
+        companyId: doc.company_id,
+        certNo: doc.cert_no,
+        certDate: doc.cert_date,
+        bookNo: doc.book_no,
+        seqNo: doc.seq_no,
+        formType: doc.form_type,
+        payerTaxId: doc.payer_tax_id,
+        payerName: doc.payer_name,
+        payerBranch: doc.payer_branch,
+        payerAddress: doc.payer_address,
+        payeeTaxId: doc.payee_tax_id,
+        payeeName: doc.payee_name,
+        payeeBranch: doc.payee_branch,
+        payeeAddress: doc.payee_address,
+        incomeType: doc.income_type,
+        incomeDescription: doc.income_description,
+        paidDate: doc.paid_date,
+        amountPaid: doc.amount_paid,
+        taxWithheld: doc.tax_withheld,
+        whtRate: doc.wht_rate,
+        whtCondition: doc.wht_condition,
+        whtConditionOther: doc.wht_condition_other,
+        gpfAmount: doc.gpf_amount,
+        ssoAmount: doc.sso_amount,
+        pvdAmount: doc.pvd_amount,
+        shareToken: doc.share_token,
+        items,
+        company,
+        createdByName,
+        createdBySignatureName,
+        createdBySignatureTitle,
+        createdBySignatureUrl,
+      });
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
