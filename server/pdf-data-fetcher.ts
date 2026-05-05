@@ -198,6 +198,15 @@ export async function buildPdfDataByToken(
   const cfg = DOC_CONFIGS[docType];
   if (!cfg) throw new Error(`ประเภทเอกสารไม่รองรับ: ${docType}`);
 
+  // credit_note: salesCreditNotes.shareToken not in production schema.ts (protected) — use raw SQL
+  if (docType === "credit_note") {
+    const safeToken = token.replace(/'/g, "''");
+    const rows = await db.execute(sql.raw(`SELECT id FROM sales_credit_notes WHERE share_token = '${safeToken}' LIMIT 1`));
+    const row = (rows as any).rows?.[0];
+    if (!row) throw new Error("ไม่พบเอกสาร");
+    return buildCreditNotePdfData(Number(row.id));
+  }
+
   const [doc] = await db.select().from(cfg.table).where(eq(cfg.table.shareToken, token));
   if (!doc) throw new Error("ไม่พบเอกสาร");
 
