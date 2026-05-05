@@ -263,6 +263,136 @@ export async function shareOgHandler(req: Request, res: Response, next: NextFunc
   }
 }
 
+function sendBillingNoteHtml(res: Response, opts: {
+  token: string; docNo: string; customerName: string; companyName: string; totalAmount: string; baseUrl: string; fullUrl: string;
+}) {
+  const pdfUrl = `${opts.baseUrl}/api/share/billing-note/${opts.token}/pdf`;
+  const ogImage = `${opts.baseUrl}/api/og-image/billing-note/${opts.token}.png`;
+  const title = opts.docNo ? `ใบวางบิล ${opts.docNo}` : "ใบวางบิล";
+  const desc = `${opts.companyName}${opts.customerName ? ` → ${opts.customerName}` : ""}${opts.totalAmount ? ` | ยอด ฿${opts.totalAmount}` : ""}`;
+
+  res.status(200).set({ "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-cache" }).end(
+`<!DOCTYPE html><html lang="th"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${escHtml(title)} - E-Tax Center</title>
+<meta property="og:title" content="${escHtml(title)}" />
+<meta property="og:description" content="${escHtml(desc)}" />
+<meta property="og:type" content="website" />
+<meta property="og:image" content="${escHtml(ogImage)}" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:url" content="${escHtml(opts.fullUrl)}" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="${escHtml(title)}" />
+<meta name="twitter:description" content="${escHtml(desc)}" />
+<meta name="twitter:image" content="${escHtml(ogImage)}" />
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{display:flex;flex-direction:column;min-height:100vh;background:#334155;font-family:sans-serif}
+.bar{position:sticky;top:0;z-index:50;background:#1e293b;border-bottom:1px solid #475569;padding:10px 16px;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.bar-left{display:flex;align-items:center;gap:8px;min-width:0;color:#fff;font-size:14px;font-weight:500;overflow:hidden}
+.bar-left svg{flex-shrink:0;color:#22c55e}
+.bar-left span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bar-right{display:flex;gap:8px;flex-shrink:0}
+.btn{display:flex;align-items:center;gap:6px;padding:6px 12px;border:none;border-radius:6px;font-size:12px;cursor:pointer;text-decoration:none}
+.btn-ghost{background:transparent;color:#94a3b8}
+.btn-ghost:hover{background:#334155;color:#fff}
+.btn-primary{background:#16a34a;color:#fff}
+.btn-primary:hover{opacity:.9}
+iframe{flex:1;width:100%;border:0;display:block;min-height:calc(100vh - 48px)}
+.android-wrap{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:24px;padding:32px;text-align:center}
+.android-icon{font-size:64px;opacity:.4}
+.android-title{color:#fff;font-size:18px;font-weight:600;margin-bottom:4px}
+.android-sub{color:#94a3b8;font-size:14px}
+</style></head>
+<body>
+<div class="bar">
+  <div class="bar-left">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+    <span id="docTitle">${escHtml(title)}</span>
+  </div>
+  <div class="bar-right">
+    <button class="btn btn-ghost" id="btnPrint" onclick="doPrint()" title="พิมพ์">
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+      <span class="dsk">พิมพ์</span>
+    </button>
+    <a class="btn btn-primary" href="${escHtml(pdfUrl)}" download="${escHtml(title)}.pdf" id="btnDl">
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      <span class="dsk">ดาวน์โหลด PDF</span>
+      <span class="mob" style="display:none">PDF</span>
+    </a>
+  </div>
+</div>
+<div id="content"></div>
+<script>
+var isAndroid = /android/i.test(navigator.userAgent);
+var pdfUrl = ${JSON.stringify(pdfUrl)};
+var title = ${JSON.stringify(title)};
+var content = document.getElementById('content');
+if (isAndroid) {
+  content.className = 'android-wrap';
+  content.innerHTML = '<div class="android-icon">📄</div><div><div class="android-title">'+title+'</div><div class="android-sub">กดปุ่มดาวน์โหลดเพื่อเปิด PDF</div></div>';
+  document.getElementById('btnPrint').style.display = 'none';
+  document.getElementById('btnDl').setAttribute('href', pdfUrl);
+  document.getElementById('btnDl').removeAttribute('download');
+} else {
+  var ifr = document.createElement('iframe');
+  ifr.src = pdfUrl; ifr.id = 'pdfFrame';
+  ifr.style.cssText = 'flex:1;width:100%;border:0;min-height:calc(100vh - 48px)';
+  content.appendChild(ifr);
+  document.querySelector('.mob').style.display = 'none';
+}
+function doPrint() {
+  var f = document.getElementById('pdfFrame');
+  if (!f || !f.contentWindow) return;
+  var prev = document.title; document.title = title;
+  setTimeout(function(){ document.title = prev; }, 1000);
+  f.contentWindow.print();
+}
+</script>
+</body></html>`);
+}
+
+export async function billingNoteShareHandler(req: Request, res: Response, next: NextFunction) {
+  const token = req.params.token;
+  const ua = req.headers["user-agent"] || "";
+  const host = req.get("host") || "";
+  const proto = req.headers["x-forwarded-proto"] || req.protocol || "https";
+  const baseUrl = `${proto}://${host}`;
+  const fullUrl = baseUrl + req.originalUrl;
+
+  if (BOT_RE.test(ua)) {
+    // bots: serve OG tags HTML (same as before)
+    req.params.docType = "billing-note";
+    return shareOgHandler(req, res, next);
+  }
+
+  // human browsers: serve standalone viewer — bypasses React/App.tsx auth entirely
+  try {
+    const safeToken = token.replace(/'/g, "''");
+    const { db } = await import("./db");
+    const { sql } = await import("drizzle-orm");
+    const rows = await db.execute(sql.raw(`SELECT billing_no, customer_name, total_amount, company_id FROM billing_notes WHERE share_token = '${safeToken}' LIMIT 1`));
+    const bn = (rows as any).rows?.[0];
+
+    let companyName = "E-Tax Center";
+    if (bn?.company_id) {
+      const { companies } = await import("@shared/schema");
+      const { eq } = await import("drizzle-orm");
+      const [co] = await db.select().from(companies).where(eq(companies.id, Number(bn.company_id)));
+      if (co) companyName = co.name;
+    }
+
+    const docNo = bn?.billing_no || "";
+    const customerName = bn?.customer_name || "";
+    const totalAmount = bn?.total_amount ? Number(bn.total_amount).toLocaleString("th-TH", { minimumFractionDigits: 2 }) : "";
+
+    sendBillingNoteHtml(res, { token, docNo, customerName, companyName, totalAmount, baseUrl, fullUrl });
+  } catch {
+    sendBillingNoteHtml(res, { token, docNo: "", customerName: "", companyName: "E-Tax Center", totalAmount: "", baseUrl, fullUrl });
+  }
+}
+
 export async function contractOgHandler(req: Request, res: Response, next: NextFunction) {
   const ua = req.headers["user-agent"] || "";
   if (!BOT_RE.test(ua)) return next();
