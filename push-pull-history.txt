@@ -403,6 +403,17 @@ DEPLOY #46 — 2026-05-05
   pm2: online 84.1mb ✅
 
 ----------------------------------------------------------------
+DEPLOY #50 — 2026-05-05
+Files pushed to GitHub production:
+  - server/routes/reports-routes.ts  → เอา credit note ออกจาก sales tax report query
+  - client/src/pages/sales/tax-report.tsx → rebuild frontend (clickable links, no stale build)
+Changes:
+  - reports-routes.ts: ลบ cnConditions, creditNotes query, และ creditNotes.forEach loop ออกจาก /api/reports/sales-tax
+  - tax-report.tsx: deploy ใหม่เพื่อ rebuild — production server เคยใช้ build เก่าที่มี "(ลบ)" badge และไม่มี link
+Server command (พี่ช้าง ต้องรัน):
+  git fetch origin && git checkout origin/main -- server/routes/reports-routes.ts client/src/pages/sales/tax-report.tsx && npm run build && pm2 restart etax-center
+
+----------------------------------------------------------------
 ================================================================
 E-TAX CENTER — SSH DEPLOY KEY BACKUP
 ================================================================
