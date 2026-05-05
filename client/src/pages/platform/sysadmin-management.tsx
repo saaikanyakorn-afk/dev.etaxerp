@@ -890,12 +890,18 @@ function My2FADialog({ me, onClose }: { me: SysAdminUser; onClose: () => void })
             {/* TOTP tab */}
             {tab === "totp" && (
               <div className="space-y-3">
-                <p className="text-xs text-gray-500">สแกน QR Code ด้วย Google Authenticator, Authy, หรือ app อื่นที่รองรับ TOTP</p>
                 {!totpUri && (
-                  <Button onClick={handleSetupTotp} disabled={totpLoading} className="w-full" variant="outline" data-testid="btn-gen-qr">
-                    {totpLoading ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <QrCode className="h-4 w-4 mr-1" />}
-                    สร้าง QR Code ใหม่
-                  </Button>
+                  <div className="grid grid-cols-3 gap-2">
+                    <div />{/* spacer left */}
+                    <Button onClick={handleSetupTotp} disabled={totpLoading} variant="outline" className="w-full" data-testid="btn-gen-qr">
+                      {totpLoading ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <QrCode className="h-4 w-4 mr-1" />}
+                      สร้าง QR Code ใหม่
+                    </Button>
+                    <div />{/* spacer right */}
+                  </div>
+                )}
+                {!totpUri && (
+                  <p className="text-xs text-gray-500 text-center">สแกน QR Code ด้วย Google Authenticator, Authy, หรือ app อื่นที่รองรับ TOTP</p>
                 )}
                 {totpUri && (
                   <>
