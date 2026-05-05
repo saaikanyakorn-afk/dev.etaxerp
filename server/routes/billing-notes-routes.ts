@@ -5,11 +5,12 @@ import { billingNotes, billingNoteLinkedDocs, receipts, receiptLinkedDocs, purch
 import { requireAuth, requireModule } from "../route-middleware";
 import { getNextDocNo, createAutoJournalEntry, resolvePaymentMethodAccountCode, recomputePaymentStatus, recomputeAPPaymentStatus } from "../route-helpers";
 import { verifyCompanyAccess } from "../route-factory";
-import { runBillingNotesWhtMigration } from "@shared/schema-extra";
+import { runBillingNotesWhtMigration, runBillingNoteShareTokenMigration } from "@shared/schema-extra";
 import multer from "multer";
 
 export function registerBillingNotesRoutes(app: Express) {
   runBillingNotesWhtMigration(db);
+  runBillingNoteShareTokenMigration(db);
 
 // ========== Billing Notes (ใบวางบิล) ==========
 app.get("/api/finance/billing-notes", requireAuth, async (req, res) => {
@@ -1710,8 +1711,6 @@ app.get("/api/bank-reconciliation/journal-entries", requireAuth, requireModule("
 app.post("/api/finance/billing-notes/:id/share", requireAuth, async (req, res) => {
   try {
     const id = Number(req.params.id);
-    // auto-add column if missing
-    await db.execute(sql.raw(`ALTER TABLE billing_notes ADD COLUMN IF NOT EXISTS share_token TEXT`));
     const [bn] = await db.select().from(billingNotes).where(eq(billingNotes.id, id));
     if (!bn) return res.status(404).json({ message: "ไม่พบใบวางบิล" });
     const ac = await verifyCompanyAccess(req.user as any, bn.companyId);
@@ -1729,7 +1728,6 @@ app.post("/api/finance/billing-notes/:id/share", requireAuth, async (req, res) =
 
 app.get("/api/share/billing-note/:token", async (req, res) => {
   try {
-    await db.execute(sql.raw(`ALTER TABLE billing_notes ADD COLUMN IF NOT EXISTS share_token TEXT`));
     const rows = await db.execute(sql.raw(`SELECT * FROM billing_notes WHERE share_token = '${req.params.token.replace(/'/g, "''")}' LIMIT 1`));
     const bn = (rows as any).rows?.[0];
     if (!bn) return res.status(404).json({ message: "ไม่พบเอกสาร" });
@@ -1739,7 +1737,6 @@ app.get("/api/share/billing-note/:token", async (req, res) => {
 
 app.get("/api/share/billing-note/:token/pdf", async (req, res) => {
   try {
-    await db.execute(sql.raw(`ALTER TABLE billing_notes ADD COLUMN IF NOT EXISTS share_token TEXT`));
     const safeToken = req.params.token.replace(/'/g, "''");
     const rows = await db.execute(sql.raw(`SELECT id, billing_no FROM billing_notes WHERE share_token = '${safeToken}' LIMIT 1`));
     const bn = (rows as any).rows?.[0];

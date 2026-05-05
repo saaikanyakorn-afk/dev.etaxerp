@@ -577,6 +577,16 @@ export async function runBillingNotesWhtMigration(_db: any) {
   // migration done 2026-05-03 — no-op
 }
 
+// ── ADD share_token to billing_notes (2026-05-05) ─────────────────────────
+export async function runBillingNoteShareTokenMigration(db: any) {
+  try {
+    await db.execute(sql`ALTER TABLE billing_notes ADD COLUMN IF NOT EXISTS share_token TEXT`);
+    console.log("[migration] ✅ billing_notes.share_token column ready");
+  } catch (e: any) {
+    console.error("[migration] ❌ runBillingNoteShareTokenMigration FAILED:", e.message);
+  }
+}
+
 /* DONE 2026-05-04 — firm_clients.target_db_machine_id
    Verified column already exists on production DB. Migration not needed.
 export async function runFirmClientMigration(db: any) {
