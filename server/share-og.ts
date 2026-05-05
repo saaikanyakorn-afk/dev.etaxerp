@@ -337,17 +337,24 @@ if(isMobile){
   content.className='mobile-wrap';
   content.innerHTML='<div class="mobile-icon">📄</div><div><div class="mobile-title">'+docTitle+'</div><div class="mobile-sub">กดปุ่มด้านล่างเพื่อเปิดหรือดาวน์โหลด PDF</div></div><a class="btn-open" href="'+pdfUrl+'"'+(isIOS?' target="_blank"':'')+'>📄 เปิด PDF</a>';
 }else{
-  var emb=document.createElement('embed');
-  emb.setAttribute('src',pdfUrl);
-  emb.setAttribute('type','application/pdf');
-  emb.setAttribute('id','pdfFrame');
-  emb.style.cssText='flex:1;width:100%;height:100%;border:0';
-  content.appendChild(emb);
+  var ifr=document.createElement('iframe');
+  ifr.id='pdfFrame';
+  ifr.style.cssText='width:100%;height:calc(100vh - 48px);border:0;display:block';
+  content.appendChild(ifr);
+  fetch(pdfUrl)
+    .then(function(r){return r.blob();})
+    .then(function(blob){
+      var blobUrl=URL.createObjectURL(new File([blob],docTitle+'.pdf',{type:'application/pdf'}));
+      ifr.src=blobUrl;
+    })
+    .catch(function(){ifr.src=pdfUrl;});
 }
 function doPrint(){
+  var f=document.getElementById('pdfFrame');
+  if(!f||!f.contentWindow)return;
   var p=document.title;document.title=docTitle;
   setTimeout(function(){document.title=p;},1000);
-  window.print();
+  f.contentWindow.print();
 }
 </script>
 </body></html>`);
