@@ -365,8 +365,15 @@ export function WhtCertContent({ data, dateEra = "CE", dateFmt = "DD/MM/YYYY" }:
             <b>คำเตือน</b>
             <div>ผู้มีหน้าที่ออกหนังสือรับรองการหักภาษี ณ ที่จ่าย ฝ่าฝืนไม่ปฏิบัติตามมาตรา 50 ทวิ แห่งประมวลรัษฎากร ต้องรับโทษทางอาญาตามมาตรา 35 แห่งประมวลรัษฎากร</div>
           </div>
-          <div style={{ width: "52%", textAlign: "center", fontSize: "11px" }}>
+          <div style={{ width: "52%", textAlign: "center", fontSize: "11px", position: "relative" }}>
             <div>ขอรับรองว่าข้อความและตัวเลขดังกล่าวข้างต้นถูกต้องตรงกับความจริงทุกประการ</div>
+            {data.stampUrl && (
+              <img
+                src={objectPathToUrl(data.stampUrl) || data.stampUrl}
+                alt="ตรายาง"
+                style={{ position: "absolute", right: "0px", top: "50%", transform: "translateY(-50%)", width: "150px", height: "150px", objectFit: "contain", pointerEvents: "none" }}
+              />
+            )}
             <table style={{ width: "100%", borderCollapse: "collapse", marginTop: data.createdBySignatureUrl ? "36px" : "16px" }}>
               <tbody>
                 <tr>
@@ -378,13 +385,7 @@ export function WhtCertContent({ data, dateEra = "CE", dateFmt = "DD/MM/YYYY" }:
                     <span style={{ display: "inline-block", width: "100%" }}>&nbsp;</span>
                   </td>
                   <td style={{ textAlign: "left", whiteSpace: "nowrap", paddingLeft: "4px", border: "none" }}>ผู้จ่ายเงิน</td>
-                  {data.stampUrl ? (
-                    <td rowSpan={2} style={{ textAlign: "center", paddingLeft: "8px", border: "none", verticalAlign: "middle", width: "120px" }}>
-                      <img src={objectPathToUrl(data.stampUrl) || data.stampUrl} alt="ตรายาง" style={{ maxHeight: "120px", maxWidth: "115px", objectFit: "contain", display: "block", margin: "0 auto" }} />
-                    </td>
-                  ) : (
-                    <td style={{ textAlign: "left", whiteSpace: "nowrap", paddingLeft: "8px", fontSize: "10px", border: "none" }}>ประทับตรา</td>
-                  )}
+                  <td style={{ textAlign: "left", whiteSpace: "nowrap", paddingLeft: "8px", fontSize: "10px", border: "none" }}>{data.stampUrl ? "" : "ประทับตรา"}</td>
                 </tr>
                 <tr>
                   <td style={{ textAlign: "right", whiteSpace: "nowrap", paddingRight: "4px", paddingTop: "4px", border: "none" }}>(</td>
@@ -392,7 +393,7 @@ export function WhtCertContent({ data, dateEra = "CE", dateFmt = "DD/MM/YYYY" }:
                     <span style={{ ...S.dotline, width: "100%", textAlign: "center" }}>{data.createdBySignatureName || data.createdByName || data.payerName}</span>
                   </td>
                   <td style={{ textAlign: "left", whiteSpace: "nowrap", paddingLeft: "4px", paddingTop: "4px", border: "none" }}>)</td>
-                  {!data.stampUrl && <td style={{ textAlign: "left", whiteSpace: "nowrap", paddingLeft: "8px", paddingTop: "4px", fontSize: "10px", border: "none" }}>นิติบุคคล</td>}
+                  <td style={{ textAlign: "left", whiteSpace: "nowrap", paddingLeft: "8px", paddingTop: "4px", fontSize: "10px", border: "none" }}>{data.stampUrl ? "" : "นิติบุคคล"}</td>
                 </tr>
                 <tr>
                   <td style={{ border: "none", paddingTop: "4px" }}></td>
@@ -400,7 +401,7 @@ export function WhtCertContent({ data, dateEra = "CE", dateFmt = "DD/MM/YYYY" }:
                     <span style={{ ...S.dotline, width: "25px", textAlign: "center", display: "inline-block" }}>{dateParts.day}</span> / <span style={{ ...S.dotline, width: "55px", textAlign: "center", display: "inline-block" }}>{dateParts.month}</span> / <span style={{ ...S.dotline, width: "35px", textAlign: "center", display: "inline-block" }}>{dateParts.year}</span>
                   </td>
                   <td style={{ border: "none", paddingTop: "4px" }}></td>
-                  {!data.stampUrl && <td style={{ textAlign: "left", whiteSpace: "nowrap", paddingLeft: "8px", paddingTop: "4px", fontSize: "9px", color: "#666", border: "none" }}>(ถ้ามี)</td>}
+                  <td style={{ textAlign: "left", whiteSpace: "nowrap", paddingLeft: "8px", paddingTop: "4px", fontSize: "9px", color: "#666", border: "none" }}>{data.stampUrl ? "" : "(ถ้ามี)"}</td>
                 </tr>
                 <tr>
                   <td style={{ border: "none" }}></td>
