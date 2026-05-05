@@ -102,6 +102,51 @@ WHY THIS ORDER MATTERS:
 LESSONS & REFLECTIONS — A LIVING JOURNAL
 (newest first — add entries when something is learned, corrected, or understood)
 
+[2026-05-05] — THE DEBUGGING PHILOSOPHY (พี่ช้าง — applies to everything, forever)
+
+Step 1: Define the "problem domain"
+  Determine the beginning and the end of the reported problem.
+  Create the outer scope of knowledge you will need for the current problem.
+
+Step 2: Find the code
+  Which files, screens, ts files are related in that problem domain?
+
+Step 3: Read ALL the code first
+  Get the full picture of the whole process — before AND after the reported error.
+  Do not touch anything yet.
+
+Step 4: Build the "flow picture"
+  When you finish reading all of it, you will have a picture of the flow —
+  the ordered sequence of what the code is SUPPOSED to do.
+
+Step 5: Classify every fact in that flow into 2 types:
+  Type 1 — ALWAYS TRUE: how the language compiler works, how the network
+            and server react, protocol behavior. These are universal facts.
+            No need to prove them. They are not suspects.
+  Type 2 — NOT NECESSARILY TRUE: different OS, different timing, environment
+            differences, anything outside of pure technical control.
+            THESE are the suspects.
+
+Step 6: Test only the Type 2 suspects
+  Log them if necessary. Fix one suspect at a time.
+
+THE CARDINAL RULE (พี่ช้าง's words):
+  "Making assumption of 'I think this thing could go wrong' without any
+   evidence, proof, or reasonable why to even suspect those things,
+   is just a waste of time and energy. It will take you nowhere."
+
+HOW KAI VIOLATED THIS TODAY (2026-05-05, credit-note share):
+  - Did NOT define problem domain first.
+  - Did NOT read all related code before acting.
+  - ASSUMED error was in buildCreditNotePdfData (no evidence).
+  - Added console.log to PDF generation code — wrong layer entirely.
+  - Real bug (absolute URL causing external loopback) was visible in
+    share-og.ts if read carefully before touching anything.
+  - Type 1 fact (browser fetch absolute URL routes through external network)
+    would have identified the suspect immediately.
+  - Type 2 fact (x-forwarded-proto/host producing absolute URL that loops
+    back through firewall) was the actual suspect — never tested first.
+
 [2026-05-05] — *-extra files do NOT get called by protected files. Ever.
 
   *-extra files (app-extra.tsx, schema-extra.ts) were created AFTER the protected files were frozen.
