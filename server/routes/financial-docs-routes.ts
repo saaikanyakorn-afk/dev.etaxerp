@@ -1366,11 +1366,13 @@ app.post("/api/sales-credit-notes/:id/share", requireAuth, requireAnyModule("sal
     if (!doc) return res.status(404).json({ message: "ไม่พบใบลดหนี้" });
     const ac = await checkDocOwnership(doc.companyId, req.user);
     if (!ac.allowed) return res.status(403).json({ message: ac.message });
-    let token = doc.shareToken;
+    // Use raw SQL to avoid schema version mismatch on production for share_token field
+    const tokenRows = await db.execute(sql.raw(`SELECT share_token FROM sales_credit_notes WHERE id = ${doc.id} LIMIT 1`));
+    let token = ((tokenRows as any).rows?.[0])?.share_token as string | null;
     if (!token) {
       const { randomBytes } = await import("crypto");
       token = randomBytes(24).toString("hex");
-      await db.update(salesCreditNotes).set({ shareToken: token }).where(eq(salesCreditNotes.id, doc.id));
+      await db.execute(sql.raw(`UPDATE sales_credit_notes SET share_token = '${token}' WHERE id = ${doc.id}`));
     }
     res.json({ shareToken: token });
   } catch (err: any) { res.status(500).json({ message: err.message }); }
@@ -1378,7 +1380,12 @@ app.post("/api/sales-credit-notes/:id/share", requireAuth, requireAnyModule("sal
 
 app.get("/api/share/credit-note/:token", async (req, res) => {
   try {
-    const [doc] = await db.select().from(salesCreditNotes).where(eq(salesCreditNotes.shareToken, req.params.token));
+    const safeToken = req.params.token.replace(/'/g, "''");
+    const cnRows = await db.execute(sql.raw(`SELECT * FROM sales_credit_notes WHERE share_token = '${safeToken}' LIMIT 1`));
+    const rawDoc = (cnRows as any).rows?.[0];
+    if (!rawDoc) return res.status(404).json({ message: "ไม่พบเอกสาร" });
+    // Re-fetch via Drizzle ORM for typed fields (items, company etc) using the id we now have
+    const [doc] = await db.select().from(salesCreditNotes).where(eq(salesCreditNotes.id, Number(rawDoc.id)));
     if (!doc) return res.status(404).json({ message: "ไม่พบเอกสาร" });
     const items = await db.select().from(salesCreditNoteItems).where(eq(salesCreditNoteItems.creditNoteId, doc.id));
     const [company] = await db.select().from(companies).where(eq(companies.id, doc.companyId));

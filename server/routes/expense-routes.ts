@@ -1578,11 +1578,13 @@ export function registerExpenseRoutes(app: Express) {
       const [doc] = await db.select().from(withholdingTaxCerts).where(eq(withholdingTaxCerts.id, Number(req.params.id)));
       if (!doc) return res.status(404).json({ message: "ไม่พบหนังสือรับรอง 50 ทวิ" });
       { const ac = await checkDocOwnership(doc.companyId, req.user); if (!ac.allowed) return res.status(403).json({ message: ac.message }); }
-      let token = doc.shareToken;
+      // Use raw SQL for share_token to avoid production schema.ts version mismatch
+      const tokenRows = await db.execute(sql.raw(`SELECT share_token FROM withholding_tax_certs WHERE id = ${doc.id} LIMIT 1`));
+      let token = ((tokenRows as any).rows?.[0])?.share_token as string | null;
       if (!token) {
         const { randomBytes } = await import("crypto");
         token = randomBytes(24).toString("hex");
-        await db.update(withholdingTaxCerts).set({ shareToken: token }).where(eq(withholdingTaxCerts.id, doc.id));
+        await db.execute(sql.raw(`UPDATE withholding_tax_certs SET share_token = '${token}' WHERE id = ${doc.id}`));
       }
       res.json({ shareToken: token });
     } catch (err: any) { res.status(500).json({ message: err.message }); }
@@ -1590,15 +1592,17 @@ export function registerExpenseRoutes(app: Express) {
 
   app.get("/api/share/wht-cert/:token", async (req, res) => {
     try {
-      const [doc] = await db.select().from(withholdingTaxCerts).where(eq(withholdingTaxCerts.shareToken, req.params.token));
+      const safeToken = req.params.token.replace(/'/g, "''");
+      const rows = await db.execute(sql.raw(`SELECT * FROM withholding_tax_certs WHERE share_token = '${safeToken}' LIMIT 1`));
+      const doc = (rows as any).rows?.[0];
       if (!doc) return res.status(404).json({ message: "ไม่พบเอกสาร" });
-      const [company] = await db.select().from(companies).where(eq(companies.id, doc.companyId));
+      const [company] = await db.select().from(companies).where(eq(companies.id, Number(doc.company_id)));
       let createdByName = "";
       let createdBySignatureName = "";
       let createdBySignatureTitle = "";
       let createdBySignatureUrl = "";
-      if (doc.createdBy) {
-        const u = await storage.getUser(doc.createdBy);
+      if (doc.created_by) {
+        const u = await storage.getUser(Number(doc.created_by));
         if (u) {
           createdByName = u.fullName;
           createdBySignatureName = u.signatureName || u.fullName;
@@ -1612,22 +1616,35 @@ export function registerExpenseRoutes(app: Express) {
 
   app.get("/api/share/wht-cert/:token/pdf", async (req, res) => {
     try {
-      const [doc] = await db.select().from(withholdingTaxCerts).where(eq(withholdingTaxCerts.shareToken, req.params.token));
+      const safeToken = req.params.token.replace(/'/g, "''");
+      const rows = await db.execute(sql.raw(`SELECT * FROM withholding_tax_certs WHERE share_token = '${safeToken}' LIMIT 1`));
+      const doc = (rows as any).rows?.[0];
       if (!doc) return res.status(404).json({ message: "ไม่พบเอกสาร" });
-      const [company] = await db.select().from(companies).where(eq(companies.id, doc.companyId));
+      const [company] = await db.select().from(companies).where(eq(companies.id, Number(doc.company_id)));
       let createdBySignatureName = "";
       let createdByName = "";
-      if (doc.createdBy) {
-        const u = await storage.getUser(doc.createdBy);
+      if (doc.created_by) {
+        const u = await storage.getUser(Number(doc.created_by));
         if (u) {
           createdByName = u.fullName;
           createdBySignatureName = u.signatureName || u.fullName;
         }
       }
-      const items = await db.select().from(whtCertItems).where(eq(whtCertItems.whtCertId, doc.id));
-      const pdfData = { ...doc, company, items, createdByName, createdBySignatureName };
+      const itemRows = await db.execute(sql.raw(`SELECT * FROM wht_cert_items WHERE wht_cert_id = ${Number(doc.id)}`));
+      const items = (itemRows as any).rows || [];
+      // generateWhtCertPdf expects camelCase fields — map snake_case raw result
+      const docCamel = {
+        ...doc,
+        certNo: doc.cert_no, bookNo: doc.book_no, companyId: doc.company_id,
+        payerName: doc.payer_name, payerTaxId: doc.payer_tax_id, payerAddress: doc.payer_address,
+        payeeName: doc.payee_name, payeeTaxId: doc.payee_tax_id, payeeAddress: doc.payee_address,
+        paidDate: doc.paid_date, totalIncome: doc.total_income, taxWithheld: doc.tax_withheld,
+        whtRate: doc.wht_rate, incomeType: doc.income_type, incomeTypeOther: doc.income_type_other,
+        createdBy: doc.created_by,
+      };
+      const pdfData = { ...docCamel, company, items, createdByName, createdBySignatureName };
       const pdfBuffer = await generateWhtCertPdf(pdfData);
-      const filename = `wht-cert-${doc.certNo || doc.id}.pdf`;
+      const filename = `wht-cert-${doc.cert_no || doc.id}.pdf`;
       res.setHeader("Content-Type", "application/pdf");
       res.setHeader("Content-Disposition", `inline; filename="${encodeURIComponent(filename)}"`);
       res.send(pdfBuffer);
