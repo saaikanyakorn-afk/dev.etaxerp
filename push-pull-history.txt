@@ -201,6 +201,14 @@ WHAT DOES NOT WORK (tested 2026-05-04):
 ----------------------------------------------------------------
 DEPLOY LOG (latest first):
 
+[#43] 2026-05-05 — Credit note share PDF: raw SQL in buildPdfDataByToken
+  Commit: 955d56c9
+  Fix: buildPdfDataByToken (pdf-data-fetcher.ts) — credit_note path now uses raw SQL to lookup id
+       then calls buildCreditNotePdfData(id) — bypasses salesCreditNotes.shareToken (not in prod schema.ts)
+  Error was: "syntax error at or near \"=\"" — Drizzle generated invalid SQL from undefined column
+  Server: git fetch origin && git checkout origin/main -- server/pdf-data-fetcher.ts && npm run build && pm2 restart etax-center
+  Result: ✅ online 83.8mb
+
 [#42] 2026-05-05 — Credit note share: standalone HTML handler (bypass App.tsx 404)
   Commits: 11586e82 (share-og.ts), 72df7d31 (static.ts)
   Fix: creditNoteShareHandler — serves standalone PDF viewer HTML directly from Express
