@@ -201,6 +201,20 @@ WHAT DOES NOT WORK (tested 2026-05-04):
 ----------------------------------------------------------------
 DEPLOY LOG (latest first):
 
+[#42] 2026-05-05 — Credit note share: standalone HTML handler (bypass App.tsx 404)
+  Commits: 11586e82 (share-og.ts), 72df7d31 (static.ts)
+  Fix: creditNoteShareHandler — serves standalone PDF viewer HTML directly from Express
+       Same pattern as billingNoteShareHandler. PDF via /api/share/credit-note/:token/pdf (generic endpoint in pdf-routes.ts already existed)
+  Server: git fetch origin && git checkout origin/main -- server/share-og.ts server/static.ts && npm run build && pm2 restart etax-center
+  Result: ✅ online 84.7mb
+
+[#41] 2026-05-05 — WHT cert share: camelCase mapping + items in API response
+  Commit: f611570b
+  Fix: GET /api/share/wht-cert/:token now returns camelCase fields + wht_cert_items array
+       Previously returned raw snake_case from SQL → WhtCertContent form rendered empty
+  Server: git fetch origin && git checkout origin/main -- server/routes/expense-routes.ts && npm run build && pm2 restart etax-center
+  Result: ✅ online 83.6mb
+
 [#40] 2026-05-05 — Fix build failure: dynamic require for pdf-wht-cert
   Commit: 166d1138
   Fix: static `import { generateWhtCertPdf } from "../pdf-wht-cert"` changed to dynamic
