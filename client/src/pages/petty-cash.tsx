@@ -229,9 +229,18 @@ export default function PettyCash() {
       });
       if (!r.ok) {
         let msg = `เกิดข้อผิดพลาด (${r.status})`;
-        try { const e = await r.json(); msg = e.message || msg; } catch { console.error("POST /api/petty-cash/transactions non-JSON", r.status); }
+        const ct = r.headers.get("content-type") || "";
+        if (ct.includes("application/json")) {
+          try { const e = await r.json(); msg = e.message || msg; } catch {}
+        } else if (r.status === 403) {
+          msg = "ไม่มีสิทธิ์เข้าถึง — กรุณาตรวจสอบสิทธิ์บทบาทพนักงานในตั้งค่าระบบ";
+        } else if (r.status === 401) {
+          msg = "กรุณาเข้าสู่ระบบใหม่";
+        }
         throw new Error(msg);
       }
+      const ct = r.headers.get("content-type") || "";
+      if (!ct.includes("application/json")) throw new Error("เซิร์ฟเวอร์ตอบกลับผิดรูปแบบ กรุณาลองใหม่");
       return r.json();
     },
     onSuccess: () => {
