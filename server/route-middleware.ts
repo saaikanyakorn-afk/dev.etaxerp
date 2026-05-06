@@ -153,73 +153,78 @@ export function requireRole(...roles: string[]) {
 
 export function requireModule(moduleKey: string) {
   return async (req: Request, res: Response, next: NextFunction) => {
-    const user = req.user as any;
-    if (!user) return res.status(401).json({ message: "กรุณาเข้าสู่ระบบ" });
+    try {
+      const user = req.user as any;
+      if (!user) return res.status(401).json({ message: "กรุณาเข้าสู่ระบบ" });
 
-    const { PRIMARY_ONLY_MODULES, FIRM_ONLY_MODULES, hasPermission } = await import("@shared/permissions");
+      const { PRIMARY_ONLY_MODULES, FIRM_ONLY_MODULES, hasPermission } = await import("@shared/permissions");
 
-    let tenantType = "accounting_firm";
-    if (user.tenantId) {
-      const tenant = await storage.getTenant(user.tenantId);
-      tenantType = tenant?.tenantType || "accounting_firm";
-    } else {
-      const primaryCompany = await storage.getPrimaryCompany();
-      tenantType = primaryCompany?.tenantType || "accounting_firm";
-    }
-    if (tenantType === "general_business" && FIRM_ONLY_MODULES.includes(moduleKey)) {
-      return res.status(403).json({ message: "ฟีเจอร์นี้ใช้ได้เฉพาะสำนักงานบัญชี" });
-    }
-
-    if (user.role !== "super_admin" && user.role !== "admin" && user.tenantId && moduleKey !== "settings") {
-      const enabledModules = await getEnabledModulesForTenant(user.tenantId);
-      if (enabledModules && enabledModules.length > 0 && !enabledModules.includes(moduleKey)) {
-        return res.status(403).json({ message: "แพ็คเกจของคุณไม่รองรับฟีเจอร์นี้" });
+      let tenantType = "accounting_firm";
+      if (user.tenantId) {
+        const tenant = await storage.getTenant(user.tenantId);
+        tenantType = tenant?.tenantType || "accounting_firm";
+      } else {
+        const primaryCompany = await storage.getPrimaryCompany();
+        tenantType = primaryCompany?.tenantType || "accounting_firm";
       }
-    }
+      if (tenantType === "general_business" && FIRM_ONLY_MODULES.includes(moduleKey)) {
+        return res.status(403).json({ message: "ฟีเจอร์นี้ใช้ได้เฉพาะสำนักงานบัญชี" });
+      }
 
-    switch (user.role) {
-      case "admin":
-      case "super_admin":
-        return next();
+      if (user.role !== "super_admin" && user.role !== "admin" && user.tenantId && moduleKey !== "settings") {
+        const enabledModules = await getEnabledModulesForTenant(user.tenantId);
+        if (enabledModules && enabledModules.length > 0 && !enabledModules.includes(moduleKey)) {
+          return res.status(403).json({ message: "แพ็คเกจของคุณไม่รองรับฟีเจอร์นี้" });
+        }
+      }
 
-      case "client_external":
-        if (moduleKey === "etax-hub") return next();
-        return res.status(403).json({ message: "ไม่มีสิทธิ์เข้าถึงส่วนนี้" });
+      switch (user.role) {
+        case "admin":
+        case "super_admin":
+          return next();
 
-      case "manager":
-      case "accountant":
-      case "employee":
-      case "cashier":
-      case "client": {
-        if (PRIMARY_ONLY_MODULES.includes(moduleKey)) {
-          const managerHrException = user.role === "manager" && moduleKey === "hr";
-          const managerSettingsException = user.role === "manager" && moduleKey === "settings";
-          if (!managerHrException && !managerSettingsException) {
-            const companyId = req.query.companyId ? Number(req.query.companyId) : null;
-            if (companyId) {
-              const company = await storage.getCompany(companyId);
-              if (!company?.isPrimary) {
-                return res.status(403).json({ message: "ไม่มีสิทธิ์เข้าถึงส่วนนี้ในบริษัทลูกค้า" });
+        case "client_external":
+          if (moduleKey === "etax-hub") return next();
+          return res.status(403).json({ message: "ไม่มีสิทธิ์เข้าถึงส่วนนี้" });
+
+        case "manager":
+        case "accountant":
+        case "employee":
+        case "cashier":
+        case "client": {
+          if (PRIMARY_ONLY_MODULES.includes(moduleKey)) {
+            const managerHrException = user.role === "manager" && moduleKey === "hr";
+            const managerSettingsException = user.role === "manager" && moduleKey === "settings";
+            if (!managerHrException && !managerSettingsException) {
+              const companyId = req.query.companyId ? Number(req.query.companyId) : null;
+              if (companyId) {
+                const company = await storage.getCompany(companyId);
+                if (!company?.isPrimary) {
+                  return res.status(403).json({ message: "ไม่มีสิทธิ์เข้าถึงส่วนนี้ในบริษัทลูกค้า" });
+                }
               }
             }
           }
-        }
 
-        const perms = await storage.getRolePermissionsByRole(user.role);
-        if (perms.length === 0) {
-          if (hasPermission(user.role, moduleKey)) return next();
+          const perms = await storage.getRolePermissionsByRole(user.role);
+          if (perms.length === 0) {
+            if (hasPermission(user.role, moduleKey)) return next();
+            return res.status(403).json({ message: "ไม่มีสิทธิ์เข้าถึงส่วนนี้" });
+          }
+          const perm = perms.find(p => p.moduleKey === moduleKey);
+          if (perm && perm.allowed) return next();
           return res.status(403).json({ message: "ไม่มีสิทธิ์เข้าถึงส่วนนี้" });
         }
-        const perm = perms.find(p => p.moduleKey === moduleKey);
-        if (perm && perm.allowed) return next();
-        return res.status(403).json({ message: "ไม่มีสิทธิ์เข้าถึงส่วนนี้" });
-      }
 
-      default: {
-        const errMsg = `[requireModule] Unhandled role "${user.role}" for userId=${user.id}, module="${moduleKey}", path=${req.path}`;
-        console.error(errMsg);
-        return res.status(403).json({ message: "ไม่มีสิทธิ์เข้าถึง — role ไม่รู้จัก", debug: errMsg });
+        default: {
+          const errMsg = `[requireModule] Unhandled role "${user.role}" for userId=${user.id}, module="${moduleKey}", path=${req.path}`;
+          console.error(errMsg);
+          return res.status(403).json({ message: "ไม่มีสิทธิ์เข้าถึง — role ไม่รู้จัก", debug: errMsg });
+        }
       }
+    } catch (err: any) {
+      console.error(`[requireModule] Error checking module="${moduleKey}" for path=${req.path}:`, err.message);
+      return res.status(503).json({ message: "ไม่สามารถตรวจสอบสิทธิ์ได้ชั่วคราว กรุณาลองใหม่" });
     }
   };
 }
