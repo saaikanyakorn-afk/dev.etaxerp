@@ -327,20 +327,21 @@ export default function Expense() {
               saveToContacts: false,
               currencyCode: data.currencyCode || "THB",
               exchangeRate: String(data.exchangeRate || "1"),
-              withholdingTax: String(data.withholdingTax || "0"),
-              discountBeforeVat: data.discountType === "percent" ? `${cleanDecimal(data.discountAmount, "0")}%` : cleanDecimal(data.discountAmount, "0"),
+              withholdingTax: (() => { const r = parseFloat(data.exchangeRate || "1") || 1; const v = parseFloat(data.withholdingTax || "0"); return r > 1 ? cleanDecimal(v / r, "0") : String(v || "0"); })(),
+              discountBeforeVat: (() => { const r = parseFloat(data.exchangeRate || "1") || 1; if (data.discountType === "percent") return `${cleanDecimal(data.discountAmount, "0")}%`; const v = parseFloat(data.discountAmount || "0"); return r > 1 ? cleanDecimal(v / r, "0") : cleanDecimal(v, "0"); })(),
               paymentMethod: data.paymentMethod || "",
               attachedUrl: "",
               showInTaxReport: data.showInTaxReport !== false,
             });
             if (data.discountType === "percent") setDiscountMode("percent");
             if (data.items && data.items.length > 0) {
+              const _r1 = parseFloat(data.exchangeRate || "1") || 1;
               setItems(data.items.map((it: any) => ({
                 accountCode: it.accountCode || "",
                 accountName: it.accountName || "",
                 description: it.description || "",
                 expenseType: it.expenseType || "expense",
-                amount: cleanDecimal(it.amount, "0"),
+                amount: _r1 > 1 ? cleanDecimal(parseFloat(it.amount || "0") / _r1, "0") : cleanDecimal(it.amount, "0"),
                 vatType: it.vatType || "vat7",
               })));
             }
@@ -382,20 +383,21 @@ export default function Expense() {
               saveToContacts: false,
               currencyCode: data.currencyCode || "THB",
               exchangeRate: String(data.exchangeRate || "1"),
-              withholdingTax: String(data.withholdingTax || "0"),
-              discountBeforeVat: data.discountType === "percent" ? `${cleanDecimal(data.discountAmount, "0")}%` : cleanDecimal(data.discountAmount, "0"),
+              withholdingTax: (() => { const r = parseFloat(data.exchangeRate || "1") || 1; const v = parseFloat(data.withholdingTax || "0"); return r > 1 ? cleanDecimal(v / r, "0") : String(v || "0"); })(),
+              discountBeforeVat: (() => { const r = parseFloat(data.exchangeRate || "1") || 1; if (data.discountType === "percent") return `${cleanDecimal(data.discountAmount, "0")}%`; const v = parseFloat(data.discountAmount || "0"); return r > 1 ? cleanDecimal(v / r, "0") : cleanDecimal(v, "0"); })(),
               paymentMethod: data.paymentMethod || "",
               attachedUrl: data.attachedUrl || "",
               showInTaxReport: data.showInTaxReport !== false,
             });
             if (data.discountType === "percent") setDiscountMode("percent");
             if (data.items && data.items.length > 0) {
+              const _r2 = parseFloat(data.exchangeRate || "1") || 1;
               setItems(data.items.map((it: any) => ({
                 accountCode: it.accountCode || "",
                 accountName: it.accountName || "",
                 description: it.description || "",
                 expenseType: it.expenseType || "expense",
-                amount: cleanDecimal(it.amount, "0"),
+                amount: _r2 > 1 ? cleanDecimal(parseFloat(it.amount || "0") / _r2, "0") : cleanDecimal(it.amount, "0"),
                 vatType: it.vatType || "vat7",
               })));
             }
