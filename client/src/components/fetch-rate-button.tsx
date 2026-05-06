@@ -18,7 +18,7 @@ export function FetchRateButton({ currency, date, onRate, rateType = "selling" }
     try {
       const params = new URLSearchParams({ currency });
       if (date) params.set("date", date);
-      const res = await fetch(`/api/exchange-rate?${params}`, { credentials: "include" });
+      const res = await fetch(`/api/exchange-rate?${params}`, { credentials: "include", cache: "no-store" });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message);
 
@@ -28,7 +28,7 @@ export function FetchRateButton({ currency, date, onRate, rateType = "selling" }
 
       onRate(rate);
 
-      const sourceLabel = data.source === "BOT" ? "ธปท." : "ECB";
+      const sourceLabel = "ธปท.";
       const rateLabel = rateType === "buying_transfer" && data.buying_transfer
         ? `ซื้อ ${data.buying_transfer}`
         : data.selling
