@@ -11,8 +11,10 @@ import { useToast } from "@/hooks/use-toast";
 import { useCompany } from "@/lib/company-context";
 import {
   ArrowLeft, Plus, FileText, Save, Trash2, Package, Home,
-  RotateCcw, AlertCircle, Search, Copy, CheckCircle2
+  RotateCcw, AlertCircle, Search, Copy, CheckCircle2,
+  Send, Mail, Loader2, FileDown
 } from "lucide-react";
+import { EtaxSendDialog } from "@/components/etax-send-dialog";
 import { apiRequest } from "@/lib/queryClient";
 import { DatePicker, toDisplayDate } from "@/components/ui/date-picker";
 import type { DateFormat } from "@/components/ui/date-picker";
@@ -77,6 +79,108 @@ const REASON_OPTIONS = [
   { value: "calculation_error", label: "คำนวณผิด" },
   { value: "other", label: "อื่นๆ" },
 ];
+
+function EtaxCreditNoteButton({ creditNoteId, companyId, creditNoteNo }: { creditNoteId: number | null; companyId: number | undefined; creditNoteNo?: string }) {
+  const [loadingPdf, setLoadingPdf] = useState(false);
+  const [showSendDialog, setShowSendDialog] = useState(false);
+  const { toast } = useToast();
+
+  const { data: etaxSettings } = useQuery({
+    queryKey: ["/api/etax/settings", companyId],
+    queryFn: async () => {
+      const res = await fetch(`/api/etax/settings?companyId=${companyId}`, { credentials: "include" });
+      if (!res.ok) return null;
+      return res.json();
+    },
+    enabled: !!companyId,
+  });
+
+  const { data: cnData } = useQuery({
+    queryKey: ["/api/sales-credit-notes", creditNoteId],
+    queryFn: async () => {
+      const res = await fetch(`/api/sales-credit-notes/${creditNoteId}`, { credentials: "include" });
+      if (!res.ok) return null;
+      return res.json();
+    },
+    enabled: !!creditNoteId,
+  });
+
+  if (!etaxSettings?.etaxEnabled || !creditNoteId) return null;
+
+  const isSent = !!cnData?.etaxSentAt;
+
+  const handleGeneratePdfA3 = async () => {
+    setLoadingPdf(true);
+    try {
+      const res = await fetch("/api/etax/credit-note/generate-pdf", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ creditNoteId, companyId }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message);
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      const disposition = res.headers.get("Content-Disposition") || "";
+      const match = disposition.match(/filename="?([^"]+)"?/);
+      a.download = match ? decodeURIComponent(match[1]) : "etax_CN_PDFA3.pdf";
+      a.click();
+      URL.revokeObjectURL(url);
+      toast({ title: "ดาวน์โหลด e-Tax PDF/A-3 สำเร็จ" });
+    } catch (err: any) {
+      toast({ title: "เกิดข้อผิดพลาด", description: err.message, variant: "destructive" });
+    }
+    setLoadingPdf(false);
+  };
+
+  return (
+    <div className="flex flex-col gap-2">
+      {isSent && (
+        <div className="flex items-center gap-2 text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-md px-3 py-1.5">
+          <Mail className="h-3.5 w-3.5" />
+          <span>ส่ง e-Tax แล้ว: {cnData.etaxSentTo} ({new Date(cnData.etaxSentAt).toLocaleDateString("th-TH")})</span>
+        </div>
+      )}
+      <div className="flex items-center gap-1.5">
+        <Button
+          data-testid="button-etax-email-cn"
+          variant="outline"
+          size="sm"
+          className={`h-8 gap-1.5 ${isSent ? "border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-700" : "border-[var(--theme-primary)]/50 bg-[var(--theme-primary)]/10 hover:bg-[var(--theme-primary)]/20 text-[var(--theme-primary)]"}`}
+          onClick={() => setShowSendDialog(true)}
+        >
+          <Send className="h-3.5 w-3.5" />
+          {isSent ? "ส่งซ้ำ e-Tax Invoice" : "ส่ง e-Tax Invoice"}
+        </Button>
+        {isSent && (
+          <Button
+            data-testid="button-etax-pdf-cn"
+            variant="outline"
+            size="sm"
+            className="h-8 gap-1.5 border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-700"
+            onClick={handleGeneratePdfA3}
+            disabled={loadingPdf}
+          >
+            {loadingPdf ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileDown className="h-3.5 w-3.5" />}
+            ดาวน์โหลด PDF/A-3
+          </Button>
+        )}
+      </div>
+      <EtaxSendDialog
+        open={showSendDialog}
+        onOpenChange={setShowSendDialog}
+        docType="credit_note"
+        creditNoteId={creditNoteId}
+        creditNoteNo={creditNoteNo || cnData?.creditNoteNo || ""}
+      />
+    </div>
+  );
+}
 
 export default function CreditNoteForm() {
   const [, navigate] = useLocation();
@@ -947,6 +1051,16 @@ export default function CreditNoteForm() {
                 {isLocked ? "ล็อคแล้ว" : isSaving ? "กำลังบันทึก..." : "บันทึก"}
               </Button>
             </div>
+
+            {editingId && (
+              <div className="border-t pt-4 mt-2">
+                <div className="text-xs font-semibold text-slate-600 mb-2 flex items-center gap-1.5">
+                  <Send className="h-3.5 w-3.5" />
+                  ส่ง e-Tax Invoice (ใบลดหนี้)
+                </div>
+                <EtaxCreditNoteButton creditNoteId={editingId} companyId={companyId} creditNoteNo={form.creditNoteNo} />
+              </div>
+            )}
           </fieldset>
         </div>
       </div>
