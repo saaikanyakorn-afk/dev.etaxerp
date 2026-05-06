@@ -1052,7 +1052,7 @@ export default function TaxInvoiceForm() {
   const totals = calcTotals();
   const isSaving = createMutation.isPending || updateMutation.isPending;
   const isSaved = !!savedId || !!editingId;
-  const isLocked = !isNew && ["issued", "cancelled", "voided"].includes(form.status);
+  const isLocked = false;
 
   return (
     <Layout>

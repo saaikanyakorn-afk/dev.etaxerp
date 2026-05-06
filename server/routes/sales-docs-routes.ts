@@ -215,6 +215,9 @@ app.delete("/api/sales-orders/:id", requireAuth, requireAnyModule("sales", "ecom
     const existing = await storage.getSalesOrder(Number(req.params.id));
     if (!existing) return res.status(404).json({ message: "ไม่พบรายการขาย" });
     { const ac = await checkDocOwnership(existing.companyId, req.user); if (!ac.allowed) return res.status(403).json({ message: ac.message }); }
+    // cascade protection: ต้องลบเอกสารปลายทางก่อน
+    const linkedIV = await db.select({ id: invoices.id, no: invoices.invoiceNo }).from(invoices).where(eq(invoices.salesOrderId, existing.id));
+    if (linkedIV.length > 0) return res.status(400).json({ message: `ไม่สามารถลบได้ เนื่องจากมีใบแจ้งหนี้เชื่อมอยู่:\n${linkedIV.map(r => r.no).join(", ")}\nกรุณาลบเอกสารที่เชื่อมก่อน` });
     await db.transaction(async (tx) => {
       await tx.delete(salesOrderItems).where(eq(salesOrderItems.salesOrderId, existing.id));
       await tx.delete(salesOrders).where(eq(salesOrders.id, existing.id));
@@ -557,6 +560,13 @@ app.delete("/api/quotations/:id", requireAuth, requireAnyModule("sales", "ecomme
     const existing = await storage.getQuotation(Number(req.params.id));
     if (!existing) return res.status(404).json({ message: "ไม่พบใบเสนอราคา" });
     { const ac = await checkDocOwnership(existing.companyId, req.user); if (!ac.allowed) return res.status(403).json({ message: ac.message }); }
+    // cascade protection: ต้องลบเอกสารปลายทางก่อน
+    const blockers: string[] = [];
+    const linkedSO = await db.select({ id: salesOrders.id, no: salesOrders.orderNo }).from(salesOrders).where(eq(salesOrders.quotationId, existing.id));
+    if (linkedSO.length > 0) blockers.push(`ใบสั่งขาย: ${linkedSO.map(r => r.no).join(", ")}`);
+    const linkedIV = await db.select({ id: invoices.id, no: invoices.invoiceNo }).from(invoices).where(eq(invoices.quotationId, existing.id));
+    if (linkedIV.length > 0) blockers.push(`ใบแจ้งหนี้: ${linkedIV.map(r => r.no).join(", ")}`);
+    if (blockers.length > 0) return res.status(400).json({ message: `ไม่สามารถลบได้ เนื่องจากมีเอกสารเชื่อมอยู่:\n${blockers.join("\n")}\nกรุณาลบเอกสารที่เชื่อมก่อน` });
     await storage.deleteQuotationItems(existing.id);
     await storage.deleteQuotation(existing.id);
     res.json({ success: true });
@@ -1140,6 +1150,13 @@ app.delete("/api/invoices/:id", requireAuth, requireAnyModule("sales", "ecommerc
     const [existing] = await db.select().from(invoices).where(eq(invoices.id, Number(req.params.id)));
     if (!existing) return res.status(404).json({ message: "ไม่พบใบแจ้งหนี้" });
     { const ac = await checkDocOwnership(existing.companyId, req.user); if (!ac.allowed) return res.status(403).json({ message: ac.message }); }
+    // cascade protection: ต้องลบเอกสารปลายทางก่อน
+    const blockers: string[] = [];
+    const linkedTIV = await db.select({ id: taxInvoices.id, no: taxInvoices.taxInvoiceNo }).from(taxInvoices).where(eq(taxInvoices.invoiceId, existing.id));
+    if (linkedTIV.length > 0) blockers.push(`ใบกำกับภาษี: ${linkedTIV.map(r => r.no).join(", ")}`);
+    const linkedRC = await db.select({ id: receipts.id, no: receipts.receiptNo }).from(receipts).where(eq(receipts.invoiceId, existing.id));
+    if (linkedRC.length > 0) blockers.push(`ใบเสร็จรับเงิน: ${linkedRC.map(r => r.no).join(", ")}`);
+    if (blockers.length > 0) return res.status(400).json({ message: `ไม่สามารถลบได้ เนื่องจากมีเอกสารเชื่อมอยู่:\n${blockers.join("\n")}\nกรุณาลบเอกสารที่เชื่อมก่อน` });
     const invItems = await fetchInvoiceItems(existing.id);
     await db.transaction(async (tx) => {
       await deleteJournalEntriesForDoc(tx, "invoice", existing.id);
