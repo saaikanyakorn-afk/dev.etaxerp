@@ -143,25 +143,40 @@ export function registerObjectStorageRoutes(app: Express): void {
       if (!req.file) {
         return res.status(400).json({ error: "No file provided" });
       }
-      ensureUploadDir();
+      try {
+        ensureUploadDir();
+      } catch (dirErr: any) {
+        console.error("[Upload] Failed to create upload directory:", dirErr);
+        return res.status(500).json({ error: `Upload failed: cannot create upload folder — ${dirErr.message}` });
+      }
       const fileId = randomUUID();
       const ext = path.extname(req.file.originalname || "").toLowerCase();
       const safeName = fileId + ext;
       const metaName = fileId + ".meta.json";
-      fs.writeFileSync(path.join(LOCAL_UPLOAD_DIR, safeName), req.file.buffer);
-      fs.writeFileSync(path.join(LOCAL_UPLOAD_DIR, metaName), JSON.stringify({
-        originalName: req.file.originalname,
-        contentType: req.file.mimetype || "application/octet-stream",
-        size: req.file.size,
-        uploadedAt: new Date().toISOString(),
-      }));
+      try {
+        fs.writeFileSync(path.join(LOCAL_UPLOAD_DIR, safeName), req.file.buffer);
+      } catch (writeErr: any) {
+        console.error("[Upload] Failed to write file:", writeErr);
+        return res.status(500).json({ error: `Upload failed: cannot write file to disk — ${writeErr.message}` });
+      }
+      try {
+        fs.writeFileSync(path.join(LOCAL_UPLOAD_DIR, metaName), JSON.stringify({
+          originalName: req.file.originalname,
+          contentType: req.file.mimetype || "application/octet-stream",
+          size: req.file.size,
+          uploadedAt: new Date().toISOString(),
+        }));
+      } catch (metaErr: any) {
+        console.error("[Upload] Failed to write metadata:", metaErr);
+        return res.status(500).json({ error: `Upload failed: cannot write metadata — ${metaErr.message}` });
+      }
       res.json({
         objectPath: `/api/local-file/${safeName}`,
         metadata: { name: req.file.originalname, size: req.file.size, contentType: req.file.mimetype },
       });
     } catch (error: any) {
       console.error("Error in direct upload:", error);
-      res.status(500).json({ error: "อัพโหลดไฟล์ไม่สำเร็จ กรุณาลองอีกครั้ง" });
+      res.status(500).json({ error: `Upload failed: ${error.message}` });
     }
   });
 

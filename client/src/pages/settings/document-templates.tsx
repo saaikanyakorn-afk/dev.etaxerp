@@ -154,11 +154,17 @@ function ImageUploadBox({
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [imgError, setImgError] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   useEffect(() => { setImgError(false); }, [currentUrl]);
   const { uploadFile, isUploading } = useUpload({
     onSuccess: (response) => {
       setImgError(false);
+      setUploadError(null);
       onUploaded(response.objectPath);
+    },
+    onError: (err) => {
+      setUploadError(err.message);
+      alert(`อัปโหลดไม่สำเร็จ: ${err.message}`);
     },
   });
 
@@ -169,6 +175,7 @@ function ImageUploadBox({
       alert("ไฟล์ต้องมีขนาดไม่เกิน 5MB");
       return;
     }
+    setUploadError(null);
     await uploadFile(file);
     if (fileRef.current) fileRef.current.value = "";
   }, [uploadFile]);

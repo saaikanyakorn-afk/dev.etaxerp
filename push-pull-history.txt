@@ -135,6 +135,45 @@ WHY THIS ORDER MATTERS:
 LESSONS & REFLECTIONS — A LIVING JOURNAL
 (newest first — add entries when something is learned, corrected, or understood)
 
+[2026-05-06] — FILE WRITE PROTECTION & THE FALLBACK ENEMY (พี่ช้าง)
+
+Context: stamp_url feature — production server writes uploaded stamp image to local disk.
+The question was: "Have you verified the production server CAN write the file to that location?"
+
+The lesson:
+  Anything that involves writing to disk (or any I/O) on a production server is a TYPE 2 fact.
+  (Type 2 = not necessarily true — OS, permissions, disk space, missing folder are all suspects.)
+  You CANNOT assume it will work just because it works in dev.
+
+The enemy — SILENT FALLBACK:
+  If your catch block swallows the real error and returns a generic message like
+  "อัพโหลดไฟล์ไม่สำเร็จ กรุณาลองอีกครั้ง", the user cannot tell you what went wrong.
+  You have no idea if the failure was:
+    - Disk full
+    - Permission denied on the uploads folder
+    - The uploads folder doesn't exist and mkdirSync failed
+    - Something else entirely
+  This is the fallback acting as your enemy — it hides the problem.
+
+The protection pattern:
+  1. Backend: in the catch block, include the REAL error.message in the response.
+     Do NOT replace it with a friendly generic message. Return both:
+       { error: "Upload failed: " + err.message }
+  2. Frontend: ALWAYS display the error to the user. Do not silently swallow it.
+     If useUpload() returns error, show it on screen so the user can report back.
+     An alert() is acceptable for this case — it stops the process and forces the user to report.
+  3. Stop the rest of the process when a write fails. Do not continue as if it succeeded.
+
+Why this matters for debugging:
+  If the user sees "อัพโหลดไม่สำเร็จ: EACCES: permission denied, open '/app/uploads/xxx.png'"
+  you immediately know EXACTLY what is wrong and where to fix it.
+  Compare that to just "อัพโหลดไม่สำเร็จ" — you know nothing.
+
+This is a real-world example of Type 2 fact-finding (from THE DEBUGGING PHILOSOPHY):
+  "Different OS, different permissions, different environment" — these are suspects.
+  You must EXPOSE them, not hide them behind friendly messages.
+
+----------------------------------------------------------------
 [2026-05-05] — THE DEBUGGING PHILOSOPHY (พี่ช้าง — applies to everything, forever)
 
 Step 1: Define the "problem domain"
