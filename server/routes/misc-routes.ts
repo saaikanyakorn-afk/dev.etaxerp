@@ -340,6 +340,7 @@ setTimeout(async () => {
 }, 10000);
 
 app.get("/api/exchange-rate", requireAuth, async (req, res) => {
+  res.setHeader("Cache-Control", "no-store");
   try {
     const currency = (req.query.currency as string || "USD").toUpperCase();
     const date = req.query.date as string | undefined;
