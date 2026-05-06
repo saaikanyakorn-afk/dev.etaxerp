@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Loader2, FileText, Receipt, Download } from "lucide-react";
@@ -87,6 +87,58 @@ function AbbreviatedTaxInvoice({ data, company }: { data: any; company: any }) {
         <div>Thank you</div>
       </div>
     </div>
+  );
+}
+
+function PdfFrame({ invoiceId, printType }: { invoiceId: number; printType: string }) {
+  const [blobUrl, setBlobUrl] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const prevUrl = useRef<string | null>(null);
+
+  useEffect(() => {
+    const pt = printType && printType !== "tax_invoice" ? `?printType=${printType}` : "";
+    const url = `/api/documents/tax_invoice/${invoiceId}/pdf${pt}`;
+    setBlobUrl(null);
+    setError(null);
+
+    fetch(url, { credentials: "include" })
+      .then(async (res) => {
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.message || `HTTP ${res.status}`);
+        }
+        return res.blob();
+      })
+      .then((blob) => {
+        const objectUrl = URL.createObjectURL(blob);
+        if (prevUrl.current) URL.revokeObjectURL(prevUrl.current);
+        prevUrl.current = objectUrl;
+        setBlobUrl(objectUrl);
+      })
+      .catch((err) => setError(err.message));
+
+    return () => {
+      if (prevUrl.current) URL.revokeObjectURL(prevUrl.current);
+    };
+  }, [invoiceId, printType]);
+
+  if (error) return (
+    <div className="w-full border rounded shadow flex items-center justify-center text-sm text-red-500 bg-red-50" style={{ height: "200px" }}>
+      โหลด PDF ไม่ได้: {error}
+    </div>
+  );
+  if (!blobUrl) return (
+    <div className="w-full border rounded shadow flex items-center justify-center" style={{ height: "200px" }}>
+      <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
+    </div>
+  );
+  return (
+    <iframe
+      src={blobUrl}
+      className="w-full border-0 rounded shadow"
+      style={{ height: "1122px" }}
+      title={`Invoice ${invoiceId}`}
+    />
   );
 }
 
@@ -232,23 +284,14 @@ export default function TaxInvoiceBatchPrint() {
         </div>
       ) : (
         <div className="max-w-5xl mx-auto py-4 space-y-8">
-          {invoices.map((inv, idx) => {
-            const pt = printType !== "tax_invoice" ? `?printType=${printType}` : "";
-            const iframeSrc = `/api/documents/tax_invoice/${inv.id}/pdf${pt}`;
-            return (
-              <div key={inv.id} data-testid={`batch-invoice-${inv.id}`}>
-                <div className="text-center py-2 mb-2 bg-slate-50 rounded text-sm text-slate-500">
-                  ใบที่ {idx + 1}/{invoices.length} — {inv.taxInvoiceNo} — {inv.customerName || "ไม่ระบุลูกค้า"}
-                </div>
-                <iframe
-                  src={iframeSrc}
-                  className="w-full border-0 rounded shadow"
-                  style={{ height: "1122px" }}
-                  title={`Invoice ${inv.taxInvoiceNo}`}
-                />
+          {invoices.map((inv, idx) => (
+            <div key={inv.id} data-testid={`batch-invoice-${inv.id}`}>
+              <div className="text-center py-2 mb-2 bg-slate-50 rounded text-sm text-slate-500">
+                ใบที่ {idx + 1}/{invoices.length} — {inv.taxInvoiceNo} — {inv.customerName || "ไม่ระบุลูกค้า"}
               </div>
-            );
-          })}
+              <PdfFrame invoiceId={inv.id} printType={printType} />
+            </div>
+          ))}
         </div>
       )}
     </div>
