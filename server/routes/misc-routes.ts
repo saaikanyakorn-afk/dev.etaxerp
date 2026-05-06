@@ -376,15 +376,7 @@ app.get("/api/exchange-rate", requireAuth, async (req, res) => {
       } catch {}
     }
 
-    const dateTag = dateParam || "latest";
-    const url = `https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@${dateTag}/v1/currencies/${currency.toLowerCase()}.min.json`;
-    const response = await fetch(url);
-    if (!response.ok) throw new Error(`Exchange rate API error: ${response.status}`);
-    const data = await response.json() as Record<string, any>;
-    const rates = data[currency.toLowerCase()] as Record<string, number>;
-    const thb = rates?.thb;
-    if (!thb) throw new Error("ไม่พบอัตราแลกเปลี่ยน THB");
-    res.json({ currency, date: data.date || dateTag, thb: Number(thb.toFixed(6)), source: "ECB/fawazahmed0" });
+    res.status(503).json({ message: `ไม่พบอัตราแลกเปลี่ยน ${currency} จากธนาคารแห่งประเทศไทย (ย้อนหลัง 7 วันทำการ)` });
   } catch (e: any) {
     res.status(500).json({ message: e.message });
   }
