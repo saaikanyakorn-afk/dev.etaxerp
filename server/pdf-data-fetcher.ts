@@ -181,6 +181,9 @@ export async function buildPdfDataById(
   docId: number,
   printType?: string
 ): Promise<GeneratePdfOptions> {
+  if (docType === "credit_note") return buildCreditNotePdfData(docId);
+  if (docType === "billing_note") return buildBillingNotePdfData(docId);
+
   const cfg = DOC_CONFIGS[docType];
   if (!cfg) throw new Error(`ประเภทเอกสารไม่รองรับ: ${docType}`);
 

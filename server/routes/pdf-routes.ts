@@ -3,7 +3,7 @@ import { db } from "../db";
 import { eq, desc, and, sql } from "drizzle-orm";
 import { invoices, taxInvoices, receipts, quotations, salesOrders, purchaseInvoices, expenses, companies, purchaseRequests, purchaseOrders, documentDeliveryLogs, salesCreditNotes, salesCreditNoteItems } from "@shared/schema";
 import { requireAuth, checkDocOwnership } from "../route-middleware";
-import { buildPdfDataById, buildPdfDataByToken, buildBillingNotePdfData, buildCreditNotePdfData } from "../pdf-data-fetcher";
+import { buildPdfDataById, buildPdfDataByToken } from "../pdf-data-fetcher";
 import { generatePdfMake } from "../pdf-pdfmake-generator";
 
 export function registerPdfRoutes(app: Express) {
@@ -203,11 +203,7 @@ app.get("/api/documents/:docType/:id/pdf", requireAuth, async (req, res) => {
     const validPrintTypes = ["tax_invoice", "tax_invoice_receipt", "receipt", "invoice", "delivery_note"];
     const pt = printType && validPrintTypes.includes(printType) ? printType : undefined;
 
-    let pdfOpts = docType === "billing_note"
-      ? await buildBillingNotePdfData(docId)
-      : docType === "credit_note"
-      ? await buildCreditNotePdfData(docId)
-      : await buildPdfDataById(docType, docId, pt);
+    let pdfOpts = await buildPdfDataById(docType, docId, pt);
 
     if (companyId && pdfOpts.company && Number(pdfOpts.company.id) !== Number(companyId)) {
       return res.status(403).json({ error: "ไม่มีสิทธิ์เข้าถึงเอกสารนี้" });
