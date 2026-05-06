@@ -602,6 +602,8 @@ export default function Expense() {
 
   function buildPayload() {
     const totals = calcTotals();
+    const rate = parseFloat(form.exchangeRate) || 1;
+    const toThb = (v: number) => Number((v * rate).toFixed(2));
     return {
       companyId,
       expNo: form.expNo,
@@ -633,20 +635,20 @@ export default function Expense() {
       paymentStatus: form.paymentMethod ? "paid" : "unpaid",
       currencyCode: form.currencyCode,
       exchangeRate: form.exchangeRate,
-      subtotal: totals.afterDiscount.toFixed(2),
-      discountAmount: (discountMode === "percent" ? parseFloat(form.discountBeforeVat) || 0 : totals.discountAmount).toFixed(2),
+      subtotal: toThb(totals.afterDiscount).toFixed(2),
+      discountAmount: toThb(discountMode === "percent" ? parseFloat(form.discountBeforeVat) || 0 : totals.discountAmount).toFixed(2),
       discountType: discountMode,
-      vatAmount: totals.vatAmount.toFixed(2),
-      deductibleVat: totals.deductibleVat.toFixed(2),
-      nonDeductibleVat: totals.nonDeductibleVat.toFixed(2),
-      withholdingTax: totals.withholdingTax.toFixed(2),
-      totalAmount: totals.totalAmount.toFixed(2),
+      vatAmount: toThb(totals.vatAmount).toFixed(2),
+      deductibleVat: toThb(totals.deductibleVat).toFixed(2),
+      nonDeductibleVat: toThb(totals.nonDeductibleVat).toFixed(2),
+      withholdingTax: toThb(totals.withholdingTax).toFixed(2),
+      totalAmount: toThb(totals.totalAmount).toFixed(2),
       items: items.filter(it => it.accountName).map(it => ({
         accountCode: it.accountCode,
         accountName: it.accountName,
         description: it.description,
         expenseType: it.expenseType,
-        amount: it.amount,
+        amount: String(toThb(parseFloat(it.amount || "0"))),
         vatType: it.vatType,
       })),
       linkJournal: true,
@@ -1488,8 +1490,20 @@ export default function Expense() {
                   </tr>
                   <tr className="bg-[var(--theme-primary-light)]">
                     <td className="text-right pr-4 py-2.5 font-bold text-[var(--theme-primary)] whitespace-nowrap" style={{ fontSize: 15 }}>ยอดรวมสุทธิ:</td>
-                    <td className="text-right py-2.5 font-bold text-[var(--theme-primary)] pr-2" style={{ fontSize: 15 }}>{fmt(totals.totalAmount)}</td>
+                    <td className="text-right py-2.5 font-bold text-[var(--theme-primary)] pr-2" style={{ fontSize: 15 }}>
+                      {form.currencyCode !== "THB" && <span className="text-xs font-normal text-slate-500 mr-1">{form.currencyCode}</span>}
+                      {fmt(totals.totalAmount)}
+                    </td>
                   </tr>
+                  {form.currencyCode !== "THB" && (parseFloat(form.exchangeRate) || 0) > 0 && (
+                    <tr>
+                      <td className="text-right pr-4 py-1.5 text-xs text-slate-400 whitespace-nowrap">≈ บันทึกในสมุดบัญชี (THB):</td>
+                      <td className="text-right py-1.5 text-xs font-semibold text-emerald-700 pr-2">
+                        {fmt(totals.totalAmount * (parseFloat(form.exchangeRate) || 1))} THB
+                        <div className="text-[10px] font-normal text-slate-400">@ {parseFloat(form.exchangeRate).toFixed(4)}</div>
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
