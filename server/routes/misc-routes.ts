@@ -349,18 +349,21 @@ app.get("/api/exchange-rate", requireAuth, async (req, res) => {
     if (botApiKey) {
       try {
         const startPeriod = dateParam || new Date().toISOString().slice(0, 10);
-        const botUrl = `https://gateway.api.bot.or.th/bot/public/Stat-ReferenceRate/v2/DAILY_AVG_EXG_RATE?start_period=${startPeriod}&end_period=${startPeriod}&currency=${currency}`;
+        const botUrl = `https://gateway.api.bot.or.th/Stat-ExchangeRate/v2/DAILY_AVG_EXG_RATE/?start_period=${startPeriod}&end_period=${startPeriod}&currency=${currency}`;
         const botRes = await fetch(botUrl, {
-          headers: { "X-IBM-Client-Id": botApiKey, "accept": "application/json" },
+          headers: { "Authorization": `Bearer ${botApiKey}`, "Accept": "application/json" },
         });
         if (botRes.ok) {
           const botData = await botRes.json() as any;
-          const entry = botData?.result?.data?.[0];
-          if (entry?.mid) {
+          const entry = botData?.result?.data?.data_detail?.[0];
+          const midRate = entry?.mid_rate ? parseFloat(entry.mid_rate) : 0;
+          if (midRate > 0) {
             return res.json({
               currency,
               date: entry.period || startPeriod,
-              thb: Number(parseFloat(entry.mid).toFixed(6)),
+              thb: Number(midRate.toFixed(6)),
+              buying_transfer: entry.buying_transfer ? Number(parseFloat(entry.buying_transfer).toFixed(6)) : undefined,
+              selling: entry.selling ? Number(parseFloat(entry.selling).toFixed(6)) : undefined,
               source: "BOT",
             });
           }

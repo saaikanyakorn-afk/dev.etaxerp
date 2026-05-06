@@ -133,8 +133,11 @@ function FetchRateButton({ currency, date, onRate }: { currency: string; date: s
       const res = await fetch(`/api/exchange-rate?${params}`, { credentials: "include" });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message);
-      onRate(data.thb);
-      toast({ title: `อัตราแลกเปลี่ยน ${currency}/THB`, description: `1 ${currency} = ${data.thb} บาท (${data.date})`, variant: "success" as any });
+      const rate = data.buying_transfer ?? data.thb;
+      onRate(rate);
+      const sourceLabel = data.source === "BOT" ? "ธปท." : "ECB";
+      const rateLabel = data.buying_transfer ? `ซื้อเงินโอน ${data.buying_transfer}` : `${rate}`;
+      toast({ title: `อัตราแลกเปลี่ยน ${currency}/THB (${sourceLabel})`, description: `1 ${currency} = ${rateLabel} บาท (${data.date})`, variant: "success" as any });
     } catch (e: any) {
       toast({ title: "ดึงอัตราแลกเปลี่ยนไม่สำเร็จ", description: e.message, variant: "destructive" });
     }
