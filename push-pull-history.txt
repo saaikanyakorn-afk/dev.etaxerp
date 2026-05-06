@@ -106,8 +106,16 @@ PHASE 1c — VERIFY MIGRATION TOOK EFFECT (before anything else)
   □ If column EXISTS → confirmed ✅, proceed to Phase 1b
 
 PHASE 1b — CLEAN UP IMMEDIATELY (before anything else)
-  □ Comment out the migration block in schema-extra.ts with date/reason
-  □ Replace with no-op: export async function runXxx(_db: any) { // done YYYY-MM-DD }
+  □ Comment out the migration block in schema-extra.ts
+  □ Replace with a no-op that includes ALL of the following in the comment:
+      - Date AND time it was executed on production (YYYY-MM-DD HH:MM)
+      - Reason: what the migration does and WHY it was needed
+      - Confirmation: "verified on production DB via Phase 1c"
+  □ Example:
+      // stamp_url migration — executed 2026-05-06 10:30
+      // Reason: add stamp_url column to document_settings for company stamp image on WHT cert print
+      // Verified: Phase 1c confirmed column exists on production DB
+      export async function runStampUrlMigration(_db: any) {}
   □ Push clean schema-extra.ts to production GitHub immediately
   □ Do NOT proceed to Phase 2 until clean code is pushed
 
