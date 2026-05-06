@@ -1,3 +1,24 @@
+// ⚠️  IMPORTANT — UPLOADS FOLDER & MULTI-SERVER WARNING
+//
+// This system stores uploaded files on LOCAL DISK at the `uploads/` directory.
+// The path is: process.env.UPLOAD_DIR || <project_root>/uploads/
+//
+// MULTI-SERVER RISK:
+//   Each server has its OWN uploads/ folder on its own disk.
+//   Files uploaded to Server A are NOT visible to Server B.
+//   If this app runs on multiple servers (load balancer, scale-out, server migration),
+//   a user may upload a file on one server and get a 404 when the next request
+//   hits a different server — because the file only exists on the first server's disk.
+//
+// WHAT THIS MEANS FOR AGENTS:
+//   - If users report "stamp image disappeared" or "logo not loading" after a server change → THIS is why.
+//   - If a new server is added or the app is moved to a new machine → uploads/ does NOT migrate automatically.
+//   - Workaround for now: ensure uploads/ is on a shared/persistent volume (e.g. NFS mount, mapped drive)
+//     that ALL servers point to via UPLOAD_DIR env var.
+//   - Long-term solution: migrate to a true shared object storage (S3, GCS, etc.)
+//
+// uploads/ is in .gitignore — it is NEVER committed to git. It is a runtime folder only.
+
 import type { Express } from "express";
 import multer from "multer";
 import { randomUUID } from "crypto";

@@ -46,6 +46,15 @@ STANDARD SERVER COMMAND (4 steps — ALWAYS all 4):
    npm run build
    pm2 restart etax-center
 
+⚠️  UPLOADS FOLDER — MULTI-SERVER WARNING (read before adding any new servers):
+   - All uploaded files (logos, stamps, attachments) are stored on LOCAL DISK at uploads/
+   - uploads/ is in .gitignore — it is NEVER in git, never auto-migrated
+   - Each server has its OWN uploads/ folder — files on Server A do NOT exist on Server B
+   - If a new server is added or the app is moved: uploads/ must be manually copied, OR
+     set UPLOAD_DIR env var on all servers to point to a SHARED volume (NFS, mapped drive)
+   - Symptoms if this is wrong: "image disappeared", "logo not loading", 404 on /api/local-file/*
+   - See server/replit_integrations/object_storage/routes.ts top-of-file comment for full detail
+
 PUSH AUTHORIZATION RULES:
 1. Every push to production requires authorization from พี่ช้าง or พี่ทราย FIRST.
 2. Exception: if พี่ช้าง already authorized file X in this session, and the fix didn't work,
