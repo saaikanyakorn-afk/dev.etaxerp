@@ -571,7 +571,14 @@ export default function ExpenseList() {
                                 </div>
                               </TableCell>
                               <TableCell></TableCell>
-                              <TableCell className="text-right text-xs">{fmt(exp.totalAmount)}</TableCell>
+                              <TableCell className="text-right text-xs">
+                                {fmt(exp.totalAmount)}
+                                {exp.currencyCode && exp.currencyCode !== "THB" && parseFloat(exp.exchangeRate || "1") > 0 && (
+                                  <div className="text-[10px] text-blue-500 font-normal mt-0.5">
+                                    {exp.currencyCode} {fmt(parseFloat(exp.totalAmount || "0") / parseFloat(exp.exchangeRate || "1"))}
+                                  </div>
+                                )}
+                              </TableCell>
                               <TableCell className="text-right text-xs text-gray-400">{fmt(exp.vatAmount)}</TableCell>
                               <TableCell className="text-right text-xs text-gray-400">{fmt(exp.withholdingTax)}</TableCell>
                               <TableCell>
@@ -705,6 +712,11 @@ export default function ExpenseList() {
                           </TableCell>
                           <TableCell className="text-right tabular-nums">
                             <div className="text-sm font-normal">{fmt(exp.totalAmount)}</div>
+                            {exp.currencyCode && exp.currencyCode !== "THB" && parseFloat(exp.exchangeRate || "1") > 0 && (
+                              <div className="text-[10px] text-blue-500 font-normal mt-0.5">
+                                {exp.currencyCode} {fmt(parseFloat(exp.totalAmount || "0") / parseFloat(exp.exchangeRate || "1"))}
+                              </div>
+                            )}
                           </TableCell>
                           <TableCell className="text-right text-sm text-gray-500">{exp.showInTaxReport ? fmt(exp.vatAmount) : "-"}</TableCell>
                           <TableCell className="text-right text-sm text-gray-500">{fmt(exp.withholdingTax)}</TableCell>

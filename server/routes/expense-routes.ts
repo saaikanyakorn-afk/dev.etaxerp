@@ -133,6 +133,9 @@ async function resolveArchivedUrl(originalUrl: string): Promise<ArchiveResolutio
 }
 
 export function registerExpenseRoutes(app: Express) {
+  db.execute(sql`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS currency_code TEXT NOT NULL DEFAULT 'THB'`).catch(() => {});
+  db.execute(sql`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS exchange_rate DECIMAL(15,6) NOT NULL DEFAULT 1`).catch(() => {});
+
   // ============ Expenses ============
 
   app.get("/api/expenses", requireAuth, requireModule("purchases"), async (req, res) => {
@@ -359,6 +362,8 @@ export function registerExpenseRoutes(app: Express) {
           paymentMethod: body.paymentMethod || null,
           attachedUrl: body.attachedUrl || null,
           linkJournal: body.linkJournal ?? true,
+          currencyCode: body.currencyCode || "THB",
+          exchangeRate: body.exchangeRate || "1",
           createdBy: user.id,
         }).returning();
         if (items && Array.isArray(items) && items.length > 0) {
@@ -510,7 +515,8 @@ export function registerExpenseRoutes(app: Express) {
         "creditDays", "taxInvoiceRef", "formulaCode", "subtotal", "discountAmount",
         "vatAmount", "totalAmount", "withholdingTax", "status", "paymentStatus",
         "priceMode", "showInTaxReport", "docPrefix", "refDoc", "notes",
-        "salesperson", "department", "project", "paymentMethod", "attachedUrl", "linkJournal"
+        "salesperson", "department", "project", "paymentMethod", "attachedUrl", "linkJournal",
+        "currencyCode", "exchangeRate"
       ];
       const integerFields = ["vendorId", "creditDays"];
       for (const field of allowedFields) {
