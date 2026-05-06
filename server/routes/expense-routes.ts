@@ -372,10 +372,10 @@ export function registerExpenseRoutes(app: Express) {
           paymentMethod: body.paymentMethod || null,
           attachedUrl: body.attachedUrl || null,
           linkJournal: body.linkJournal ?? true,
-          currencyCode: body.currencyCode || "THB",
-          exchangeRate: body.exchangeRate || "1",
           createdBy: user.id,
         }).returning();
+        // currency_code/exchange_rate not in Drizzle schema — must use raw SQL
+        await tx.execute(sql`UPDATE expenses SET currency_code = ${body.currencyCode || "THB"}, exchange_rate = ${body.exchangeRate || "1"} WHERE id = ${doc.id}`);
         if (items && Array.isArray(items) && items.length > 0) {
           await tx.insert(expenseItems).values(items.map((item: any) => ({
             expenseId: doc.id,
@@ -561,7 +561,11 @@ export function registerExpenseRoutes(app: Express) {
       updateData.updatedBy = user.id;
       updateData.updatedAt = new Date();
       await db.transaction(async (tx) => {
-        await tx.update(expenses).set(updateData).where(eq(expenses.id, existing.id));
+        // Remove currency fields from Drizzle update (not in schema) then do raw SQL
+        const { currencyCode: _cc, exchangeRate: _er, ...drizzleUpdateData } = updateData;
+        await tx.update(expenses).set(drizzleUpdateData).where(eq(expenses.id, existing.id));
+        // currency_code/exchange_rate not in Drizzle schema — must use raw SQL
+        await tx.execute(sql`UPDATE expenses SET currency_code = ${body.currencyCode || "THB"}, exchange_rate = ${body.exchangeRate || "1"} WHERE id = ${existing.id}`);
         if (items && Array.isArray(items)) {
           await tx.delete(expenseItems).where(eq(expenseItems.expenseId, existing.id));
           if (items.length > 0) {
