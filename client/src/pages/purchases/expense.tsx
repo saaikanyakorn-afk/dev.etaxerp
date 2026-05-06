@@ -122,6 +122,38 @@ function AccountPickerDropdown({ value, displayValue, accounts, onChange, mode =
   );
 }
 
+function FetchRateButton({ currency, date, onRate }: { currency: string; date: string; onRate: (rate: number) => void }) {
+  const [loading, setLoading] = useState(false);
+  const { toast } = useToast();
+  const handleFetch = async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams({ currency });
+      if (date) params.set("date", date);
+      const res = await fetch(`/api/exchange-rate?${params}`, { credentials: "include" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message);
+      onRate(data.thb);
+      toast({ title: `อัตราแลกเปลี่ยน ${currency}/THB`, description: `1 ${currency} = ${data.thb} บาท (${data.date})`, variant: "success" as any });
+    } catch (e: any) {
+      toast({ title: "ดึงอัตราแลกเปลี่ยนไม่สำเร็จ", description: e.message, variant: "destructive" });
+    }
+    setLoading(false);
+  };
+  return (
+    <button
+      type="button"
+      onClick={handleFetch}
+      disabled={loading}
+      data-testid="button-fetch-rate"
+      className="h-7 px-2 text-[10px] rounded border border-blue-300 bg-blue-50 text-blue-600 hover:bg-blue-100 disabled:opacity-50 flex items-center gap-1 whitespace-nowrap"
+    >
+      {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <RotateCcw className="h-3 w-3" />}
+      ดึงอัตรา
+    </button>
+  );
+}
+
 const emptyItem = (): EXPItemForm => ({
   accountCode: "",
   accountName: "",
@@ -1188,7 +1220,14 @@ export default function Expense() {
                           </SelectContent>
                         </Select>
                         {form.currencyCode !== "THB" && (
-                          <Input data-testid="input-exchange-rate" value={form.exchangeRate} onChange={e => setForm(p => ({ ...p, exchangeRate: e.target.value }))} className="h-7 text-xs border-dashed w-20" placeholder="อัตราแลกเปลี่ยน" />
+                          <>
+                            <Input data-testid="input-exchange-rate" value={form.exchangeRate} onChange={e => setForm(p => ({ ...p, exchangeRate: e.target.value }))} className="h-7 text-xs border-dashed w-20" placeholder="อัตราแลกเปลี่ยน" />
+                            <FetchRateButton
+                              currency={form.currencyCode}
+                              date={form.expDate}
+                              onRate={rate => setForm(p => ({ ...p, exchangeRate: String(rate) }))}
+                            />
+                          </>
                         )}
                       </div>
                     </td>

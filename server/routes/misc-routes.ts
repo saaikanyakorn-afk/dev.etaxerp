@@ -338,4 +338,47 @@ setTimeout(async () => {
     await checkContactsArchiveSize();
   } catch (e) {}
 }, 10000);
+
+app.get("/api/exchange-rate", requireAuth, async (req, res) => {
+  try {
+    const currency = (req.query.currency as string || "USD").toUpperCase();
+    const date = req.query.date as string | undefined;
+    const dateParam = date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : null;
+
+    const botApiKey = process.env.BOT_API_KEY;
+    if (botApiKey) {
+      try {
+        const startPeriod = dateParam || new Date().toISOString().slice(0, 10);
+        const botUrl = `https://gateway.api.bot.or.th/bot/public/Stat-ReferenceRate/v2/DAILY_AVG_EXG_RATE?start_period=${startPeriod}&end_period=${startPeriod}&currency=${currency}`;
+        const botRes = await fetch(botUrl, {
+          headers: { "X-IBM-Client-Id": botApiKey, "accept": "application/json" },
+        });
+        if (botRes.ok) {
+          const botData = await botRes.json() as any;
+          const entry = botData?.result?.data?.[0];
+          if (entry?.mid) {
+            return res.json({
+              currency,
+              date: entry.period || startPeriod,
+              thb: Number(parseFloat(entry.mid).toFixed(6)),
+              source: "BOT",
+            });
+          }
+        }
+      } catch {}
+    }
+
+    const dateTag = dateParam || "latest";
+    const url = `https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@${dateTag}/v1/currencies/${currency.toLowerCase()}.min.json`;
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`Exchange rate API error: ${response.status}`);
+    const data = await response.json() as Record<string, any>;
+    const rates = data[currency.toLowerCase()] as Record<string, number>;
+    const thb = rates?.thb;
+    if (!thb) throw new Error("ไม่พบอัตราแลกเปลี่ยน THB");
+    res.json({ currency, date: data.date || dateTag, thb: Number(thb.toFixed(6)), source: "ECB/fawazahmed0" });
+  } catch (e: any) {
+    res.status(500).json({ message: e.message });
+  }
+});
 }
