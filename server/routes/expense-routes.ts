@@ -150,9 +150,16 @@ export function registerExpenseRoutes(app: Express) {
         const allItems = rows.length > 0 ? await db.select().from(expenseItems).where(sql`${expenseItems.expenseId} IN (${sql.join(rows.map((r: any) => sql`${r.id}`), sql`, `)})`) : [];
         const itemsByExpense: Record<number, any[]> = {};
         for (const item of allItems) { if (!itemsByExpense[item.expenseId]) itemsByExpense[item.expenseId] = []; itemsByExpense[item.expenseId].push(item); }
+        // Fetch currency fields not in drizzle schema
+        const currencyMap: Record<number, { currencyCode: string; exchangeRate: string }> = {};
+        if (rows.length > 0) {
+          const ids = rows.map((r: any) => r.id);
+          const cr = await db.execute(sql`SELECT id, currency_code, exchange_rate FROM expenses WHERE id = ANY(${ids})`);
+          for (const row of cr.rows as any[]) { currencyMap[row.id] = { currencyCode: row.currency_code || "THB", exchangeRate: String(row.exchange_rate || "1") }; }
+        }
         return rows.map((r: any) => {
           const expItems = itemsByExpense[r.id] || [];
-          return { ...r, firstItemDescription: expItems.find((it: any) => it.description)?.description || expItems.find((it: any) => it.accountName)?.accountName || null, createdByName: r.createdBy ? userMap[r.createdBy] || "-" : "-", updatedByName: r.updatedBy ? userMap[r.updatedBy] || "-" : "-" };
+          return { ...r, ...currencyMap[r.id], firstItemDescription: expItems.find((it: any) => it.description)?.description || expItems.find((it: any) => it.accountName)?.accountName || null, createdByName: r.createdBy ? userMap[r.createdBy] || "-" : "-", updatedByName: r.updatedBy ? userMap[r.updatedBy] || "-" : "-" };
         });
       };
       if (req.query.page) {
@@ -284,7 +291,10 @@ export function registerExpenseRoutes(app: Express) {
       let updatedByName = "-";
       if (doc.createdBy) { const u = await storage.getUser(doc.createdBy); if (u) createdByName = u.fullName; }
       if (doc.updatedBy) { const u = await storage.getUser(doc.updatedBy); if (u) updatedByName = u.fullName; }
-      res.json({ ...doc, items, createdByName, updatedByName });
+      const [cRow] = (await db.execute(sql`SELECT currency_code, exchange_rate FROM expenses WHERE id = ${doc.id}`)).rows as any[];
+      const currencyCode = cRow?.currency_code || "THB";
+      const exchangeRate = String(cRow?.exchange_rate || "1");
+      res.json({ ...doc, currencyCode, exchangeRate, items, createdByName, updatedByName });
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
