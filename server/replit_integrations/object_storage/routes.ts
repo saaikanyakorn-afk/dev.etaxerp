@@ -13,9 +13,10 @@
 // WHAT THIS MEANS FOR AGENTS:
 //   - If users report "stamp image disappeared" or "logo not loading" after a server change → THIS is why.
 //   - If a new server is added or the app is moved to a new machine → uploads/ does NOT migrate automatically.
-//   - Workaround for now: ensure uploads/ is on a shared/persistent volume (e.g. NFS mount, mapped drive)
+//   - Solution: ensure uploads/ is on a shared/persistent volume (e.g. NFS mount, mapped drive)
 //     that ALL servers point to via UPLOAD_DIR env var.
-//   - Long-term solution: migrate to a true shared object storage (S3, GCS, etc.)
+//   !! Do NOT migrate to third-party cloud storage (S3, GCS, etc.)
+//      This project exists specifically because data must stay on OUR OWN servers.
 //
 // uploads/ is in .gitignore — it is NEVER committed to git. It is a runtime folder only.
 

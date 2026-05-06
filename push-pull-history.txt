@@ -53,6 +53,8 @@ STANDARD SERVER COMMAND (4 steps — ALWAYS all 4):
    - If a new server is added or the app is moved: uploads/ must be manually copied, OR
      set UPLOAD_DIR env var on all servers to point to a SHARED volume (NFS, mapped drive)
    - Symptoms if this is wrong: "image disappeared", "logo not loading", 404 on /api/local-file/*
+   - !! Do NOT suggest S3/GCS/cloud storage as a solution — this project exists because
+     data must stay on OUR OWN servers, not anyone else's.
    - See server/replit_integrations/object_storage/routes.ts top-of-file comment for full detail
 
 PUSH AUTHORIZATION RULES:
