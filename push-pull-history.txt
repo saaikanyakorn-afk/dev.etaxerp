@@ -62,25 +62,48 @@ CHECKLIST — WHEN FIX INVOLVES schema-extra.ts (ADD COLUMN / MIGRATION):
 If any file in your fix requires a new column on production DB, you MUST follow
 this checklist IN ORDER. Do NOT skip steps or merge phases.
 
-PHASE 0 — VERIFY FIRST (before writing any code)
-  □ Query production DB directly (pg client via code_execution):
+⚠️  IF MIGRATION IS PART OF A LARGER ISSUE (feature + migration together):
+  → CREATE A FULL CHECKLIST OF ALL STEPS BEFORE STARTING ANYTHING.
+  → Why: migration alone has many steps. Without a checklist you will think
+    you're done after migration and forget the actual feature work entirely.
+  → Example checklist structure:
+      [ ] Step 1: Phase 0 — verify production DB
+      [ ] Step 2: Phase 1 — write + push migration
+      [ ] Step 3: Phase 1c — verify migration took effect on production DB
+      [ ] Step 4: Phase 1b — clean up migration code
+      [ ] Step 5: Phase 2 — push feature files
+      [ ] Step 6: <actual feature task A>
+      [ ] Step 7: <actual feature task B>
+
+PHASE 0 — LOOK FIRST (before writing a single line of code)
+  !! READ-ONLY ACCESS ONLY. NEVER write/update/delete anything directly on production DB.
+  !! You are not the only agent. Another agent may have already made changes.
+     Your assumption about production DB state may be wrong — always verify.
+  □ Connect to production DB directly (pg client via code_execution):
       host: deep-main.hopto.org  port: 20541
       db: etax-production  user: etaxusr
       Credentials: find in machines table (dev DB) — NOT from env vars (trap)
-  □ SELECT column_name FROM information_schema.columns
-      WHERE table_name='<table>' AND column_name='<col>'
-  □ If column EXISTS → skip to removing inline ALTER TABLE, no migration needed
+  □ Run: SELECT column_name FROM information_schema.columns
+            WHERE table_name='<table>' AND column_name='<col>'
+  □ If column EXISTS → no migration needed, skip to Phase 2 (feature files only)
   □ If column MISSING → proceed to Phase 1
 
-PHASE 1 — DB MIGRATION ONLY (no feature code)
-  □ Write migration function in shared/schema-extra.ts
+PHASE 1 — DB MIGRATION CODE ONLY (no feature code)
+  □ Write migration function in server/schema-extra.ts
       - Pure DDL only → no flag, no backup needed
       - If data backfill → backup + history + flag required (see schema-extra.ts rules)
   □ Import + call migration inside register function of the relevant route file
   □ Remove any inline ALTER TABLE from route handlers (must NEVER be in handlers)
   □ Push ONLY: schema-extra.ts + the route file (nothing else)
   □ Tell พี่ช้าง to run standard 4-step server command
-  □ Verify column now exists in production DB (query again)
+
+PHASE 1c — VERIFY MIGRATION TOOK EFFECT (before anything else)
+  !! READ-ONLY. Connect production DB again and confirm the column now exists.
+  □ Connect to production DB (same credentials as Phase 0)
+  □ Run: SELECT column_name FROM information_schema.columns
+            WHERE table_name='<table>' AND column_name='<col>'
+  □ If column STILL MISSING → stop, debug, do NOT proceed
+  □ If column EXISTS → confirmed ✅, proceed to Phase 1b
 
 PHASE 1b — CLEAN UP IMMEDIATELY (before anything else)
   □ Comment out the migration block in schema-extra.ts with date/reason
@@ -93,6 +116,8 @@ PHASE 2 — FEATURE FILES
   □ Tell พี่ช้าง to run standard 4-step server command (include clean schema-extra.ts)
 
 WHY THIS ORDER MATTERS:
+  - Phase 0: production state may differ from dev — never assume, always look first
+  - Phase 1c: migration running in dev does not mean it ran correctly on production
   - If you push feature files before Phase 1b, migration block stays live on server
   - Migration runs on every server restart until commented out
   - Phase 1b push + Phase 2 push can be combined in ONE server command if timed right
