@@ -149,6 +149,46 @@ export default function TaxInvoiceBatchPrint() {
   const [loading, setLoading] = useState(true);
   const [progress, setProgress] = useState({ loaded: 0, total: 0 });
   const [printType, setPrintType] = useState<PrintType>("tax_invoice");
+  const [downloading, setDownloading] = useState(false);
+
+  async function handleDownloadAll() {
+    if (invoices.length === 0 || downloading) return;
+    setDownloading(true);
+    try {
+      const items = invoices.map(inv => ({
+        docType: "tax_invoice",
+        docId: inv.id,
+        ...(printType !== "tax_invoice" ? { printType } : {}),
+      }));
+      const r = await fetch("/api/documents/batch-pdf", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ items }),
+      });
+      if (!r.ok) {
+        const ct = r.headers.get("content-type") || "";
+        const msg = ct.includes("application/json")
+          ? (await r.json().catch(() => ({}))).message || `HTTP ${r.status}`
+          : `HTTP ${r.status}`;
+        throw new Error(msg);
+      }
+      const blob = await r.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      const ct = r.headers.get("content-type") || "";
+      a.download = ct.includes("zip")
+        ? `ใบกำกับภาษี_${invoices.length}_ใบ.zip`
+        : `ใบกำกับภาษี_${invoices.length}_ใบ.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err: any) {
+      alert("ดาวน์โหลดไม่สำเร็จ: " + err.message);
+    } finally {
+      setDownloading(false);
+    }
+  }
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -239,15 +279,16 @@ export default function TaxInvoiceBatchPrint() {
               พิมพ์ทั้งหมด ({invoices.length} ใบ)
             </Button>
           ) : (
-            <a
-              href={`/api/documents/batch-pdf?docType=tax_invoice&ids=${ids.join(",")}&printType=${printType}`}
-              download
+            <Button
+              className="gap-1.5 bg-[var(--theme-primary)] hover:bg-[#e8734e]"
+              onClick={handleDownloadAll}
+              disabled={downloading || invoices.length === 0}
               data-testid="button-download-all"
             >
-              <Button className="gap-1.5 bg-[var(--theme-primary)] hover:bg-[#e8734e]">
-                <Download className="h-4 w-4" /> ดาวน์โหลด PDF ทั้งหมด ({invoices.length} ใบ)
-              </Button>
-            </a>
+              {downloading
+                ? <><Loader2 className="h-4 w-4 animate-spin" /> กำลังเตรียม PDF...</>
+                : <><Download className="h-4 w-4" /> ดาวน์โหลด PDF ทั้งหมด ({invoices.length} ใบ)</>}
+            </Button>
           )}
         </div>
 

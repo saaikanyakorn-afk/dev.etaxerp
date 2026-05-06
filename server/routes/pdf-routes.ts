@@ -473,8 +473,8 @@ app.post("/api/documents/batch-pdf", requireAuth, async (req, res) => {
     if (!Array.isArray(items) || items.length === 0) {
       return res.status(400).json({ message: "กรุณาระบุรายการเอกสาร" });
     }
-    if (items.length > 50) {
-      return res.status(400).json({ message: "สูงสุด 50 เอกสารต่อครั้ง" });
+    if (items.length > 200) {
+      return res.status(400).json({ message: "สูงสุด 200 เอกสารต่อครั้ง" });
     }
 
     const user = req.user as any;
