@@ -535,6 +535,8 @@ export default function Expense() {
     const t = calcTotals();
     if (t.afterDiscount <= 0 && t.vatAmount <= 0) { setJournalPreview(null); return; }
     setJournalLoading(true);
+    const rate = parseFloat(form.exchangeRate) || 1;
+    const toThb = (v: number) => Number((v * rate).toFixed(2));
     try {
       const res = await fetch("/api/expense-journal-preview", {
         method: "POST",
@@ -542,11 +544,11 @@ export default function Expense() {
         credentials: "include",
         body: JSON.stringify({
           companyId,
-          items: items.map(it => ({ accountCode: it.accountCode, accountName: it.accountName, amount: it.amount, vatType: it.vatType })),
-          subtotal: String(t.afterDiscount.toFixed(2)),
-          vatAmount: String(t.deductibleVat.toFixed(2)),
-          nonDeductibleVat: String(t.nonDeductibleVat.toFixed(2)),
-          withholdingTax: String(t.withholdingTax.toFixed(2)),
+          items: items.map(it => ({ accountCode: it.accountCode, accountName: it.accountName, amount: String(toThb(parseFloat(it.amount || "0"))), vatType: it.vatType })),
+          subtotal: String(toThb(t.afterDiscount)),
+          vatAmount: String(toThb(t.deductibleVat)),
+          nonDeductibleVat: String(toThb(t.nonDeductibleVat)),
+          withholdingTax: String(toThb(t.withholdingTax)),
           paymentMethod: form.paymentMethod || "",
         }),
       });
@@ -562,7 +564,7 @@ export default function Expense() {
   useEffect(() => {
     const timer = setTimeout(() => fetchJournalPreview(), 600);
     return () => clearTimeout(timer);
-  }, [companyId, items, form.discountBeforeVat, form.withholdingTax, form.paymentMethod]);
+  }, [companyId, items, form.discountBeforeVat, form.withholdingTax, form.paymentMethod, form.exchangeRate, form.currencyCode]);
 
   function handleReset() {
     setForm(prev => ({
