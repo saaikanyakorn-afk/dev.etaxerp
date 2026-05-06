@@ -18,7 +18,7 @@ import {
   ArrowLeft, MessageCircle, Key, Shield, CheckCircle2,
   AlertTriangle, Loader2, Info, Bot, Eye, EyeOff, Plus,
   Trash2, Wifi, WifiOff, Link2, FileText, Sparkles, Copy, ExternalLink,
-  Building2, Settings2, Globe, RefreshCw, Server
+  Building2, Settings2, Globe, RefreshCw, Server, Send
 } from "lucide-react";
 import { useLocation } from "wouter";
 
@@ -109,6 +109,23 @@ export default function LineSettingsPage() {
   });
 
   const [claimClientId, setClaimClientId] = useState<Record<number, string>>({});
+  const [pingingGroupId, setPingingGroupId] = useState<number | null>(null);
+
+  async function pingGroup(g: any) {
+    if (pingingGroupId !== null) return;
+    setPingingGroupId(g.id);
+    try {
+      const r = await fetch("/api/line/send", {
+        method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ to: g.lineGroupId, message: `📍 กลุ่มนี้รอเชื่อมโยงกับระบบ E-Tax Center\nID: ${g.lineGroupId}` }),
+      });
+      if (r.ok) toast({ title: "ส่ง Ping สำเร็จ", description: "ตรวจสอบกลุ่ม LINE ที่ได้รับข้อความนี้" });
+      else { const e = await r.json().catch(() => ({})); toast({ title: "ส่งไม่สำเร็จ", description: e.message || `HTTP ${r.status}`, variant: "destructive" }); }
+    } catch (err: any) {
+      toast({ title: "ส่งไม่สำเร็จ", description: err.message, variant: "destructive" });
+    } finally { setPingingGroupId(null); }
+  }
 
   const { data: settings, isLoading } = useQuery({
     queryKey: ["/api/line/settings", companyId],
@@ -572,6 +589,19 @@ export default function LineSettingsPage() {
                               ))}
                             </SelectContent>
                           </Select>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-8 text-xs border-yellow-400 text-yellow-700 hover:bg-yellow-50"
+                            onClick={() => pingGroup(g)}
+                            disabled={pingingGroupId !== null}
+                            data-testid={`button-ping-${g.id}`}
+                            title="ส่งข้อความทดสอบเพื่อระบุกลุ่ม"
+                          >
+                            {pingingGroupId === g.id
+                              ? <Loader2 className="w-3 h-3 animate-spin" />
+                              : <><Send className="w-3 h-3 mr-1" />Ping</>}
+                          </Button>
                           <Button
                             size="sm"
                             className="bg-[#05b187] hover:bg-[#049a76] h-8 text-xs"
