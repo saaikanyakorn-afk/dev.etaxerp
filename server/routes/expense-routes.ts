@@ -154,7 +154,7 @@ export function registerExpenseRoutes(app: Express) {
         const currencyMap: Record<number, { currencyCode: string; exchangeRate: string }> = {};
         if (rows.length > 0) {
           const ids = rows.map((r: any) => r.id);
-          const cr = await db.execute(sql`SELECT id, currency_code, exchange_rate FROM expenses WHERE id = ANY(${ids})`);
+          const cr = await db.execute(sql`SELECT id, currency_code, exchange_rate FROM expenses WHERE id IN (${sql.join(ids.map((id: number) => sql`${id}`), sql`, `)})`);
           for (const row of cr.rows as any[]) { currencyMap[row.id] = { currencyCode: row.currency_code || "THB", exchangeRate: String(row.exchange_rate || "1") }; }
         }
         return rows.map((r: any) => {
