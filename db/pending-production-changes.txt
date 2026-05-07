@@ -219,6 +219,9 @@ FILES TO PUSH:
   server/routes/billing-notes-routes.ts
   client/src/pages/settings/exchange-rate-settings.tsx
   client/src/components/fetch-rate-button.tsx
+  client/src/components/settings-tabs.tsx
+  client/src/components/platform-layout.tsx
+  client/src/app-extra.tsx
   db/pending-production-changes.txt
   db/schema-history.md
 

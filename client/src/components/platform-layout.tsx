@@ -10,14 +10,8 @@ import {
   Shield,
   MessageCircle,
   Crown,
-  Database,
-  Download,
   Globe,
-  ArrowLeftRight,
-  Wrench,
   KeyRound,
-  FolderArchive,
-  Network,
   CreditCard,
   Eye,
   TrendingUp,
@@ -36,15 +30,6 @@ const ADMIN_NAV = [
   { icon: TrendingUp, label: "อัตราแลกเปลี่ยน (BOT)", href: "/settings/exchange-rate" },
 ];
 
-const TECH_NAV = [
-  { icon: Network, label: "โครงสร้างพื้นฐาน", href: "/platform/infrastructure" },
-  { icon: ArrowLeftRight, label: "สลับฐานข้อมูล", href: "/platform/db-switch" },
-  { icon: Database, label: "Clone ข้อมูล", href: "/platform/clone-data" },
-  { icon: Wrench, label: "Maintenance Schedule", href: "/platform/maintenance" },
-  { icon: Download, label: "Github Push & Pull", href: "/platform/github" },
-  { icon: FolderArchive, label: "FTP Archive Settings", href: "/settings/ftp-archive" },
-  { icon: FolderArchive, label: "TRCloud Legacy Import", href: "/legacy-import" },
-];
 
 export default function PlatformLayout({ children }: { children: React.ReactNode }) {
   const [location, setLocation] = useLocation();
@@ -93,34 +78,6 @@ export default function PlatformLayout({ children }: { children: React.ReactNode
             );
           })}
 
-          <div className="relative my-3 px-2">
-            <div className="absolute inset-0 flex items-center px-2">
-              <div className="w-full border-t border-slate-600/60" />
-            </div>
-            <div className="relative flex justify-center">
-              <span className="bg-slate-900 px-2 text-[10px] uppercase tracking-widest text-slate-500">Technician</span>
-            </div>
-          </div>
-
-          {TECH_NAV.map((item) => {
-            const isActive = location === item.href;
-            return (
-              <Link key={item.href} href={item.href}>
-                <span
-                  className={cn(
-                    "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors cursor-pointer",
-                    isActive
-                      ? "bg-cyan-600/20 text-cyan-300 border border-cyan-500/30"
-                      : "text-slate-400 hover:bg-slate-700/50 hover:text-slate-200"
-                  )}
-                  data-testid={`nav-${item.href.replace(/\//g, "-")}`}
-                >
-                  <item.icon className="h-4 w-4" />
-                  {item.label}
-                </span>
-              </Link>
-            );
-          })}
         </nav>
 
         <div className="p-4 border-t border-slate-700 shrink-0">
