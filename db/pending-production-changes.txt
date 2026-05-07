@@ -87,7 +87,60 @@ DO NOT RUN ON PRODUCTION — column not needed.
 If dev column causes issues, run: ALTER TABLE general_settings DROP COLUMN IF EXISTS bot_api_key;
 
 ========================================================
-ENTRY #003 — (next change goes here)
+ENTRY #003 — billing-notes-routes.ts: fix invoice totalAmount formula (CODE ONLY, no DB schema change)
+Date: 2026-05-07
+Status: APPROVED — authorized by พี่ช้าง (push to production immediately)
+Approved by: พี่ช้าง
+========================================================
+
+WHAT:
+  Code-only fix in server/routes/billing-notes-routes.ts — 2 creation paths.
+  No DB schema change. No migration needed.
+
+WHY:
+  Two invoice creation paths were calculating WHT but NOT subtracting it from
+  totalAmount, causing wrong records (total = subtotal + VAT instead of
+  subtotal + VAT - WHT).
+
+  Correct formula: totalAmount = subtotal + VAT - WHT
+  Wrong formula (old):
+    Path 1 (auto-generate): totalAmount = fee  OR  subtotal + vat  (WHT ignored)
+    Path 2 (legacy import): totalAmount = r.total  (WHT ignored)
+
+  Root cause of 303 wrong records in company 4 (and any other company using
+  billing-notes auto-generate).
+
+SCREENS INVOLVED IN INVOICE CREATION (5 total):
+  1. Invoice form — manual create (POST /api/invoices) — trusts frontend formula
+  2. Invoice form — manual edit   (PATCH /api/invoices/:id) — trusts frontend formula
+  3. Invoice clone                — copies source totalAmount
+  4. Billing notes → auto-generate ✅ FIXED (this entry)
+  5. Billing notes → legacy import ✅ FIXED (this entry)
+  (ecommerce-import has no WHT by design — correct for that context)
+
+FILES CHANGED:
+  server/routes/billing-notes-routes.ts
+    - Line 827-840: auto-generate path — now calculates wht first, then
+      totalAmount = grossBeforeWht - wht
+    - Line 1309-1316: legacy import path — now totalAmount = grossTotal - wht
+
+RISK: Very low.
+  - No DB schema change.
+  - Only affects NEW records created going forward.
+  - Existing wrong records are NOT touched by this change.
+  - Cannot break any existing data.
+
+VERIFY AFTER DEPLOY:
+  Create a new invoice via billing-notes auto-generate for a client with WHT.
+  Confirm: totalAmount in DB = subtotal + VAT - WHT (not subtotal + VAT).
+
+NOTE:
+  Screens 1, 2, 3 (manual form, edit, clone) trust the frontend formula.
+  Frontend invoice-form.tsx already computes: grandTotal = subtotal + vat - wht ✅
+  These 3 screens require พี่ทราย to manually test and confirm no wrong data.
+
+========================================================
+ENTRY #004 — (next change goes here)
 ========================================================
 END OF FILE
 ========================================================
