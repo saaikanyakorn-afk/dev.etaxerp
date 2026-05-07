@@ -575,7 +575,8 @@ export default function ExpenseList() {
                                 {exp.paymentMethod === "เครดิต" || !exp.paymentMethod ? (() => {
                                   const total = parseFloat(String(exp.totalAmount || 0));
                                   const paid = parseFloat(String(exp.paidAmount || 0));
-                                  const outstanding = Math.max(0, total - paid);
+                                  const isPaid = exp.paymentStatus === "paid" || exp.status === "paid";
+                                  const outstanding = isPaid ? 0 : Math.max(0, total - paid);
                                   return (
                                     <>
                                       <div className="text-[10px] text-muted-foreground">{fmt(outstanding)}</div>
@@ -725,7 +726,8 @@ export default function ExpenseList() {
                             {exp.paymentMethod === "เครดิต" || !exp.paymentMethod ? (() => {
                               const total = parseFloat(String(exp.totalAmount || 0));
                               const paid = parseFloat(String(exp.paidAmount || 0));
-                              const outstanding = Math.max(0, total - paid);
+                              const isPaid = exp.paymentStatus === "paid" || exp.status === "paid";
+                              const outstanding = isPaid ? 0 : Math.max(0, total - paid);
                               return (
                                 <>
                                   <div className="text-xs text-muted-foreground">{fmt(outstanding)}</div>
