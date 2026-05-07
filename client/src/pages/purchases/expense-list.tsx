@@ -442,7 +442,7 @@ export default function ExpenseList() {
                     <TableHead className="w-[140px] text-sm font-medium text-white">เลขที่</TableHead>
                     <TableHead className="text-sm font-medium text-white min-w-[260px]">รายละเอียด</TableHead>
                     <TableHead className="w-[90px] text-center text-sm font-medium text-white">สถานะ</TableHead>
-                    <TableHead className="w-[120px] text-right text-sm font-medium text-white">ยอดรวม</TableHead>
+                    <TableHead className="w-[120px] text-right text-sm font-medium text-white">ค้างชำระ</TableHead>
                     <TableHead className="w-[90px] text-right text-sm font-medium text-white">VAT</TableHead>
                     <TableHead className="w-[90px] text-right text-sm font-medium text-white">WHT</TableHead>
                     <TableHead className="w-8 text-center text-sm font-medium text-white"></TableHead>
@@ -572,24 +572,24 @@ export default function ExpenseList() {
                               </TableCell>
                               <TableCell></TableCell>
                               <TableCell className="text-right text-xs">
-                                {exp.paymentMethod === "เครดิต" || !exp.paymentMethod ? (() => {
+                                {(() => {
                                   const total = parseFloat(String(exp.totalAmount || 0));
                                   const paid = parseFloat(String(exp.paidAmount || 0));
-                                  const isPaid = exp.paymentStatus === "paid" || exp.status === "paid";
+                                  const isPaid = exp.paymentStatus === "paid" || exp.status === "paid" || (paid > 0 && paid >= total);
                                   const outstanding = isPaid ? 0 : Math.max(0, total - paid);
+                                  const isForeign = exp.currencyCode && exp.currencyCode !== "THB" && parseFloat(exp.exchangeRate || "1") > 1;
+                                  const rate = parseFloat(exp.exchangeRate || "1");
                                   return (
                                     <>
                                       <div className="text-[10px] text-muted-foreground">{fmt(outstanding)}</div>
                                       <div className="border-t border-gray-200 my-0.5" />
-                                      <div>{fmt(total)}</div>
+                                      <div>
+                                        {fmt(total)}
+                                        {isForeign && <span className="text-[9px] ml-1 text-[var(--theme-primary)]">{exp.currencyCode}</span>}
+                                      </div>
                                     </>
                                   );
-                                })() : fmt(exp.totalAmount)}
-                                {exp.currencyCode && exp.currencyCode !== "THB" && parseFloat(exp.exchangeRate || "1") > 0 && (
-                                  <div className="text-[10px] text-blue-500 font-normal mt-0.5">
-                                    {exp.currencyCode} {fmt(parseFloat(exp.totalAmount || "0") / parseFloat(exp.exchangeRate || "1"))}
-                                  </div>
-                                )}
+                                })()}
                               </TableCell>
                               <TableCell className="text-right text-xs text-gray-400">{fmt(exp.vatAmount)}</TableCell>
                               <TableCell className="text-right text-xs text-gray-400">{fmt(exp.withholdingTax)}</TableCell>
@@ -723,26 +723,23 @@ export default function ExpenseList() {
                             </Badge>
                           </TableCell>
                           <TableCell className="text-right tabular-nums">
-                            {exp.paymentMethod === "เครดิต" || !exp.paymentMethod ? (() => {
+                            {(() => {
                               const total = parseFloat(String(exp.totalAmount || 0));
                               const paid = parseFloat(String(exp.paidAmount || 0));
-                              const isPaid = exp.paymentStatus === "paid" || exp.status === "paid";
+                              const isPaid = exp.paymentStatus === "paid" || exp.status === "paid" || (paid > 0 && paid >= total);
                               const outstanding = isPaid ? 0 : Math.max(0, total - paid);
+                              const isForeign = exp.currencyCode && exp.currencyCode !== "THB" && parseFloat(exp.exchangeRate || "1") > 1;
                               return (
                                 <>
                                   <div className="text-xs text-muted-foreground">{fmt(outstanding)}</div>
                                   <div className="border-t border-gray-200 my-0.5" />
-                                  <div className="text-sm font-normal">{fmt(total)}</div>
+                                  <div className="text-sm font-normal">
+                                    {fmt(total)}
+                                    {isForeign && <span className="text-[10px] ml-1 text-[var(--theme-primary)]">{exp.currencyCode}</span>}
+                                  </div>
                                 </>
                               );
-                            })() : (
-                              <div className="text-sm font-normal">{fmt(exp.totalAmount)}</div>
-                            )}
-                            {exp.currencyCode && exp.currencyCode !== "THB" && parseFloat(exp.exchangeRate || "1") > 0 && (
-                              <div className="text-[10px] text-blue-500 font-normal mt-0.5">
-                                {exp.currencyCode} {fmt(parseFloat(exp.totalAmount || "0") / parseFloat(exp.exchangeRate || "1"))}
-                              </div>
-                            )}
+                            })()}
                           </TableCell>
                           <TableCell className="text-right text-sm text-gray-500">{exp.showInTaxReport ? fmt(exp.vatAmount) : "-"}</TableCell>
                           <TableCell className="text-right text-sm text-gray-500">{fmt(exp.withholdingTax)}</TableCell>

@@ -1,108 +1,78 @@
 ========================================================
 PENDING PRODUCTION DATABASE CHANGES
-Session: May 5–7, 2026
-Feature: Foreign Currency Support + GL Two-Step for Expenses
-Prepared by: Kai (agent) | Requires: พี่ช้าง approval before running
+Maintained by: Kai (agent)
+Rule: Update THIS FILE before ANY database change on dev.
+      พี่ช้าง must approve before running anything on production.
 ========================================================
 
-IMPORTANT: Do NOT run anything below until พี่ช้าง authorises.
-Dev DB already has all 3 columns. Production does NOT.
+HOW TO USE THIS FILE
+--------------------
+- Every planned DB change is logged here FIRST (schema + data).
+- Format each entry: [Date] [Status] [What] [Why] [Risk]
+- Status values: PENDING | APPROVED | DONE | ROLLED BACK
 
---------------------------------------------------------
-SECTION 1: SCHEMA CHANGES (ALTER TABLE)
---------------------------------------------------------
+========================================================
+ENTRY #001 — expenses table: 3 new columns
+Date: 2026-05-05/06
+Status: PENDING (dev DB has columns, production does NOT)
+Approved by: (waiting)
+========================================================
 
-3 new columns added to the `expenses` table.
-All use IF NOT EXISTS — safe to run even if already present.
-All have DEFAULT values — no existing rows will be affected.
-
--- 1a. Store the original foreign currency code (e.g. USD, EUR)
-ALTER TABLE expenses
-  ADD COLUMN IF NOT EXISTS currency_code TEXT NOT NULL DEFAULT 'THB';
-
--- 1b. Store the exchange rate used (THB per 1 unit of foreign currency)
-ALTER TABLE expenses
-  ADD COLUMN IF NOT EXISTS exchange_rate DECIMAL(15,6) NOT NULL DEFAULT 1;
-
--- 1c. Store how much of the AP balance has been paid (for outstanding display)
-ALTER TABLE expenses
-  ADD COLUMN IF NOT EXISTS paid_amount DECIMAL(15,2) NOT NULL DEFAULT 0;
+WHAT:
+  Three new columns added to the `expenses` table.
 
 WHY:
-- currency_code / exchange_rate: expenses can now be entered in USD/EUR/etc.
-  The app stores totalAmount in THB (rate × foreign amount) and keeps the
-  original foreign values here for display and reference.
-- paid_amount: used to calculate outstanding balance for credit (AP) expenses.
-  Default 0 means all existing expenses show full amount as outstanding
-  until manually updated or paid via payment voucher.
+  Feature: foreign currency support + outstanding balance display
+  for expense module.
+  - currency_code: store original foreign currency (USD, EUR, etc.)
+  - exchange_rate: THB per 1 unit of foreign currency at time of entry
+  - paid_amount: track how much of AP balance has been settled
 
-RISK: Very low. All three are additive columns with safe defaults.
-      No existing data is altered. IF NOT EXISTS prevents errors on re-run.
+SQL TO RUN ON PRODUCTION (in order):
 
---------------------------------------------------------
-SECTION 2: DATA CHANGES (application-level, no DDL)
---------------------------------------------------------
+  ALTER TABLE expenses
+    ADD COLUMN IF NOT EXISTS currency_code TEXT NOT NULL DEFAULT 'THB';
 
-The following raw SQL runs on every POST /api/expenses and PATCH /api/expenses/:id
-AFTER the columns exist. These are part of normal application logic, not migrations.
+  ALTER TABLE expenses
+    ADD COLUMN IF NOT EXISTS exchange_rate DECIMAL(15,6) NOT NULL DEFAULT 1;
 
-  UPDATE expenses
-  SET currency_code = <value>, exchange_rate = <value>
-  WHERE id = <expense_id>;
+  ALTER TABLE expenses
+    ADD COLUMN IF NOT EXISTS paid_amount DECIMAL(15,2) NOT NULL DEFAULT 0;
 
-WHY: Drizzle ORM schema does not include currency_code / exchange_rate
-     (schema.ts is protected and cannot be modified), so raw SQL is used
-     to write these fields on every create/edit. This is existing pattern
-     used elsewhere in the codebase (e.g. sales_credit_notes.share_token).
+RISK: Very low.
+  - IF NOT EXISTS: safe to re-run, no error if column already exists.
+  - DEFAULT values: no existing rows affected.
+  - Additive only: no existing columns modified or dropped.
 
-RISK: Zero. Only updates the row being saved, within a transaction.
+VERIFY AFTER RUNNING:
+  SELECT column_name, data_type, column_default
+  FROM information_schema.columns
+  WHERE table_name = 'expenses'
+    AND column_name IN ('currency_code', 'exchange_rate', 'paid_amount')
+  ORDER BY column_name;
+  -- Expected: 3 rows
 
---------------------------------------------------------
-SECTION 3: NO OTHER SCHEMA CHANGES
---------------------------------------------------------
+ROLLBACK (only with authorisation + simultaneous code revert):
+  ALTER TABLE expenses DROP COLUMN IF EXISTS currency_code;
+  ALTER TABLE expenses DROP COLUMN IF EXISTS exchange_rate;
+  ALTER TABLE expenses DROP COLUMN IF EXISTS paid_amount;
 
-The following were checked and confirmed to have NO schema changes:
+RELATED CODE FILES:
+  server/routes/expense-routes.ts — reads/writes these columns via raw SQL
+  client/src/pages/purchases/expense.tsx — sends currencyCode/exchangeRate
+  client/src/pages/purchases/expense-list.tsx — displays outstanding/total
 
-- GL journal logic change (credit AP instead of cash for เครดิต payment):
-  Writes to journal_entries / journal_lines — both tables already exist on
-  production. No ALTER TABLE required.
-
-- New /api/exchange-rate endpoint (misc-routes.ts):
-  Calls external BOT API. No database reads or writes.
-
-- Frontend changes (expense-list.tsx, expense.tsx, fetch-rate-button.tsx):
-  UI only. No database interaction.
-
-- etax credit note send email (6b7b6807):
-  Writes to existing etax_sent_at column on sales_credit_notes — column
-  already exists on production (added in earlier session).
-
---------------------------------------------------------
-SECTION 4: VERIFICATION QUERIES (run AFTER ALTER TABLE)
---------------------------------------------------------
-
--- Confirm columns were added successfully:
-SELECT column_name, data_type, column_default
-FROM information_schema.columns
-WHERE table_name = 'expenses'
-  AND column_name IN ('currency_code', 'exchange_rate', 'paid_amount')
-ORDER BY column_name;
-
--- Expected result: 3 rows returned with correct types and defaults.
-
---------------------------------------------------------
-SECTION 5: ROLLBACK (if needed)
---------------------------------------------------------
-
--- To undo (only if something goes wrong, requires authorisation):
-ALTER TABLE expenses DROP COLUMN IF EXISTS currency_code;
-ALTER TABLE expenses DROP COLUMN IF EXISTS exchange_rate;
-ALTER TABLE expenses DROP COLUMN IF EXISTS paid_amount;
-
-WARNING: Dropping these columns will cause the app to error on expense
-         create/edit since the code tries to write to them.
-         Only drop if also reverting the code to a prior commit.
+NOTE: ALTER TABLE code was REMOVED from expense-routes.ts (commit cd21f4f9)
+      after unauthorised auto-run was discovered. The columns now exist
+      only because they were run once on dev during development.
+      Production requires manual authorised run of the SQL above.
 
 ========================================================
-END OF DOCUMENT
+ENTRY #002 — (next change goes here)
+========================================================
+
+  [reserved for next database change]
+
+========================================================
+END OF FILE
 ========================================================
