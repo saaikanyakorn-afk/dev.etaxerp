@@ -77,6 +77,17 @@ export default function ExchangeRateSettings({ platformMode = false }: { platfor
     },
   });
 
+  const fallbackCopy = (text: string) => {
+    const el = document.createElement("textarea");
+    el.value = text;
+    el.style.position = "fixed";
+    el.style.opacity = "0";
+    document.body.appendChild(el);
+    el.select();
+    document.execCommand("copy");
+    document.body.removeChild(el);
+  };
+
   const handleTest = async () => {
     setTestLoading(true);
     setTestResult(null);
@@ -185,7 +196,12 @@ export default function ExchangeRateSettings({ platformMode = false }: { platfor
                 <button
                   type="button"
                   onClick={() => {
-                    navigator.clipboard.writeText(settings.fullKey || "");
+                    const text = settings.fullKey || "";
+                    if (navigator.clipboard && window.isSecureContext) {
+                      navigator.clipboard.writeText(text).catch(() => fallbackCopy(text));
+                    } else {
+                      fallbackCopy(text);
+                    }
                     setCopied(true);
                     setTimeout(() => setCopied(false), 2000);
                   }}
