@@ -565,10 +565,7 @@ export function registerExpenseRoutes(app: Express) {
         const { currencyCode: _cc, exchangeRate: _er, ...drizzleUpdateData } = updateData;
         await tx.update(expenses).set(drizzleUpdateData).where(eq(expenses.id, existing.id));
         // currency_code/exchange_rate not in Drizzle schema — must use raw SQL
-        const ccVal = body.currencyCode || "THB";
-        const erVal = body.exchangeRate || "1";
-        console.log(`[EXP PATCH] id=${existing.id} currency_code=${ccVal} exchange_rate=${erVal}`);
-        await tx.execute(sql`UPDATE expenses SET currency_code = ${ccVal}, exchange_rate = ${erVal} WHERE id = ${existing.id}`);
+        await tx.execute(sql`UPDATE expenses SET currency_code = ${body.currencyCode || "THB"}, exchange_rate = ${body.exchangeRate || "1"} WHERE id = ${existing.id}`);
         if (items && Array.isArray(items)) {
           await tx.delete(expenseItems).where(eq(expenseItems.expenseId, existing.id));
           if (items.length > 0) {
