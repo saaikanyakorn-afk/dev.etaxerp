@@ -135,6 +135,7 @@ async function resolveArchivedUrl(originalUrl: string): Promise<ArchiveResolutio
 export function registerExpenseRoutes(app: Express) {
   db.execute(sql`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS currency_code TEXT NOT NULL DEFAULT 'THB'`).catch(() => {});
   db.execute(sql`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS exchange_rate DECIMAL(15,6) NOT NULL DEFAULT 1`).catch(() => {});
+  db.execute(sql`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS paid_amount DECIMAL(15,2) NOT NULL DEFAULT 0`).catch(() => {});
 
   // ============ Expenses ============
 
@@ -151,11 +152,11 @@ export function registerExpenseRoutes(app: Express) {
         const itemsByExpense: Record<number, any[]> = {};
         for (const item of allItems) { if (!itemsByExpense[item.expenseId]) itemsByExpense[item.expenseId] = []; itemsByExpense[item.expenseId].push(item); }
         // Fetch currency fields not in drizzle schema
-        const currencyMap: Record<number, { currencyCode: string; exchangeRate: string }> = {};
+        const currencyMap: Record<number, { currencyCode: string; exchangeRate: string; paidAmount: string }> = {};
         if (rows.length > 0) {
           const ids = rows.map((r: any) => r.id);
-          const cr = await db.execute(sql`SELECT id, currency_code, exchange_rate FROM expenses WHERE id IN (${sql.join(ids.map((id: number) => sql`${id}`), sql`, `)})`);
-          for (const row of cr.rows as any[]) { currencyMap[row.id] = { currencyCode: row.currency_code || "THB", exchangeRate: String(row.exchange_rate || "1") }; }
+          const cr = await db.execute(sql`SELECT id, currency_code, exchange_rate, paid_amount FROM expenses WHERE id IN (${sql.join(ids.map((id: number) => sql`${id}`), sql`, `)})`);
+          for (const row of cr.rows as any[]) { currencyMap[row.id] = { currencyCode: row.currency_code || "THB", exchangeRate: String(row.exchange_rate || "1"), paidAmount: String(row.paid_amount || "0") }; }
         }
         return rows.map((r: any) => {
           const expItems = itemsByExpense[r.id] || [];
@@ -291,10 +292,11 @@ export function registerExpenseRoutes(app: Express) {
       let updatedByName = "-";
       if (doc.createdBy) { const u = await storage.getUser(doc.createdBy); if (u) createdByName = u.fullName; }
       if (doc.updatedBy) { const u = await storage.getUser(doc.updatedBy); if (u) updatedByName = u.fullName; }
-      const [cRow] = (await db.execute(sql`SELECT currency_code, exchange_rate FROM expenses WHERE id = ${doc.id}`)).rows as any[];
+      const [cRow] = (await db.execute(sql`SELECT currency_code, exchange_rate, paid_amount FROM expenses WHERE id = ${doc.id}`)).rows as any[];
       const currencyCode = cRow?.currency_code || "THB";
       const exchangeRate = String(cRow?.exchange_rate || "1");
-      res.json({ ...doc, currencyCode, exchangeRate, items, createdByName, updatedByName });
+      const paidAmount = String(cRow?.paid_amount || "0");
+      res.json({ ...doc, currencyCode, exchangeRate, paidAmount, items, createdByName, updatedByName });
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
@@ -437,8 +439,13 @@ export function registerExpenseRoutes(app: Express) {
           } else {
             const expItems = savedItems;
             const pmName = result.paymentMethod || null;
+            const isCredit = !pmName || pmName === "เครดิต";
             let pmCode = "1001000"; let pmAccName = "เงินสด";
-            if (pmName) {
+            if (isCredit) {
+              const apAcc = compAccts.find(a => a.code === "2101000") || compAccts.find(a => a.code === "2100000") || compAccts.find(a => a.code === "2001") || compAccts.find(a => a.nameTh?.includes("เจ้าหนี้การค้า") || a.name?.toLowerCase().includes("accounts payable"));
+              pmCode = apAcc?.code || "2101000";
+              pmAccName = apAcc?.nameTh || apAcc?.name || "เจ้าหนี้การค้า";
+            } else if (pmName) {
               const rc = await resolvePaymentMethodAccountCode(result.companyId, pmName);
               if (rc) { pmCode = rc; const a = acctMap.get(rc); if (a) pmAccName = a.nameTh || a.name || "เงินสด/ธนาคาร"; }
             }
@@ -618,8 +625,13 @@ export function registerExpenseRoutes(app: Express) {
             jL = body.customJournalLines;
           } else {
             const pmName = updated.paymentMethod || null;
+            const isCredit = !pmName || pmName === "เครดิต";
             let pmCode = "1001000"; let pmAccName = "เงินสด";
-            if (pmName) {
+            if (isCredit) {
+              const apAcc = compAccts.find(a => a.code === "2101000") || compAccts.find(a => a.code === "2100000") || compAccts.find(a => a.code === "2001") || compAccts.find(a => a.nameTh?.includes("เจ้าหนี้การค้า") || a.name?.toLowerCase().includes("accounts payable"));
+              pmCode = apAcc?.code || "2101000";
+              pmAccName = apAcc?.nameTh || apAcc?.name || "เจ้าหนี้การค้า";
+            } else if (pmName) {
               const rc = await resolvePaymentMethodAccountCode(updated.companyId, pmName);
               if (rc) { pmCode = rc; const a = acctMap.get(rc); if (a) pmAccName = a.nameTh || a.name || "เงินสด/ธนาคาร"; }
             }

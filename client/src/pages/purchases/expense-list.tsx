@@ -572,7 +572,18 @@ export default function ExpenseList() {
                               </TableCell>
                               <TableCell></TableCell>
                               <TableCell className="text-right text-xs">
-                                {fmt(exp.totalAmount)}
+                                {exp.paymentMethod === "เครดิต" || !exp.paymentMethod ? (() => {
+                                  const total = parseFloat(String(exp.totalAmount || 0));
+                                  const paid = parseFloat(String(exp.paidAmount || 0));
+                                  const outstanding = Math.max(0, total - paid);
+                                  return (
+                                    <>
+                                      <div className="text-[10px] text-muted-foreground">{fmt(outstanding)}</div>
+                                      <div className="border-t border-gray-200 my-0.5" />
+                                      <div>{fmt(total)}</div>
+                                    </>
+                                  );
+                                })() : fmt(exp.totalAmount)}
                                 {exp.currencyCode && exp.currencyCode !== "THB" && parseFloat(exp.exchangeRate || "1") > 0 && (
                                   <div className="text-[10px] text-blue-500 font-normal mt-0.5">
                                     {exp.currencyCode} {fmt(parseFloat(exp.totalAmount || "0") / parseFloat(exp.exchangeRate || "1"))}
@@ -711,7 +722,20 @@ export default function ExpenseList() {
                             </Badge>
                           </TableCell>
                           <TableCell className="text-right tabular-nums">
-                            <div className="text-sm font-normal">{fmt(exp.totalAmount)}</div>
+                            {exp.paymentMethod === "เครดิต" || !exp.paymentMethod ? (() => {
+                              const total = parseFloat(String(exp.totalAmount || 0));
+                              const paid = parseFloat(String(exp.paidAmount || 0));
+                              const outstanding = Math.max(0, total - paid);
+                              return (
+                                <>
+                                  <div className="text-xs text-muted-foreground">{fmt(outstanding)}</div>
+                                  <div className="border-t border-gray-200 my-0.5" />
+                                  <div className="text-sm font-normal">{fmt(total)}</div>
+                                </>
+                              );
+                            })() : (
+                              <div className="text-sm font-normal">{fmt(exp.totalAmount)}</div>
+                            )}
                             {exp.currencyCode && exp.currencyCode !== "THB" && parseFloat(exp.exchangeRate || "1") > 0 && (
                               <div className="text-[10px] text-blue-500 font-normal mt-0.5">
                                 {exp.currencyCode} {fmt(parseFloat(exp.totalAmount || "0") / parseFloat(exp.exchangeRate || "1"))}
