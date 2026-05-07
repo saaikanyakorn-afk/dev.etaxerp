@@ -20,17 +20,21 @@ export async function runStampUrlMigration(_db: any) {}
  */
 export async function runBotApiKeyMigration(_db: any) {}
 
-// 2026-05-07 — DROP general_settings.bot_api_key (design reversal — per-company key replaced by platform-level system_config)
-// IF EXISTS: safe on production (column was never added there). Cleans dev DB.
-export async function runDropBotApiKeyMigration(db: any) {
-  const FLAG = "DROP_BOT_API_KEY_FROM_GENERAL_SETTINGS_20260507";
-  const { sql } = await import("drizzle-orm");
-  const flag = await db.execute(sql.raw(`SELECT config_value FROM system_config WHERE config_key = '${FLAG}' LIMIT 1`));
-  if ((flag.rows || []).length > 0) return;
-  await db.execute(sql.raw(`ALTER TABLE general_settings DROP COLUMN IF EXISTS bot_api_key`));
-  await db.execute(sql.raw(`INSERT INTO system_config (config_key, config_value) VALUES ('${FLAG}', 'done_${new Date().toISOString()}') ON CONFLICT (config_key) DO NOTHING`));
-  console.log("[migration] ✅ general_settings.bot_api_key dropped");
-}
+/* ── DONE 2026-05-07: DROP general_settings.bot_api_key (ENTRY #002 reversal / ENTRY #005) ──
+ * Verified on production DB: column absent, FLAG=done_2026-05-07T14:45:27.390Z ✅
+ * Backup: not required (column was empty, dev-only, never reached production)
+ *
+ * export async function runDropBotApiKeyMigration(db: any) {
+ *   const FLAG = "DROP_BOT_API_KEY_FROM_GENERAL_SETTINGS_20260507";
+ *   const { sql } = await import("drizzle-orm");
+ *   const flag = await db.execute(sql.raw(`SELECT config_value FROM system_config WHERE config_key = '${FLAG}' LIMIT 1`));
+ *   if ((flag.rows || []).length > 0) return;
+ *   await db.execute(sql.raw(`ALTER TABLE general_settings DROP COLUMN IF EXISTS bot_api_key`));
+ *   await db.execute(sql.raw(`INSERT INTO system_config (config_key, config_value) VALUES ('${FLAG}', 'done_${new Date().toISOString()}') ON CONFLICT (config_key) DO NOTHING`));
+ *   console.log("[migration] ✅ general_settings.bot_api_key dropped");
+ * }
+ */
+export async function runDropBotApiKeyMigration(_db: any) {}
 
 /* ── DONE 2026-05-07: sales_credit_notes etax columns (ENTRY #004) ──
  * Verified: etax_sent_at, etax_sent_to, etax_sent_cc, etax_message_id — all TEXT/TIMESTAMP, nullable ✅
