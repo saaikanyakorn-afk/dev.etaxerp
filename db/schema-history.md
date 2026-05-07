@@ -69,7 +69,7 @@ following the TERTIARY USE procedure so index.ts is no longer touched for column
 
 **Reason:** Per-company BOT API key design was wrong. Key is platform-level — one key serves all tenants. super_admin sets it once via UI, stored in system_config. No .env file needed.
 
-**Status:** Done on dev ✅ — pending production run (part of ENTRY #005 batch)
+**Status:** Deployed + comment-out + clean push done ✅ — FLAG=done_2026-05-07T14:45:27.390Z
 
 ---
 

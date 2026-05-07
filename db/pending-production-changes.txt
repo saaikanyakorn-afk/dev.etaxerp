@@ -188,8 +188,8 @@ RELATED CODE FILES:
 ========================================================
 ENTRY #005 — BOT API Key redesign batch (CODE + migration deposit)
 Date: 2026-05-07
-Status: PENDING — awaiting พี่ช้าง approval to push
-Approved by: (waiting)
+Status: DONE — deployed 2026-05-07, migration FLAG=done_2026-05-07T14:45:27.390Z ✅
+Approved by: พี่ช้าง — 2026-05-07
 ========================================================
 
 WHAT:
