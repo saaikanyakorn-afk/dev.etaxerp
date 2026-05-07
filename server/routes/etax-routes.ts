@@ -8,6 +8,7 @@ import { generateEtaxXml, type EtaxInvoiceData, type EtaxLineItem } from "@share
 import { convertToPdfA3, getDocumentTypeFromInvoice } from "../etax-pdf-a3";
 import { generatePdfMake } from "../pdf-pdfmake-generator";
 import { buildPdfDataById, buildCreditNotePdfData } from "../pdf-data-fetcher";
+import { runSalesCreditNoteEtaxMigration } from "../schema-extra";
 
 function parseDateToBE(dateVal: string | Date | null | undefined): string {
   const s = dateVal ? String(dateVal) : "";
@@ -51,6 +52,8 @@ function checkCompanyAccess(company: any, user: any): boolean {
 }
 
 export function registerEtaxRoutes(app: Express) {
+  runSalesCreditNoteEtaxMigration(db);
+
   app.get("/api/thai-addresses", async (_req, res) => {
     try {
       const path = await import("path");

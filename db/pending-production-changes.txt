@@ -140,7 +140,51 @@ NOTE:
   These 3 screens require พี่ทราย to manually test and confirm no wrong data.
 
 ========================================================
-ENTRY #004 — (next change goes here)
+ENTRY #004 — sales_credit_notes: 4 etax columns (e-Tax Invoice credit note feature)
+Date: 2026-05-07
+Status: PENDING (dev DB has columns via auto-migration, production does NOT)
+Approved by: (waiting)
+========================================================
+
+WHAT:
+  4 new columns added to sales_credit_notes table.
+  Added via runSalesCreditNoteEtaxMigration() in server/schema-extra.ts.
+
+WHY:
+  Feature: ส่ง e-Tax Invoice (ใบลดหนี้) ไปยังกรมสรรพากร
+  Without these columns the send-email route fails when trying to record
+  that the document was sent.
+  - etax_sent_at: timestamp when e-Tax was sent
+  - etax_sent_to: buyer email the PDF/A-3 was sent to
+  - etax_sent_cc: ETDA timestamp email (CC)
+  - etax_message_id: SMTP/Resend message ID for tracing
+
+SQL TO RUN ON PRODUCTION (in order):
+
+  ALTER TABLE sales_credit_notes ADD COLUMN IF NOT EXISTS etax_sent_at TIMESTAMP;
+  ALTER TABLE sales_credit_notes ADD COLUMN IF NOT EXISTS etax_sent_to TEXT;
+  ALTER TABLE sales_credit_notes ADD COLUMN IF NOT EXISTS etax_sent_cc TEXT;
+  ALTER TABLE sales_credit_notes ADD COLUMN IF NOT EXISTS etax_message_id TEXT;
+
+RISK: Very low.
+  - IF NOT EXISTS: safe to re-run.
+  - All nullable: no existing rows affected.
+  - Additive only: no existing columns modified or dropped.
+
+VERIFY AFTER RUNNING:
+  SELECT column_name FROM information_schema.columns
+  WHERE table_name = 'sales_credit_notes'
+    AND column_name IN ('etax_sent_at','etax_sent_to','etax_sent_cc','etax_message_id')
+  ORDER BY column_name;
+  -- Expected: 4 rows
+
+RELATED CODE FILES:
+  server/schema-extra.ts — runSalesCreditNoteEtaxMigration()
+  server/routes/etax-routes.ts — calls migration on startup; send-email writes these columns
+  client/src/pages/sales/credit-note-form.tsx — EtaxCreditNoteButton reads etaxSentAt/etaxSentTo
+
+========================================================
+ENTRY #005 — (next change goes here)
 ========================================================
 END OF FILE
 ========================================================
