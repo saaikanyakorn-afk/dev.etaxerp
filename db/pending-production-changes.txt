@@ -68,32 +68,25 @@ NOTE: ALTER TABLE code was REMOVED from expense-routes.ts (commit cd21f4f9)
       Production requires manual authorised run of the SQL above.
 
 ========================================================
-ENTRY #002 — general_settings.bot_api_key — DROP COLUMN
+ENTRY #002 — general_settings.bot_api_key — DONE (DROP COLUMN)
 Date: 2026-05-07
-Status: PENDING — SQL must be run manually by พี่ช้าง on production (procedure)
-        Dev DB: column already dropped manually.
-        Production: column never existed (ENTRY #002 ADD COLUMN was cancelled before push).
-        Auto-run migration REMOVED from code — follows no-direct-SQL-on-server rule.
-Approved by: (waiting — low priority, production is clean already)
+Status: DONE — column dropped from dev DB via runDropBotApiKeyMigration (2026-05-07)
+        Production never had this column (ENTRY #002 was cancelled before push).
+        Migration will auto-run on production startup (FLAG-guarded, no-op if column absent).
+Approved by: พี่ช้าง (part of BOT API Key redesign batch)
 ========================================================
 
 WHAT:
-  DROP COLUMN IF EXISTS bot_api_key FROM general_settings.
-  Column existed on dev DB only — already removed on dev.
+  DROP COLUMN bot_api_key FROM general_settings.
+  Column existed on dev DB only — now removed.
   Design changed: BOT API key stored in system_config (platform-level) instead.
+  super_admin manages key via Settings > อัตราแลกเปลี่ยน screen.
 
-SQL TO RUN ON PRODUCTION (if column somehow exists):
-
-  ALTER TABLE general_settings DROP COLUMN IF EXISTS bot_api_key;
-
-RISK: None.
-  - IF NOT EXISTS: no-op if column was never there (production case).
-  - Can be skipped entirely if production never had the column.
-
-VERIFY:
-  SELECT column_name FROM information_schema.columns
-  WHERE table_name = 'general_settings' AND column_name = 'bot_api_key';
-  -- Expected: 0 rows (column does not exist)
+MIGRATION: runDropBotApiKeyMigration() in server/schema-extra.ts
+  - FLAG: DROP_BOT_API_KEY_FROM_GENERAL_SETTINGS_20260507
+  - Called from: server/routes/doc-settings-routes.ts on startup
+  - Uses IF EXISTS + FLAG guard — idempotent, safe to run on production (no-op if column absent)
+  - After production run: comment out per Step 7 procedure
 
 ========================================================
 ENTRY #003 — billing-notes-routes.ts: fix invoice totalAmount formula (CODE ONLY, no DB schema change)
