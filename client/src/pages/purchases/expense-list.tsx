@@ -523,7 +523,19 @@ export default function ExpenseList() {
                                     <MoreHorizontal className="h-4 w-4" />
                                   </Button>
                                 </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end" className="w-48 text-sm">
+                                <DropdownMenuContent align="end" className="w-52 text-sm">
+                                  <DropdownMenuItem
+                                    className="flex gap-2"
+                                    onClick={(e) => { e.stopPropagation(); setJournalDoc({ open: true, id: batch.id, docType: "expense_daily_batch" }); }}
+                                  >
+                                    <BookOpen className="h-3.5 w-3.5 text-blue-500" /> ดูบันทึกบัญชี
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    className="flex gap-2"
+                                    onClick={(e) => { e.stopPropagation(); setRelatedInline({ open: true, id: batch.id }); }}
+                                  >
+                                    <ExternalLink className="h-3.5 w-3.5 text-[#03c9d7]" /> เอกสารที่เกี่ยวข้อง
+                                  </DropdownMenuItem>
                                   <DropdownMenuSeparator />
                                   <DropdownMenuItem
                                     className="flex gap-2 text-red-500 focus:text-red-600"
