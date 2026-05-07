@@ -203,8 +203,8 @@ WHAT:
      - client/src/components/fetch-rate-button.tsx: stale rate dialog + clear error
        message when key not configured.
      - server/routes/billing-notes-routes.ts: ENTRY #003 fix (totalAmount formula) — APPROVED.
-     - server/routes/etax-routes.ts: HOLD — รอพี่ช้างตรวจสอบ etax credit note ก่อน
-     - client/src/components/etax-send-dialog.tsx: HOLD — รอพี่ช้างตรวจสอบ etax credit note ก่อน
+     - server/routes/etax-routes.ts: DONE — deployed 2026-05-07 (Deploy #42) ✅
+     - client/src/components/etax-send-dialog.tsx: DONE — deployed 2026-05-07 (Deploy #42) ✅
 
   2. MIGRATION (deposit — runs on production startup):
      - runDropBotApiKeyMigration(): DROP COLUMN bot_api_key FROM general_settings IF EXISTS
