@@ -1086,6 +1086,60 @@ Every block of code that calls an external AI API MUST be marked with a `⚠️ 
   - **Why "warn and continue" (Option B) and "pre-validate" (Option C) are also violations:** Any path that allows a document to be saved in an incomplete or invalid accounting state — even with a warning — is a fallback. The system is designed to handle known cases, but must also stop hard on unknown cases: someone alters the DB outside the application, removes an account, changes a code, adds a migration nobody knows about. A silent save with a toast is indistinguishable from a real save to every downstream process (GL reports, trial balance, AP aging). The only correct behavior when required data is missing is: throw → rollback entire transaction → return 400 → user sees error → user fixes root cause.
   - **Correct pattern for GL journal creation:** Expense save + journal line insert MUST be ONE atomic DB transaction. If any account code is not found in the chart of accounts → throw inside the transaction → Drizzle rolls back both the document AND the journal atomically → nothing is committed. No partial states. No orphaned documents without GL entries.
   - **`catch {}` around accounting code = forbidden:** A catch block that swallows or logs-only an accounting error is a silent fallback. If journal creation throws, it must propagate to the route's outer catch which returns 400 to the client. The only acceptable catch blocks are for genuinely non-critical side effects (e.g., LINE notification, activity log — where failure does not affect financial data integrity).
+
+  ### ❌ WRONG — patterns a new agent must NEVER write
+
+  ```typescript
+  // ❌ WRONG 1: hardcoded fallback account code
+  const apAcc = compAccts.find(a => a.nameTh?.includes("เจ้าหนี้การค้า"));
+  const pmCode = apAcc?.code || "2101000";  // "2101000" may not exist → imbalanced GL
+
+  // ❌ WRONG 2: silent catch swallows the journal failure
+  try {
+    await db.insert(journalEntries).values({ ... });
+  } catch (e) {
+    console.log("journal error:", e.message); // expense already saved, GL missing — nobody knows
+  }
+
+  // ❌ WRONG 3: two separate transactions — expense committed, journal can fail independently
+  await db.transaction(async (tx) => {
+    await tx.insert(expenses).values({ ... }); // committed ✓
+  });
+  await db.insert(journalEntries).values({ ... }); // fails → expense exists without GL ✗
+
+  // ❌ WRONG 4: silently drop journal line when account not in chart
+  const acc = acctMap.get(ln.accountCode);
+  if (!acc) return null; // line dropped silently → journal is imbalanced, nobody knows
+  ```
+
+  ### ✅ CORRECT — the only acceptable pattern
+
+  ```typescript
+  // ONE transaction wraps both document + journal
+  await db.transaction(async (tx) => {
+    const [doc] = await tx.insert(expenses).values({ ... }).returning();
+
+    // Validate every account before building lines — throw on missing
+    const apAcc = compAccts.find(a => a.nameTh?.includes("เจ้าหนี้การค้า"));
+    if (!apAcc) throw new Error("ไม่พบบัญชีเจ้าหนี้การค้า ในผังบัญชี");
+    // → Drizzle rolls back doc insert automatically. Nothing is committed.
+
+    const ivA = compAccts.find(a => a.name === "Input VAT");
+    if (!ivA) throw new Error("ไม่พบบัญชีภาษีซื้อ (Input VAT) ในผังบัญชี");
+
+    // Final guard before insert — every line code must exist
+    for (const ln of jL) {
+      if (!acctMap.has(ln.accountCode)) throw new Error(`ไม่พบบัญชีรหัส ${ln.accountCode} ในผังบัญชี`);
+    }
+
+    await tx.insert(journalEntries).values({ ... });
+    await tx.insert(journalLines).values(linesToInsert);
+    // Both doc + journal committed atomically. Either all or nothing.
+  });
+  // Outer catch returns res.status(400).json({ message: err.message }) — user sees the error.
+  ```
+
+  **The test:** if you comment out `await tx.insert(journalLines)`, does the expense still get saved? If yes → your code has a fallback. Fix it.
 - **DESTRUCTIVE SQL SAFETY RULES (ABSOLUTE — พี่ช้าง rule 2026-04-16):**
   - **DELETE RULE:** DELETE on production (deep-main) is IRREVERSIBLE. No tool, no history, no person can bring deleted data back. This is REAL customer data.
   - **ALTER TABLE RULE (EVEN MORE DANGEROUS):** ALTER TABLE on a table that already has data is MORE dangerous than DELETE. DELETE destroys data but the structure remains — data can potentially be restored from backups. ALTER destroys BOTH the data AND the "home" of the data — column drops lose data permanently, type changes can corrupt/truncate data silently, and the application code that depends on the old structure breaks system-wide. Even with backups, if the structure no longer matches, restoration becomes extremely difficult or impossible.
