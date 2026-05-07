@@ -33,6 +33,7 @@ const ADMIN_NAV = [
   { icon: MessageCircle, label: "แชทสนับสนุน", href: "/platform/chat" },
   { icon: Globe, label: "จัดการ Landing Page", href: "/settings/landing-cms" },
   { icon: KeyRound, label: "จัดการรหัสผ่าน", href: "/platform/passwords" },
+  { icon: TrendingUp, label: "อัตราแลกเปลี่ยน (BOT)", href: "/settings/exchange-rate" },
 ];
 
 const TECH_NAV = [
@@ -41,7 +42,6 @@ const TECH_NAV = [
   { icon: Database, label: "Clone ข้อมูล", href: "/platform/clone-data" },
   { icon: Wrench, label: "Maintenance Schedule", href: "/platform/maintenance" },
   { icon: Download, label: "Github Push & Pull", href: "/platform/github" },
-  { icon: TrendingUp, label: "อัตราแลกเปลี่ยน (BOT)", href: "/settings/exchange-rate" },
   { icon: FolderArchive, label: "FTP Archive Settings", href: "/settings/ftp-archive" },
   { icon: FolderArchive, label: "TRCloud Legacy Import", href: "/legacy-import" },
 ];
