@@ -339,59 +339,165 @@ setTimeout(async () => {
   } catch (e) {}
 }, 10000);
 
+// ── Exchange rate helpers ──────────────────────────────────────────────────
+
+function parseRateFromHtml(html: string, currency: string): { buying: number; selling: number } | null {
+  const esc = currency.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const patterns = [
+    new RegExp(`alt=["']${esc}["'][^>]*/>[\\s\\S]{0,500}?<\\/td>[\\s\\S]{0,100}?<td[^>]*>\\s*([\\d.]+)\\s*<\\/td>[\\s\\S]{0,150}?<td[^>]*>\\s*([\\d.]+)`, "i"),
+    new RegExp(`<(?:strong|b)>\\s*${esc}\\s*<\\/(?:strong|b)>[\\s\\S]{0,500}?<\\/td>[\\s\\S]{0,100}?<td[^>]*>\\s*([\\d.]+)\\s*<\\/td>[\\s\\S]{0,150}?<td[^>]*>\\s*([\\d.]+)`, "i"),
+    new RegExp(`<td[^>]*>[^<]{0,40}${esc}[^<]{0,40}<\\/td>[\\s\\S]{0,150}?<td[^>]*>\\s*([\\d.]+)\\s*<\\/td>[\\s\\S]{0,150}?<td[^>]*>\\s*([\\d.]+)`, "i"),
+    new RegExp(`\\b${esc}\\b[\\s\\S]{1,700}?([\\d]+(?:\\.[\\d]+)?)[\\s\\S]{1,500}?([\\d]+(?:\\.[\\d]+)?)`, "i"),
+  ];
+  for (const pattern of patterns) {
+    const m = html.match(pattern);
+    if (m) {
+      const v1 = parseFloat(m[1]);
+      const v2 = parseFloat(m[2]);
+      if (v1 > 0 && v2 > 0 && Math.abs(v1 - v2) / Math.max(v1, v2) < 0.5) {
+        return { buying: Math.min(v1, v2), selling: Math.max(v1, v2) };
+      }
+    }
+  }
+  return null;
+}
+
+async function fetchFromSecondary(currency: string, dbConn: typeof db): Promise<{
+  thb: number; buying: number; selling: number; bankName: string;
+} | null> {
+  try {
+    const { sql } = await import("drizzle-orm");
+    const [urlRow, nameRow] = await Promise.all([
+      dbConn.execute(sql.raw(`SELECT config_value FROM system_config WHERE config_key = 'EXCHANGE_RATE_SECONDARY_URL' LIMIT 1`)),
+      dbConn.execute(sql.raw(`SELECT config_value FROM system_config WHERE config_key = 'EXCHANGE_RATE_SECONDARY_BANK_NAME' LIMIT 1`)),
+    ]);
+    const url: string = ((urlRow.rows || [])[0] as any)?.config_value
+      || "https://krungthai.com/en/widget/rates?theme=ktb&remark=true&fund=true&social=false&logo=false";
+    const bankName: string = ((nameRow.rows || [])[0] as any)?.config_value || "ธนาคารกรุงไทย";
+    const res = await fetch(url, {
+      headers: { "User-Agent": "Mozilla/5.0 (compatible; ETaxCenter/1.0; +https://etaxcenter.th)" },
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!res.ok) return null;
+    const html = await res.text();
+    const rates = parseRateFromHtml(html, currency);
+    if (!rates) return null;
+    return { thb: rates.selling, buying: rates.buying, selling: rates.selling, bankName };
+  } catch {
+    return null;
+  }
+}
+
+async function fetchManualRate(currency: string, dbConn: typeof db): Promise<{
+  thb: number; validTo: string; expired: boolean;
+} | null> {
+  try {
+    const { sql } = await import("drizzle-orm");
+    const [rateRow, fromRow, toRow] = await Promise.all([
+      dbConn.execute(sql.raw(`SELECT config_value FROM system_config WHERE config_key = 'EXCHANGE_RATE_MANUAL_${currency.toUpperCase()}' LIMIT 1`)),
+      dbConn.execute(sql.raw(`SELECT config_value FROM system_config WHERE config_key = 'EXCHANGE_RATE_MANUAL_VALID_FROM' LIMIT 1`)),
+      dbConn.execute(sql.raw(`SELECT config_value FROM system_config WHERE config_key = 'EXCHANGE_RATE_MANUAL_VALID_TO' LIMIT 1`)),
+    ]);
+    const rateStr: string | null = ((rateRow.rows || [])[0] as any)?.config_value || null;
+    const validFrom: string | null = ((fromRow.rows || [])[0] as any)?.config_value || null;
+    const validTo: string | null = ((toRow.rows || [])[0] as any)?.config_value || null;
+    if (!rateStr || !validFrom || !validTo) return null;
+    const rate = parseFloat(rateStr);
+    if (!rate || rate <= 0) return null;
+    const now = new Date();
+    const from = new Date(validFrom);
+    const to = new Date(validTo);
+    if (now > to) return { thb: rate, validTo, expired: true };
+    if (now < from) return null;
+    return { thb: rate, validTo, expired: false };
+  } catch {
+    return null;
+  }
+}
+
+// ── /api/exchange-rate — 3-tier cascade: BOT → Secondary → Manual ─────────
+
 app.get("/api/exchange-rate", requireAuth, async (req, res) => {
   res.setHeader("Cache-Control", "no-store");
   try {
     const currency = (req.query.currency as string || "USD").toUpperCase();
     const date = req.query.date as string | undefined;
     const dateParam = date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : null;
-
     const { sql } = await import("drizzle-orm");
+
+    // ── TIER 1: BOT API ─────────────────────────────────────────────────
     const keyResult = await db.execute(sql.raw(`SELECT config_value FROM system_config WHERE config_key = 'BOT_API_KEY' LIMIT 1`));
     const botApiKey: string | null = ((keyResult.rows || [])[0] as any)?.config_value || null;
 
-    if (!botApiKey) {
-      return res.status(503).json({
-        message: "ยังไม่ได้ตั้งค่า BOT API Key — กรุณาติดต่อผู้ดูแลระบบ (Super Admin) เพื่อตั้งค่าที่เมนู ตั้งค่า > อัตราแลกเปลี่ยน",
-        code: "BOT_API_KEY_NOT_CONFIGURED",
+    if (botApiKey) {
+      const baseDate = dateParam || new Date().toISOString().slice(0, 10);
+      for (let i = 0; i <= 30; i++) {
+        const d = new Date(baseDate);
+        d.setDate(d.getDate() - i);
+        const tryDate = d.toISOString().slice(0, 10);
+        const botUrl = `https://gateway.api.bot.or.th/Stat-ExchangeRate/v2/DAILY_AVG_EXG_RATE/?start_period=${tryDate}&end_period=${tryDate}&currency=${currency}`;
+        let botRes: Response;
+        try {
+          botRes = await fetch(botUrl, {
+            headers: { "Authorization": `Bearer ${botApiKey}`, "Accept": "application/json" },
+            signal: AbortSignal.timeout(10000),
+          });
+        } catch { continue; }
+        if (!botRes.ok) continue;
+        const botData = await botRes.json() as any;
+        const entry = botData?.result?.data?.data_detail?.[0];
+        const midRate = entry?.mid_rate ? parseFloat(entry.mid_rate) : 0;
+        if (midRate > 0) {
+          return res.json({
+            currency, date: entry.period || tryDate, daysOld: i,
+            thb: Number(midRate.toFixed(6)),
+            buying_transfer: entry.buying_transfer ? Number(parseFloat(entry.buying_transfer).toFixed(6)) : undefined,
+            selling: entry.selling ? Number(parseFloat(entry.selling).toFixed(6)) : undefined,
+            source: "BOT",
+            sourceName: "ธนาคารแห่งประเทศไทย (ธปท.)",
+          });
+        }
+      }
+    }
+
+    // ── TIER 2: Secondary bank HTML source ──────────────────────────────
+    const secondary = await fetchFromSecondary(currency, db);
+    if (secondary) {
+      const today = new Date().toISOString().slice(0, 10);
+      return res.json({
+        currency, date: today, daysOld: 0,
+        thb: Number(secondary.selling.toFixed(6)),
+        buying_transfer: Number(secondary.buying.toFixed(6)),
+        selling: Number(secondary.selling.toFixed(6)),
+        source: "SECONDARY",
+        sourceName: secondary.bankName,
       });
     }
 
-    const baseDate = dateParam || new Date().toISOString().slice(0, 10);
-    // ค้นย้อนหลังสูงสุด 30 วัน — คืน "อัตราล่าสุดที่มีอยู่" เสมอ พร้อม daysOld ให้ frontend ตัดสินใจเอง
-    for (let i = 0; i <= 30; i++) {
-      const d = new Date(baseDate);
-      d.setDate(d.getDate() - i);
-      const tryDate = d.toISOString().slice(0, 10);
-      const botUrl = `https://gateway.api.bot.or.th/Stat-ExchangeRate/v2/DAILY_AVG_EXG_RATE/?start_period=${tryDate}&end_period=${tryDate}&currency=${currency}`;
-      let botRes: Response;
-      try {
-        botRes = await fetch(botUrl, {
-          headers: { "Authorization": `Bearer ${botApiKey}`, "Accept": "application/json" },
-        });
-      } catch {
-        continue;
-      }
-      if (!botRes.ok) continue;
-      const botData = await botRes.json() as any;
-      const entry = botData?.result?.data?.data_detail?.[0];
-      const midRate = entry?.mid_rate ? parseFloat(entry.mid_rate) : 0;
-      if (midRate > 0) {
-        return res.json({
-          currency,
-          date: entry.period || tryDate,
-          daysOld: i,
-          thb: Number(midRate.toFixed(6)),
-          buying_transfer: entry.buying_transfer ? Number(parseFloat(entry.buying_transfer).toFixed(6)) : undefined,
-          selling: entry.selling ? Number(parseFloat(entry.selling).toFixed(6)) : undefined,
-          source: "BOT",
+    // ── TIER 3: Manual rate (time-bounded) ──────────────────────────────
+    const manual = await fetchManualRate(currency, db);
+    if (manual) {
+      if (manual.expired) {
+        return res.status(503).json({
+          message: `อัตราแบบ Manual ของ ${currency} หมดอายุแล้ว (หมดอายุ: ${new Date(manual.validTo).toLocaleString("th-TH")}) — กรุณาตั้งค่าใหม่ที่ Platform Admin > อัตราแลกเปลี่ยน`,
+          code: "MANUAL_RATE_EXPIRED",
         });
       }
+      const today = new Date().toISOString().slice(0, 10);
+      return res.json({
+        currency, date: today, daysOld: 0,
+        thb: Number(manual.thb.toFixed(6)),
+        selling: Number(manual.thb.toFixed(6)),
+        source: "MANUAL",
+        sourceName: "Manual (ตั้งค่าเอง)",
+        manualValidTo: manual.validTo,
+      });
     }
 
+    // ── All sources exhausted ────────────────────────────────────────────
     return res.status(503).json({
-      message: `ไม่พบข้อมูลอัตราแลกเปลี่ยน ${currency} จากธนาคารแห่งประเทศไทย (ย้อนหลัง 30 วัน) — กรุณาลองใหม่ภายหลัง`,
-      code: "BOT_RATE_NOT_FOUND",
+      message: `ไม่สามารถดึงอัตราแลกเปลี่ยน ${currency} ได้จากทุกแหล่ง (BOT / แหล่งสำรอง / Manual) — กรุณาตรวจสอบการตั้งค่าที่ Platform Admin > อัตราแลกเปลี่ยน`,
+      code: "ALL_SOURCES_EXHAUSTED",
     });
   } catch (e: any) {
     res.status(500).json({ message: e.message });
