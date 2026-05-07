@@ -4,8 +4,9 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft, Printer, Download, Loader2 } from "lucide-react";
 import Layout from "@/components/layout";
 
-export default function BillingNotePdf() {
-  const { id } = useParams<{ id: string }>();
+export default function BillingNotePdf({ idProp }: { idProp?: string } = {}) {
+  const params = useParams<{ id: string }>();
+  const id = idProp ?? params.id;
   const [, navigate] = useLocation();
   const [docNo, setDocNo] = useState("billing-note");
   const [loading, setLoading] = useState(true);
