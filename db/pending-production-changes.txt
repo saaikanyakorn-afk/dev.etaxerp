@@ -89,7 +89,7 @@ If dev column causes issues, run: ALTER TABLE general_settings DROP COLUMN IF EX
 ========================================================
 ENTRY #003 — BOT API OAuth 2.0 (env vars on production)
 Date: 2026-05-07
-Status: DEV TESTING IN PROGRESS — do NOT touch production yet
+Status: ✅ READY FOR PRODUCTION — dev test passed 2026-05-07
 ========================================================
 
 WHAT CHANGED IN CODE:
@@ -106,16 +106,14 @@ WHAT PRODUCTION NEEDS (handled separately — NOT via code deploy):
     BOT_CLIENT_SECRET=<from apiportal.bot.or.th>
   How production sets these is managed outside of this codebase.
 
-NOTE — DEV TEST STATUS:
-  [ ] OAuth token request working with real BOT_CLIENT_ID + BOT_CLIENT_SECRET
-  [ ] Exchange rate fetch returns correct mid_rate
-  [ ] Token cache hit on second call (no double request)
-  [ ] Expired token auto-refresh works
-  Update this note once all 4 items pass on dev.
+NOTE — DEV TEST STATUS (✅ ALL PASSED):
+  [x] OAuth token request working with real BOT_CLIENT_ID + BOT_CLIENT_SECRET
+  [x] Exchange rate fetch returns correct mid_rate
+  [x] Token cache hit on second call (no double request)
+  [x] Expired token auto-refresh works
 
-NOTE — AFTER DEV PASSES:
-  Update status to "READY FOR PRODUCTION" and list what worked.
-  Production team will handle env var configuration their own way.
+CODE FILE TO DEPLOY TO PRODUCTION:
+  server/routes/misc-routes.ts
 
 ========================================================
 ENTRY #004 — (next change goes here)
