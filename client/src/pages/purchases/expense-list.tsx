@@ -517,20 +517,28 @@ export default function ExpenseList() {
                             <TableCell className="text-right text-sm text-gray-500">{fmt(batch.totalVat)}</TableCell>
                             <TableCell className="text-right text-sm text-gray-500">{fmt(batch.totalWht)}</TableCell>
                             <TableCell>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-7 w-7 text-red-400 hover:text-red-600 hover:bg-red-50"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  if (confirm(`ยืนยันลบ ${batch.batchNo}?\nจะลบค่าใช้จ่าย ${batch.actualExpenseCount || batch.totalExpenses} ใบ พร้อมบันทึกบัญชีและเอกสารที่เกี่ยวข้องทั้งหมด`)) {
-                                    deleteBatchMutation.mutate(batch.id);
-                                  }
-                                }}
-                                data-testid={`button-delete-batch-${batch.id}`}
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </Button>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button data-testid={`button-actions-batch-${batch.id}`} variant="ghost" size="icon" className="h-7 w-7">
+                                    <MoreHorizontal className="h-4 w-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="w-48 text-sm">
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem
+                                    className="flex gap-2 text-red-500 focus:text-red-600"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      if (confirm(`ยืนยันลบ ${batch.batchNo}?\nจะลบค่าใช้จ่าย ${batch.actualExpenseCount || batch.totalExpenses} ใบ พร้อมบันทึกบัญชีและเอกสารที่เกี่ยวข้องทั้งหมด`)) {
+                                        deleteBatchMutation.mutate(batch.id);
+                                      }
+                                    }}
+                                    data-testid={`button-delete-batch-${batch.id}`}
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" /> ลบชุดเอกสาร
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
                             </TableCell>
                           </TableRow>
                           {isBatchExpanded && exps.length > 0 && exps.map((exp: any, eIdx: number) => (
