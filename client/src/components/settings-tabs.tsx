@@ -5,7 +5,7 @@ import { useCompany } from "@/lib/company-context";
 import { useQuery } from "@tanstack/react-query";
 import {
   UserCircle, Users, Building2, FileText, Banknote,
-  Palette, HardDrive, Receipt, Sliders, MessageCircle, GitBranch, Lock, Printer, Package, Warehouse, TrendingUp
+  Palette, HardDrive, Receipt, Sliders, MessageCircle, GitBranch, Lock, Printer, Package, Warehouse
 } from "lucide-react";
 import {
   Tooltip,
@@ -37,7 +37,6 @@ const SETTINGS_TABS: SettingsTab[] = [
   { label: "ทั่วไป", href: "/settings/general", icon: Sliders, adminOnly: true },
   { label: "ทริกเกอร์สต๊อก", href: "/settings/inventory-triggers", icon: Warehouse, adminOnly: true },
   { label: "แพ็คเกจโมดูล", href: "/settings/module-pricing", icon: Package, adminOnly: true },
-  { label: "อัตราแลกเปลี่ยน", href: "/settings/exchange-rate", icon: TrendingUp, adminOnly: true },
 ];
 
 const ADMIN_ROLES = ["super_admin", "admin", "manager", "accountant"];

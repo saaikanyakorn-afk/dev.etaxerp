@@ -68,50 +68,23 @@ NOTE: ALTER TABLE code was REMOVED from expense-routes.ts (commit cd21f4f9)
       Production requires manual authorised run of the SQL above.
 
 ========================================================
-ENTRY #002 — general_settings table: 1 new column (bot_api_key)
+ENTRY #002 — general_settings.bot_api_key — CANCELLED (DO NOT RUN)
 Date: 2026-05-07
-Status: PENDING (dev DB has column, production does NOT)
-Approved by: (waiting)
+Status: CANCELLED — per-company key UI was removed; BOT_API_KEY stays platform env var only
+Approved by: N/A
 ========================================================
 
 WHAT:
-  One new column added to the `general_settings` table.
+  Was: add bot_api_key TEXT to general_settings.
+  Column exists on dev DB only (harmless, no data in it).
 
-WHY:
-  Feature: per-company BOT API key for exchange rate fetching.
-  - bot_api_key: stores each company's own Bearer token for
-    the Bank of Thailand (BOT) Stat-ExchangeRate API.
-  Priority: company key → platform env var (BOT_API_KEY) → error.
-  New settings page: /settings/exchange-rate
-  New API routes: GET/POST /api/settings/exchange-rate
+WHY CANCELLED:
+  พี่ทราย confirmed: exchange rate config is platform-level (developer sets BOT_API_KEY
+  as Replit env var). End-users must NOT configure this. Per-company UI removed.
+  The settings tab "อัตราแลกเปลี่ยน" removed from settings-tabs.tsx.
 
-SQL TO RUN ON PRODUCTION (in order):
-
-  ALTER TABLE general_settings
-    ADD COLUMN IF NOT EXISTS bot_api_key TEXT;
-
-RISK: Very low.
-  - IF NOT EXISTS: safe to re-run, no error if column already exists.
-  - DEFAULT NULL: no existing rows affected.
-  - Additive only: no existing columns modified or dropped.
-
-VERIFY AFTER RUNNING:
-  SELECT column_name, data_type
-  FROM information_schema.columns
-  WHERE table_name = 'general_settings'
-    AND column_name = 'bot_api_key';
-  -- Expected: 1 row, data_type = 'text'
-
-ROLLBACK (only with authorisation + simultaneous code revert):
-  ALTER TABLE general_settings DROP COLUMN IF EXISTS bot_api_key;
-
-RELATED CODE FILES:
-  server/routes/doc-settings-routes.ts — GET/POST /api/settings/exchange-rate
-  server/routes/misc-routes.ts — /api/exchange-rate (company key lookup)
-  server/schema-extra.ts — runBotApiKeyMigration() (auto-runs on startup)
-  client/src/pages/settings/exchange-rate-settings.tsx — settings UI
-  client/src/components/settings-tabs.tsx — new tab "อัตราแลกเปลี่ยน"
-  client/src/App.tsx — route /settings/exchange-rate
+DO NOT RUN ON PRODUCTION — column not needed.
+If dev column causes issues, run: ALTER TABLE general_settings DROP COLUMN IF EXISTS bot_api_key;
 
 ========================================================
 ENTRY #003 — (next change goes here)
