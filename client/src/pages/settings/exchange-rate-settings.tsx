@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import Layout from "@/components/layout";
 import SettingsTabs from "@/components/settings-tabs";
@@ -14,7 +14,7 @@ import { apiRequest } from "@/lib/queryClient";
 import {
   TrendingUp, Key, CheckCircle2, AlertTriangle, Loader2,
   ExternalLink, RotateCcw, Shield,
-  Info, Lock, ChevronRight, Copy, Check
+  Info, Lock, ChevronRight
 } from "lucide-react";
 import ThaiDateInput from "@/components/thai-date-input";
 import { toLocalDateStr } from "@/lib/utils";
@@ -37,9 +37,7 @@ export default function ExchangeRateSettings({ platformMode = false }: { platfor
   const { user } = useAuth();
   const isSuperAdmin = (user as any)?.role === "super_admin";
 
-  const [copied, setCopied] = useState(false);
   const [newKey, setNewKey] = useState("");
-  const copyInputRef = useRef<HTMLInputElement>(null);
   const [testCurrency, setTestCurrency] = useState("USD");
   const [testDate, setTestDate] = useState(() => toLocalDateStr(new Date()));
   const [testResult, setTestResult] = useState<any>(null);
@@ -76,20 +74,6 @@ export default function ExchangeRateSettings({ platformMode = false }: { platfor
       toast({ title: "เกิดข้อผิดพลาด", description: err.message, variant: "destructive" });
     },
   });
-
-  const handleCopyKey = () => {
-    const input = copyInputRef.current;
-    if (!input) return;
-    input.value = settings?.fullKey || "";
-    input.removeAttribute("disabled");
-    input.focus();
-    input.select();
-    input.setSelectionRange(0, input.value.length);
-    document.execCommand("copy");
-    input.setAttribute("disabled", "true");
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
 
   const handleTest = async () => {
     setTestLoading(true);
@@ -182,29 +166,16 @@ export default function ExchangeRateSettings({ platformMode = false }: { platfor
           </CardHeader>
           <CardContent className="space-y-3">
             {settings?.botApiKey && (
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-xs text-muted-foreground shrink-0">Key ปัจจุบัน:</span>
-                <span className="text-xs font-mono text-foreground" data-testid="text-masked-key">
-                  {settings.fullKey
-                    ? `${settings.fullKey.slice(0, 10)}...${settings.fullKey.slice(-10)}`
-                    : settings.botApiKey}
-                </span>
-                {settings.fullKey && (
-                  <button
-                    type="button"
-                    onClick={handleCopyKey}
-                    className="text-muted-foreground hover:text-foreground shrink-0"
-                    data-testid="button-copy-key"
-                    title="คัดลอก Key เต็ม"
-                  >
-                    {copied ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
-                  </button>
-                )}
-                <input
-                  ref={copyInputRef}
-                  disabled
-                  aria-hidden="true"
-                  style={{ position: "fixed", top: 0, left: 0, opacity: 0, pointerEvents: "none", width: 1, height: 1 }}
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">Key ปัจจุบัน — คลิกที่ช่องเพื่อเลือกทั้งหมด แล้วกด Ctrl+C</p>
+                <textarea
+                  readOnly
+                  value={settings.botApiKey}
+                  rows={2}
+                  onClick={e => (e.target as HTMLTextAreaElement).select()}
+                  className="w-full rounded-md border border-input bg-slate-50 px-3 py-2 text-xs font-mono resize-none cursor-pointer select-all"
+                  style={{ fontFamily: "monospace", overflowWrap: "anywhere" }}
+                  data-testid="text-masked-key"
                 />
               </div>
             )}

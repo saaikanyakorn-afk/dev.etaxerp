@@ -250,6 +250,7 @@ app.put("/api/document-settings/:companyId", requireAuth, requireRole("admin", "
 // ========== Exchange Rate Settings (Platform-level BOT API Key — super_admin only) ==========
 
 app.get("/api/settings/exchange-rate", requireAuth, requireRole("super_admin"), async (_req, res) => {
+  res.setHeader("Cache-Control", "no-store");
   try {
     const { sql } = await import("drizzle-orm");
     const result = await db.execute(sql.raw(`SELECT config_value FROM system_config WHERE config_key = 'BOT_API_KEY' LIMIT 1`));
@@ -257,8 +258,7 @@ app.get("/api/settings/exchange-rate", requireAuth, requireRole("super_admin"), 
     const key: string | null = row?.config_value || null;
     return res.json({
       isConfigured: !!key,
-      botApiKey: key ? `********${key.slice(-6)}` : null,
-      fullKey: key || null,
+      botApiKey: key || null,
     });
   } catch (e: any) {
     res.status(500).json({ message: e.message });
