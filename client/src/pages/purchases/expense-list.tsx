@@ -509,7 +509,11 @@ export default function ExpenseList() {
                                 <CheckCircle2 className="h-3 w-3 mr-1" /> อนุมัติ
                               </Badge>
                             </TableCell>
-                            <TableCell className="text-right font-medium text-sm">{fmt(batch.totalAmount)}</TableCell>
+                            <TableCell className="text-right font-medium text-sm">
+                              <div className="text-xs text-muted-foreground">0.00</div>
+                              <div className="border-t border-gray-200 my-0.5" />
+                              <div>{fmt(batch.totalAmount)}</div>
+                            </TableCell>
                             <TableCell className="text-right text-sm text-gray-500">{fmt(batch.totalVat)}</TableCell>
                             <TableCell className="text-right text-sm text-gray-500">{fmt(batch.totalWht)}</TableCell>
                             <TableCell>
