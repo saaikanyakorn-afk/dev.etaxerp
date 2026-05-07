@@ -29,4 +29,24 @@ Each entry must include: what changed, backup location, datetime, and reason.
 directly inside `server/index.ts` (protected file). These were moved to `schema-extra.ts`
 following the TERTIARY USE procedure so index.ts is no longer touched for column additions.
 
-**Status:** Deployed — pending comment-out + clean push
+**Status:** Deployed + comment-out + clean push done ✅
+
+---
+
+## 2026-05-07 — e-Tax Credit Note Columns (ENTRY #004)
+
+**What changed:**
+- Added `etax_sent_at TIMESTAMP` to `sales_credit_notes`
+- Added `etax_sent_to TEXT` to `sales_credit_notes`
+- Added `etax_sent_cc TEXT` to `sales_credit_notes`
+- Added `etax_message_id TEXT` to `sales_credit_notes`
+
+**Backup location:** No backup required — additive columns only (nullable, no existing data touched)
+
+**Migration code:** `server/schema-extra.ts` → `runSalesCreditNoteEtaxMigration()` (commented out after verified)
+**Caller:** `server/routes/etax-routes.ts` (call removed after verified)
+**Flag:** `ADD_ETAX_COLUMNS_TO_SALES_CREDIT_NOTES_20260507` in `system_config` = `done_2026-05-07T07:09:58.365Z`
+
+**Reason:** e-Tax Invoice ใบลดหนี้ feature requires tracking when and to whom an e-Tax credit note was sent via email (etax_sent_at, etax_sent_to, etax_sent_cc, etax_message_id).
+
+**Status:** Deployed + comment-out + clean push done ✅
