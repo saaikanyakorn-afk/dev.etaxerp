@@ -192,15 +192,22 @@ Approved by: (waiting)
 
 WHAT:
   1. CODE ONLY (no new DB columns):
-     - server/routes/misc-routes.ts: /api/exchange-rate now reads key from system_config only
-       No fallback. Throws 503 with clear message if key not configured.
+     - server/routes/misc-routes.ts: /api/exchange-rate — BOT API with auto look-back
+       up to 30 days for holidays. Falls through to manual entry if BOT unavailable.
      - server/routes/doc-settings-routes.ts: GET/POST /api/settings/exchange-rate
        reads/writes system_config. Restricted to super_admin only.
      - client/src/pages/settings/exchange-rate-settings.tsx: redesigned as platform-level.
        super_admin only, per-company UI removed, detailed BOT key guideline added.
-     - client/src/components/fetch-rate-button.tsx: error message tells user exactly
-       what to do and who to contact when key is not configured.
+     - client/src/components/fetch-rate-button.tsx: stale rate dialog + clear error
+       message when key not configured.
      - server/routes/billing-notes-routes.ts: ENTRY #003 fix (totalAmount formula) — APPROVED.
+     - server/routes/etax-routes.ts: e-Tax send logic updated (approved by พี่ทราย):
+         * ส่ง To: ETDA เท่านั้น (ไม่ส่งหา buyer โดยตรง)
+         * ลบ buyer email validation ออก (ไม่บังคับต้องมีอีเมลลูกค้า)
+         * รองรับใบลดหนี้ (credit note) — endpoint /api/etax/credit-note/send-email
+         * บันทึก etaxSentAt/etaxSentTo/etaxMessageId ลง sales_credit_notes
+     - client/src/components/etax-send-dialog.tsx: รองรับ credit_note docType
+       แสดงข้อความ "กรมสรรพากรจะประทับเวลาและดำเนินการต่อ"
 
   2. MIGRATION (deposit — runs on production startup):
      - runDropBotApiKeyMigration(): DROP COLUMN bot_api_key FROM general_settings IF EXISTS
@@ -209,7 +216,8 @@ WHAT:
 
 RISK: Very low.
   - DROP COLUMN IF EXISTS: no-op on production (column never existed there).
-  - Code changes affect exchange rate fetch only. No financial data touched.
+  - Exchange rate: BOT look-back is additive improvement, no financial data touched.
+  - e-Tax: send logic change affects new sends only, no existing records modified.
   - super_admin must set BOT_API_KEY via Settings > อัตราแลกเปลี่ยน after deploy.
 
 FILES TO PUSH:
@@ -217,8 +225,10 @@ FILES TO PUSH:
   server/routes/doc-settings-routes.ts
   server/routes/misc-routes.ts
   server/routes/billing-notes-routes.ts
+  server/routes/etax-routes.ts
   client/src/pages/settings/exchange-rate-settings.tsx
   client/src/components/fetch-rate-button.tsx
+  client/src/components/etax-send-dialog.tsx
   client/src/components/settings-tabs.tsx
   client/src/components/platform-layout.tsx
   client/src/app-extra.tsx
