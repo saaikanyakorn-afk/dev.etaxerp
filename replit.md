@@ -2095,6 +2095,22 @@ See `shared/schema-extra.ts` header for full rules. Summary:
 8. **PUSH CLEAN BEFORE ANYTHING ELSE** — comment-out must land on server before next step
 9. **CONTINUE** rest of the task checklist
 
+### When a Column Becomes Unused — Deposit, Don't Rush
+
+Sometimes a migration you just ran creates a column that later turns out to be the wrong design. The instinct is to fix it immediately with another migration. Resist that.
+
+**Ask these two questions first:**
+1. Does the unused column break or affect any existing function or screen right now?
+2. Do we already know another migration is coming soon?
+
+If the answer to (1) is "absolutely not" — a nullable column with no constraints, no foreign keys, no code referencing it — then there is no urgency. Leaving it does no harm.
+
+If the answer to (2) is "yes" — then **deposit the DROP COLUMN into that next migration batch** instead of running a separate migration just for cleanup. Migration has real overhead: 2 restarts, พี่ช้าง must run the command, production is touched again. Combining known cleanup with a planned migration is the efficient and lower-risk choice.
+
+**Real example (2026-05-07):** `bot_api_key` column was added to `general_settings` for per-company BOT API key storage. Design was changed to platform-level key in `system_config` instead. The column is now unused — but nullable, no constraints, no code references it. No existing function is affected. The next migration (for the BOT key redesign) will include `DROP COLUMN bot_api_key FROM general_settings` as part of the same batch.
+
+**Rule:** Never run a migration just to clean up an unused column if a planned migration is already on the horizon. Deposit and batch.
+
 ### The Two Facts Behind All These Rules
 1. **Agent switch** — a new agent has zero memory of what the previous agent did
 2. **AI memory resets daily** — tomorrow this agent will forget everything done today
