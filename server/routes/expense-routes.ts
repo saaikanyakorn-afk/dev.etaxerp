@@ -3,7 +3,7 @@ import { db } from "../db";
 import { storage } from "../storage";
 import { eq, and, desc, or, sql, count, not } from "drizzle-orm";
 import { expenses, expenseItems, withholdingTaxCerts, whtCertItems, companies, accounts, contacts, journalEntries, journalLines, purchaseInvoices, ftpArchiveItems, documentImportBatches, purchaseDebitNotes, purchaseDebitNoteItems } from "@shared/schema";
-import { expenseDailyBatches, runExpenseCurrencyMigration } from "@shared/schema-extra";
+import { expenseDailyBatches } from "@shared/schema-extra";
 import { requireAuth, requireModule, checkDocOwnership } from "../route-middleware";
 import { getNextDocNo, validateDocNo, getNextJournalEntryNo, resolvePaymentMethodAccountCode, checkDocumentLimit, deleteJournalEntriesForDoc, logActivity } from "../route-helpers";
 import { parsePagination, paginatedResponse } from "./pagination";
@@ -133,7 +133,8 @@ async function resolveArchivedUrl(originalUrl: string): Promise<ArchiveResolutio
 }
 
 export function registerExpenseRoutes(app: Express) {
-  runExpenseCurrencyMigration(db);
+  // DATA FIX DONE 2026-05-07 — hook removed after verified. See shared/schema-extra.ts history.
+  // runExpenseCurrencyMigration(db);
 
   // ============ Expenses ============
 

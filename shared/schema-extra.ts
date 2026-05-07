@@ -619,15 +619,19 @@ export async function runFirmClientMigration(db: any) {
  */
 export async function runBotApiKeyMigration(_db: any) {}
 
-// 2026-05-07 — ADD expenses: currency_code, exchange_rate, paid_amount (ENTRY #001)
-// Production DB confirmed: columns absent (queried 2026-05-07). Dev DB has columns since 2026-05-05.
-export async function runExpenseCurrencyMigration(db: any) {
-  const FLAG = "ADD_CURRENCY_COLUMNS_TO_EXPENSES_20260505";
-  const flag = await db.execute(sql.raw(`SELECT config_value FROM system_config WHERE config_key = '${FLAG}' LIMIT 1`));
-  if ((flag.rows || []).length > 0) return;
-  await db.execute(sql.raw(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS currency_code TEXT NOT NULL DEFAULT 'THB'`));
-  await db.execute(sql.raw(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS exchange_rate DECIMAL(15,6) NOT NULL DEFAULT 1`));
-  await db.execute(sql.raw(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS paid_amount DECIMAL(15,2) NOT NULL DEFAULT 0`));
-  await db.execute(sql.raw(`INSERT INTO system_config (config_key, config_value) VALUES ('${FLAG}', 'done_${new Date().toISOString()}') ON CONFLICT (config_key) DO NOTHING`));
-  console.log("[migration] ✅ expenses currency_code + exchange_rate + paid_amount added");
-}
+/* ── DONE 2026-05-07: expenses currency_code + exchange_rate + paid_amount (ENTRY #001) ──
+ * Verified on production DB: 3 columns present, FLAG=done_2026-05-07T14:33:31.731Z ✅
+ * Backup: not required (additive only, no existing data touched)
+ *
+ * export async function runExpenseCurrencyMigration(db: any) {
+ *   const FLAG = "ADD_CURRENCY_COLUMNS_TO_EXPENSES_20260505";
+ *   const flag = await db.execute(sql.raw(`SELECT config_value FROM system_config WHERE config_key = '${FLAG}' LIMIT 1`));
+ *   if ((flag.rows || []).length > 0) return;
+ *   await db.execute(sql.raw(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS currency_code TEXT NOT NULL DEFAULT 'THB'`));
+ *   await db.execute(sql.raw(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS exchange_rate DECIMAL(15,6) NOT NULL DEFAULT 1`));
+ *   await db.execute(sql.raw(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS paid_amount DECIMAL(15,2) NOT NULL DEFAULT 0`));
+ *   await db.execute(sql.raw(`INSERT INTO system_config (config_key, config_value) VALUES ('${FLAG}', 'done_${new Date().toISOString()}') ON CONFLICT (config_key) DO NOTHING`));
+ *   console.log("[migration] ✅ expenses currency_code + exchange_rate + paid_amount added");
+ * }
+ */
+export async function runExpenseCurrencyMigration(_db: any) {}
