@@ -29,6 +29,9 @@ const BillingNoteShare = lazy(() => import("@/pages/finance/billing-note-share")
 // [sys-k7x9] Machines sub-page — route /sys-k7x9/infra/machines cannot be added to App.tsx
 // (App.tsx = production source of truth, never modify). Registered here via matchInfraMachines().
 const InfraMachines = lazy(() => import("@/pages/sysadmin/infra-machines"));
+// [exchange-rate] /settings/exchange-rate — super_admin BOT API key management
+// Cannot be added to App.tsx (production source of truth). Registered here.
+const ExchangeRateSettings = lazy(() => import("@/pages/settings/exchange-rate-settings"));
 
 function FullPageOverlay({ children }: { children: React.ReactNode }) {
   return (
@@ -65,6 +68,11 @@ function matchBillingNoteShare(location: string): string | null {
 // [sys-k7x9] Exact match for /sys-k7x9/infra/machines — no param needed, just presence check
 function matchInfraMachines(location: string): boolean {
   return location.replace(/\?.*$/, "") === "/sys-k7x9/infra/machines";
+}
+
+// [exchange-rate] Exact match for /settings/exchange-rate
+function matchExchangeRate(location: string): boolean {
+  return location.replace(/\?.*$/, "") === "/settings/exchange-rate";
 }
 
 export default function AppExtra() {
@@ -109,6 +117,7 @@ export default function AppExtra() {
   const whtShareToken = matchWhtCertShare(location);
   const bnShareToken = matchBillingNoteShare(location);
   const isMachines = matchInfraMachines(location);
+  const isExchangeRate = matchExchangeRate(location);
 
   if (pdfId) {
     return (
@@ -156,6 +165,17 @@ export default function AppExtra() {
       <FullPageOverlay>
         <Suspense fallback={null}>
           <InfraMachines />
+        </Suspense>
+      </FullPageOverlay>
+    );
+  }
+
+  // [exchange-rate] Render exchange rate settings — ExchangeRateSettings manages Layout internally
+  if (isExchangeRate) {
+    return (
+      <FullPageOverlay>
+        <Suspense fallback={null}>
+          <ExchangeRateSettings />
         </Suspense>
       </FullPageOverlay>
     );
