@@ -170,12 +170,12 @@ export default function AppExtra() {
     );
   }
 
-  // [exchange-rate] Render exchange rate settings — ExchangeRateSettings manages Layout internally
+  // [exchange-rate] Render exchange rate settings — platformMode=true uses PlatformLayout sidebar
   if (isExchangeRate) {
     return (
       <FullPageOverlay>
         <Suspense fallback={null}>
-          <ExchangeRateSettings />
+          <ExchangeRateSettings platformMode={true} />
         </Suspense>
       </FullPageOverlay>
     );

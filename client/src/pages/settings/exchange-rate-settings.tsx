@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import Layout from "@/components/layout";
 import SettingsTabs from "@/components/settings-tabs";
+import PlatformLayout from "@/components/platform-layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,7 +30,7 @@ const CURRENCY_OPTIONS = [
   { value: "HKD", label: "HKD — ดอลลาร์ฮ่องกง" },
 ];
 
-export default function ExchangeRateSettings() {
+export default function ExchangeRateSettings({ platformMode = false }: { platformMode?: boolean }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { selectedCompany } = useCompany();
@@ -91,26 +92,23 @@ export default function ExchangeRateSettings() {
   };
 
   if (!isSuperAdmin) {
-    return (
-      <Layout>
-        <SettingsTabs />
-        <div className="max-w-3xl mx-auto px-6 py-12 flex flex-col items-center gap-4 text-center">
-          <div className="p-4 rounded-full bg-slate-100">
-            <Lock className="h-8 w-8 text-slate-400" />
-          </div>
-          <h2 className="text-base font-semibold">ไม่มีสิทธิ์เข้าถึงหน้านี้</h2>
-          <p className="text-sm text-muted-foreground max-w-sm">
-            การตั้งค่า BOT API Key เป็นการตั้งค่าระดับ Platform สำหรับ Super Admin เท่านั้น
-            <br />หากต้องการเปลี่ยนแปลง กรุณาติดต่อ Super Admin ของระบบ
-          </p>
+    const noAccessBody = (
+      <div className="max-w-3xl mx-auto px-6 py-12 flex flex-col items-center gap-4 text-center">
+        <div className="p-4 rounded-full bg-slate-100">
+          <Lock className="h-8 w-8 text-slate-400" />
         </div>
-      </Layout>
+        <h2 className="text-base font-semibold">ไม่มีสิทธิ์เข้าถึงหน้านี้</h2>
+        <p className="text-sm text-muted-foreground max-w-sm">
+          การตั้งค่า BOT API Key เป็นการตั้งค่าระดับ Platform สำหรับ Super Admin เท่านั้น
+          <br />หากต้องการเปลี่ยนแปลง กรุณาติดต่อ Super Admin ของระบบ
+        </p>
+      </div>
     );
+    if (platformMode) return <PlatformLayout>{noAccessBody}</PlatformLayout>;
+    return <Layout><SettingsTabs />{noAccessBody}</Layout>;
   }
 
-  return (
-    <Layout>
-      <SettingsTabs />
+  const pageBody = (<>
       <div className="max-w-3xl mx-auto px-6 py-6 space-y-5">
         <div className="flex items-center gap-3">
           <div className="p-2 rounded-lg bg-blue-50">
@@ -394,6 +392,8 @@ export default function ExchangeRateSettings() {
           </CardContent>
         </Card>
       </div>
-    </Layout>
-  );
+    </>);
+
+  if (platformMode) return <PlatformLayout>{pageBody}</PlatformLayout>;
+  return <Layout><SettingsTabs />{pageBody}</Layout>;
 }
