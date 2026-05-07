@@ -87,40 +87,7 @@ DO NOT RUN ON PRODUCTION — column not needed.
 If dev column causes issues, run: ALTER TABLE general_settings DROP COLUMN IF EXISTS bot_api_key;
 
 ========================================================
-ENTRY #003 — BOT API OAuth 2.0 (env vars on production)
-Date: 2026-05-07
-Status: ✅ READY FOR PRODUCTION — dev test passed 2026-05-07
-========================================================
-
-WHAT CHANGED IN CODE:
-  server/routes/misc-routes.ts — getBotAccessToken() function
-  Now uses OAuth 2.0 Client Credentials flow instead of static Bearer key.
-  Token is cached in-memory, auto-refreshed 60s before expiry.
-
-  Token endpoint: POST https://apigw1.bot.or.th/bot/public/oauth/token
-  Body: grant_type=client_credentials, client_id, client_secret
-
-WHAT PRODUCTION NEEDS (handled separately — NOT via code deploy):
-  Two env vars must be available on the production server:
-    BOT_CLIENT_ID=<from apiportal.bot.or.th>
-    BOT_CLIENT_SECRET=<from apiportal.bot.or.th>
-  How production sets these is managed outside of this codebase.
-
-NOTE — DEV TEST STATUS (✅ ALL PASSED):
-  [x] OAuth token request working with real BOT_CLIENT_ID + BOT_CLIENT_SECRET
-  [x] Exchange rate fetch returns correct mid_rate
-  [x] Token cache hit on second call (no double request)
-  [x] Expired token auto-refresh works
-
-CODE FILE TO DEPLOY TO PRODUCTION:
-  server/routes/misc-routes.ts
-
-========================================================
-ENTRY #004 — (next change goes here)
-========================================================
-
-  [reserved for next database change]
-
+ENTRY #003 — (next change goes here)
 ========================================================
 END OF FILE
 ========================================================

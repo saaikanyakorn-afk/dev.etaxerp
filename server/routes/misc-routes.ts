@@ -10,49 +10,6 @@ import { getConfig } from "../config-bootstrap";
 const ARCHIVE_SIZE_WARN_MB = 200;
 let archiveSizeWarned = false;
 
-// ── BOT API OAuth 2.0 Client Credentials token cache ──────────────────────
-const BOT_TOKEN_ENDPOINT = "https://apigw1.bot.or.th/bot/public/oauth/token";
-let _botTokenCache: { token: string; expiresAt: number } | null = null;
-
-async function getBotAccessToken(): Promise<string> {
-  const clientId = process.env.BOT_CLIENT_ID;
-  const clientSecret = process.env.BOT_CLIENT_SECRET;
-  if (!clientId || !clientSecret) {
-    throw new Error("BOT_CLIENT_ID และ BOT_CLIENT_SECRET ยังไม่ได้ตั้งค่าใน environment");
-  }
-
-  // Return cached token if still valid (with 60s buffer)
-  const now = Date.now();
-  if (_botTokenCache && _botTokenCache.expiresAt - 60_000 > now) {
-    return _botTokenCache.token;
-  }
-
-  const body = new URLSearchParams({
-    grant_type: "client_credentials",
-    client_id: clientId,
-    client_secret: clientSecret,
-  });
-
-  const res = await fetch(BOT_TOKEN_ENDPOINT, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: body.toString(),
-  });
-
-  if (!res.ok) {
-    const errText = await res.text().catch(() => res.statusText);
-    throw new Error(`BOT token request ล้มเหลว (${res.status}): ${errText}`);
-  }
-
-  const data = await res.json() as any;
-  if (!data.access_token) throw new Error("BOT token response ไม่มี access_token");
-
-  const expiresIn: number = data.expires_in ?? 3600;
-  _botTokenCache = { token: data.access_token, expiresAt: now + expiresIn * 1000 };
-  return _botTokenCache.token;
-}
-// ──────────────────────────────────────────────────────────────────────────
-
 export async function archiveOrphanedContacts(companyId?: number): Promise<{ archived: number; skippedDuplicates: number }> {
   const companyFilter = companyId ? sql`AND c.company_id = ${companyId}` : sql``;
   const result = await db.execute(sql`
@@ -388,39 +345,47 @@ app.get("/api/exchange-rate", requireAuth, async (req, res) => {
     const currency = (req.query.currency as string || "USD").toUpperCase();
     const date = req.query.date as string | undefined;
     const dateParam = date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : null;
+    const companyId = req.query.companyId ? Number(req.query.companyId) : null;
 
-    // Get OAuth access token (cached, auto-refresh when expired)
-    let accessToken: string;
-    try {
-      accessToken = await getBotAccessToken();
-    } catch (e: any) {
-      return res.status(503).json({ message: `ไม่สามารถเชื่อมต่อ BOT API ได้: ${e.message}` });
+    // Priority: 1) per-company key from DB  2) platform env var
+    let botApiKey: string | null = process.env.BOT_API_KEY || null;
+    if (companyId) {
+      try {
+        const { sql } = await import("drizzle-orm");
+        const result = await db.execute(sql.raw(`SELECT bot_api_key FROM general_settings WHERE company_id = ${companyId} LIMIT 1`));
+        const row = (result.rows || [])[0] as any;
+        if (row?.bot_api_key) botApiKey = row.bot_api_key;
+      } catch {}
     }
 
-    const baseDate = dateParam || new Date().toISOString().slice(0, 10);
-    // Try up to 7 days back to find the latest BOT business day with data
-    for (let i = 0; i <= 7; i++) {
-      const d = new Date(baseDate);
-      d.setDate(d.getDate() - i);
-      const tryDate = d.toISOString().slice(0, 10);
-      const botUrl = `https://gateway.api.bot.or.th/Stat-ExchangeRate/v2/DAILY_AVG_EXG_RATE/?start_period=${tryDate}&end_period=${tryDate}&currency=${currency}`;
-      const botRes = await fetch(botUrl, {
-        headers: { "Authorization": `Bearer ${accessToken}`, "Accept": "application/json" },
-      });
-      if (!botRes.ok) continue;
-      const botData = await botRes.json() as any;
-      const entry = botData?.result?.data?.data_detail?.[0];
-      const midRate = entry?.mid_rate ? parseFloat(entry.mid_rate) : 0;
-      if (midRate > 0) {
-        return res.json({
-          currency,
-          date: entry.period || tryDate,
-          thb: Number(midRate.toFixed(6)),
-          buying_transfer: entry.buying_transfer ? Number(parseFloat(entry.buying_transfer).toFixed(6)) : undefined,
-          selling: entry.selling ? Number(parseFloat(entry.selling).toFixed(6)) : undefined,
-          source: "BOT",
-        });
-      }
+    if (botApiKey) {
+      try {
+        const baseDate = dateParam || new Date().toISOString().slice(0, 10);
+        // Try up to 7 days back to find the latest BOT business day with data
+        for (let i = 0; i <= 7; i++) {
+          const d = new Date(baseDate);
+          d.setDate(d.getDate() - i);
+          const tryDate = d.toISOString().slice(0, 10);
+          const botUrl = `https://gateway.api.bot.or.th/Stat-ExchangeRate/v2/DAILY_AVG_EXG_RATE/?start_period=${tryDate}&end_period=${tryDate}&currency=${currency}`;
+          const botRes = await fetch(botUrl, {
+            headers: { "Authorization": `Bearer ${botApiKey}`, "Accept": "application/json" },
+          });
+          if (!botRes.ok) continue;
+          const botData = await botRes.json() as any;
+          const entry = botData?.result?.data?.data_detail?.[0];
+          const midRate = entry?.mid_rate ? parseFloat(entry.mid_rate) : 0;
+          if (midRate > 0) {
+            return res.json({
+              currency,
+              date: entry.period || tryDate,
+              thb: Number(midRate.toFixed(6)),
+              buying_transfer: entry.buying_transfer ? Number(parseFloat(entry.buying_transfer).toFixed(6)) : undefined,
+              selling: entry.selling ? Number(parseFloat(entry.selling).toFixed(6)) : undefined,
+              source: "BOT",
+            });
+          }
+        }
+      } catch {}
     }
 
     res.status(503).json({ message: `ไม่พบอัตราแลกเปลี่ยน ${currency} จากธนาคารแห่งประเทศไทย (ย้อนหลัง 7 วันทำการ)` });
