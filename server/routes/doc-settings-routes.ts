@@ -257,7 +257,7 @@ app.get("/api/settings/exchange-rate", requireAuth, requireRole("super_admin"), 
     const key: string | null = row?.config_value || null;
     return res.json({
       isConfigured: !!key,
-      botApiKey: key ? `${"•".repeat(Math.max(0, key.length - 6))}${key.slice(-6)}` : null,
+      botApiKey: key ? `••••••••${key.slice(-6)}` : null,
     });
   } catch (e: any) {
     res.status(500).json({ message: e.message });
