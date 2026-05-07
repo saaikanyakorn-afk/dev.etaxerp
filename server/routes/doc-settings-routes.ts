@@ -6,11 +6,10 @@ import { generalSettings, documentSettings } from "@shared/schema";
 import { requireAuth, requireAdmin, requireRole } from "../route-middleware";
 import { getInventoryTriggers } from "../route-helpers";
 import { z } from "zod";
-import { runStampUrlMigration, runDropBotApiKeyMigration } from "../schema-extra";
+import { runStampUrlMigration } from "../schema-extra";
 
 export function registerDocSettingsRoutes(app: Express) {
   runStampUrlMigration(db).catch(() => {});
-  runDropBotApiKeyMigration(db).catch(() => {});
 // ========== Document Settings Routes ==========
 
 app.get("/api/settings/general", requireAuth, async (req, res) => {
