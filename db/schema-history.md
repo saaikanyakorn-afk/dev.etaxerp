@@ -50,7 +50,7 @@ following the TERTIARY USE procedure so index.ts is no longer touched for column
 
 **Production DB verified:** 2026-05-07 — columns absent from production before migration (45 cols, none of the 3 present)
 
-**Status:** Done on dev ✅ — pending production run (awaiting พี่ช้าง approval)
+**Status:** Deployed + comment-out + clean push done ✅ — FLAG=done_2026-05-07T14:33:31.731Z
 
 ---
 

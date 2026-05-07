@@ -14,8 +14,8 @@ HOW TO USE THIS FILE
 ========================================================
 ENTRY #001 — expenses table: 3 new columns
 Date: 2026-05-05/06
-Status: PENDING — migration code ready, awaiting พี่ช้าง approval to push + run on production
-Approved by: (waiting)
+Status: DONE — migration ran on production 2026-05-07T14:33:31.731Z ✅
+Approved by: พี่ช้าง — 2026-05-07
 ========================================================
 
 WHAT:
