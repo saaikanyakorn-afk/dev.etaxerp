@@ -14,7 +14,7 @@ import { apiRequest } from "@/lib/queryClient";
 import {
   TrendingUp, Key, CheckCircle2, AlertTriangle, Loader2,
   Eye, EyeOff, ExternalLink, RotateCcw, Shield,
-  Info, Lock, ChevronRight
+  Info, Lock, ChevronRight, Copy, Check
 } from "lucide-react";
 import ThaiDateInput from "@/components/thai-date-input";
 import { toLocalDateStr } from "@/lib/utils";
@@ -38,6 +38,8 @@ export default function ExchangeRateSettings({ platformMode = false }: { platfor
   const isSuperAdmin = (user as any)?.role === "super_admin";
 
   const [keyVisible, setKeyVisible] = useState(false);
+  const [keyRevealed, setKeyRevealed] = useState(false);
+  const [copied, setCopied] = useState(false);
   const [newKey, setNewKey] = useState("");
   const [testCurrency, setTestCurrency] = useState("USD");
   const [testDate, setTestDate] = useState(() => toLocalDateStr(new Date()));
@@ -166,12 +168,34 @@ export default function ExchangeRateSettings({ platformMode = false }: { platfor
           </CardHeader>
           <CardContent className="space-y-3">
             {settings?.botApiKey && (
-              <p className="text-xs text-muted-foreground">
-                Key ปัจจุบัน:{" "}
-                <span className="font-mono text-foreground" data-testid="text-masked-key">
-                  {settings.botApiKey}
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground">Key ปัจจุบัน:</span>
+                <span className="text-xs font-mono text-foreground" data-testid="text-masked-key">
+                  {keyRevealed ? settings.fullKey : settings.botApiKey}
                 </span>
-              </p>
+                <button
+                  type="button"
+                  onClick={() => setKeyRevealed(v => !v)}
+                  className="text-muted-foreground hover:text-foreground"
+                  data-testid="button-reveal-key"
+                  title={keyRevealed ? "ซ่อน Key" : "แสดง Key เต็ม"}
+                >
+                  {keyRevealed ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(settings.fullKey || "");
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 2000);
+                  }}
+                  className="text-muted-foreground hover:text-foreground"
+                  data-testid="button-copy-key"
+                  title="คัดลอก Key"
+                >
+                  {copied ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
+                </button>
+              </div>
             )}
             <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground">
