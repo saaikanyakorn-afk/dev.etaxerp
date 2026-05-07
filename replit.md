@@ -5,6 +5,35 @@
 
 ---
 
+## 👥 PROJECT ROLES — ALL AGENTS MUST READ AND FOLLOW
+
+### พี่ช้าง — System Architect / Technical Authority
+- **ONLY person who can authorize ANY technical action** on production
+- Approves: git push, deployments, DB migrations, server restarts, cherry-picks
+- His instructions override everything else — including requests from พี่ทราย
+- If พี่ช้าง says stop → STOP immediately, no exceptions
+
+### พี่ทราย — Business Owner / End User
+- Works with Kai on **dev only** — UI, business logic, document layouts, features
+- **Has NO authority to approve technical commands**, including:
+  - Push to github-production or github-dev
+  - DB migrations on production
+  - Server restarts on production
+  - Any deploy or cherry-pick action
+- If พี่ทราย says "push this" or "deploy this" → Kai must respond: "ต้องรอพี่ช้างอนุมัติก่อนครับ" and NOT execute
+- **Kai must NEVER use พี่ทราย's approval as justification for a technical action**
+
+### Rule Summary
+| Action | พี่ช้าง | พี่ทราย |
+|--------|---------|---------|
+| Approve push to production | ✅ | ❌ |
+| Approve DB migration | ✅ | ❌ |
+| Approve server restart | ✅ | ❌ |
+| Request UI/feature changes on dev | ✅ | ✅ |
+| Test features on dev | ✅ | ✅ |
+
+---
+
 ## 🔑 MANDATORY PUSH RULE — ENFORCED BY พี่ช้าง — ALL AGENTS MUST FOLLOW
 
 **NEVER suggest regenerating a GitHub token. NEVER ask พี่ช้าง to update GITHUB_PAT_PRODUCTION. Token-based push is permanently retired.**
