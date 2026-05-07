@@ -6,10 +6,11 @@ import { generalSettings, documentSettings } from "@shared/schema";
 import { requireAuth, requireAdmin, requireRole } from "../route-middleware";
 import { getInventoryTriggers } from "../route-helpers";
 import { z } from "zod";
-import { runStampUrlMigration } from "../schema-extra";
+import { runStampUrlMigration, runBotApiKeyMigration } from "../schema-extra";
 
 export function registerDocSettingsRoutes(app: Express) {
   runStampUrlMigration(db).catch(() => {});
+  runBotApiKeyMigration(db).catch(() => {});
 // ========== Document Settings Routes ==========
 
 app.get("/api/settings/general", requireAuth, async (req, res) => {
@@ -243,6 +244,58 @@ app.put("/api/document-settings/:companyId", requireAuth, requireRole("admin", "
       return res.status(400).json({ message: "ข้อมูลไม่ถูกต้อง", errors: err.errors });
     }
     res.status(400).json({ message: err.message });
+  }
+});
+
+// ========== Exchange Rate Settings (per-company BOT API Key) ==========
+
+app.get("/api/settings/exchange-rate", requireAuth, async (req, res) => {
+  try {
+    const companyId = Number(req.query.companyId);
+    if (!companyId) return res.status(400).json({ message: "กรุณาระบุ companyId" });
+    const result = await db.execute(
+      (await import("drizzle-orm")).sql.raw(`SELECT bot_api_key FROM general_settings WHERE company_id = ${companyId} LIMIT 1`)
+    );
+    const row = (result.rows || [])[0] as any;
+    const companyKey: string | null = row?.bot_api_key || null;
+    const platformKey: string | null = process.env.BOT_API_KEY || null;
+    const isConfigured = !!(companyKey || platformKey);
+    const source = companyKey ? "company" : platformKey ? "platform" : "none";
+    return res.json({
+      isConfigured,
+      source,
+      botApiKey: companyKey ? `${"•".repeat(Math.max(0, companyKey.length - 6))}${companyKey.slice(-6)}` : null,
+      hasPlatformKey: !!platformKey,
+    });
+  } catch (e: any) {
+    res.status(500).json({ message: e.message });
+  }
+});
+
+app.post("/api/settings/exchange-rate", requireAuth, requireRole("admin", "super_admin"), async (req, res) => {
+  try {
+    const companyId = Number(req.query.companyId);
+    if (!companyId) return res.status(400).json({ message: "กรุณาระบุ companyId" });
+    const { botApiKey } = req.body;
+    const keyValue = typeof botApiKey === "string" ? botApiKey.trim() : null;
+    const result = await db.execute(
+      (await import("drizzle-orm")).sql.raw(`SELECT id FROM general_settings WHERE company_id = ${companyId} LIMIT 1`)
+    );
+    const existing = (result.rows || [])[0];
+    if (existing) {
+      const escapedKey = keyValue ? `'${keyValue.replace(/'/g, "''")}'` : "NULL";
+      await db.execute(
+        (await import("drizzle-orm")).sql.raw(`UPDATE general_settings SET bot_api_key = ${escapedKey} WHERE company_id = ${companyId}`)
+      );
+    } else {
+      const escapedKey = keyValue ? `'${keyValue.replace(/'/g, "''")}'` : "NULL";
+      await db.execute(
+        (await import("drizzle-orm")).sql.raw(`INSERT INTO general_settings (company_id, bot_api_key) VALUES (${companyId}, ${escapedKey})`)
+      );
+    }
+    return res.json({ success: true, cleared: !keyValue });
+  } catch (e: any) {
+    res.status(500).json({ message: e.message });
   }
 });
 

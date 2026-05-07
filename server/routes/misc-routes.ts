@@ -345,8 +345,19 @@ app.get("/api/exchange-rate", requireAuth, async (req, res) => {
     const currency = (req.query.currency as string || "USD").toUpperCase();
     const date = req.query.date as string | undefined;
     const dateParam = date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : null;
+    const companyId = req.query.companyId ? Number(req.query.companyId) : null;
 
-    const botApiKey = process.env.BOT_API_KEY;
+    // Priority: 1) per-company key from DB  2) platform env var
+    let botApiKey: string | null = process.env.BOT_API_KEY || null;
+    if (companyId) {
+      try {
+        const { sql } = await import("drizzle-orm");
+        const result = await db.execute(sql.raw(`SELECT bot_api_key FROM general_settings WHERE company_id = ${companyId} LIMIT 1`));
+        const row = (result.rows || [])[0] as any;
+        if (row?.bot_api_key) botApiKey = row.bot_api_key;
+      } catch {}
+    }
+
     if (botApiKey) {
       try {
         const baseDate = dateParam || new Date().toISOString().slice(0, 10);

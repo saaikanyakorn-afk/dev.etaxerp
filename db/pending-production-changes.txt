@@ -68,7 +68,53 @@ NOTE: ALTER TABLE code was REMOVED from expense-routes.ts (commit cd21f4f9)
       Production requires manual authorised run of the SQL above.
 
 ========================================================
-ENTRY #002 — (next change goes here)
+ENTRY #002 — general_settings table: 1 new column (bot_api_key)
+Date: 2026-05-07
+Status: PENDING (dev DB has column, production does NOT)
+Approved by: (waiting)
+========================================================
+
+WHAT:
+  One new column added to the `general_settings` table.
+
+WHY:
+  Feature: per-company BOT API key for exchange rate fetching.
+  - bot_api_key: stores each company's own Bearer token for
+    the Bank of Thailand (BOT) Stat-ExchangeRate API.
+  Priority: company key → platform env var (BOT_API_KEY) → error.
+  New settings page: /settings/exchange-rate
+  New API routes: GET/POST /api/settings/exchange-rate
+
+SQL TO RUN ON PRODUCTION (in order):
+
+  ALTER TABLE general_settings
+    ADD COLUMN IF NOT EXISTS bot_api_key TEXT;
+
+RISK: Very low.
+  - IF NOT EXISTS: safe to re-run, no error if column already exists.
+  - DEFAULT NULL: no existing rows affected.
+  - Additive only: no existing columns modified or dropped.
+
+VERIFY AFTER RUNNING:
+  SELECT column_name, data_type
+  FROM information_schema.columns
+  WHERE table_name = 'general_settings'
+    AND column_name = 'bot_api_key';
+  -- Expected: 1 row, data_type = 'text'
+
+ROLLBACK (only with authorisation + simultaneous code revert):
+  ALTER TABLE general_settings DROP COLUMN IF EXISTS bot_api_key;
+
+RELATED CODE FILES:
+  server/routes/doc-settings-routes.ts — GET/POST /api/settings/exchange-rate
+  server/routes/misc-routes.ts — /api/exchange-rate (company key lookup)
+  server/schema-extra.ts — runBotApiKeyMigration() (auto-runs on startup)
+  client/src/pages/settings/exchange-rate-settings.tsx — settings UI
+  client/src/components/settings-tabs.tsx — new tab "อัตราแลกเปลี่ยน"
+  client/src/App.tsx — route /settings/exchange-rate
+
+========================================================
+ENTRY #003 — (next change goes here)
 ========================================================
 
   [reserved for next database change]

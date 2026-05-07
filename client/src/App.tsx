@@ -284,6 +284,7 @@ const LineSettings = lazy(() => import("@/pages/settings/line-settings"));
 const GeneralSettings = lazy(() => import("@/pages/settings/general-settings"));
 const InventoryTriggers = lazy(() => import("@/pages/settings/inventory-triggers"));
 const DeptBranchSettings = lazy(() => import("@/pages/settings/dept-branch"));
+const ExchangeRateSettings = lazy(() => import("@/pages/settings/exchange-rate-settings"));
 const DashboardAnalytical = lazy(() => import("@/pages/dashboard-analytical"));
 const SalesOrderList = lazy(() => import("@/pages/sales/sales-order-list"));
 const SalesOrderForm = lazy(() => import("@/pages/sales/sales-order-form"));
@@ -923,6 +924,7 @@ function Router() {
       <Route path="/settings/general" component={GeneralSettings} />
       <Route path="/settings/inventory-triggers" component={InventoryTriggers} />
       <Route path="/settings/dept-branch" component={DeptBranchSettings} />
+      <Route path="/settings/exchange-rate" component={ExchangeRateSettings} />
       <Route path="/accounting/formulas" component={AccountingFormulas} />
       <Route path="/ecommerce/dashboard" component={EcommerceDashboard} />
       <Route path="/ecommerce/hub" component={EcommerceHub} />

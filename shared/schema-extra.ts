@@ -607,3 +607,14 @@ export async function runFirmClientMigration(db: any) {
   }
 }
 */
+
+// 2026-05-07 — general_settings.bot_api_key: per-company BOT API key for exchange rate fetching
+// Pure DDL — no flag, no backup needed (additive only, no data loss)
+export async function runBotApiKeyMigration(db: any) {
+  try {
+    await db.execute(sql.raw(`ALTER TABLE general_settings ADD COLUMN IF NOT EXISTS bot_api_key TEXT`));
+    console.log("[migration] ✅ general_settings.bot_api_key ready");
+  } catch (e: any) {
+    console.error("[migration] ❌ runBotApiKeyMigration FAILED:", e.message);
+  }
+}
