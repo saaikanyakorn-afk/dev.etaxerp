@@ -13,7 +13,7 @@ import { useAuth } from "@/lib/auth";
 import { apiRequest } from "@/lib/queryClient";
 import {
   TrendingUp, Key, CheckCircle2, AlertTriangle, Loader2,
-  Eye, EyeOff, ExternalLink, RotateCcw, Shield,
+  ExternalLink, RotateCcw, Shield,
   Info, Lock, ChevronRight, Copy, Check
 } from "lucide-react";
 import ThaiDateInput from "@/components/thai-date-input";
@@ -37,7 +37,6 @@ export default function ExchangeRateSettings({ platformMode = false }: { platfor
   const { user } = useAuth();
   const isSuperAdmin = (user as any)?.role === "super_admin";
 
-  const [keyVisible, setKeyVisible] = useState(false);
   const [copied, setCopied] = useState(false);
   const [newKey, setNewKey] = useState("");
   const copyInputRef = useRef<HTMLInputElement>(null);
@@ -54,6 +53,7 @@ export default function ExchangeRateSettings({ platformMode = false }: { platfor
       return r.json();
     },
     enabled: isSuperAdmin,
+    staleTime: 0,
   });
 
   const saveMutation = useMutation({
@@ -181,21 +181,25 @@ export default function ExchangeRateSettings({ platformMode = false }: { platfor
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            {settings?.fullKey && (
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-muted-foreground">Key ปัจจุบัน:</span>
+            {settings?.botApiKey && (
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs text-muted-foreground shrink-0">Key ปัจจุบัน:</span>
                 <span className="text-xs font-mono text-foreground" data-testid="text-masked-key">
-                  {settings.fullKey.slice(0, 10)}...{settings.fullKey.slice(-10)}
+                  {settings.fullKey
+                    ? `${settings.fullKey.slice(0, 10)}...${settings.fullKey.slice(-10)}`
+                    : settings.botApiKey}
                 </span>
-                <button
-                  type="button"
-                  onClick={handleCopyKey}
-                  className="text-muted-foreground hover:text-foreground"
-                  data-testid="button-copy-key"
-                  title="คัดลอก Key เต็ม"
-                >
-                  {copied ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
-                </button>
+                {settings.fullKey && (
+                  <button
+                    type="button"
+                    onClick={handleCopyKey}
+                    className="text-muted-foreground hover:text-foreground shrink-0"
+                    data-testid="button-copy-key"
+                    title="คัดลอก Key เต็ม"
+                  >
+                    {copied ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
+                  </button>
+                )}
                 <input
                   ref={copyInputRef}
                   disabled
@@ -208,32 +212,28 @@ export default function ExchangeRateSettings({ platformMode = false }: { platfor
               <Label className="text-xs text-muted-foreground">
                 Bearer Token จาก BOT API Portal
               </Label>
-              <div className="flex gap-2">
-                <div className="relative flex-1">
-                  <Input
-                    type={keyVisible ? "text" : "password"}
+              <div className="space-y-2">
+                <div className="relative">
+                  <textarea
                     value={newKey}
                     onChange={e => setNewKey(e.target.value)}
                     placeholder="วาง Bearer Token ที่นี่..."
-                    className="text-sm pr-9"
+                    rows={2}
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono resize-none pr-9 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    style={{ fontFamily: "monospace", overflowWrap: "anywhere" }}
                     data-testid="input-bot-api-key"
+                    spellCheck={false}
+                    autoComplete="off"
                   />
-                  <button
-                    type="button"
-                    onClick={() => setKeyVisible(v => !v)}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                    data-testid="button-toggle-key-visibility"
-                  >
-                    {keyVisible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </button>
                 </div>
                 <Button
                   onClick={() => saveMutation.mutate(newKey)}
                   disabled={!newKey.trim() || saveMutation.isPending}
                   data-testid="button-save-key"
-                  className="shrink-0"
+                  className="w-full"
                 >
-                  {saveMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "บันทึก"}
+                  {saveMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                  บันทึก
                 </Button>
               </div>
             </div>
