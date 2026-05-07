@@ -789,10 +789,12 @@ Every production error that surfaces to the user must have **exactly two layers 
 
 ---
 
-### Rule 1: Database Structure Changes (ZERO TOLERANCE)
-**BEFORE adding/removing/changing ANY column in `shared/schema.ts`:**
-1. STOP. Tell พี่ช้าง: "ฟีเจอร์นี้ต้องเพิ่ม/แก้คอลัมน์ [ชื่อ] ในตาราง [ชื่อ]"
-2. WAIT for พี่ช้าง's approval before touching schema.ts
+### Rule 1: Database Structure Changes (ABSOLUTE ZERO TOLERANCE)
+**`shared/schema.ts` — DO NOT TOUCH. EVER. NO EXCEPTIONS. NO APPROVAL PROCESS EXISTS.**
+- There is NO scenario where Kai is allowed to modify `shared/schema.ts`
+- There is NO approval, NO exception, NO "but พี่ช้าง said ok" — the answer is always NO
+- New tables/columns for production → `shared/schema-extra.ts` ONLY
+- If a feature requires schema.ts changes → tell พี่ช้าง and STOP. Do NOT touch the file.
 
 **Production DB change process (cherry-pick only):**
 1. Put `ALTER TABLE ... IF NOT EXISTS` inside the CODE FILE that needs the column
