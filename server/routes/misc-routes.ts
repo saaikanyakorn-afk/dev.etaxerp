@@ -345,50 +345,54 @@ app.get("/api/exchange-rate", requireAuth, async (req, res) => {
     const currency = (req.query.currency as string || "USD").toUpperCase();
     const date = req.query.date as string | undefined;
     const dateParam = date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : null;
-    const companyId = req.query.companyId ? Number(req.query.companyId) : null;
 
-    // Priority: 1) per-company key from DB  2) platform env var
-    let botApiKey: string | null = process.env.BOT_API_KEY || null;
-    if (companyId) {
-      try {
-        const { sql } = await import("drizzle-orm");
-        const result = await db.execute(sql.raw(`SELECT bot_api_key FROM general_settings WHERE company_id = ${companyId} LIMIT 1`));
-        const row = (result.rows || [])[0] as any;
-        if (row?.bot_api_key) botApiKey = row.bot_api_key;
-      } catch {}
+    const { sql } = await import("drizzle-orm");
+    const keyResult = await db.execute(sql.raw(`SELECT config_value FROM system_config WHERE config_key = 'BOT_API_KEY' LIMIT 1`));
+    const botApiKey: string | null = ((keyResult.rows || [])[0] as any)?.config_value || null;
+
+    if (!botApiKey) {
+      return res.status(503).json({
+        message: "ยังไม่ได้ตั้งค่า BOT API Key — กรุณาติดต่อผู้ดูแลระบบ (Super Admin) เพื่อตั้งค่าที่เมนู ตั้งค่า > อัตราแลกเปลี่ยน",
+        code: "BOT_API_KEY_NOT_CONFIGURED",
+      });
     }
 
-    if (botApiKey) {
+    const baseDate = dateParam || new Date().toISOString().slice(0, 10);
+    // ค้นย้อนหลังสูงสุด 30 วัน — คืน "อัตราล่าสุดที่มีอยู่" เสมอ พร้อม daysOld ให้ frontend ตัดสินใจเอง
+    for (let i = 0; i <= 30; i++) {
+      const d = new Date(baseDate);
+      d.setDate(d.getDate() - i);
+      const tryDate = d.toISOString().slice(0, 10);
+      const botUrl = `https://gateway.api.bot.or.th/Stat-ExchangeRate/v2/DAILY_AVG_EXG_RATE/?start_period=${tryDate}&end_period=${tryDate}&currency=${currency}`;
+      let botRes: Response;
       try {
-        const baseDate = dateParam || new Date().toISOString().slice(0, 10);
-        // Try up to 7 days back to find the latest BOT business day with data
-        for (let i = 0; i <= 7; i++) {
-          const d = new Date(baseDate);
-          d.setDate(d.getDate() - i);
-          const tryDate = d.toISOString().slice(0, 10);
-          const botUrl = `https://gateway.api.bot.or.th/Stat-ExchangeRate/v2/DAILY_AVG_EXG_RATE/?start_period=${tryDate}&end_period=${tryDate}&currency=${currency}`;
-          const botRes = await fetch(botUrl, {
-            headers: { "Authorization": `Bearer ${botApiKey}`, "Accept": "application/json" },
-          });
-          if (!botRes.ok) continue;
-          const botData = await botRes.json() as any;
-          const entry = botData?.result?.data?.data_detail?.[0];
-          const midRate = entry?.mid_rate ? parseFloat(entry.mid_rate) : 0;
-          if (midRate > 0) {
-            return res.json({
-              currency,
-              date: entry.period || tryDate,
-              thb: Number(midRate.toFixed(6)),
-              buying_transfer: entry.buying_transfer ? Number(parseFloat(entry.buying_transfer).toFixed(6)) : undefined,
-              selling: entry.selling ? Number(parseFloat(entry.selling).toFixed(6)) : undefined,
-              source: "BOT",
-            });
-          }
-        }
-      } catch {}
+        botRes = await fetch(botUrl, {
+          headers: { "Authorization": `Bearer ${botApiKey}`, "Accept": "application/json" },
+        });
+      } catch {
+        continue;
+      }
+      if (!botRes.ok) continue;
+      const botData = await botRes.json() as any;
+      const entry = botData?.result?.data?.data_detail?.[0];
+      const midRate = entry?.mid_rate ? parseFloat(entry.mid_rate) : 0;
+      if (midRate > 0) {
+        return res.json({
+          currency,
+          date: entry.period || tryDate,
+          daysOld: i,
+          thb: Number(midRate.toFixed(6)),
+          buying_transfer: entry.buying_transfer ? Number(parseFloat(entry.buying_transfer).toFixed(6)) : undefined,
+          selling: entry.selling ? Number(parseFloat(entry.selling).toFixed(6)) : undefined,
+          source: "BOT",
+        });
+      }
     }
 
-    res.status(503).json({ message: `ไม่พบอัตราแลกเปลี่ยน ${currency} จากธนาคารแห่งประเทศไทย (ย้อนหลัง 7 วันทำการ)` });
+    return res.status(503).json({
+      message: `ไม่พบข้อมูลอัตราแลกเปลี่ยน ${currency} จากธนาคารแห่งประเทศไทย (ย้อนหลัง 30 วัน) — กรุณาลองใหม่ภายหลัง`,
+      code: "BOT_RATE_NOT_FOUND",
+    });
   } catch (e: any) {
     res.status(500).json({ message: e.message });
   }

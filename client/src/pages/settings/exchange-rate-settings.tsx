@@ -6,14 +6,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { useCompany } from "@/lib/company-context";
+import { useAuth } from "@/lib/auth";
 import { apiRequest } from "@/lib/queryClient";
 import {
   TrendingUp, Key, CheckCircle2, AlertTriangle, Loader2,
-  Eye, EyeOff, ExternalLink, RotateCcw, Shield, Building2,
-  Globe, Trash2, Info
+  Eye, EyeOff, ExternalLink, RotateCcw, Shield, Trash2,
+  Info, Lock, ChevronRight
 } from "lucide-react";
 import ThaiDateInput from "@/components/thai-date-input";
 import { toLocalDateStr } from "@/lib/utils";
@@ -33,7 +33,8 @@ export default function ExchangeRateSettings() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { selectedCompany } = useCompany();
-  const companyId = selectedCompany?.id;
+  const { user } = useAuth();
+  const isSuperAdmin = (user as any)?.role === "super_admin";
 
   const [keyVisible, setKeyVisible] = useState(false);
   const [newKey, setNewKey] = useState("");
@@ -43,31 +44,30 @@ export default function ExchangeRateSettings() {
   const [testLoading, setTestLoading] = useState(false);
 
   const { data: settings, isLoading } = useQuery<any>({
-    queryKey: ["/api/settings/exchange-rate", companyId],
+    queryKey: ["/api/settings/exchange-rate"],
     queryFn: async () => {
-      if (!companyId) return null;
-      const r = await fetch(`/api/settings/exchange-rate?companyId=${companyId}`, { credentials: "include" });
+      const r = await fetch(`/api/settings/exchange-rate`, { credentials: "include" });
       if (!r.ok) return null;
       return r.json();
     },
-    enabled: !!companyId,
+    enabled: isSuperAdmin,
   });
 
   const saveMutation = useMutation({
     mutationFn: async (key: string | null) => {
-      const r = await apiRequest("POST", `/api/settings/exchange-rate?companyId=${companyId}`, { botApiKey: key || "" });
+      const r = await apiRequest("POST", `/api/settings/exchange-rate`, { botApiKey: key || "" });
       return r.json();
     },
     onSuccess: (data) => {
       toast({
-        title: data.cleared ? "ล้าง API Key สำเร็จ" : "บันทึก API Key สำเร็จ",
+        title: data.cleared ? "ลบ API Key สำเร็จ" : "บันทึก API Key สำเร็จ",
         description: data.cleared
-          ? "ระบบจะใช้ API Key ของ Platform แทน (ถ้ามี)"
-          : "ระบบจะใช้ API Key ของบริษัทนี้ในการดึงอัตราแลกเปลี่ยน",
+          ? "ระบบได้ลบ API Key ออกแล้ว ปุ่มดึงอัตราจะไม่ทำงานจนกว่าจะตั้งค่าใหม่"
+          : "API Key ถูกบันทึกแล้ว ระบบพร้อมดึงอัตราแลกเปลี่ยนจาก BOT",
         variant: "success" as any,
       });
       setNewKey("");
-      queryClient.invalidateQueries({ queryKey: ["/api/settings/exchange-rate", companyId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/settings/exchange-rate"] });
     },
     onError: (err: any) => {
       toast({ title: "เกิดข้อผิดพลาด", description: err.message, variant: "destructive" });
@@ -75,11 +75,10 @@ export default function ExchangeRateSettings() {
   });
 
   const handleTest = async () => {
-    if (!companyId) return;
     setTestLoading(true);
     setTestResult(null);
     try {
-      const params = new URLSearchParams({ currency: testCurrency, companyId: String(companyId) });
+      const params = new URLSearchParams({ currency: testCurrency });
       if (testDate) params.set("date", testDate);
       const r = await fetch(`/api/exchange-rate?${params}`, { credentials: "include", cache: "no-store" });
       const data = await r.json();
@@ -91,11 +90,23 @@ export default function ExchangeRateSettings() {
     setTestLoading(false);
   };
 
-  const sourceLabel = {
-    company: { text: "API Key บริษัทนี้", icon: Building2, color: "bg-emerald-100 text-emerald-700 border-emerald-200" },
-    platform: { text: "API Key ของ Platform", icon: Globe, color: "bg-blue-100 text-blue-700 border-blue-200" },
-    none: { text: "ไม่มี API Key", icon: AlertTriangle, color: "bg-red-100 text-red-700 border-red-200" },
-  }[settings?.source || "none"];
+  if (!isSuperAdmin) {
+    return (
+      <Layout>
+        <SettingsTabs />
+        <div className="max-w-3xl mx-auto px-6 py-12 flex flex-col items-center gap-4 text-center">
+          <div className="p-4 rounded-full bg-slate-100">
+            <Lock className="h-8 w-8 text-slate-400" />
+          </div>
+          <h2 className="text-base font-semibold">ไม่มีสิทธิ์เข้าถึงหน้านี้</h2>
+          <p className="text-sm text-muted-foreground max-w-sm">
+            การตั้งค่า BOT API Key เป็นการตั้งค่าระดับ Platform สำหรับ Super Admin เท่านั้น
+            <br />หากต้องการเปลี่ยนแปลง กรุณาติดต่อ Super Admin ของระบบ
+          </p>
+        </div>
+      </Layout>
+    );
+  }
 
   return (
     <Layout>
@@ -106,8 +117,8 @@ export default function ExchangeRateSettings() {
             <TrendingUp className="h-5 w-5 text-blue-600" />
           </div>
           <div>
-            <h1 className="text-lg font-semibold">อัตราแลกเปลี่ยน</h1>
-            <p className="text-xs text-muted-foreground">ตั้งค่า API Key สำหรับดึงอัตราแลกเปลี่ยนจากธนาคารแห่งประเทศไทย (BOT)</p>
+            <h1 className="text-lg font-semibold">อัตราแลกเปลี่ยน — BOT API Key</h1>
+            <p className="text-xs text-muted-foreground">การตั้งค่าระดับ Platform — ใช้ร่วมกันทุกบริษัทในระบบ (Super Admin เท่านั้น)</p>
           </div>
         </div>
 
@@ -119,55 +130,29 @@ export default function ExchangeRateSettings() {
               สถานะการเชื่อมต่อ BOT API
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent>
             {isLoading ? (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" />
                 กำลังโหลด...
               </div>
             ) : (
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  {settings?.isConfigured ? (
-                    <CheckCircle2 className="h-5 w-5 text-emerald-500" />
-                  ) : (
-                    <AlertTriangle className="h-5 w-5 text-red-500" />
-                  )}
-                  <div>
-                    <div className="text-sm font-medium">
-                      {settings?.isConfigured ? "พร้อมใช้งาน" : "ยังไม่ได้ตั้งค่า"}
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      {settings?.isConfigured
-                        ? "ปุ่ม 'ดึงอัตรา' ในทุกฟอร์มเอกสารพร้อมทำงาน"
-                        : "ปุ่ม 'ดึงอัตรา' จะไม่สามารถดึงข้อมูลได้"}
-                    </div>
+              <div className="flex items-center gap-3">
+                {settings?.isConfigured ? (
+                  <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+                ) : (
+                  <AlertTriangle className="h-5 w-5 text-red-500" />
+                )}
+                <div>
+                  <div className="text-sm font-medium">
+                    {settings?.isConfigured ? "พร้อมใช้งาน" : "ยังไม่ได้ตั้งค่า"}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {settings?.isConfigured
+                      ? "ปุ่ม 'ดึงอัตรา' ในทุกฟอร์มเอกสารพร้อมทำงาน"
+                      : "ปุ่ม 'ดึงอัตรา' จะแสดง error และไม่สามารถดึงข้อมูลได้"}
                   </div>
                 </div>
-                {settings?.source && (
-                  <Badge
-                    variant="outline"
-                    className={`text-xs gap-1 ${sourceLabel?.color}`}
-                    data-testid="badge-api-source"
-                  >
-                    {sourceLabel?.icon && <sourceLabel.icon className="h-3 w-3" />}
-                    {sourceLabel?.text}
-                  </Badge>
-                )}
-              </div>
-            )}
-
-            {settings?.source === "platform" && (
-              <div className="bg-blue-50 border border-blue-200 rounded-md p-3 text-xs text-blue-700 flex gap-2">
-                <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
-                <span>ขณะนี้ใช้ API Key ของ Platform (ใช้ร่วมกันทุกบริษัท) คุณสามารถตั้งค่า Key เฉพาะของบริษัทนี้ได้ด้านล่าง</span>
-              </div>
-            )}
-
-            {settings?.source === "none" && (
-              <div className="bg-amber-50 border border-amber-200 rounded-md p-3 text-xs text-amber-700 flex gap-2">
-                <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
-                <span>ยังไม่มี API Key — กรุณาสมัครที่ <a href="https://apiportal.bot.or.th" target="_blank" rel="noopener noreferrer" className="underline font-medium">apiportal.bot.or.th</a> แล้วกรอก Key ด้านล่าง</span>
               </div>
             )}
           </CardContent>
@@ -178,7 +163,7 @@ export default function ExchangeRateSettings() {
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-semibold flex items-center gap-2">
               <Key className="h-4 w-4 text-slate-500" />
-              API Key เฉพาะบริษัทนี้
+              จัดการ API Key
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -187,7 +172,7 @@ export default function ExchangeRateSettings() {
                 <div>
                   <div className="text-xs text-muted-foreground mb-0.5">Key ที่บันทึกไว้</div>
                   <div className="text-sm font-mono font-medium tracking-wider" data-testid="text-masked-key">
-                    {keyVisible ? settings.botApiKey : settings.botApiKey}
+                    {settings.botApiKey}
                   </div>
                 </div>
                 <Button
@@ -196,7 +181,7 @@ export default function ExchangeRateSettings() {
                   className="text-red-500 hover:text-red-600 hover:bg-red-50 text-xs"
                   data-testid="button-clear-key"
                   onClick={() => {
-                    if (confirm("ยืนยันลบ API Key ของบริษัทนี้?\n\nระบบจะ fallback ไปใช้ API Key ของ Platform แทน (ถ้ามี)")) {
+                    if (confirm("ยืนยันลบ BOT API Key?\n\nปุ่ม 'ดึงอัตรา' ทั้งระบบจะหยุดทำงานทันที จนกว่าจะตั้งค่าใหม่")) {
                       saveMutation.mutate(null);
                     }
                   }}
@@ -218,7 +203,7 @@ export default function ExchangeRateSettings() {
                     type={keyVisible ? "text" : "password"}
                     value={newKey}
                     onChange={e => setNewKey(e.target.value)}
-                    placeholder="วาง API Key ที่นี่..."
+                    placeholder="วาง Bearer Token ที่นี่..."
                     className="text-sm pr-9"
                     data-testid="input-bot-api-key"
                   />
@@ -240,19 +225,6 @@ export default function ExchangeRateSettings() {
                   {saveMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "บันทึก"}
                 </Button>
               </div>
-            </div>
-
-            <div className="pt-1">
-              <a
-                href="https://apiportal.bot.or.th"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 text-xs text-blue-600 hover:underline"
-                data-testid="link-bot-portal"
-              >
-                <ExternalLink className="h-3 w-3" />
-                สมัคร / ดู API Key ที่ BOT API Portal
-              </a>
             </div>
           </CardContent>
         </Card>
@@ -299,7 +271,7 @@ export default function ExchangeRateSettings() {
                 {testLoading
                   ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
                   : <RotateCcw className="h-3.5 w-3.5" />}
-                ดึงอัตรา
+                ทดสอบ
               </Button>
             </div>
 
@@ -330,7 +302,6 @@ export default function ExchangeRateSettings() {
                       {testResult.data.selling && (
                         <div>ขาย: <strong>{testResult.data.selling}</strong> บาท</div>
                       )}
-                      <div className="text-emerald-600">Source: {testResult.data.source}</div>
                     </div>
                   </div>
                 ) : (
@@ -344,26 +315,82 @@ export default function ExchangeRateSettings() {
           </CardContent>
         </Card>
 
-        {/* How it works */}
+        {/* How to get a new key — detailed guideline */}
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-semibold flex items-center gap-2">
               <Info className="h-4 w-4 text-slate-500" />
-              วิธีการทำงาน
+              วิธีขอ API Key จาก BOT (ธนาคารแห่งประเทศไทย)
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <ol className="text-xs text-muted-foreground space-y-2 list-decimal pl-4">
-              <li>สมัครรับ API Key จาก <a href="https://apiportal.bot.or.th" target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">BOT API Portal</a> (ฟรี)</li>
-              <li>เลือก Product <strong>"Stat-ExchangeRate"</strong> → Subscribe → คัดลอก Bearer Token</li>
-              <li>วาง Token ในช่องด้านบน แล้วกด "บันทึก"</li>
-              <li>ทดสอบด้วยปุ่ม "ดึงอัตรา" เพื่อตรวจสอบการเชื่อมต่อ</li>
-              <li>หลังจากนี้ ปุ่ม <strong>"ดึงอัตรา"</strong> ในทุกฟอร์ม (ใบแจ้งหนี้, ใบสั่งซื้อ, ค่าใช้จ่าย ฯลฯ) จะดึงอัตราจาก BOT โดยอัตโนมัติ</li>
+          <CardContent className="space-y-4">
+            <ol className="text-xs text-muted-foreground space-y-3 list-none pl-0">
+              <li className="flex gap-3">
+                <span className="shrink-0 w-5 h-5 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-semibold text-[10px]">1</span>
+                <span>
+                  เปิดเบราว์เซอร์ไปที่{" "}
+                  <a href="https://apiportal.bot.or.th" target="_blank" rel="noopener noreferrer" className="text-blue-600 underline font-medium">
+                    apiportal.bot.or.th
+                  </a>
+                  {" "}แล้วคลิก <strong>"Sign Up"</strong> เพื่อสมัครบัญชี (ฟรี) หรือ <strong>"Sign In"</strong> ถ้ามีบัญชีแล้ว
+                </span>
+              </li>
+              <li className="flex gap-3">
+                <span className="shrink-0 w-5 h-5 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-semibold text-[10px]">2</span>
+                <span>
+                  หลัง Sign In ไปที่เมนู <strong>"APIs"</strong> แล้วค้นหา <strong>"Stat-ExchangeRate"</strong>
+                </span>
+              </li>
+              <li className="flex gap-3">
+                <span className="shrink-0 w-5 h-5 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-semibold text-[10px]">3</span>
+                <span>
+                  คลิกเข้าไปใน <strong>Stat-ExchangeRate</strong> แล้วคลิกปุ่ม <strong>"Subscribe"</strong> เพื่อสมัครใช้งาน API นี้
+                </span>
+              </li>
+              <li className="flex gap-3">
+                <span className="shrink-0 w-5 h-5 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-semibold text-[10px]">4</span>
+                <span>
+                  ไปที่เมนู <strong>"My Subscriptions"</strong> หรือ <strong>"Applications"</strong> ในหน้า Profile แล้วเลือก Application ที่สร้างไว้
+                </span>
+              </li>
+              <li className="flex gap-3">
+                <span className="shrink-0 w-5 h-5 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-semibold text-[10px]">5</span>
+                <span>
+                  คัดลอก <strong>"Consumer Key"</strong> หรือ <strong>"Bearer Token"</strong> — นำมาวางในช่อง "กรอก API Key" ด้านบน แล้วกด <strong>"บันทึก"</strong>
+                </span>
+              </li>
+              <li className="flex gap-3">
+                <span className="shrink-0 w-5 h-5 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-semibold text-[10px]">6</span>
+                <span>
+                  กดปุ่ม <strong>"ทดสอบ"</strong> ด้านบนเพื่อยืนยันว่า Key ใช้งานได้จริง ก่อนแจ้งให้ทีมทราบ
+                </span>
+              </li>
             </ol>
-            <div className="mt-3 pt-3 border-t text-xs text-muted-foreground">
-              <strong>ลำดับความสำคัญ API Key:</strong>{" "}
-              API Key ของบริษัทนี้ (ถ้ามี) → API Key ของ Platform → ไม่สามารถดึงได้
+
+            <div className="bg-amber-50 border border-amber-200 rounded-md p-3 text-xs text-amber-800 space-y-1">
+              <div className="font-semibold flex items-center gap-1.5">
+                <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                ข้อควรระวัง
+              </div>
+              <ul className="pl-5 space-y-1 list-disc">
+                <li>Key นี้ใช้ร่วมกันทุกบริษัทในระบบ — อย่าแชร์ให้บุคคลภายนอก</li>
+                <li>ถ้า Key หมดอายุหรือถูก revoke — ปุ่ม "ดึงอัตรา" ทั้งระบบจะหยุดทำงานทันที</li>
+                <li>แนะนำให้ทดสอบทุกครั้งหลังบันทึก Key ใหม่</li>
+                <li>BOT อาจ revoke Key ถ้าใช้งานเกิน rate limit หรือไม่ได้ใช้นานเกินไป</li>
+              </ul>
             </div>
+
+            <a
+              href="https://apiportal.bot.or.th"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 text-xs text-blue-600 hover:underline"
+              data-testid="link-bot-portal"
+            >
+              <ExternalLink className="h-3 w-3" />
+              เปิด BOT API Portal
+              <ChevronRight className="h-3 w-3" />
+            </a>
           </CardContent>
         </Card>
       </div>

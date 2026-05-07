@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useCompany } from "@/lib/company-context";
 import { useQueryClient } from "@tanstack/react-query";
-import { Send, Loader2, Mail, ChevronDown, ChevronUp, CheckCircle2, AlertCircle, Bug } from "lucide-react";
+import { Send, Loader2, Mail, ChevronDown, ChevronUp, CheckCircle2, Bug } from "lucide-react";
 
 type FormType = "tax_invoice" | "tax_invoice_receipt" | "receipt";
 
@@ -43,7 +43,6 @@ export function EtaxSendDialog({
   const [debugInfo, setDebugInfo] = useState<string[]>([]);
   const [showDebug, setShowDebug] = useState(false);
   const [sendSuccess, setSendSuccess] = useState(false);
-  const [errorAlert, setErrorAlert] = useState<string | null>(null);
   const [rawDebugLoading, setRawDebugLoading] = useState(false);
   const [rawDebugResult, setRawDebugResult] = useState<any>(null);
 
@@ -59,7 +58,6 @@ export function EtaxSendDialog({
     setDebugInfo([]);
     setShowDebug(false);
     setSendSuccess(false);
-    setErrorAlert(null);
     setRawDebugResult(null);
   }, [open, taxInvoiceId, creditNoteId]);
 
@@ -86,7 +84,6 @@ export function EtaxSendDialog({
     setLoading(true);
     setDebugInfo([]);
     setShowDebug(false);
-    setErrorAlert(null);
     try {
       let url: string;
       let body: Record<string, any>;
@@ -113,12 +110,7 @@ export function EtaxSendDialog({
         setShowDebug(true);
       }
       if (!res.ok) {
-        const emailErrorCodes = ["MISSING_BUYER_EMAIL", "INVALID_BUYER_EMAIL"];
-        if (emailErrorCodes.includes(data.errorCode)) {
-          setErrorAlert(data.message);
-        } else {
-          toast({ title: "ส่ง e-Tax ไม่สำเร็จ", description: data.message, variant: "destructive" });
-        }
+        toast({ title: "ส่ง e-Tax ไม่สำเร็จ", description: data.message, variant: "destructive" });
         return;
       }
       setSendSuccess(true);
@@ -179,16 +171,6 @@ export function EtaxSendDialog({
             <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-700">
               <p className="font-medium">ใบลดหนี้ (typeCode: 81)</p>
               <p className="text-xs mt-1">จะส่งในรูปแบบ PDF/A-3 ฝัง XML มาตรฐาน สพธอ. ใบลดหนี้</p>
-            </div>
-          )}
-
-          {errorAlert && (
-            <div className="flex items-start gap-2 bg-red-50 border border-red-300 rounded-lg p-3 text-sm text-red-700" data-testid="alert-etax-email-error">
-              <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="font-medium mb-0.5">ไม่สามารถส่ง e-Tax ได้</p>
-                <p>{errorAlert}</p>
-              </div>
             </div>
           )}
 
@@ -253,7 +235,7 @@ export function EtaxSendDialog({
                 data-testid="btn-debug-real-send"
               >
                 {rawDebugLoading ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
-                ส่งจริง + ดู Headers (To: buyer, CC: ETDA)
+                ส่งจริง + ดู Headers (To: ETDA)
               </Button>
             </div>
             {rawDebugResult && (
@@ -261,7 +243,6 @@ export function EtaxSendDialog({
                 <div className="bg-white border border-gray-200 rounded p-2 text-xs font-mono space-y-1">
                   <div><span className="text-gray-400">From:</span> <span className="text-blue-700">{rawDebugResult.emailStructure?.from}</span></div>
                   <div><span className="text-gray-400">To:</span> <span className="text-green-700">{rawDebugResult.emailStructure?.to}</span></div>
-                  <div><span className="text-gray-400">CC:</span> <span className="text-orange-700">{rawDebugResult.emailStructure?.cc}</span></div>
                   <div><span className="text-gray-400">Subject:</span> {rawDebugResult.emailStructure?.subject}</div>
                   <div><span className="text-gray-400">Attachment:</span> {rawDebugResult.emailStructure?.attachments?.[0]?.filename} ({Math.round((rawDebugResult.emailStructure?.attachments?.[0]?.size || 0) / 1024)} KB)</div>
                   <div><span className="text-gray-400">MessageId:</span> {rawDebugResult.etherealMessageId}</div>

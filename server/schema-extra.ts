@@ -3,15 +3,36 @@
 // Verified: Phase 1c confirmed column exists on production DB
 export async function runStampUrlMigration(_db: any) {}
 
-// 2026-05-07 — general_settings.bot_api_key: per-company BOT API key for exchange rate fetching
-// Pure DDL — no flag, no backup needed (additive only, no data loss)
-export async function runBotApiKeyMigration(db: any) {
+/* ── CANCELLED 2026-05-07: general_settings.bot_api_key ADD COLUMN ──
+ * Design changed: BOT API key moved to system_config (platform-level), not per-company.
+ * Column was never pushed to production (ENTRY #002 CANCELLED).
+ * DROP COLUMN handled by runDropBotApiKeyMigration below.
+ *
+ * export async function runBotApiKeyMigration(db: any) {
+ *   try {
+ *     const { sql } = await import("drizzle-orm");
+ *     await db.execute(sql.raw(`ALTER TABLE general_settings ADD COLUMN IF NOT EXISTS bot_api_key TEXT`));
+ *     console.log("[migration] ✅ general_settings.bot_api_key ready");
+ *   } catch (e: any) {
+ *     console.error("[migration] ❌ runBotApiKeyMigration FAILED:", e.message);
+ *   }
+ * }
+ */
+export async function runBotApiKeyMigration(_db: any) {}
+
+// 2026-05-07 — DROP general_settings.bot_api_key (design reversal — per-company key replaced by platform-level system_config)
+// IF EXISTS: safe on production (column was never added there). Cleans dev DB.
+export async function runDropBotApiKeyMigration(db: any) {
+  const FLAG = "DROP_BOT_API_KEY_FROM_GENERAL_SETTINGS_20260507";
   try {
     const { sql } = await import("drizzle-orm");
-    await db.execute(sql.raw(`ALTER TABLE general_settings ADD COLUMN IF NOT EXISTS bot_api_key TEXT`));
-    console.log("[migration] ✅ general_settings.bot_api_key ready");
+    const flag = await db.execute(sql.raw(`SELECT config_value FROM system_config WHERE config_key = '${FLAG}' LIMIT 1`));
+    if ((flag.rows || []).length > 0) return;
+    await db.execute(sql.raw(`ALTER TABLE general_settings DROP COLUMN IF EXISTS bot_api_key`));
+    await db.execute(sql.raw(`INSERT INTO system_config (config_key, config_value) VALUES ('${FLAG}', 'done_${new Date().toISOString()}') ON CONFLICT (config_key) DO NOTHING`));
+    console.log("[migration] ✅ general_settings.bot_api_key dropped");
   } catch (e: any) {
-    console.error("[migration] ❌ runBotApiKeyMigration FAILED:", e.message);
+    console.error("[migration] ❌ runDropBotApiKeyMigration FAILED:", e.message);
   }
 }
 

@@ -68,23 +68,23 @@ NOTE: ALTER TABLE code was REMOVED from expense-routes.ts (commit cd21f4f9)
       Production requires manual authorised run of the SQL above.
 
 ========================================================
-ENTRY #002 — general_settings.bot_api_key — CANCELLED (DO NOT RUN)
+ENTRY #002 — general_settings.bot_api_key — DONE (DROP COLUMN)
 Date: 2026-05-07
-Status: CANCELLED — per-company key UI was removed; BOT_API_KEY stays platform env var only
-Approved by: N/A
+Status: DONE — column dropped from dev DB via runDropBotApiKeyMigration (2026-05-07)
+        Production never had this column (ENTRY #002 was cancelled before push).
+        DROP COLUMN migration included in next production batch for clean state.
+Approved by: พี่ช้าง (part of BOT API Key redesign batch)
 ========================================================
 
 WHAT:
-  Was: add bot_api_key TEXT to general_settings.
-  Column exists on dev DB only (harmless, no data in it).
+  DROP COLUMN bot_api_key FROM general_settings.
+  Column existed on dev DB only — now removed.
+  Design changed: BOT API key stored in system_config (platform-level) instead.
+  super_admin manages key via Settings > อัตราแลกเปลี่ยน screen.
 
-WHY CANCELLED:
-  พี่ทราย confirmed: exchange rate config is platform-level (developer sets BOT_API_KEY
-  as Replit env var). End-users must NOT configure this. Per-company UI removed.
-  The settings tab "อัตราแลกเปลี่ยน" removed from settings-tabs.tsx.
-
-DO NOT RUN ON PRODUCTION — column not needed.
-If dev column causes issues, run: ALTER TABLE general_settings DROP COLUMN IF EXISTS bot_api_key;
+FLAG: DROP_BOT_API_KEY_FROM_GENERAL_SETTINGS_20260507 in system_config
+Migration: server/schema-extra.ts → runDropBotApiKeyMigration() (to be commented out after production run)
+Caller: server/routes/doc-settings-routes.ts
 
 ========================================================
 ENTRY #003 — billing-notes-routes.ts: fix invoice totalAmount formula (CODE ONLY, no DB schema change)
@@ -142,8 +142,8 @@ NOTE:
 ========================================================
 ENTRY #004 — sales_credit_notes: 4 etax columns (e-Tax Invoice credit note feature)
 Date: 2026-05-07
-Status: PENDING (dev DB has columns via auto-migration, production does NOT)
-Approved by: (waiting)
+Status: DONE — migration ran on production 2026-05-07T07:09:58.365Z ✅
+Approved by: พี่ช้าง
 ========================================================
 
 WHAT:
@@ -184,7 +184,46 @@ RELATED CODE FILES:
   client/src/pages/sales/credit-note-form.tsx — EtaxCreditNoteButton reads etaxSentAt/etaxSentTo
 
 ========================================================
-ENTRY #005 — (next change goes here)
+ENTRY #005 — BOT API Key redesign batch (CODE + migration deposit)
+Date: 2026-05-07
+Status: PENDING — awaiting พี่ช้าง approval to push
+Approved by: (waiting)
+========================================================
+
+WHAT:
+  1. CODE ONLY (no new DB columns):
+     - server/routes/misc-routes.ts: /api/exchange-rate now reads key from system_config only
+       No fallback. Throws 503 with clear message if key not configured.
+     - server/routes/doc-settings-routes.ts: GET/POST /api/settings/exchange-rate
+       reads/writes system_config. Restricted to super_admin only.
+     - client/src/pages/settings/exchange-rate-settings.tsx: redesigned as platform-level.
+       super_admin only, per-company UI removed, detailed BOT key guideline added.
+     - client/src/components/fetch-rate-button.tsx: error message tells user exactly
+       what to do and who to contact when key is not configured.
+     - server/routes/billing-notes-routes.ts: ENTRY #003 fix (totalAmount formula) — APPROVED.
+
+  2. MIGRATION (deposit — runs on production startup):
+     - runDropBotApiKeyMigration(): DROP COLUMN bot_api_key FROM general_settings IF EXISTS
+       Safe on production (column was never added there — ENTRY #002 cancelled).
+       FLAG: DROP_BOT_API_KEY_FROM_GENERAL_SETTINGS_20260507
+
+RISK: Very low.
+  - DROP COLUMN IF EXISTS: no-op on production (column never existed there).
+  - Code changes affect exchange rate fetch only. No financial data touched.
+  - super_admin must set BOT_API_KEY via Settings > อัตราแลกเปลี่ยน after deploy.
+
+FILES TO PUSH:
+  server/schema-extra.ts
+  server/routes/doc-settings-routes.ts
+  server/routes/misc-routes.ts
+  server/routes/billing-notes-routes.ts
+  client/src/pages/settings/exchange-rate-settings.tsx
+  client/src/components/fetch-rate-button.tsx
+  db/pending-production-changes.txt
+  db/schema-history.md
+
+========================================================
+ENTRY #006 — (next change goes here)
 ========================================================
 END OF FILE
 ========================================================

@@ -33,6 +33,25 @@ following the TERTIARY USE procedure so index.ts is no longer touched for column
 
 ---
 
+## 2026-05-07 — DROP general_settings.bot_api_key (ENTRY #002 reversal / ENTRY #005 deposit)
+
+**What changed:**
+- Dropped `bot_api_key TEXT` from `general_settings` (dev DB only — column never reached production)
+- Design changed: BOT API key moved to `system_config` table (platform-level, key = `BOT_API_KEY`)
+- super_admin manages key via Settings > อัตราแลกเปลี่ยน screen
+
+**Backup location:** No backup required — column was empty (no data, no constraints, dev only)
+
+**Migration code:** `server/schema-extra.ts` → `runDropBotApiKeyMigration()` (to be commented out after verified on production)
+**Caller:** `server/routes/doc-settings-routes.ts`
+**Flag:** `DROP_BOT_API_KEY_FROM_GENERAL_SETTINGS_20260507` in `system_config`
+
+**Reason:** Per-company BOT API key design was wrong. Key is platform-level — one key serves all tenants. super_admin sets it once via UI, stored in system_config. No .env file needed.
+
+**Status:** Done on dev ✅ — pending production run (part of ENTRY #005 batch)
+
+---
+
 ## 2026-05-07 — e-Tax Credit Note Columns (ENTRY #004)
 
 **What changed:**
