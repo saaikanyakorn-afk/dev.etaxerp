@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import Layout from "@/components/layout";
 import SettingsTabs from "@/components/settings-tabs";
@@ -38,9 +38,9 @@ export default function ExchangeRateSettings({ platformMode = false }: { platfor
   const isSuperAdmin = (user as any)?.role === "super_admin";
 
   const [keyVisible, setKeyVisible] = useState(false);
-  const [keyRevealed, setKeyRevealed] = useState(false);
   const [copied, setCopied] = useState(false);
   const [newKey, setNewKey] = useState("");
+  const copyInputRef = useRef<HTMLInputElement>(null);
   const [testCurrency, setTestCurrency] = useState("USD");
   const [testDate, setTestDate] = useState(() => toLocalDateStr(new Date()));
   const [testResult, setTestResult] = useState<any>(null);
@@ -77,15 +77,18 @@ export default function ExchangeRateSettings({ platformMode = false }: { platfor
     },
   });
 
-  const fallbackCopy = (text: string) => {
-    const el = document.createElement("textarea");
-    el.value = text;
-    el.style.position = "fixed";
-    el.style.opacity = "0";
-    document.body.appendChild(el);
-    el.select();
+  const handleCopyKey = () => {
+    const input = copyInputRef.current;
+    if (!input) return;
+    input.value = settings?.fullKey || "";
+    input.removeAttribute("disabled");
+    input.focus();
+    input.select();
+    input.setSelectionRange(0, input.value.length);
     document.execCommand("copy");
-    document.body.removeChild(el);
+    input.setAttribute("disabled", "true");
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   const handleTest = async () => {
@@ -178,39 +181,27 @@ export default function ExchangeRateSettings({ platformMode = false }: { platfor
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            {settings?.botApiKey && (
+            {settings?.fullKey && (
               <div className="flex items-center gap-2">
                 <span className="text-xs text-muted-foreground">Key ปัจจุบัน:</span>
                 <span className="text-xs font-mono text-foreground" data-testid="text-masked-key">
-                  {keyRevealed ? settings.fullKey : settings.botApiKey}
+                  {settings.fullKey.slice(0, 10)}...{settings.fullKey.slice(-10)}
                 </span>
                 <button
                   type="button"
-                  onClick={() => setKeyRevealed(v => !v)}
-                  className="text-muted-foreground hover:text-foreground"
-                  data-testid="button-reveal-key"
-                  title={keyRevealed ? "ซ่อน Key" : "แสดง Key เต็ม"}
-                >
-                  {keyRevealed ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const text = settings.fullKey || "";
-                    if (navigator.clipboard && window.isSecureContext) {
-                      navigator.clipboard.writeText(text).catch(() => fallbackCopy(text));
-                    } else {
-                      fallbackCopy(text);
-                    }
-                    setCopied(true);
-                    setTimeout(() => setCopied(false), 2000);
-                  }}
+                  onClick={handleCopyKey}
                   className="text-muted-foreground hover:text-foreground"
                   data-testid="button-copy-key"
-                  title="คัดลอก Key"
+                  title="คัดลอก Key เต็ม"
                 >
                   {copied ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
                 </button>
+                <input
+                  ref={copyInputRef}
+                  disabled
+                  aria-hidden="true"
+                  style={{ position: "fixed", top: 0, left: 0, opacity: 0, pointerEvents: "none", width: 1, height: 1 }}
+                />
               </div>
             )}
             <div className="space-y-1.5">
