@@ -508,15 +508,15 @@ export function registerEtaxRoutes(app: Express) {
       }
       const docTypeLabel = DOC_LABEL[data.typeCode];
 
-      // ส่งตรงไปยัง ETDA เท่านั้น (To: timestampEmail) — ETDA ส่ง timestamped doc ให้ผู้ซื้อเอง
-      const htmlBodyEtda = `
+      const htmlBody = `
         <div style="font-family: 'Sarabun', Arial, sans-serif; max-width: 600px; margin: 0 auto;">
           <div style="background: #fb9678; color: white; padding: 20px; border-radius: 8px 8px 0 0;">
-            <h2 style="margin: 0;">e-Tax Invoice Submission</h2>
+            <h2 style="margin: 0;">${docTypeLabel}อิเล็กทรอนิกส์ (e-Tax Invoice)</h2>
             <p style="margin: 5px 0 0; opacity: 0.9;">${comp.name}</p>
           </div>
           <div style="padding: 20px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
-            <p>ส่ง${docTypeLabel}อิเล็กทรอนิกส์เพื่อประทับเวลา</p>
+            <p>เรียนผู้รับเอกสาร</p>
+            <p>บริษัท/ห้าง <strong>${comp.name}</strong> ขอส่ง${docTypeLabel}อิเล็กทรอนิกส์ตามรายละเอียดด้านล่าง</p>
             <table style="width: 100%; border-collapse: collapse; margin: 15px 0;">
               <tr><td style="padding: 6px 0; color: #666;">ประเภทเอกสาร:</td><td style="padding: 6px 0; font-weight: 600;">${docTypeLabel}</td></tr>
               <tr><td style="padding: 6px 0; color: #666;">เลขที่เอกสาร:</td><td style="padding: 6px 0; font-weight: 600;">${tiv.taxInvoiceNo}</td></tr>
@@ -525,8 +525,8 @@ export function registerEtaxRoutes(app: Express) {
             <p style="font-size: 13px; color: #888;">ไฟล์แนบ: ${pdfFilename} (PDF/A-3 พร้อม XML ตามมาตรฐาน สพธอ.)</p>
             <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 15px 0;">
             <p style="font-size: 12px; color: #999;">
-              เอกสารนี้จัดทำและส่งข้อมูลให้แก่กรมสรรพากรด้วยวิธีการทางอิเล็กทรอนิกส์<br>
-              ตามประกาศอธิบดีกรมสรรพากร
+              เอกสารนี้จัดทำและส่งข้อมูลด้วยวิธีการทางอิเล็กทรอนิกส์ตามประกาศอธิบดีกรมสรรพากร<br>
+              (CC: กรมสรรพากรเพื่อประทับเวลาอิเล็กทรอนิกส์)
             </p>
           </div>
         </div>
@@ -558,12 +558,11 @@ export function registerEtaxRoutes(app: Express) {
           auth: { user: comp.smtpUser, pass: comp.smtpPass },
         };
         const transporter = nodemailer.default.createTransport(smtpConfig);
-        // ส่งตรงไปยัง ETDA เท่านั้น — ETDA ส่ง timestamped doc ให้ผู้ซื้อเอง
         const mailOptions: any = {
           from: `"${comp.name}" <${comp.smtpUser}>`,
           to: timestampEmail,
           subject,
-          html: htmlBodyEtda,
+          html: htmlBody,
           attachments: [{ filename: pdfFilename, content: pdfA3Buffer, contentType: "application/pdf" }],
         };
         const info = await transporter.sendMail(mailOptions);
@@ -578,12 +577,11 @@ export function registerEtaxRoutes(app: Express) {
         const rawFrom = process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev";
         const isTestEmail = rawFrom.includes("onboarding@resend.dev");
         const fromEmail = rawFrom.includes("<") ? rawFrom : (isTestEmail ? rawFrom : `${comp.name.slice(0, 200)} <${rawFrom}>`);
-        // ส่งตรงไปยัง ETDA เท่านั้น — ETDA ส่ง timestamped doc ให้ผู้ซื้อเอง
         const emailPayload: any = {
           from: fromEmail,
           to: [timestampEmail],
           subject,
-          html: htmlBodyEtda,
+          html: htmlBody,
           attachments: [{ filename: pdfFilename, content: pdfA3Buffer.toString("base64") }],
         };
         const sendResult = await resend.emails.send(emailPayload) as any;
@@ -723,7 +721,6 @@ export function registerEtaxRoutes(app: Express) {
         auth: { user: testAccount.user, pass: testAccount.pass },
       });
 
-      // ส่งตรงไปยัง ETDA เท่านั้น (ไม่ CC buyer)
       const mailOptions: any = {
         from: comp.smtpUser ? `"${comp.name}" <${comp.smtpUser}>` : `"${comp.name}" <${testAccount.user}>`,
         to: timestampEmail,
@@ -1020,15 +1017,15 @@ export function registerEtaxRoutes(app: Express) {
       const pdfFilename = `${cn.creditNoteNo}.pdf`;
       const docTypeLabel = "ใบลดหนี้";
 
-      // ส่งตรงไปยัง ETDA เท่านั้น (To: timestampEmail) — ETDA ส่ง timestamped doc ให้ผู้ซื้อเอง
-      const htmlBodyEtda = `
+      const htmlBodyCn = `
         <div style="font-family: 'Sarabun', Arial, sans-serif; max-width: 600px; margin: 0 auto;">
           <div style="background: #fb9678; color: white; padding: 20px; border-radius: 8px 8px 0 0;">
-            <h2 style="margin: 0;">e-Tax Invoice Submission</h2>
+            <h2 style="margin: 0;">${docTypeLabel}อิเล็กทรอนิกส์ (e-Tax Invoice)</h2>
             <p style="margin: 5px 0 0; opacity: 0.9;">${comp.name}</p>
           </div>
           <div style="padding: 20px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
-            <p>ส่ง${docTypeLabel}อิเล็กทรอนิกส์เพื่อประทับเวลา</p>
+            <p>เรียนผู้รับเอกสาร</p>
+            <p>บริษัท/ห้าง <strong>${comp.name}</strong> ขอส่ง${docTypeLabel}อิเล็กทรอนิกส์ตามรายละเอียดด้านล่าง</p>
             <table style="width: 100%; border-collapse: collapse; margin: 15px 0;">
               <tr><td style="padding: 6px 0; color: #666;">ประเภทเอกสาร:</td><td style="padding: 6px 0; font-weight: 600;">${docTypeLabel}</td></tr>
               <tr><td style="padding: 6px 0; color: #666;">เลขที่เอกสาร:</td><td style="padding: 6px 0; font-weight: 600;">${cn.creditNoteNo}</td></tr>
@@ -1036,7 +1033,7 @@ export function registerEtaxRoutes(app: Express) {
             </table>
             <p style="font-size: 13px; color: #888;">ไฟล์แนบ: ${pdfFilename} (PDF/A-3 พร้อม XML ตามมาตรฐาน สพธอ.)</p>
             <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 15px 0;">
-            <p style="font-size: 12px; color: #999;">เอกสารนี้จัดทำและส่งข้อมูลให้แก่กรมสรรพากรด้วยวิธีการทางอิเล็กทรอนิกส์ ตามประกาศอธิบดีกรมสรรพากร</p>
+            <p style="font-size: 12px; color: #999;">เอกสารนี้จัดทำและส่งข้อมูลด้วยวิธีการทางอิเล็กทรอนิกส์ตามประกาศอธิบดีกรมสรรพากร<br>(CC: กรมสรรพากรเพื่อประทับเวลาอิเล็กทรอนิกส์)</p>
           </div>
         </div>`;
 
@@ -1063,12 +1060,11 @@ export function registerEtaxRoutes(app: Express) {
           auth: { user: comp.smtpUser, pass: comp.smtpPass },
         };
         const transporter = nodemailer.default.createTransport(smtpConfig);
-        // ส่งตรงไปยัง ETDA เท่านั้น — ETDA ส่ง timestamped doc ให้ผู้ซื้อเอง
         const mailOptions: any = {
           from: `"${comp.name}" <${comp.smtpUser}>`,
           to: timestampEmail,
           subject,
-          html: htmlBodyEtda,
+          html: htmlBodyCn,
           attachments: [{ filename: pdfFilename, content: pdfA3Buffer, contentType: "application/pdf" }],
         };
         const info = await transporter.sendMail(mailOptions);
@@ -1083,12 +1079,11 @@ export function registerEtaxRoutes(app: Express) {
         const rawFrom = process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev";
         const isTestEmail = rawFrom.includes("onboarding@resend.dev");
         const fromEmail = rawFrom.includes("<") ? rawFrom : (isTestEmail ? rawFrom : `${comp.name.slice(0, 200)} <${rawFrom}>`);
-        // ส่งตรงไปยัง ETDA เท่านั้น — ETDA ส่ง timestamped doc ให้ผู้ซื้อเอง
         const emailPayload: any = {
           from: fromEmail,
           to: [timestampEmail],
           subject,
-          html: htmlBodyEtda,
+          html: htmlBodyCn,
           attachments: [{ filename: pdfFilename, content: pdfA3Buffer.toString("base64") }],
         };
         const sendResult = await resend.emails.send(emailPayload) as any;
