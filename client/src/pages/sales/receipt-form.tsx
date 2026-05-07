@@ -1194,10 +1194,17 @@ export default function ReceiptForm() {
                       <td className="px-1 pt-1.5">
                         <Input data-testid={`input-discount-${idx}`} className="h-9 text-sm text-right border-dashed w-full min-w-0 px-1" value={item.discount} onChange={e => { const v = e.target.value; if (/^\d*\.?\d*%?$/.test(v)) updateItem(idx, "discount", v); }} placeholder="0" />
                       </td>
-                      <td className="text-center pt-3">
-                        <span className="text-sm font-medium text-slate-600">
-                          {item.vatType === "vat7" ? "7%" : item.vatType === "zero_rated" ? "0%" : "-"}
-                        </span>
+                      <td className="py-1 px-1">
+                        <Select value={item.vatType} onValueChange={v => updateItem(idx, "vatType", v)}>
+                          <SelectTrigger className="h-9 text-sm border-dashed px-1" data-testid={`select-vat-${idx}`}>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="vat7">7%</SelectItem>
+                            <SelectItem value="zero_rated">0%</SelectItem>
+                            <SelectItem value="non_vat">-</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </td>
                       {warehouses.length > 1 && (
                         <td className="px-1 pt-1.5">
