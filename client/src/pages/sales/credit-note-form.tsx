@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { FetchRateButton } from "@/components/fetch-rate-button";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation, useRoute, useSearch } from "wouter";
 import Layout from "@/components/layout";
@@ -218,6 +219,7 @@ export default function CreditNoteForm() {
     reasonDetail: "",
     paymentMethod: "transfer" as string,
     currencyCode: "THB",
+    exchangeRate: "1",
     notes: "",
     status: "approved",
     discountAmount: "0",
@@ -364,6 +366,7 @@ export default function CreditNoteForm() {
               reasonDetail: data.reasonDetail || "",
               paymentMethod: data.paymentMethod || "transfer",
               currencyCode: data.currencyCode || "THB",
+              exchangeRate: String(data.exchangeRate || "1"),
               notes: data.notes || "",
               status: data.status || "draft",
               discountAmount: cleanDecimal(data.discountAmount, "0"),
@@ -775,7 +778,7 @@ export default function CreditNoteForm() {
                     <td className="px-3 pt-1.5 pb-1 border-r align-top" colSpan={2}>
                       <div className="text-[10px] text-slate-400 mb-0.5">สกุลเงิน</div>
                       <div className="flex items-center gap-1">
-                        <Select value={form.currencyCode} onValueChange={v => setForm(p => ({ ...p, currencyCode: v }))}>
+                        <Select value={form.currencyCode} onValueChange={v => setForm(p => ({ ...p, currencyCode: v, exchangeRate: v === "THB" ? "1" : p.exchangeRate }))}>
                           <SelectTrigger data-testid="select-currency" className="h-7 text-xs w-[70px] border-dashed px-1.5">
                             <SelectValue />
                           </SelectTrigger>
@@ -789,6 +792,12 @@ export default function CreditNoteForm() {
                             <SelectItem value="SGD">SGD</SelectItem>
                           </SelectContent>
                         </Select>
+                        {form.currencyCode !== "THB" && (
+                          <>
+                            <Input data-testid="input-exchange-rate" value={form.exchangeRate} onChange={e => setForm(p => ({ ...p, exchangeRate: e.target.value }))} className="h-7 text-xs border-dashed w-20" placeholder="อัตราแลกเปลี่ยน" />
+                            <FetchRateButton currency={form.currencyCode} date={form.creditNoteDate} onRate={r => setForm(p => ({ ...p, exchangeRate: String(r) }))} rateType="selling" />
+                          </>
+                        )}
                       </div>
                     </td>
                     <td className="px-3 pt-1.5 pb-1 align-top" colSpan={2}>
@@ -1021,7 +1030,7 @@ export default function CreditNoteForm() {
                 withholdingTax="0"
                 paymentMethod={form.paymentMethod}
                 currencyCode={form.currencyCode}
-                exchangeRate="1"
+                exchangeRate={form.exchangeRate}
                               onLinesChange={setJournalOverrideLines}
               />
             </div>

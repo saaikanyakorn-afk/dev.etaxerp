@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { FetchRateButton } from "@/components/fetch-rate-button";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation, useRoute, useSearch } from "wouter";
 import Layout from "@/components/layout";
@@ -1253,7 +1254,10 @@ export default function PurchaseInvoice() {
                           </SelectContent>
                         </Select>
                         {form.currencyCode !== "THB" && (
-                          <Input data-testid="input-exchange-rate" value={form.exchangeRate} onChange={e => setForm(p => ({ ...p, exchangeRate: e.target.value }))} className="h-7 text-xs border-dashed w-20" placeholder="อัตราแลกเปลี่ยน" />
+                          <>
+                            <Input data-testid="input-exchange-rate" value={form.exchangeRate} onChange={e => setForm(p => ({ ...p, exchangeRate: e.target.value }))} className="h-7 text-xs border-dashed w-20" placeholder="อัตราแลกเปลี่ยน" />
+                            <FetchRateButton currency={form.currencyCode} date={form.apDate} onRate={r => setForm(p => ({ ...p, exchangeRate: String(r) }))} rateType="buying_transfer" />
+                          </>
                         )}
                       </div>
                     </td>
