@@ -13,7 +13,7 @@ import { useAuth } from "@/lib/auth";
 import { apiRequest } from "@/lib/queryClient";
 import {
   TrendingUp, Key, CheckCircle2, AlertTriangle, Loader2,
-  Eye, EyeOff, ExternalLink, RotateCcw, Shield, Trash2,
+  Eye, EyeOff, ExternalLink, RotateCcw, Shield,
   Info, Lock, ChevronRight
 } from "lucide-react";
 import ThaiDateInput from "@/components/thai-date-input";
@@ -161,39 +161,21 @@ export default function ExchangeRateSettings({ platformMode = false }: { platfor
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-semibold flex items-center gap-2">
               <Key className="h-4 w-4 text-slate-500" />
-              จัดการ API Key
+              {settings?.isConfigured ? "เปลี่ยน API Key" : "ตั้งค่า API Key"}
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-3">
             {settings?.botApiKey && (
-              <div className="flex items-center justify-between p-3 bg-slate-50 rounded-md border">
-                <div>
-                  <div className="text-xs text-muted-foreground mb-0.5">Key ที่บันทึกไว้</div>
-                  <div className="text-sm font-mono font-medium tracking-wider" data-testid="text-masked-key">
-                    {settings.botApiKey}
-                  </div>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-red-500 hover:text-red-600 hover:bg-red-50 text-xs"
-                  data-testid="button-clear-key"
-                  onClick={() => {
-                    if (confirm("ยืนยันลบ BOT API Key?\n\nปุ่ม 'ดึงอัตรา' ทั้งระบบจะหยุดทำงานทันที จนกว่าจะตั้งค่าใหม่")) {
-                      saveMutation.mutate(null);
-                    }
-                  }}
-                  disabled={saveMutation.isPending}
-                >
-                  <Trash2 className="h-3.5 w-3.5 mr-1" /> ลบ Key
-                </Button>
-              </div>
+              <p className="text-xs text-muted-foreground">
+                Key ปัจจุบัน:{" "}
+                <span className="font-mono text-foreground" data-testid="text-masked-key">
+                  {settings.botApiKey}
+                </span>
+              </p>
             )}
-
-            <div className="space-y-2">
-              <Label className="text-xs">
-                {settings?.botApiKey ? "เปลี่ยน API Key" : "กรอก API Key"}{" "}
-                <span className="text-muted-foreground font-normal">(Bearer Token จาก BOT API Portal)</span>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">
+                Bearer Token จาก BOT API Portal
               </Label>
               <div className="flex gap-2">
                 <div className="relative flex-1">
