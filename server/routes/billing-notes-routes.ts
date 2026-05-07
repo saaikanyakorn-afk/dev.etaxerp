@@ -822,18 +822,18 @@ app.post("/api/firm-billing/batch-generate", requireAuth, requireModule("firm-mg
       const invoiceNo = await getNextDocNo(companyId, prefix, invoices, invoices.invoiceNo, invoices.companyId, invoiceDate);
 
       const vatIncluded = client.feeVatIncluded === true;
-      let subtotal: number, vat7: number, totalAmount: number;
+      let subtotal: number, vat7: number;
       if (vatIncluded) {
         vat7 = Math.round(fee * 7 / 107 * 100) / 100;
         subtotal = Math.round((fee - vat7) * 100) / 100;
-        totalAmount = fee;
       } else {
         subtotal = fee;
         vat7 = Math.round(fee * 0.07 * 100) / 100;
-        totalAmount = Math.round((fee + vat7) * 100) / 100;
       }
       const whtRate = parseFloat(client.whtRate || "3");
       const wht = Math.round(subtotal * whtRate / 100 * 100) / 100;
+      const grossBeforeWht = vatIncluded ? fee : Math.round((subtotal + vat7) * 100) / 100;
+      const totalAmount = Math.round((grossBeforeWht - wht) * 100) / 100;
       const priceMode = vatIncluded ? "included" : "excluded";
 
       const result = await db.transaction(async (tx) => {
@@ -1303,13 +1303,14 @@ app.post("/api/firm-billing/import-csv", requireAuth, requireModule("firm-mgmt")
           ? (r.prefix ? `${r.prefix}-${r.docNo}` : r.docNo)
           : await getNextDocNo(companyId, r.prefix || "BL", invoices, invoices.invoiceNo, invoices.companyId, r.dateStr || new Date().toISOString().slice(0, 10));
 
-        const totalAmount = r.total;
-        const vat7 = Math.round(totalAmount * 7 / 107 * 100) / 100;
-        const subtotal = Math.round((totalAmount - vat7) * 100) / 100;
+        const grossTotal = r.total;
+        const vat7 = Math.round(grossTotal * 7 / 107 * 100) / 100;
+        const subtotal = Math.round((grossTotal - vat7) * 100) / 100;
         const whtRate = r.firmClientId
           ? parseFloat((allClients.find(c => c.id === r.firmClientId)?.whtRate) || "3")
           : 3;
         const wht = Math.round(subtotal * whtRate / 100 * 100) / 100;
+        const totalAmount = Math.round((grossTotal - wht) * 100) / 100;
 
         const isoDate = r.dateStr;
         const isoDue = r.dueStr || isoDate;
