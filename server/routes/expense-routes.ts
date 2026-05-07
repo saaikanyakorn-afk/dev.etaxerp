@@ -133,9 +133,6 @@ async function resolveArchivedUrl(originalUrl: string): Promise<ArchiveResolutio
 }
 
 export function registerExpenseRoutes(app: Express) {
-  db.execute(sql`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS currency_code TEXT NOT NULL DEFAULT 'THB'`).catch(() => {});
-  db.execute(sql`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS exchange_rate DECIMAL(15,6) NOT NULL DEFAULT 1`).catch(() => {});
-  db.execute(sql`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS paid_amount DECIMAL(15,2) NOT NULL DEFAULT 0`).catch(() => {});
 
   // ============ Expenses ============
 
