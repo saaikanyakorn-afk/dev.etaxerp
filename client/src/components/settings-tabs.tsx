@@ -5,7 +5,7 @@ import { useCompany } from "@/lib/company-context";
 import { useQuery } from "@tanstack/react-query";
 import {
   UserCircle, Users, Building2, FileText, Banknote,
-  Palette, HardDrive, Receipt, Sliders, MessageCircle, GitBranch, Lock, Printer, Package, Warehouse
+  Palette, HardDrive, Receipt, Sliders, MessageCircle, GitBranch, Lock, Printer, Package, Warehouse, TrendingUp
 } from "lucide-react";
 import {
   Tooltip,
@@ -19,6 +19,7 @@ interface SettingsTab {
   href: string;
   icon: any;
   adminOnly: boolean;
+  superAdminOnly?: boolean;
   requirePlan?: string;
 }
 
@@ -37,6 +38,7 @@ const SETTINGS_TABS: SettingsTab[] = [
   { label: "ทั่วไป", href: "/settings/general", icon: Sliders, adminOnly: true },
   { label: "ทริกเกอร์สต๊อก", href: "/settings/inventory-triggers", icon: Warehouse, adminOnly: true },
   { label: "แพ็คเกจโมดูล", href: "/settings/module-pricing", icon: Package, adminOnly: true },
+  { label: "อัตราแลกเปลี่ยน", href: "/settings/exchange-rate", icon: TrendingUp, adminOnly: true, superAdminOnly: true },
 ];
 
 const ADMIN_ROLES = ["super_admin", "admin", "manager", "accountant"];
@@ -59,6 +61,7 @@ export default function SettingsTabs() {
     user?.role === "accountant" && (selectedCompany?.isPrimary ?? true);
 
   const visibleTabs = SETTINGS_TABS.filter((tab) => {
+    if (tab.superAdminOnly) return isSuperAdmin;
     if (!tab.adminOnly) return true;
     if (isAccountantOnPrimary) return false;
     return ADMIN_ROLES.includes(user?.role || "");
