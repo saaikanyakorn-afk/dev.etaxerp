@@ -90,3 +90,9 @@ id = "3PmUDPNpUedmmCSvkofuz"
 uri = "file://attached_assets/stamp_subsombun_nobg.png"
 type = "image"
 title = "Subsombunpaisan Singto — ตรายาง (ไม่มีพื้นหลัง)"
+
+[[outputs]]
+id = "L9HEhP3v6mq7beJ0oeBSK"
+uri = "file://db/pending-production-changes.txt"
+type = "text"
+title = "Pending Production DB Changes (ต้องขออนุมัติก่อน deploy)"

@@ -1,0 +1,108 @@
+========================================================
+PENDING PRODUCTION DATABASE CHANGES
+Session: May 5–7, 2026
+Feature: Foreign Currency Support + GL Two-Step for Expenses
+Prepared by: Kai (agent) | Requires: พี่ช้าง approval before running
+========================================================
+
+IMPORTANT: Do NOT run anything below until พี่ช้าง authorises.
+Dev DB already has all 3 columns. Production does NOT.
+
+--------------------------------------------------------
+SECTION 1: SCHEMA CHANGES (ALTER TABLE)
+--------------------------------------------------------
+
+3 new columns added to the `expenses` table.
+All use IF NOT EXISTS — safe to run even if already present.
+All have DEFAULT values — no existing rows will be affected.
+
+-- 1a. Store the original foreign currency code (e.g. USD, EUR)
+ALTER TABLE expenses
+  ADD COLUMN IF NOT EXISTS currency_code TEXT NOT NULL DEFAULT 'THB';
+
+-- 1b. Store the exchange rate used (THB per 1 unit of foreign currency)
+ALTER TABLE expenses
+  ADD COLUMN IF NOT EXISTS exchange_rate DECIMAL(15,6) NOT NULL DEFAULT 1;
+
+-- 1c. Store how much of the AP balance has been paid (for outstanding display)
+ALTER TABLE expenses
+  ADD COLUMN IF NOT EXISTS paid_amount DECIMAL(15,2) NOT NULL DEFAULT 0;
+
+WHY:
+- currency_code / exchange_rate: expenses can now be entered in USD/EUR/etc.
+  The app stores totalAmount in THB (rate × foreign amount) and keeps the
+  original foreign values here for display and reference.
+- paid_amount: used to calculate outstanding balance for credit (AP) expenses.
+  Default 0 means all existing expenses show full amount as outstanding
+  until manually updated or paid via payment voucher.
+
+RISK: Very low. All three are additive columns with safe defaults.
+      No existing data is altered. IF NOT EXISTS prevents errors on re-run.
+
+--------------------------------------------------------
+SECTION 2: DATA CHANGES (application-level, no DDL)
+--------------------------------------------------------
+
+The following raw SQL runs on every POST /api/expenses and PATCH /api/expenses/:id
+AFTER the columns exist. These are part of normal application logic, not migrations.
+
+  UPDATE expenses
+  SET currency_code = <value>, exchange_rate = <value>
+  WHERE id = <expense_id>;
+
+WHY: Drizzle ORM schema does not include currency_code / exchange_rate
+     (schema.ts is protected and cannot be modified), so raw SQL is used
+     to write these fields on every create/edit. This is existing pattern
+     used elsewhere in the codebase (e.g. sales_credit_notes.share_token).
+
+RISK: Zero. Only updates the row being saved, within a transaction.
+
+--------------------------------------------------------
+SECTION 3: NO OTHER SCHEMA CHANGES
+--------------------------------------------------------
+
+The following were checked and confirmed to have NO schema changes:
+
+- GL journal logic change (credit AP instead of cash for เครดิต payment):
+  Writes to journal_entries / journal_lines — both tables already exist on
+  production. No ALTER TABLE required.
+
+- New /api/exchange-rate endpoint (misc-routes.ts):
+  Calls external BOT API. No database reads or writes.
+
+- Frontend changes (expense-list.tsx, expense.tsx, fetch-rate-button.tsx):
+  UI only. No database interaction.
+
+- etax credit note send email (6b7b6807):
+  Writes to existing etax_sent_at column on sales_credit_notes — column
+  already exists on production (added in earlier session).
+
+--------------------------------------------------------
+SECTION 4: VERIFICATION QUERIES (run AFTER ALTER TABLE)
+--------------------------------------------------------
+
+-- Confirm columns were added successfully:
+SELECT column_name, data_type, column_default
+FROM information_schema.columns
+WHERE table_name = 'expenses'
+  AND column_name IN ('currency_code', 'exchange_rate', 'paid_amount')
+ORDER BY column_name;
+
+-- Expected result: 3 rows returned with correct types and defaults.
+
+--------------------------------------------------------
+SECTION 5: ROLLBACK (if needed)
+--------------------------------------------------------
+
+-- To undo (only if something goes wrong, requires authorisation):
+ALTER TABLE expenses DROP COLUMN IF EXISTS currency_code;
+ALTER TABLE expenses DROP COLUMN IF EXISTS exchange_rate;
+ALTER TABLE expenses DROP COLUMN IF EXISTS paid_amount;
+
+WARNING: Dropping these columns will cause the app to error on expense
+         create/edit since the code tries to write to them.
+         Only drop if also reverting the code to a prior commit.
+
+========================================================
+END OF DOCUMENT
+========================================================
