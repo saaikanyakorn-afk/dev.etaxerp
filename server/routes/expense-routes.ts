@@ -334,7 +334,7 @@ export function registerExpenseRoutes(app: Express) {
           return res.status(409).json({ message: `เลขที่ใบกำกับภาษีซื้อ "${body.taxInvoiceRef}" ซ้ำกับเอกสาร ${dupPiTaxRef.apNo}`, field: "taxInvoiceRef" });
         }
       }
-      const result = await db.transaction(async (tx) => {
+      const { result, savedItems, journalResult } = await db.transaction(async (tx) => {
         const [doc] = await tx.insert(expenses).values({
           companyId,
           expNo,
@@ -375,6 +375,7 @@ export function registerExpenseRoutes(app: Express) {
         }).returning();
         // currency_code/exchange_rate not in Drizzle schema — must use raw SQL
         await tx.execute(sql`UPDATE expenses SET currency_code = ${body.currencyCode || "THB"}, exchange_rate = ${body.exchangeRate || "1"} WHERE id = ${doc.id}`);
+        let txItems: any[] = [];
         if (items && Array.isArray(items) && items.length > 0) {
           await tx.insert(expenseItems).values(items.map((item: any) => ({
             expenseId: doc.id,
@@ -385,10 +386,102 @@ export function registerExpenseRoutes(app: Express) {
             amount: String(item.amount || "0"),
             vatType: item.vatType || "vat7",
           })));
+          txItems = await tx.select().from(expenseItems).where(eq(expenseItems.expenseId, doc.id));
         }
-        return doc;
+
+        let journalEntry: any = null;
+        if (doc.linkJournal || body.customJournalLines) {
+          const compAccts = await tx.select().from(accounts).where(eq(accounts.companyId, doc.companyId));
+          const acctMap = new Map(compAccts.map(a => [a.code, a]));
+          let jL: { accountCode: string; accountName: string; debit: string; credit: string }[] = [];
+
+          if (body.customJournalLines && Array.isArray(body.customJournalLines) && body.customJournalLines.length > 0) {
+            jL = body.customJournalLines;
+          } else {
+            const pmName = doc.paymentMethod || null;
+            const isCredit = !pmName || pmName === "เครดิต";
+            let pmCode: string;
+            let pmAccName: string;
+
+            if (isCredit) {
+              const apAcc = compAccts.find(a => a.nameTh?.includes("เจ้าหนี้การค้า") || a.name?.toLowerCase().includes("accounts payable"));
+              if (!apAcc) throw new Error("ไม่พบบัญชีเจ้าหนี้การค้า (Accounts Payable) ในผังบัญชี กรุณาตั้งค่าผังบัญชีให้ครบก่อนบันทึก");
+              pmCode = apAcc.code;
+              pmAccName = apAcc.nameTh || apAcc.name!;
+            } else {
+              const rc = await resolvePaymentMethodAccountCode(doc.companyId, pmName!);
+              if (!rc) throw new Error(`ไม่พบรหัสบัญชีสำหรับวิธีชำระ "${pmName}" กรุณาตั้งค่าวิธีชำระเงินในระบบก่อนบันทึก`);
+              const a = acctMap.get(rc);
+              if (!a) throw new Error(`วิธีชำระ "${pmName}" ระบุรหัสบัญชี ${rc} แต่ไม่พบรหัสนี้ในผังบัญชี`);
+              pmCode = rc;
+              pmAccName = a.nameTh || a.name!;
+            }
+
+            const sub = parseFloat(String(doc.subtotal || "0"));
+            const nonDeductibleVat = parseFloat(String(body.nonDeductibleVat || "0"));
+            const deductibleVat = parseFloat(String(body.deductibleVat || String(parseFloat(String(doc.vatAmount || "0")) - nonDeductibleVat)));
+            const wht = parseFloat(String(doc.withholdingTax || "0"));
+            const grouped: Record<string, { code: string; name: string; amount: number }> = {};
+            let rawT = 0;
+            for (const it of txItems) {
+              if (!it.accountCode) throw new Error(`รายการ "${it.description || it.expenseType || "(ไม่ระบุ)"}" ไม่มีรหัสบัญชี กรุณาระบุบัญชีค่าใช้จ่ายทุกรายการ`);
+              if (!acctMap.has(it.accountCode)) throw new Error(`ไม่พบบัญชีรหัส ${it.accountCode} (${it.accountName || it.description || ""}) ในผังบัญชี`);
+              let a = parseFloat(it.amount || "0");
+              if (it.vatType === "vat_non_deductible") a = a + (a * 0.07);
+              if (!grouped[it.accountCode]) grouped[it.accountCode] = { code: it.accountCode, name: it.accountName || it.accountCode, amount: 0 };
+              grouped[it.accountCode].amount += a;
+              rawT += a;
+            }
+            const totalExpenseAmount = rawT > 0 ? Object.values(grouped).reduce((s, g) => s + g.amount, 0) : 0;
+            const expScale = totalExpenseAmount > 0 ? (sub + nonDeductibleVat) / totalExpenseAmount : 1;
+            for (const g of Object.values(grouped)) {
+              const adj = parseFloat((g.amount * expScale).toFixed(2));
+              jL.push({ accountCode: g.code, accountName: g.name, debit: adj.toFixed(2), credit: "0.00" });
+            }
+            if (deductibleVat > 0) {
+              const ivA = compAccts.find(a => a.code.length >= 7 && (a.name === "Input VAT" || a.nameTh === "ภาษีซื้อ"));
+              if (!ivA) throw new Error("ไม่พบบัญชีภาษีซื้อ (Input VAT) ในผังบัญชี กรุณาตั้งค่าผังบัญชีให้ครบก่อนบันทึก");
+              jL.push({ accountCode: ivA.code, accountName: ivA.nameTh || ivA.name!, debit: deductibleVat.toFixed(2), credit: "0.00" });
+            }
+            if (wht > 0) {
+              const wA = acctMap.get("2346000") || acctMap.get("2344000") || acctMap.get("2224") || acctMap.get("2221");
+              if (!wA) throw new Error("ไม่พบบัญชีภาษีหัก ณ ที่จ่าย ในผังบัญชี กรุณาตั้งค่าผังบัญชีให้ครบก่อนบันทึก");
+              jL.push({ accountCode: wA.code, accountName: wA.nameTh || wA.name!, debit: "0.00", credit: wht.toFixed(2) });
+            }
+            const tD = jL.reduce((s, l) => s + parseFloat(l.debit), 0);
+            const tC = jL.reduce((s, l) => s + parseFloat(l.credit), 0);
+            jL.push({ accountCode: pmCode, accountName: pmAccName, debit: "0.00", credit: parseFloat((tD - tC).toFixed(2)).toFixed(2) });
+          }
+
+          // Final guard: every line account code must exist in chart of accounts
+          for (const ln of jL) {
+            if (!acctMap.has(ln.accountCode)) throw new Error(`ไม่พบบัญชีรหัส ${ln.accountCode} ในผังบัญชี`);
+          }
+
+          const entryNo = await getNextJournalEntryNo(doc.companyId, "payment", doc.expDate);
+          const [entry] = await tx.insert(journalEntries).values({
+            companyId: doc.companyId, entryDate: doc.expDate, reference: doc.expNo,
+            description: `${doc.vendorName || ""}${txItems[0]?.description ? " - " + txItems[0].description : (doc.notes ? " - " + doc.notes : "")}`.trim() || `บันทึกบัญชีจากค่าใช้จ่าย ${doc.expNo}`,
+            journalBook: "payment", entryNo, createdBy: user.id, status: "posted", sourceDocType: "expense", sourceDocId: doc.id,
+          }).returning();
+          const linesToInsert = jL.map(ln => {
+            const acc = acctMap.get(ln.accountCode)!;
+            const dr = parseFloat(ln.debit || "0"); const cr = parseFloat(ln.credit || "0");
+            if (dr === 0 && cr === 0) return null;
+            return {
+              journalEntryId: entry.id, accountId: acc.id,
+              description: acc.nameTh ? `${acc.nameTh} (${acc.name})` : acc.name || ln.accountName,
+              debit: dr.toFixed(2), credit: cr.toFixed(2),
+            };
+          }).filter(Boolean) as any[];
+          if (linesToInsert.length > 0) {
+            await tx.insert(journalLines).values(linesToInsert);
+          }
+          journalEntry = entry;
+        }
+
+        return { result: doc, savedItems: txItems, journalResult: journalEntry };
       });
-      const savedItems = await db.select().from(expenseItems).where(eq(expenseItems.expenseId, result.id));
 
       if (body.saveToContacts && !result.vendorId && result.vendorName) {
         try {
@@ -421,90 +514,6 @@ export function registerExpenseRoutes(app: Express) {
           }
         } catch (contactErr: any) {
           console.log("[EXP] Auto-save contact failed:", contactErr.message);
-        }
-      }
-
-      let journalResult = null;
-      if (result.linkJournal || body.customJournalLines) {
-        try {
-          const compAccts = await db.select().from(accounts).where(eq(accounts.companyId, result.companyId));
-          const acctMap = new Map(compAccts.map(a => [a.code, a]));
-          let jL: { accountCode: string; accountName: string; debit: string; credit: string }[] = [];
-
-          if (body.customJournalLines && Array.isArray(body.customJournalLines) && body.customJournalLines.length > 0) {
-            jL = body.customJournalLines;
-          } else {
-            const expItems = savedItems;
-            const pmName = result.paymentMethod || null;
-            const isCredit = !pmName || pmName === "เครดิต";
-            let pmCode = "1001000"; let pmAccName = "เงินสด";
-            if (isCredit) {
-              const apAcc = compAccts.find(a => a.code === "2101000") || compAccts.find(a => a.code === "2100000") || compAccts.find(a => a.code === "2001") || compAccts.find(a => a.nameTh?.includes("เจ้าหนี้การค้า") || a.name?.toLowerCase().includes("accounts payable"));
-              pmCode = apAcc?.code || "2101000";
-              pmAccName = apAcc?.nameTh || apAcc?.name || "เจ้าหนี้การค้า";
-            } else if (pmName) {
-              const rc = await resolvePaymentMethodAccountCode(result.companyId, pmName);
-              if (rc) { pmCode = rc; const a = acctMap.get(rc); if (a) pmAccName = a.nameTh || a.name || "เงินสด/ธนาคาร"; }
-            }
-            const sub = parseFloat(String(result.subtotal || "0"));
-            const nonDeductibleVat = parseFloat(String(body.nonDeductibleVat || "0"));
-            const deductibleVat = parseFloat(String(body.deductibleVat || String(parseFloat(String(result.vatAmount || "0")) - nonDeductibleVat)));
-            const wht = parseFloat(String(result.withholdingTax || "0"));
-            const grouped: Record<string, { code: string; name: string; amount: number }> = {};
-            let rawT = 0;
-            for (const it of expItems) {
-              const c = it.accountCode || "5265000"; const n = it.accountName || "ค่าใช้จ่ายอื่น";
-              let a = parseFloat(it.amount || "0");
-              if (it.vatType === "vat_non_deductible") {
-                a = a + (a * 0.07);
-              }
-              if (!grouped[c]) grouped[c] = { code: c, name: n, amount: 0 };
-              grouped[c].amount += a; rawT += a;
-            }
-            const totalExpenseAmount = rawT > 0 ? Object.values(grouped).reduce((s, g) => s + g.amount, 0) : 0;
-            const expScale = totalExpenseAmount > 0 ? (sub + nonDeductibleVat) / totalExpenseAmount : 1;
-            for (const g of Object.values(grouped)) {
-              const adj = parseFloat((g.amount * expScale).toFixed(2));
-              jL.push({ accountCode: g.code, accountName: g.name, debit: adj.toFixed(2), credit: "0.00" });
-            }
-            if (deductibleVat > 0) {
-              const ivA = compAccts.find(a => a.code.length >= 7 && (a.name === "Input VAT" || a.nameTh === "ภาษีซื้อ"));
-              jL.push({ accountCode: ivA?.code || "1432000", accountName: ivA?.nameTh || "ภาษีซื้อ", debit: deductibleVat.toFixed(2), credit: "0.00" });
-            }
-            if (wht > 0) {
-              const wA = acctMap.get("2346000") || acctMap.get("2344000") || acctMap.get("2224") || acctMap.get("2221");
-              jL.push({ accountCode: wA?.code || "2344000", accountName: wA?.nameTh || "ภาษีหัก ณ ที่จ่าย", debit: "0.00", credit: wht.toFixed(2) });
-            }
-            const tD = jL.reduce((s, l) => s + parseFloat(l.debit), 0);
-            const tC = jL.reduce((s, l) => s + parseFloat(l.credit), 0);
-            jL.push({ accountCode: pmCode, accountName: pmAccName, debit: "0.00", credit: parseFloat((tD - tC).toFixed(2)).toFixed(2) });
-          }
-
-          const entryNo = await getNextJournalEntryNo(result.companyId, "payment", result.expDate);
-          const [entry] = await db.insert(journalEntries).values({
-            companyId: result.companyId, entryDate: result.expDate, reference: result.expNo,
-            description: `${result.vendorName || ""}${savedItems[0]?.description ? " - " + savedItems[0].description : (result.notes ? " - " + result.notes : "")}`.trim() || `บันทึกบัญชีจากค่าใช้จ่าย ${result.expNo}`, journalBook: "payment",
-            entryNo, createdBy: user.id, status: "posted", sourceDocType: "expense", sourceDocId: result.id,
-          }).returning();
-          const linesToInsert = jL
-            .map(ln => {
-              const acc = acctMap.get(ln.accountCode);
-              if (!acc) return null;
-              const dr = parseFloat(ln.debit || "0"); const cr = parseFloat(ln.credit || "0");
-              if (dr === 0 && cr === 0) return null;
-              return {
-                journalEntryId: entry.id, accountId: acc.id,
-                description: acc.nameTh ? `${acc.nameTh} (${acc.name})` : acc.name || ln.accountName,
-                debit: dr.toFixed(2), credit: cr.toFixed(2),
-              };
-            })
-            .filter(Boolean) as any[];
-          if (linesToInsert.length > 0) {
-            await db.insert(journalLines).values(linesToInsert);
-          }
-          journalResult = entry;
-        } catch (e) {
-          console.log("Expense journal creation error:", (e as any).message);
         }
       }
 
@@ -564,7 +573,13 @@ export function registerExpenseRoutes(app: Express) {
       const user = req.user as any;
       updateData.updatedBy = user.id;
       updateData.updatedAt = new Date();
-      await db.transaction(async (tx) => {
+      const existingJE = await db.select().from(journalEntries).where(and(
+        eq(journalEntries.sourceDocType, "expense"), eq(journalEntries.sourceDocId, existing.id)
+      ));
+      const statusChanged = body.status && body.status !== existing.status;
+      const itemsChanged = items && Array.isArray(items);
+
+      const { updated, savedItems, journalResult } = await db.transaction(async (tx) => {
         // Remove currency fields from Drizzle update (not in schema) then do raw SQL
         const { currencyCode: _cc, exchangeRate: _er, ...drizzleUpdateData } = updateData;
         await tx.update(expenses).set(drizzleUpdateData).where(eq(expenses.id, existing.id));
@@ -584,72 +599,72 @@ export function registerExpenseRoutes(app: Express) {
             })));
           }
         }
-      });
-      const [[updated], savedItems] = await Promise.all([
-        db.select().from(expenses).where(eq(expenses.id, existing.id)),
-        db.select().from(expenseItems).where(eq(expenseItems.expenseId, existing.id)),
-      ]);
 
-      let journalResult = null;
-      const statusChanged = body.status && body.status !== existing.status;
-      const effectiveLinkJournal = updated.linkJournal !== false;
-      const alreadyApproved = existing.status === "approved" && updated.status === "approved";
-      const itemsChanged = items && Array.isArray(items);
-      const existingJE = await db.select().from(journalEntries).where(and(
-        eq(journalEntries.sourceDocType, "expense"), eq(journalEntries.sourceDocId, updated.id)
-      ));
-      const hasExistingJournal = existingJE.length > 0;
-      const isCurrentlyApproved = updated.status === "approved";
-      const shouldJournal = (statusChanged && body.status === "approved" && effectiveLinkJournal)
-        || body.customJournalLines
-        || (itemsChanged && effectiveLinkJournal && isCurrentlyApproved && (alreadyApproved || hasExistingJournal));
-      if (shouldJournal) {
-        try {
+        const [[txUpdated], txItems] = await Promise.all([
+          tx.select().from(expenses).where(eq(expenses.id, existing.id)),
+          tx.select().from(expenseItems).where(eq(expenseItems.expenseId, existing.id)),
+        ]);
+
+        const effectiveLinkJournal = txUpdated.linkJournal !== false;
+        const alreadyApproved = existing.status === "approved" && txUpdated.status === "approved";
+        const hasExistingJournal = existingJE.length > 0;
+        const isCurrentlyApproved = txUpdated.status === "approved";
+        const shouldJournal = (statusChanged && body.status === "approved" && effectiveLinkJournal)
+          || body.customJournalLines
+          || (itemsChanged && effectiveLinkJournal && isCurrentlyApproved && (alreadyApproved || hasExistingJournal));
+
+        let journalEntry: any = null;
+        if (shouldJournal) {
           if (existingJE.length > 0) {
             for (const je of existingJE) {
-              await db.delete(journalLines).where(eq(journalLines.journalEntryId, je.id));
+              await tx.delete(journalLines).where(eq(journalLines.journalEntryId, je.id));
             }
-            await db.delete(journalEntries).where(and(
-              eq(journalEntries.sourceDocType, "expense"), eq(journalEntries.sourceDocId, updated.id)
+            await tx.delete(journalEntries).where(and(
+              eq(journalEntries.sourceDocType, "expense"), eq(journalEntries.sourceDocId, txUpdated.id)
             ));
           }
 
-          const compAccts = await db.select().from(accounts).where(eq(accounts.companyId, updated.companyId));
+          const compAccts = await tx.select().from(accounts).where(eq(accounts.companyId, txUpdated.companyId));
           const acctMap = new Map(compAccts.map(a => [a.code, a]));
           let jL: { accountCode: string; accountName: string; debit: string; credit: string }[] = [];
 
           if (body.customJournalLines && Array.isArray(body.customJournalLines) && body.customJournalLines.length > 0) {
             jL = body.customJournalLines;
           } else {
-            const pmName = updated.paymentMethod || null;
+            const pmName = txUpdated.paymentMethod || null;
             const isCredit = !pmName || pmName === "เครดิต";
-            let pmCode = "1001000"; let pmAccName = "เงินสด";
+            let pmCode: string;
+            let pmAccName: string;
+
             if (isCredit) {
-              const apAcc = compAccts.find(a => a.code === "2101000") || compAccts.find(a => a.code === "2100000") || compAccts.find(a => a.code === "2001") || compAccts.find(a => a.nameTh?.includes("เจ้าหนี้การค้า") || a.name?.toLowerCase().includes("accounts payable"));
-              pmCode = apAcc?.code || "2101000";
-              pmAccName = apAcc?.nameTh || apAcc?.name || "เจ้าหนี้การค้า";
-            } else if (pmName) {
-              const rc = await resolvePaymentMethodAccountCode(updated.companyId, pmName);
-              if (rc) { pmCode = rc; const a = acctMap.get(rc); if (a) pmAccName = a.nameTh || a.name || "เงินสด/ธนาคาร"; }
+              const apAcc = compAccts.find(a => a.nameTh?.includes("เจ้าหนี้การค้า") || a.name?.toLowerCase().includes("accounts payable"));
+              if (!apAcc) throw new Error("ไม่พบบัญชีเจ้าหนี้การค้า (Accounts Payable) ในผังบัญชี กรุณาตั้งค่าผังบัญชีให้ครบก่อนบันทึก");
+              pmCode = apAcc.code;
+              pmAccName = apAcc.nameTh || apAcc.name!;
+            } else {
+              const rc = await resolvePaymentMethodAccountCode(txUpdated.companyId, pmName!);
+              if (!rc) throw new Error(`ไม่พบรหัสบัญชีสำหรับวิธีชำระ "${pmName}" กรุณาตั้งค่าวิธีชำระเงินในระบบก่อนบันทึก`);
+              const a = acctMap.get(rc);
+              if (!a) throw new Error(`วิธีชำระ "${pmName}" ระบุรหัสบัญชี ${rc} แต่ไม่พบรหัสนี้ในผังบัญชี`);
+              pmCode = rc;
+              pmAccName = a.nameTh || a.name!;
             }
-            const sub = parseFloat(String(updated.subtotal || "0"));
+
+            const sub = parseFloat(String(txUpdated.subtotal || "0"));
             const nonDeductibleVat = parseFloat(String(body.nonDeductibleVat || "0"));
-            const deductibleVat = parseFloat(String(body.deductibleVat || String(parseFloat(String(updated.vatAmount || "0")) - nonDeductibleVat)));
-            const wht = parseFloat(String(updated.withholdingTax || "0"));
+            const deductibleVat = parseFloat(String(body.deductibleVat || String(parseFloat(String(txUpdated.vatAmount || "0")) - nonDeductibleVat)));
+            const wht = parseFloat(String(txUpdated.withholdingTax || "0"));
             const grouped: Record<string, { code: string; name: string; amount: number }> = {};
             let rawT = 0;
-            for (const it of savedItems) {
-              const c = it.accountCode || "5265000"; const n = it.accountName || "ค่าใช้จ่ายอื่น";
+            for (const it of txItems) {
+              if (!it.accountCode) throw new Error(`รายการ "${it.description || it.expenseType || "(ไม่ระบุ)"}" ไม่มีรหัสบัญชี กรุณาระบุบัญชีค่าใช้จ่ายทุกรายการ`);
+              if (!acctMap.has(it.accountCode)) throw new Error(`ไม่พบบัญชีรหัส ${it.accountCode} (${it.accountName || it.description || ""}) ในผังบัญชี`);
               let a = parseFloat(it.amount || "0");
-              if (it.vatType === "vat_non_deductible") {
-                a = a + (a * 0.07);
-              }
-              if (!grouped[c]) grouped[c] = { code: c, name: n, amount: 0 };
-              grouped[c].amount += a; rawT += a;
+              if (it.vatType === "vat_non_deductible") a = a + (a * 0.07);
+              if (!grouped[it.accountCode]) grouped[it.accountCode] = { code: it.accountCode, name: it.accountName || it.accountCode, amount: 0 };
+              grouped[it.accountCode].amount += a;
+              rawT += a;
             }
-            const deductibleItems = savedItems.filter(it => it.vatType !== "vat_non_deductible");
-            const deductibleRawT = deductibleItems.reduce((s, it) => s + parseFloat(it.amount || "0"), 0);
-            const dR = deductibleRawT > 0 ? sub / deductibleRawT : 1;
             const totalExpenseAmount = rawT > 0 ? Object.values(grouped).reduce((s, g) => s + g.amount, 0) : 0;
             const expScale = totalExpenseAmount > 0 ? (sub + nonDeductibleVat) / totalExpenseAmount : 1;
             for (const g of Object.values(grouped)) {
@@ -658,44 +673,48 @@ export function registerExpenseRoutes(app: Express) {
             }
             if (deductibleVat > 0) {
               const ivA = compAccts.find(a => a.code.length >= 7 && (a.name === "Input VAT" || a.nameTh === "ภาษีซื้อ"));
-              jL.push({ accountCode: ivA?.code || "1432000", accountName: ivA?.nameTh || "ภาษีซื้อ", debit: deductibleVat.toFixed(2), credit: "0.00" });
+              if (!ivA) throw new Error("ไม่พบบัญชีภาษีซื้อ (Input VAT) ในผังบัญชี กรุณาตั้งค่าผังบัญชีให้ครบก่อนบันทึก");
+              jL.push({ accountCode: ivA.code, accountName: ivA.nameTh || ivA.name!, debit: deductibleVat.toFixed(2), credit: "0.00" });
             }
             if (wht > 0) {
               const wA = acctMap.get("2346000") || acctMap.get("2344000") || acctMap.get("2224") || acctMap.get("2221");
-              jL.push({ accountCode: wA?.code || "2344000", accountName: wA?.nameTh || "ภาษีหัก ณ ที่จ่าย", debit: "0.00", credit: wht.toFixed(2) });
+              if (!wA) throw new Error("ไม่พบบัญชีภาษีหัก ณ ที่จ่าย ในผังบัญชี กรุณาตั้งค่าผังบัญชีให้ครบก่อนบันทึก");
+              jL.push({ accountCode: wA.code, accountName: wA.nameTh || wA.name!, debit: "0.00", credit: wht.toFixed(2) });
             }
             const tD = jL.reduce((s, l) => s + parseFloat(l.debit), 0);
             const tC = jL.reduce((s, l) => s + parseFloat(l.credit), 0);
             jL.push({ accountCode: pmCode, accountName: pmAccName, debit: "0.00", credit: parseFloat((tD - tC).toFixed(2)).toFixed(2) });
           }
 
-          const entryNoUp = await getNextJournalEntryNo(updated.companyId, "payment", updated.expDate);
-          const [entry] = await db.insert(journalEntries).values({
-            companyId: updated.companyId, entryDate: updated.expDate, reference: updated.expNo,
-            description: `${updated.vendorName || ""}${savedItems[0]?.description ? " - " + savedItems[0].description : (updated.notes ? " - " + updated.notes : "")}`.trim() || `บันทึกบัญชีจากค่าใช้จ่าย ${updated.expNo}`, journalBook: "payment",
-            entryNo: entryNoUp, createdBy: user.id, status: "posted", sourceDocType: "expense", sourceDocId: updated.id,
-          }).returning();
-          const linesToInsert = jL
-            .map(ln => {
-              const acc = acctMap.get(ln.accountCode);
-              if (!acc) return null;
-              const drV = parseFloat(ln.debit || "0"); const crV = parseFloat(ln.credit || "0");
-              if (drV === 0 && crV === 0) return null;
-              return {
-                journalEntryId: entry.id, accountId: acc.id,
-                description: acc.nameTh ? `${acc.nameTh} (${acc.name})` : acc.name || ln.accountName,
-                debit: drV.toFixed(2), credit: crV.toFixed(2),
-              };
-            })
-            .filter(Boolean) as any[];
-          if (linesToInsert.length > 0) {
-            await db.insert(journalLines).values(linesToInsert);
+          // Final guard: every line account code must exist in chart of accounts
+          for (const ln of jL) {
+            if (!acctMap.has(ln.accountCode)) throw new Error(`ไม่พบบัญชีรหัส ${ln.accountCode} ในผังบัญชี`);
           }
-          journalResult = entry;
-        } catch (e) {
-          console.log("Expense journal update error:", (e as any).message);
+
+          const entryNoUp = await getNextJournalEntryNo(txUpdated.companyId, "payment", txUpdated.expDate);
+          const [entry] = await tx.insert(journalEntries).values({
+            companyId: txUpdated.companyId, entryDate: txUpdated.expDate, reference: txUpdated.expNo,
+            description: `${txUpdated.vendorName || ""}${txItems[0]?.description ? " - " + txItems[0].description : (txUpdated.notes ? " - " + txUpdated.notes : "")}`.trim() || `บันทึกบัญชีจากค่าใช้จ่าย ${txUpdated.expNo}`,
+            journalBook: "payment", entryNo: entryNoUp, createdBy: user.id, status: "posted", sourceDocType: "expense", sourceDocId: txUpdated.id,
+          }).returning();
+          const linesToInsert = jL.map(ln => {
+            const acc = acctMap.get(ln.accountCode)!;
+            const drV = parseFloat(ln.debit || "0"); const crV = parseFloat(ln.credit || "0");
+            if (drV === 0 && crV === 0) return null;
+            return {
+              journalEntryId: entry.id, accountId: acc.id,
+              description: acc.nameTh ? `${acc.nameTh} (${acc.name})` : acc.name || ln.accountName,
+              debit: drV.toFixed(2), credit: crV.toFixed(2),
+            };
+          }).filter(Boolean) as any[];
+          if (linesToInsert.length > 0) {
+            await tx.insert(journalLines).values(linesToInsert);
+          }
+          journalEntry = entry;
         }
-      }
+
+        return { updated: txUpdated, savedItems: txItems, journalResult: journalEntry };
+      });
 
       res.json({ ...updated, items: savedItems, journalResult });
     } catch (err: any) { res.status(400).json({ message: err.message }); }
@@ -1088,41 +1107,49 @@ export function registerExpenseRoutes(app: Express) {
                 vatType: item.vatType || "vat7",
               });
             }
-            return newDoc;
-          });
 
-          if (autoJournal) {
-            try {
-              const expItemsJ = await db.select().from(expenseItems).where(eq(expenseItems.expenseId, result.id));
-              const pmName = result.paymentMethod || null;
-              let pmCode = "1001000";
-              let pmAccName = "เงินสด";
-              if (pmName) {
-                const rc = await resolvePaymentMethodAccountCode(result.companyId, pmName);
-                if (rc) {
-                  pmCode = rc;
-                  const [pa] = await db.select().from(accounts).where(and(eq(accounts.companyId, result.companyId), eq(accounts.code, rc))).limit(1);
-                  if (pa) pmAccName = pa.nameTh || pa.name || "เงินสด/ธนาคาร";
-                }
+            if (autoJournal) {
+              const expItemsJ = await tx.select().from(expenseItems).where(eq(expenseItems.expenseId, newDoc.id));
+              const compAcctsJ = await tx.select().from(accounts).where(eq(accounts.companyId, newDoc.companyId));
+              const amJ = new Map(compAcctsJ.map(a => [a.code, a]));
+
+              const pmName = newDoc.paymentMethod || null;
+              const isCredit = !pmName || pmName === "เครดิต";
+              let pmCode: string;
+              let pmAccName: string;
+
+              if (isCredit) {
+                const apAcc = compAcctsJ.find(a => a.nameTh?.includes("เจ้าหนี้การค้า") || a.name?.toLowerCase().includes("accounts payable"));
+                if (!apAcc) throw new Error("ไม่พบบัญชีเจ้าหนี้การค้า (Accounts Payable) ในผังบัญชี กรุณาตั้งค่าผังบัญชีให้ครบก่อนบันทึก");
+                pmCode = apAcc.code;
+                pmAccName = apAcc.nameTh || apAcc.name!;
+              } else {
+                const rc = await resolvePaymentMethodAccountCode(newDoc.companyId, pmName!);
+                if (!rc) throw new Error(`ไม่พบรหัสบัญชีสำหรับวิธีชำระ "${pmName}" กรุณาตั้งค่าวิธีชำระเงินในระบบก่อนบันทึก`);
+                const pa = amJ.get(rc);
+                if (!pa) throw new Error(`วิธีชำระ "${pmName}" ระบุรหัสบัญชี ${rc} แต่ไม่พบรหัสนี้ในผังบัญชี`);
+                pmCode = rc;
+                pmAccName = pa.nameTh || pa.name!;
               }
-              const subJ = parseFloat(String(result.subtotal || "0"));
-              const vatJ = parseFloat(String(result.vatAmount || "0"));
-              const whtJ = parseFloat(String(result.withholdingTax || "0"));
+
+              const subJ = parseFloat(String(newDoc.subtotal || "0"));
+              const vatJ = parseFloat(String(newDoc.vatAmount || "0"));
+              const whtJ = parseFloat(String(newDoc.withholdingTax || "0"));
               const jL: { accountCode: string; accountName: string; direction: string; amount: number }[] = [];
               const grp: Record<string, { code: string; name: string; amount: number }> = {};
               let rawT = 0;
               let nonDeductVat = 0;
               for (const item of expItemsJ) {
-                const c = item.accountCode || "5265000";
-                const n = item.accountName || "ค่าใช้จ่ายอื่น";
+                if (!item.accountCode) throw new Error(`รายการ "${item.description || item.expenseType || "(ไม่ระบุ)"}" ไม่มีรหัสบัญชี`);
+                if (!amJ.has(item.accountCode)) throw new Error(`ไม่พบบัญชีรหัส ${item.accountCode} (${item.accountName || ""}) ในผังบัญชี`);
                 let a = parseFloat(item.amount || "0");
                 if (item.vatType === "vat_non_deductible") {
                   const itemVat = a * 0.07;
                   nonDeductVat += itemVat;
                   a = a + itemVat;
                 }
-                if (!grp[c]) grp[c] = { code: c, name: n, amount: 0 };
-                grp[c].amount += a;
+                if (!grp[item.accountCode]) grp[item.accountCode] = { code: item.accountCode, name: item.accountName || item.accountCode, amount: 0 };
+                grp[item.accountCode].amount += a;
                 rawT += a;
               }
               const deductVatJ = Math.max(0, vatJ - nonDeductVat);
@@ -1132,38 +1159,42 @@ export function registerExpenseRoutes(app: Express) {
                 jL.push({ accountCode: g.code, accountName: g.name, direction: "debit", amount: parseFloat((g.amount * expScaleJ).toFixed(2)) });
               }
               if (deductVatJ > 0) {
-                const [ivA] = await db.select().from(accounts).where(and(eq(accounts.companyId, result.companyId), sql`LENGTH(${accounts.code}) >= 7`, or(eq(accounts.name, "Input VAT"), eq(accounts.nameTh, "ภาษีซื้อ")))).limit(1);
-                jL.push({ accountCode: ivA?.code || "1432000", accountName: ivA?.nameTh || "ภาษีซื้อ", direction: "debit", amount: deductVatJ });
+                const ivA = compAcctsJ.find(a => a.code.length >= 7 && (a.name === "Input VAT" || a.nameTh === "ภาษีซื้อ"));
+                if (!ivA) throw new Error("ไม่พบบัญชีภาษีซื้อ (Input VAT) ในผังบัญชี กรุณาตั้งค่าผังบัญชีให้ครบก่อนบันทึก");
+                jL.push({ accountCode: ivA.code, accountName: ivA.nameTh || ivA.name!, direction: "debit", amount: deductVatJ });
               }
               if (whtJ > 0) {
-                const [wA] = await db.select().from(accounts).where(and(eq(accounts.companyId, result.companyId), or(eq(accounts.code, "2346000"), eq(accounts.code, "2224")))).limit(1);
-                jL.push({ accountCode: wA?.code || "2344000", accountName: wA?.nameTh || "ภาษีหัก ณ ที่จ่าย", direction: "credit", amount: whtJ });
+                const wA = amJ.get("2346000") || amJ.get("2344000") || amJ.get("2224") || amJ.get("2221");
+                if (!wA) throw new Error("ไม่พบบัญชีภาษีหัก ณ ที่จ่าย ในผังบัญชี กรุณาตั้งค่าผังบัญชีให้ครบก่อนบันทึก");
+                jL.push({ accountCode: wA.code, accountName: wA.nameTh || wA.name!, direction: "credit", amount: whtJ });
               }
               const tD = jL.filter(l => l.direction === "debit").reduce((s, l) => s + l.amount, 0);
               jL.push({ accountCode: pmCode, accountName: pmAccName, direction: "credit", amount: parseFloat((tD - whtJ).toFixed(2)) });
 
-              const compAcctsJ = await db.select().from(accounts).where(eq(accounts.companyId, result.companyId));
-              const amJ = new Map(compAcctsJ.map(a => [a.code, a]));
-              const entryNoJ = await getNextJournalEntryNo(result.companyId, "payment", result.expDate);
-              const [entJ] = await db.insert(journalEntries).values({
-                companyId: result.companyId, entryDate: result.expDate, reference: result.expNo,
-                description: `${result.vendorName || ""}${expItemsJ[0]?.description ? " - " + expItemsJ[0].description : (result.notes ? " - " + result.notes : "")}`.trim() || `บันทึกบัญชีจากค่าใช้จ่าย ${result.expNo}`, journalBook: "payment",
-                entryNo: entryNoJ, createdBy: user.id, status: "posted", sourceDocType: "expense", sourceDocId: result.id,
+              // Final guard: every line account code must exist in chart of accounts
+              for (const ln of jL) {
+                if (!amJ.has(ln.accountCode)) throw new Error(`ไม่พบบัญชีรหัส ${ln.accountCode} ในผังบัญชี`);
+              }
+
+              const entryNoJ = await getNextJournalEntryNo(newDoc.companyId, "payment", newDoc.expDate);
+              const [entJ] = await tx.insert(journalEntries).values({
+                companyId: newDoc.companyId, entryDate: newDoc.expDate, reference: newDoc.expNo,
+                description: `${newDoc.vendorName || ""}${expItemsJ[0]?.description ? " - " + expItemsJ[0].description : (newDoc.notes ? " - " + newDoc.notes : "")}`.trim() || `บันทึกบัญชีจากค่าใช้จ่าย ${newDoc.expNo}`,
+                journalBook: "payment", entryNo: entryNoJ, createdBy: user.id, status: "posted", sourceDocType: "expense", sourceDocId: newDoc.id,
               }).returning();
               for (const ln of jL) {
-                const ac = amJ.get(ln.accountCode);
-                if (!ac) continue;
-                await db.insert(journalLines).values({
+                const ac = amJ.get(ln.accountCode)!;
+                await tx.insert(journalLines).values({
                   journalEntryId: entJ.id, accountId: ac.id,
                   description: ac.nameTh ? `${ac.nameTh} (${ac.name})` : ac.name || ln.accountName,
                   debit: ln.direction === "debit" ? String(ln.amount.toFixed(2)) : "0",
                   credit: ln.direction === "credit" ? String(ln.amount.toFixed(2)) : "0",
                 });
               }
-            } catch (e) {
-              console.log("Auto journal for expense skipped:", (e as any).message);
             }
-          }
+
+            return newDoc;
+          });
 
           created.push({ expNo: result.expNo, id: result.id });
         } catch (err: any) {
