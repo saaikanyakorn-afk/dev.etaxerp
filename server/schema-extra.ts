@@ -24,16 +24,12 @@ export async function runBotApiKeyMigration(_db: any) {}
 // IF EXISTS: safe on production (column was never added there). Cleans dev DB.
 export async function runDropBotApiKeyMigration(db: any) {
   const FLAG = "DROP_BOT_API_KEY_FROM_GENERAL_SETTINGS_20260507";
-  try {
-    const { sql } = await import("drizzle-orm");
-    const flag = await db.execute(sql.raw(`SELECT config_value FROM system_config WHERE config_key = '${FLAG}' LIMIT 1`));
-    if ((flag.rows || []).length > 0) return;
-    await db.execute(sql.raw(`ALTER TABLE general_settings DROP COLUMN IF EXISTS bot_api_key`));
-    await db.execute(sql.raw(`INSERT INTO system_config (config_key, config_value) VALUES ('${FLAG}', 'done_${new Date().toISOString()}') ON CONFLICT (config_key) DO NOTHING`));
-    console.log("[migration] ✅ general_settings.bot_api_key dropped");
-  } catch (e: any) {
-    console.error("[migration] ❌ runDropBotApiKeyMigration FAILED:", e.message);
-  }
+  const { sql } = await import("drizzle-orm");
+  const flag = await db.execute(sql.raw(`SELECT config_value FROM system_config WHERE config_key = '${FLAG}' LIMIT 1`));
+  if ((flag.rows || []).length > 0) return;
+  await db.execute(sql.raw(`ALTER TABLE general_settings DROP COLUMN IF EXISTS bot_api_key`));
+  await db.execute(sql.raw(`INSERT INTO system_config (config_key, config_value) VALUES ('${FLAG}', 'done_${new Date().toISOString()}') ON CONFLICT (config_key) DO NOTHING`));
+  console.log("[migration] ✅ general_settings.bot_api_key dropped");
 }
 
 /* ── DONE 2026-05-07: sales_credit_notes etax columns (ENTRY #004) ──

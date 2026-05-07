@@ -14,7 +14,7 @@ HOW TO USE THIS FILE
 ========================================================
 ENTRY #001 — expenses table: 3 new columns
 Date: 2026-05-05/06
-Status: PENDING (dev DB has columns, production does NOT)
+Status: PENDING — migration code ready, awaiting พี่ช้าง approval to push + run on production
 Approved by: (waiting)
 ========================================================
 

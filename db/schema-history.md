@@ -33,6 +33,27 @@ following the TERTIARY USE procedure so index.ts is no longer touched for column
 
 ---
 
+## 2026-05-07 — expenses: currency_code, exchange_rate, paid_amount (ENTRY #001)
+
+**What changed:**
+- Added `currency_code TEXT NOT NULL DEFAULT 'THB'` to `expenses`
+- Added `exchange_rate DECIMAL(15,6) NOT NULL DEFAULT 1` to `expenses`
+- Added `paid_amount DECIMAL(15,2) NOT NULL DEFAULT 0` to `expenses`
+
+**Backup location:** No backup required — additive columns only (NOT NULL with defaults, no existing rows touched)
+
+**Migration code:** `server/schema-extra.ts` → `runExpenseCurrencyMigration()`
+**Caller:** `server/routes/expense-routes.ts` (top-level call in `registerExpenseRoutes`)
+**Flag:** `ADD_CURRENCY_COLUMNS_TO_EXPENSES_20260505` in `system_config`
+
+**Reason:** Foreign currency support for expense module. currency_code stores original currency (USD, EUR, etc.), exchange_rate stores THB per 1 unit at time of entry, paid_amount tracks AP settlement balance.
+
+**Production DB verified:** 2026-05-07 — columns absent from production before migration (45 cols, none of the 3 present)
+
+**Status:** Done on dev ✅ — pending production run (awaiting พี่ช้าง approval)
+
+---
+
 ## 2026-05-07 — DROP general_settings.bot_api_key (ENTRY #002 reversal / ENTRY #005 deposit)
 
 **What changed:**

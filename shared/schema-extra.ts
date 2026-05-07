@@ -608,13 +608,26 @@ export async function runFirmClientMigration(db: any) {
 }
 */
 
-// 2026-05-07 — general_settings.bot_api_key: per-company BOT API key for exchange rate fetching
-// Pure DDL — no flag, no backup needed (additive only, no data loss)
-export async function runBotApiKeyMigration(db: any) {
-  try {
-    await db.execute(sql.raw(`ALTER TABLE general_settings ADD COLUMN IF NOT EXISTS bot_api_key TEXT`));
-    console.log("[migration] ✅ general_settings.bot_api_key ready");
-  } catch (e: any) {
-    console.error("[migration] ❌ runBotApiKeyMigration FAILED:", e.message);
-  }
+/* ── CANCELLED 2026-05-07: general_settings.bot_api_key ADD COLUMN ──
+ * Design changed: BOT API key moved to system_config (platform-level), not per-company.
+ * Column was never pushed to production (ENTRY #002 CANCELLED).
+ *
+ * export async function runBotApiKeyMigration(db: any) {
+ *   await db.execute(sql.raw(`ALTER TABLE general_settings ADD COLUMN IF NOT EXISTS bot_api_key TEXT`));
+ *   console.log("[migration] ✅ general_settings.bot_api_key ready");
+ * }
+ */
+export async function runBotApiKeyMigration(_db: any) {}
+
+// 2026-05-07 — ADD expenses: currency_code, exchange_rate, paid_amount (ENTRY #001)
+// Production DB confirmed: columns absent (queried 2026-05-07). Dev DB has columns since 2026-05-05.
+export async function runExpenseCurrencyMigration(db: any) {
+  const FLAG = "ADD_CURRENCY_COLUMNS_TO_EXPENSES_20260505";
+  const flag = await db.execute(sql.raw(`SELECT config_value FROM system_config WHERE config_key = '${FLAG}' LIMIT 1`));
+  if ((flag.rows || []).length > 0) return;
+  await db.execute(sql.raw(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS currency_code TEXT NOT NULL DEFAULT 'THB'`));
+  await db.execute(sql.raw(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS exchange_rate DECIMAL(15,6) NOT NULL DEFAULT 1`));
+  await db.execute(sql.raw(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS paid_amount DECIMAL(15,2) NOT NULL DEFAULT 0`));
+  await db.execute(sql.raw(`INSERT INTO system_config (config_key, config_value) VALUES ('${FLAG}', 'done_${new Date().toISOString()}') ON CONFLICT (config_key) DO NOTHING`));
+  console.log("[migration] ✅ expenses currency_code + exchange_rate + paid_amount added");
 }

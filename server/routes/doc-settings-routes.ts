@@ -9,8 +9,8 @@ import { z } from "zod";
 import { runStampUrlMigration, runDropBotApiKeyMigration } from "../schema-extra";
 
 export function registerDocSettingsRoutes(app: Express) {
-  runStampUrlMigration(db).catch(() => {});
-  runDropBotApiKeyMigration(db).catch(() => {});
+  runStampUrlMigration(db);
+  runDropBotApiKeyMigration(db);
 // ========== Document Settings Routes ==========
 
 app.get("/api/settings/general", requireAuth, async (req, res) => {
