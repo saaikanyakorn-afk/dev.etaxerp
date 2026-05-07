@@ -579,12 +579,14 @@ export default function ExpenseList() {
                                   const outstanding = isPaid ? 0 : Math.max(0, total - paid);
                                   const isForeign = exp.currencyCode && exp.currencyCode !== "THB" && parseFloat(exp.exchangeRate || "1") > 1;
                                   const rate = parseFloat(exp.exchangeRate || "1");
+                                  const dispTotal = isForeign ? total / rate : total;
+                                  const dispOutstanding = isForeign ? outstanding / rate : outstanding;
                                   return (
                                     <>
-                                      <div className="text-[10px] text-muted-foreground">{fmt(outstanding)}</div>
+                                      <div className="text-[10px] text-muted-foreground">{fmt(dispOutstanding)}</div>
                                       <div className="border-t border-gray-200 my-0.5" />
                                       <div>
-                                        {fmt(total)}
+                                        {fmt(dispTotal)}
                                         {isForeign && <span className="text-[9px] ml-1 text-[var(--theme-primary)]">{exp.currencyCode}</span>}
                                       </div>
                                     </>
@@ -729,12 +731,15 @@ export default function ExpenseList() {
                               const isPaid = exp.paymentStatus === "paid" || exp.status === "paid" || (paid > 0 && paid >= total);
                               const outstanding = isPaid ? 0 : Math.max(0, total - paid);
                               const isForeign = exp.currencyCode && exp.currencyCode !== "THB" && parseFloat(exp.exchangeRate || "1") > 1;
+                              const rate = parseFloat(exp.exchangeRate || "1");
+                              const dispTotal = isForeign ? total / rate : total;
+                              const dispOutstanding = isForeign ? outstanding / rate : outstanding;
                               return (
                                 <>
-                                  <div className="text-xs text-muted-foreground">{fmt(outstanding)}</div>
+                                  <div className="text-xs text-muted-foreground">{fmt(dispOutstanding)}</div>
                                   <div className="border-t border-gray-200 my-0.5" />
                                   <div className="text-sm font-normal">
-                                    {fmt(total)}
+                                    {fmt(dispTotal)}
                                     {isForeign && <span className="text-[10px] ml-1 text-[var(--theme-primary)]">{exp.currencyCode}</span>}
                                   </div>
                                 </>
