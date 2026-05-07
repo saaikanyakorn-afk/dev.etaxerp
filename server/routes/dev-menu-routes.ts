@@ -1111,7 +1111,7 @@ tr.unknown-row td{background:#fff1f2;border-left:4px solid #dc2626}
   </label>
   <button class="btn-load" onclick="loadData()">โหลดข้อมูล</button>
   <button class="mode-toggle" id="modeBtn" onclick="toggleMode()" title="Display Only — แสดงทุกรายการ ไม่มีการแก้ไข">👁 Display Only</button>
-  <button class="btn-proceed" id="proceedBtn" onclick="startStepByStep()" disabled>▶ Proceed (ทีละใบ)</button>
+  <button class="btn-proceed" id="proceedBtn" disabled style="opacity:.35;cursor:not-allowed" title="Read-Only Mode — disabled">🔒 Read Only</button>
   <button class="btn-reload" id="reloadBtn" onclick="loadData()" style="display:none">🔄 Load Again (ตรวจ idempotency)</button>
 </div>
 <div id="unknownAlert" style="display:none;background:#fee2e2;border:2px solid #dc2626;border-radius:8px;padding:14px 18px;margin-bottom:12px;color:#991b1b;font-weight:600;font-size:13px"></div>
@@ -1133,7 +1133,7 @@ tr.unknown-row td{background:#fff1f2;border-left:4px solid #dc2626}
     </div>
     <div class="step-timer"><div class="step-timer-bar" id="timerBar" style="width:100%"></div></div>
     <div>
-      <button class="btn-ok" id="btnOK" onclick="applyCurrentAndNext()">✔ Apply &amp; Next</button>
+      <button class="btn-ok" id="btnOK" disabled style="opacity:.35;cursor:not-allowed" title="Read-Only Mode — disabled">🔒 Read Only</button>
     </div>
   </div>
 </div>
@@ -1197,10 +1197,10 @@ async function loadData(){
       document.getElementById('proceedBtn').disabled=true;
       document.getElementById('proceedBtn').textContent='🚫 มี Case ไม่รู้จัก — ตรวจสอบก่อน';
     } else {
-      document.getElementById('proceedBtn').disabled = toChange.length===0;
+      document.getElementById('proceedBtn').disabled = true;
       document.getElementById('proceedBtn').textContent = toChange.length>0
-        ? '▶ Proceed — '+toChange.length+' รายการ (ทีละใบ)'
-        : '✓ ไม่มีรายการที่ต้องเปลี่ยน';
+        ? '🔒 Read Only — '+toChange.length+' รายการรอแก้'
+        : '🔒 Read Only — ไม่มีรายการที่ต้องเปลี่ยน';
     }
     render();
   }catch(e){
@@ -1308,10 +1308,7 @@ function showStep(){
   newEl.className = 'step-badge '+(STATUS_CLS[d.newStatus]||'');
 
   document.getElementById('stepOverlay').classList.add('show');
-  document.getElementById('btnOK').disabled=false;
-
-  // Timer: 8 seconds auto-apply
-  startTimer(8, ()=>applyCurrentAndNext());
+  document.getElementById('btnOK').disabled=true;
 }
 
 function startTimer(seconds, cb){
