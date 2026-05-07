@@ -16,14 +16,18 @@ export async function runBotApiKeyMigration(db: any) {
 }
 
 // 2026-05-07 — sales_credit_notes etax columns for e-Tax Invoice credit note sending
-// Pure DDL — no flag, no backup needed (additive only, nullable columns)
+// ONE-TIME migration — guarded by system_config flag
 export async function runSalesCreditNoteEtaxMigration(db: any) {
+  const FLAG = "ADD_ETAX_COLUMNS_TO_SALES_CREDIT_NOTES_20260507";
   try {
     const { sql } = await import("drizzle-orm");
+    const flag = await db.execute(sql.raw(`SELECT config_value FROM system_config WHERE config_key = '${FLAG}' LIMIT 1`));
+    if ((flag.rows || []).length > 0) return;
     await db.execute(sql.raw(`ALTER TABLE sales_credit_notes ADD COLUMN IF NOT EXISTS etax_sent_at TIMESTAMP`));
     await db.execute(sql.raw(`ALTER TABLE sales_credit_notes ADD COLUMN IF NOT EXISTS etax_sent_to TEXT`));
     await db.execute(sql.raw(`ALTER TABLE sales_credit_notes ADD COLUMN IF NOT EXISTS etax_sent_cc TEXT`));
     await db.execute(sql.raw(`ALTER TABLE sales_credit_notes ADD COLUMN IF NOT EXISTS etax_message_id TEXT`));
+    await db.execute(sql.raw(`INSERT INTO system_config (config_key, config_value) VALUES ('${FLAG}', 'done_${new Date().toISOString()}') ON CONFLICT (config_key) DO NOTHING`));
     console.log("[migration] ✅ sales_credit_notes etax columns ready");
   } catch (e: any) {
     console.error("[migration] ❌ runSalesCreditNoteEtaxMigration FAILED:", e.message);
