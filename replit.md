@@ -562,15 +562,9 @@ STEPS:
 4. พี่ช้าง: `pm2 restart etax-center` → **Downtime starts** → migration runs → server back up → **Downtime ends**
 5. Kai: verify migration flag set in system_config → confirm to พี่ช้าง
 
-**🔑 If migration did NOT fire via pm2 restart (chain silent fail):**
-1. Run the SQL directly on deep-main using DB_PROD_URL credentials
-2. **⚠️ ALWAYS print console output** — this is MAINLY for Kai to verify what the code actually did in real life. Console is the only feedback Kai has when running against production. Never skip this — guessing is not acceptable.
-3. Set the flag manually in system_config with `ON CONFLICT DO NOTHING`
-4. **IMMEDIATELY comment out the migration block + push clean file to GitHub** — this MUST happen before Restart #2
-5. ONLY THEN tell พี่ช้าง to pull clean file + `pm2 restart` (Restart #2 — clean build)
-- This is always safe because migration code uses `IF NOT EXISTS` + flag guard — direct SQL is idempotent
-- After Restart #2: loop closed. No Restart #3 needed.
-6. Kai: verify server online — confirm to พี่ช้าง
+**🔑 If migration did NOT fire via pm2 restart:**
+There is no shortcut. The migration code IS the only authorised path for any DB change.
+If the migration did not fire, investigate WHY (check server logs) and fix the code — then go through the full restart loop again. No direct SQL. No exceptions.
 
 ### Step 6 — Record History
 Update `shared/schema-extra.ts` history section AND the DB version table:
