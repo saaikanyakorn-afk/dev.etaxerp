@@ -641,15 +641,7 @@ export async function runExpenseCurrencyMigration(_db: any) {}
  * VERIFY FIRST result (2026-05-08): column does NOT exist on production ✅
  * Backup: not required — ADD COLUMN nullable, no existing data touched, revert = DROP COLUMN
  * Caller: server/routes/doc-settings-routes.ts
+ * Executed: 2026-05-08 — verified on production DB via Phase 1c ✅
+ * default_vat_rate TEXT DEFAULT '7' confirmed in general_settings
  */
-export async function runDefaultVatRateMigration(db: any) {
-  const FLAG = "ADD_DEFAULT_VAT_RATE_TO_GENERAL_SETTINGS_20260508";
-  try {
-    const flag = await db.execute(sql.raw(`SELECT config_value FROM system_config WHERE config_key = '${FLAG}' LIMIT 1`));
-    if ((flag.rows || []).length > 0) return;
-    await db.execute(sql.raw(`ALTER TABLE general_settings ADD COLUMN IF NOT EXISTS default_vat_rate TEXT DEFAULT '7'`));
-    await db.execute(sql.raw(`INSERT INTO system_config (config_key, config_value) VALUES ('${FLAG}', 'done_${new Date().toISOString()}') ON CONFLICT (config_key) DO NOTHING`));
-  } catch (_e: any) {
-    // silent — Kai verifies via direct DB query after pm2 start, not server log
-  }
-}
+export async function runDefaultVatRateMigration(_db: any) {}

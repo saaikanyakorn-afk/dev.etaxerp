@@ -7,12 +7,11 @@ import { requireAuth, requireAdmin, requireRole } from "../route-middleware";
 import { getInventoryTriggers } from "../route-helpers";
 import { z } from "zod";
 import { runStampUrlMigration } from "../schema-extra";
-import { runDefaultVatRateMigration } from "../../shared/schema-extra";
 // DATA FIX DONE 2026-05-07 — runDropBotApiKeyMigration hook removed after verified. See server/schema-extra.ts history.
+// DATA FIX DONE 2026-05-08 — runDefaultVatRateMigration removed after verified (default_vat_rate TEXT DEFAULT '7' on production). See shared/schema-extra.ts.
 
 export function registerDocSettingsRoutes(app: Express) {
   runStampUrlMigration(db);
-  runDefaultVatRateMigration(db);
 // ========== Document Settings Routes ==========
 
 app.get("/api/settings/general", requireAuth, async (req, res) => {
