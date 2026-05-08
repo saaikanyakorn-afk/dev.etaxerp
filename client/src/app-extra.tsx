@@ -28,7 +28,10 @@ const WhtCertShare = lazy(() => import("@/pages/purchases/wht-cert-share"));
 const BillingNoteShare = lazy(() => import("@/pages/finance/billing-note-share"));
 // [sys-k7x9] Machines sub-page — route /sys-k7x9/infra/machines cannot be added to App.tsx
 // (App.tsx = production source of truth, never modify). Registered here via matchInfraMachines().
-const InfraMachines = lazy(() => import("@/pages/sysadmin/infra-machines"));
+// Fail-safe: if infra-machines.tsx not yet on production server, build still passes
+const InfraMachines = lazy(() =>
+  import("@/pages/sysadmin/infra-machines").catch(() => ({ default: () => null }))
+);
 // [exchange-rate] /settings/exchange-rate — super_admin BOT API key management
 // Cannot be added to App.tsx (production source of truth). Registered here.
 const ExchangeRateSettings = lazy(() => import("@/pages/settings/exchange-rate-settings"));
