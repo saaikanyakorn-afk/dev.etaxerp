@@ -158,7 +158,13 @@ PGPASSWORD=nJKsyhE4583Hz psql -h deep-main.hopto.org -p 20541 -U etaxusr -d etax
 2. **BACKUP** (if touching existing data) — `CREATE TABLE backup_{table}_{yyyymmdd} AS SELECT * FROM {table};` inside the migration itself — never ask พี่ช้าง to run it manually
 3. **WRITE MIGRATION** — one-time migration function in `shared/schema-extra.ts`, guarded by `system_config` flag so it only runs once
 4. **WRITE HISTORY** — entry in `db/schema-history.md` (what / backup path / when / why)
-5. **CHERRY-PICK DEPLOY** — push ALL required files (caller file + schema-extra.ts) — missing one file = migration will not fire
+5. **CHERRY-PICK DEPLOY** — before telling พี่ช้าง to run any server command:
+   - **List every file that must change:** `schema-extra.ts` + every file that imports or calls the migration function (routes file, index, wherever the call lives)
+   - **Push ALL of them in one SSH push command** — confirm push shows `xxx..yyy  main -> main` before notifying พี่ช้าง
+   - **Only then** give พี่ช้าง the server command with the EXACT file list for `git checkout origin/main --`
+   - Example: migration called from `payment-methods-routes.ts`
+     - ✅ Push `schema-extra.ts` + `payment-methods-routes.ts` together
+     - ❌ Push `schema-extra.ts` only → server's `payment-methods-routes.ts` has no call → migration never fires → you are stuck diagnosing a ghost
 6. **VERIFY RESULT** — query prod DB from dev environment and look at real rows, not just COUNT
 7. **COMMENT OUT BLOCK IMMEDIATELY** — with date/time/reason — this prevents re-run on next restart
 8. **PUSH CLEAN BEFORE ANYTHING ELSE** — comment-out must land on server before any other step
