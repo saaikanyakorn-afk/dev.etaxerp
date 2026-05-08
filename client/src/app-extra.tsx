@@ -26,8 +26,6 @@ const CreditNotePdf = lazy(() => import("@/pages/sales/credit-note-pdf"));
 const CreditNoteShare = lazy(() => import("@/pages/sales/credit-note-share"));
 const WhtCertShare = lazy(() => import("@/pages/purchases/wht-cert-share"));
 const BillingNoteShare = lazy(() => import("@/pages/finance/billing-note-share"));
-const BillingNotes = lazy(() => import("@/pages/finance/billing-notes"));
-const BillingNotePdf = lazy(() => import("@/pages/finance/billing-note-pdf"));
 // [sys-k7x9] Machines sub-page — route /sys-k7x9/infra/machines cannot be added to App.tsx
 // (App.tsx = production source of truth, never modify). Registered here via matchInfraMachines().
 const InfraMachines = lazy(() => import("@/pages/sysadmin/infra-machines"));
@@ -77,17 +75,6 @@ function matchExchangeRate(location: string): boolean {
   return location.replace(/\?.*$/, "") === "/settings/exchange-rate";
 }
 
-// [billing-notes] Exact match for /finance/billing-notes
-function matchBillingNotes(location: string): boolean {
-  return location.replace(/\?.*$/, "") === "/finance/billing-notes";
-}
-
-// [billing-notes-pdf] Extract id from /finance/billing-notes/pdf/:id
-function matchBillingNotePdf(location: string): string | null {
-  const m = location.replace(/\?.*$/, "").match(/^\/finance\/billing-notes\/pdf\/(\d+)$/);
-  return m ? m[1] : null;
-}
-
 export default function AppExtra() {
   const { user, loading } = useAuth();
   const [location, setLocation] = useLocation();
@@ -131,8 +118,6 @@ export default function AppExtra() {
   const bnShareToken = matchBillingNoteShare(location);
   const isMachines = matchInfraMachines(location);
   const isExchangeRate = matchExchangeRate(location);
-  const isBillingNotes = matchBillingNotes(location);
-  const billingNotePdfId = matchBillingNotePdf(location);
 
   if (pdfId) {
     return (
@@ -191,28 +176,6 @@ export default function AppExtra() {
       <FullPageOverlay>
         <Suspense fallback={null}>
           <ExchangeRateSettings platformMode={true} />
-        </Suspense>
-      </FullPageOverlay>
-    );
-  }
-
-  // [billing-notes] Render billing notes list page
-  if (isBillingNotes) {
-    return (
-      <FullPageOverlay>
-        <Suspense fallback={null}>
-          <BillingNotes />
-        </Suspense>
-      </FullPageOverlay>
-    );
-  }
-
-  // [billing-notes-pdf] Render billing note PDF page
-  if (billingNotePdfId) {
-    return (
-      <FullPageOverlay>
-        <Suspense fallback={null}>
-          <BillingNotePdf idProp={billingNotePdfId} />
         </Suspense>
       </FullPageOverlay>
     );
