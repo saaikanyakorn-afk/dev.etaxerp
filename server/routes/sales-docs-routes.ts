@@ -95,7 +95,7 @@ app.get("/api/sales-orders/:id", requireAuth, requireAnyModule("sales", "ecommer
   try {
     const order = await storage.getSalesOrder(Number(req.params.id));
     if (!order) return res.status(404).json({ message: "ไม่พบรายการขาย" });
-    const items = await storage.getSalesOrderItems(order.id);
+    const items = await fetchSalesOrderItems(order.id);
     let createdByName = "-";
     let updatedByName = "-";
     if (order.createdBy) { const u = await storage.getUser(order.createdBy); if (u) createdByName = u.fullName; }
