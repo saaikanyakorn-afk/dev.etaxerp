@@ -6,7 +6,8 @@ import { generalSettings, documentSettings } from "@shared/schema";
 import { requireAuth, requireAdmin, requireRole } from "../route-middleware";
 import { getInventoryTriggers } from "../route-helpers";
 import { z } from "zod";
-import { runStampUrlMigration, runDefaultVatRateMigration } from "../../shared/schema-extra";
+import { runStampUrlMigration } from "../schema-extra";
+import { runDefaultVatRateMigration } from "../../shared/schema-extra";
 // DATA FIX DONE 2026-05-07 — runDropBotApiKeyMigration hook removed after verified. See server/schema-extra.ts history.
 
 export function registerDocSettingsRoutes(app: Express) {
