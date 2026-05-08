@@ -649,8 +649,7 @@ export async function runDefaultVatRateMigration(db: any) {
     if ((flag.rows || []).length > 0) return;
     await db.execute(sql.raw(`ALTER TABLE general_settings ADD COLUMN IF NOT EXISTS default_vat_rate TEXT DEFAULT '7'`));
     await db.execute(sql.raw(`INSERT INTO system_config (config_key, config_value) VALUES ('${FLAG}', 'done_${new Date().toISOString()}') ON CONFLICT (config_key) DO NOTHING`));
-    console.log("[migration] ✅ general_settings.default_vat_rate added");
-  } catch (e: any) {
-    console.error("[migration] ❌ runDefaultVatRateMigration FAILED:", e.message);
+  } catch (_e: any) {
+    // silent — Kai verifies via direct DB query after pm2 start, not server log
   }
 }
