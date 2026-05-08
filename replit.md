@@ -152,23 +152,31 @@ PGPASSWORD=nJKsyhE4583Hz psql -h deep-main.hopto.org -p 20541 -U etaxusr -d etax
 
 ---
 
-### Rule 2 — The 9-Step Migration Checklist (follow every time, no shortcuts)
+### Rule 2 — The 10-Step Migration Checklist (follow every time, no shortcuts)
 
 1. **VERIFY FIRST** — query prod DB from dev environment before writing any code
 2. **BACKUP** (if touching existing data) — `CREATE TABLE backup_{table}_{yyyymmdd} AS SELECT * FROM {table};` inside the migration itself — never ask พี่ช้าง to run it manually
 3. **WRITE MIGRATION** — one-time migration function in `shared/schema-extra.ts`, guarded by `system_config` flag so it only runs once
 4. **WRITE HISTORY** — entry in `db/schema-history.md` (what / backup path / when / why)
-5. **CHERRY-PICK DEPLOY** — before telling พี่ช้าง to run any server command:
-   - **List every file that must change:** `schema-extra.ts` + every file that imports or calls the migration function (routes file, index, wherever the call lives)
-   - **Push ALL of them in one SSH push command** — confirm push shows `xxx..yyy  main -> main` before notifying พี่ช้าง
+5. **IDENTIFY ALL DEPLOY FILES** — before writing any push command, explicitly name every file that must be deployed together:
+   - `schema-extra.ts` (always)
+   - The route file that **owns** the table being migrated — find it by grepping:
+     ```bash
+     grep -rn "<table_name>" server/routes/
+     ```
+   - The file that already does GET/PUT on that table = the caller
+   - Example: `general_settings` → `doc-settings-routes.ts` already does GET/PUT → push both
+   - Example: `payment_methods` → `payment-methods-routes.ts` already does GET/PUT → push both
+   - ❌ Never guess — always grep to confirm the owner before committing to a file list
+6. **CHERRY-PICK DEPLOY** — before telling พี่ช้าง to run any server command:
+   - **Push ALL identified files in one SSH push command** — confirm push shows `xxx..yyy  main -> main` before notifying พี่ช้าง
    - **Only then** give พี่ช้าง the server command with the EXACT file list for `git checkout origin/main --`
-   - Example: migration called from `payment-methods-routes.ts`
-     - ✅ Push `schema-extra.ts` + `payment-methods-routes.ts` together
-     - ❌ Push `schema-extra.ts` only → server's `payment-methods-routes.ts` has no call → migration never fires → you are stuck diagnosing a ghost
-6. **VERIFY RESULT** — query prod DB from dev environment and look at real rows, not just COUNT
-7. **COMMENT OUT BLOCK IMMEDIATELY** — with date/time/reason — this prevents re-run on next restart
-8. **PUSH CLEAN BEFORE ANYTHING ELSE** — comment-out must land on server before any other step
-9. **CONTINUE** rest of the task checklist
+   - ✅ Push `schema-extra.ts` + `doc-settings-routes.ts` together
+   - ❌ Push `schema-extra.ts` only → server's route file has no call → migration never fires → you are stuck diagnosing a ghost
+7. **VERIFY RESULT** — query prod DB from dev environment and look at real rows, not just COUNT
+8. **COMMENT OUT BLOCK IMMEDIATELY** — with date/time/reason — this prevents re-run on next restart
+9. **PUSH CLEAN BEFORE ANYTHING ELSE** — comment-out must land on server before any other step
+10. **CONTINUE** rest of the task checklist
 
 ---
 

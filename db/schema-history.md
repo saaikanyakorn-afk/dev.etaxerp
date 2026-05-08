@@ -90,3 +90,22 @@ following the TERTIARY USE procedure so index.ts is no longer touched for column
 **Reason:** e-Tax Invoice ใบลดหนี้ feature requires tracking when and to whom an e-Tax credit note was sent via email (etax_sent_at, etax_sent_to, etax_sent_cc, etax_message_id).
 
 **Status:** Deployed + comment-out + clean push done ✅
+
+---
+
+## 2026-05-08 — general_settings.default_vat_rate ADD COLUMN (ENTRY #005)
+
+**What changed:**
+- Added `default_vat_rate TEXT DEFAULT '7'` to `general_settings`
+
+**Backup location:** Not required — ADD COLUMN nullable, no existing data touched. Revert = `DROP COLUMN default_vat_rate FROM general_settings`.
+
+**VERIFY FIRST result (2026-05-08):** Column did NOT exist on production before migration. Table had 4 rows (company IDs: 4, 3822, 3951, 3953).
+
+**Migration code:** `shared/schema-extra.ts` → `runDefaultVatRateMigration()`
+**Caller:** `server/routes/doc-settings-routes.ts`
+**Flag:** `ADD_DEFAULT_VAT_RATE_TO_GENERAL_SETTINGS_20260508` in `system_config`
+
+**Reason:** VAT rate configurable at company level. Previously hardcoded 7% everywhere. Companies can now set their own default VAT rate (7% / 0%) per company in general settings.
+
+**Status:** 🔄 Migration active — awaiting deploy + verify + comment-out

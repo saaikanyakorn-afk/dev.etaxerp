@@ -635,3 +635,22 @@ export async function runBotApiKeyMigration(_db: any) {}
  * }
  */
 export async function runExpenseCurrencyMigration(_db: any) {}
+
+/* ── ENTRY #005: general_settings.default_vat_rate ADD COLUMN ──
+ * Table: general_settings (4 rows on production — company IDs: 4, 3822, 3951, 3953)
+ * VERIFY FIRST result (2026-05-08): column does NOT exist on production ✅
+ * Backup: not required — ADD COLUMN nullable, no existing data touched, revert = DROP COLUMN
+ * Caller: server/routes/doc-settings-routes.ts
+ */
+export async function runDefaultVatRateMigration(db: any) {
+  const FLAG = "ADD_DEFAULT_VAT_RATE_TO_GENERAL_SETTINGS_20260508";
+  try {
+    const flag = await db.execute(sql.raw(`SELECT config_value FROM system_config WHERE config_key = '${FLAG}' LIMIT 1`));
+    if ((flag.rows || []).length > 0) return;
+    await db.execute(sql.raw(`ALTER TABLE general_settings ADD COLUMN IF NOT EXISTS default_vat_rate TEXT DEFAULT '7'`));
+    await db.execute(sql.raw(`INSERT INTO system_config (config_key, config_value) VALUES ('${FLAG}', 'done_${new Date().toISOString()}') ON CONFLICT (config_key) DO NOTHING`));
+    console.log("[migration] ✅ general_settings.default_vat_rate added");
+  } catch (e: any) {
+    console.error("[migration] ❌ runDefaultVatRateMigration FAILED:", e.message);
+  }
+}
