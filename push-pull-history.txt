@@ -380,7 +380,7 @@ DEPLOY LOG (latest first):
   Commits: 14f966ef (schema-extra.ts), 4ce0e624 (doc-settings-routes.ts), d711e94b (schema-history.md)
   Migration: runDefaultVatRateMigration() — ADD COLUMN IF NOT EXISTS default_vat_rate TEXT DEFAULT '7'
   Server: git fetch origin && git checkout origin/main -- shared/schema-extra.ts server/routes/doc-settings-routes.ts db/schema-history.md && npm run build && pm2 restart etax-center
-  Result: 🔄 Restart #1 ✅ verified — awaiting Restart #2
+  Result: ✅ loop closed 2026-05-08 — online 82.6mb
 
 [#44] 2026-05-05 — share-og.ts: refactor billing-note & credit-note to shared sendShareDocHtml
   Commit: e4f2b1f5
