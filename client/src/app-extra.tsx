@@ -26,12 +26,6 @@ const CreditNotePdf = lazy(() => import("@/pages/sales/credit-note-pdf"));
 const CreditNoteShare = lazy(() => import("@/pages/sales/credit-note-share"));
 const WhtCertShare = lazy(() => import("@/pages/purchases/wht-cert-share"));
 const BillingNoteShare = lazy(() => import("@/pages/finance/billing-note-share"));
-// [sys-k7x9] Machines sub-page — route /sys-k7x9/infra/machines cannot be added to App.tsx
-// (App.tsx = production source of truth, never modify). Registered here via matchInfraMachines().
-// Fail-safe: vite-ignore skips static analysis — build passes even if file missing on production
-const InfraMachines = lazy(() =>
-  import(/* @vite-ignore */ "@/pages/sysadmin/infra-machines").catch(() => ({ default: () => null }))
-);
 // [exchange-rate] /settings/exchange-rate — super_admin BOT API key management
 // Cannot be added to App.tsx (production source of truth). Registered here.
 const ExchangeRateSettings = lazy(() => import("@/pages/settings/exchange-rate-settings"));
@@ -66,11 +60,6 @@ function matchWhtCertShare(location: string): string | null {
 function matchBillingNoteShare(location: string): string | null {
   const m = location.replace(/\?.*$/, "").match(/^\/share\/billing-note\/([^/]+)$/);
   return m ? m[1] : null;
-}
-
-// [sys-k7x9] Exact match for /sys-k7x9/infra/machines — no param needed, just presence check
-function matchInfraMachines(location: string): boolean {
-  return location.replace(/\?.*$/, "") === "/sys-k7x9/infra/machines";
 }
 
 // [exchange-rate] Exact match for /settings/exchange-rate
@@ -119,7 +108,6 @@ export default function AppExtra() {
   const shareToken = matchCreditNoteShare(location);
   const whtShareToken = matchWhtCertShare(location);
   const bnShareToken = matchBillingNoteShare(location);
-  const isMachines = matchInfraMachines(location);
   const isExchangeRate = matchExchangeRate(location);
 
   if (pdfId) {
@@ -157,17 +145,6 @@ export default function AppExtra() {
       <FullPageOverlay>
         <Suspense fallback={null}>
           <BillingNoteShare tokenProp={bnShareToken} />
-        </Suspense>
-      </FullPageOverlay>
-    );
-  }
-
-  // [sys-k7x9] Render dedicated Machines page — InfraMachinesPage manages SysAdminLayout internally
-  if (isMachines) {
-    return (
-      <FullPageOverlay>
-        <Suspense fallback={null}>
-          <InfraMachines />
         </Suspense>
       </FullPageOverlay>
     );
