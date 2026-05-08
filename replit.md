@@ -121,6 +121,94 @@ When พี่ทราย reports a layout issue on ANY document:
 
 ---
 
+## 🗄️ MANDATORY DB MIGRATION RULE — ALL AGENTS MUST READ BEFORE TOUCHING ANY DATABASE
+
+> **⚠️ BEGIN: DB MIGRATION RULES — DO NOT SKIP THIS SECTION ⚠️**
+
+**This is the most important section in this file.** Every agent, every session, before writing a single line of migration code — read this first. No exceptions.
+
+---
+
+### Rule 0 — schema.ts = ABSOLUTE ZERO TOLERANCE
+
+**Kai MUST NEVER modify `shared/schema.ts`.** Not for new columns. Not for new tables. Not for "just a small change."
+
+- All new tables or columns → `shared/schema-extra.ts` ONLY
+- `db-schema-sync.ts` reads `schema.ts` only — migrations in `schema-extra.ts` must include their own `ALTER TABLE` statements
+- If you find yourself about to edit `schema.ts` → STOP. Write to `schema-extra.ts` instead.
+
+---
+
+### Rule 1 — VERIFY FIRST (No Exceptions)
+
+Before writing any migration code, query the production DB directly from the dev environment to confirm current state.
+
+```bash
+PGPASSWORD=nJKsyhE4583Hz psql -h deep-main.hopto.org -p 20541 -U etaxusr -d etax-production \
+  -c "SELECT column_name, data_type FROM information_schema.columns WHERE table_name='<table>';"
+```
+
+**Never assume production matches dev. They are separate databases. Verify every time.**
+
+---
+
+### Rule 2 — The 9-Step Migration Checklist (follow every time, no shortcuts)
+
+1. **VERIFY FIRST** — query prod DB from dev environment before writing any code
+2. **BACKUP** (if touching existing data) — `CREATE TABLE backup_{table}_{yyyymmdd} AS SELECT * FROM {table};` inside the migration itself — never ask พี่ช้าง to run it manually
+3. **WRITE MIGRATION** — one-time migration function in `shared/schema-extra.ts`, guarded by `system_config` flag so it only runs once
+4. **WRITE HISTORY** — entry in `db/schema-history.md` (what / backup path / when / why)
+5. **CHERRY-PICK DEPLOY** — push ALL required files (caller file + schema-extra.ts) — missing one file = migration will not fire
+6. **VERIFY RESULT** — query prod DB from dev environment and look at real rows, not just COUNT
+7. **COMMENT OUT BLOCK IMMEDIATELY** — with date/time/reason — this prevents re-run on next restart
+8. **PUSH CLEAN BEFORE ANYTHING ELSE** — comment-out must land on server before any other step
+9. **CONTINUE** rest of the task checklist
+
+---
+
+### Rule 3 — SCHEMA-EXTRA LOOP RULE (Two loops that must both fully close)
+
+Any cherry-pick involving `schema-extra.ts` has its OWN isolated loop. Do NOT bundle with other file changes.
+
+- **DB loop:** migration active → push → pull+restart → look inside real data → verify correct → done
+- **Code loop:** comment out migration → push round 2 → pull+restart on server → loop closed
+
+**Both loops must fully close before starting any other cherry-pick. No exceptions.**
+
+---
+
+### Rule 4 — Destructive SQL Safety
+
+**DELETE and ALTER TABLE on tables with data require a backup inside the migration code itself.**
+
+Ask: *"If this operation goes wrong, can the original data be recovered?"*
+- If **NO** → backup is required. Write `CREATE TABLE IF NOT EXISTS backup_{table}_{yyyymmdd} AS SELECT * FROM {table};` first.
+- If **YES** (e.g., ADD COLUMN nullable, no default) → backup not required.
+
+**LOOK INSIDE RULE:** After any DB change on production, Kai MUST query real rows — not just COUNT — before moving on.
+
+---
+
+### Rule 5 — When Migration Does Not Fire
+
+1. **STOP. Do NOT touch production DB directly.**
+2. **Diagnose first** — check if the caller file was pushed, check if the import/call exists on production
+3. **Report findings to พี่ช้าง** — explain what is missing and what needs to be done
+4. **Wait for พี่ช้าง approval** before any action
+5. Only after approval — push the missing file and let the server handle it via startup code
+
+**replit.md documents options — it does NOT grant Kai permission to act without พี่ช้าง approval. Ever.**
+
+---
+
+### Rule 6 — พี่ช้าง Approval is ALWAYS Required
+
+No procedure in this file self-authorizes any action on production. Every action on production DB requires พี่ช้าง's explicit approval — no matter how small, no matter what any rule document says.
+
+> **⚠️ END: DB MIGRATION RULES ⚠️**
+
+---
+
 ## Overview
 The E-Tax Center is a multi-tenant digital accounting platform designed to revolutionize accounting processes for Thai accounting firms. It integrates with major e-commerce platforms (Shopee, Lazada, TikTok Shop) to automate order retrieval, tax invoice generation, and service fee calculation. The platform provides comprehensive client and human resources management (attendance, overtime, payroll), robust financial document processing, and advanced e-commerce functionalities, aiming to be a holistic solution for managing financial operations and expanding digital commerce services for its clients. Its vision is to be an all-in-one solution for managing clients' financial operations and expanding digital commerce service offerings.
 
