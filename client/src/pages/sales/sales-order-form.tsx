@@ -1169,7 +1169,14 @@ export default function SalesOrderForm() {
                             data-testid={`select-warehouse-${idx}`}
                             className="h-9 text-xs border border-dashed rounded w-full px-1 bg-transparent"
                             value={item.warehouseId || ""}
-                            onChange={e => { const newItems = [...items]; newItems[idx] = { ...newItems[idx], warehouseId: e.target.value ? Number(e.target.value) : undefined }; setItems(newItems); }}
+                            onChange={e => {
+                              const wid = e.target.value ? Number(e.target.value) : undefined;
+                              const pid = item.productId;
+                              const sql = `SELECT quantity FROM warehouse_stock_levels WHERE company_id=${companyId} AND product_id=${pid} AND warehouse_id=${wid}`;
+                              console.log("[BAL-DEBUG] SQL:", sql);
+                              console.log("[BAL-DEBUG] stockByWarehouse[pid]:", JSON.stringify((stockByWarehouse as any)[pid] || (stockByWarehouse as any)[String(pid)]));
+                              const newItems = [...items]; newItems[idx] = { ...newItems[idx], warehouseId: wid }; setItems(newItems);
+                            }}
                           >
                             <option value="">-- คลัง --</option>
                             {warehouses.map((w: any) => (
