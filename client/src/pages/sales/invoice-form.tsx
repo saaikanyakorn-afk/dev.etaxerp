@@ -1136,10 +1136,11 @@ export default function InvoiceForm() {
                           {showProductDropdown[idx] && (() => {
                             const searchVal = (productSearches[idx] || "").toLowerCase();
                             const filtered = products.filter(p =>
+                              p.active !== false && (
                               (p.code || "").toLowerCase().includes(searchVal) ||
                               p.name.toLowerCase().includes(searchVal) ||
                               ((p as any).nameEn || "").toLowerCase().includes(searchVal) ||
-                              ((p as any).nameZh || "").toLowerCase().includes(searchVal)
+                              ((p as any).nameZh || "").toLowerCase().includes(searchVal))
                             );
                             if (filtered.length === 0) return null;
                             return (

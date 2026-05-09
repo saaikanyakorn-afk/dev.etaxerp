@@ -738,8 +738,9 @@ export default function BidComparison() {
                           {showProductDropdown[idx] && (() => {
                             const sv = (productSearches[idx] || "").toLowerCase();
                             const filtered = products.filter(p =>
+                              p.active !== false && (
                               (p.code || "").toLowerCase().includes(sv) ||
-                              p.name.toLowerCase().includes(sv)
+                              p.name.toLowerCase().includes(sv))
                             );
                             if (filtered.length === 0) return null;
                             return (
