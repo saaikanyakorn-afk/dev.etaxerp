@@ -1,6 +1,6 @@
 # Next Agent Handoff (updated 2026-05-09)
 
-Read this file first. Then read star-wars.txt in full before touching anything.
+Read this file first before touching anything.
 
 ---
 

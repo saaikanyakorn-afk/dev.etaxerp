@@ -77,7 +77,7 @@ GIT_SSH_COMMAND="ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no" git push 
 - Name: `2nd Replit Deploy key` on `saaikanyakorn-afk/etaxcenter`
 - Fingerprint: `SHA256:s3XbtpDfpueLtIeYgrBCr570te8NsX6eYqS1eaae6tk`
 - Added: 2026-05-04 — Read/write access
-- Restore procedure: see `star-wars.txt` in repo root
+- Restore procedure: see SSH key backup section in repo root
 
 **THERE WILL BE NO "PUSH THE ENTIRE PROJECT" ONTO PRODUCTION REPO EVER.**
 Private key (base64): LS0tLS1CRUdJTiBPUEVOU1NIIFBSSVZBVEUgS0VZLS0tLS0KYjNCbGJuTnphQzFrWlhrdGRqRUFBQUFBQkc1dmJtVUFBQUFFYm05dVpRQUFBQUFBQUFBQkFBQUFNd0FBQUF0emMyZ3RaVwpReU5UVXhPUUFBQUNEeHgxVnRVRkR5b2l3dmlVcTk1MnlXaWpNNFJnMkxJWDQ5OFpnWFZrWXVLUUFBQUtCZ0wzNElZQzkrCkNBQUFBQXR6YzJndFpXUXlOVFV4T1FBQUFDRHh4MVZ0VUZEeW9pd3ZpVXE5NTJ5V2lqTTRSZzJMSVg0OThaZ1hWa1l1S1EKQUFBRUFHajVjU3J1WE9UTDRhdjc3djBZZi82UktqODMwTDhTekFYUWNuY3JscDIvSEhWVzFRVVBLaUxDK0pTcjNuYkphSwpNemhHRFlzaGZqM3htQmRXUmk0cEFBQUFHWEpsY0d4cGRDMXJZV2t0WVdkbGJuUXRNakF5TmpBMU1EUUJBZ01FCi0tLS0tRU5EIE9QRU5TU0ggUFJJVkFURSBLRVktLS0tLQo=
@@ -581,7 +581,7 @@ process.env.DB_PROD_URL
   - SSH key → libcrypto version mismatch in container
 - **Each remote uses its OWN token** — never cross-use tokens across repos (พี่ช้าง rule)
 - If token expired → ask พี่ช้าง to regenerate **"etaxerp"** on GitHub → update `.git/config` via `git remote set-url` in code_execution (bash blocks this)
-- **⚠️ ANY update to these notes must be done in ALL 3 places**: star-wars.txt (local) + replit.md + etaxcenter/star-wars.txt (production GitHub repo)
+- **⚠️ ANY update to these notes must be done in ALL 3 places**: replit.md (local) + etaxcenter repo (production GitHub)
 
 ### GitHub Dev PAT (github-dev remote → saaikanyakorn-afk/dev.etaxerp)
 - PAT stored in `.git/config` — still valid as of 2026-05-03
