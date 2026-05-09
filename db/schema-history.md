@@ -169,24 +169,33 @@ When `delete-inactive-duplicates` tried to remove `product_id = 520`:
 
 ---
 
-**Fix procedure:**
+**Fix procedure — "source file" method (NOT schema-extra):**
 
-Because there is no single clear culprit (two features both contributed), the fix is handled
-via a one-time cleanup migration in `server/schema-extra.ts` — the same pattern used for
-schema migrations, applied here to data cleanup (DELETE instead of DDL).
+This case has a clear source: the product import screen. The fix lives there, not in schema-extra.ts.
+schema-extra.ts is reserved for cases where there is no single screen or feature to blame.
+Here, import is the culprit — so import is where the cleanup goes.
+
+Why this method requires user interaction:
+The import screen is also receiving a new safety-net (warn user when importing a product code
+that already exists). We do not silently fix data behind the user's back. The one-time cleanup
+runs when the user next opens and uses the import screen — making them an active participant
+in acknowledging the new safety behavior, not a passive bystander.
 
 Steps:
-1. Write a cleanup function in `server/schema-extra.ts` (e.g. `runOrphanStockMovementCleanup()`)
+1. Add a one-time DELETE block inside the import screen's server handler
+   (e.g. top-level in `server/routes/products-routes.ts` inside the import endpoint or its register function)
    - DELETE from `stock_movements` WHERE `movement_type = 'initial'` AND `reference_type IS NULL`
-     AND `reference_id IS NULL` AND `product_id` IN (the inactive duplicate product IDs)
-   - Guard with a flag in `system_config` to prevent re-running
-2. Call it from the relevant route file (top-level, outside any handler)
-3. Push schema-extra.ts + caller file → tell พี่ช้าง to run standard 4-step server command
-4. Verify the record is gone (Phase 1c — connect to production DB, confirm DELETE took effect)
-5. Comment out the function body immediately → replace with no-op + date + reason note (Phase 1b)
-6. Push clean schema-extra.ts → log in this file with timestamp and FLAG value
+     AND `reference_id IS NULL` AND `product_id` IN (inactive duplicate product IDs affected)
+   - Guard with a flag in `system_config` to prevent re-running on subsequent calls
+2. Add the safety-net duplicate-code warning to the import screen (frontend + backend)
+3. Push both files → tell พี่ช้าง to run standard 4-step server command
+4. User triggers import screen → cleanup runs once → safety-net is now active
+5. Kai connects to production DB (READ-ONLY) → verify the orphan record is gone (Phase 1c)
+6. Comment out the DELETE block immediately → leave a note with: date/time executed,
+   what it deleted, why, and confirmation it was verified on production DB
+7. Push the clean code → log in this file with timestamp
 
-**Backup required:** Yes — backup `stock_movements` rows to be deleted before the function runs.
-Backup location: `db/backups/YYYY-MM-DD_orphan_stock_movements_cleanup.sql`
+**Backup required:** Yes — backup the target `stock_movements` rows before DELETE runs.
+Backup location: `db/backups/YYYY-MM-DD_orphan_stock_movements_before_cleanup.sql`
 
-**Status:** 📝 Documented — fix pending พี่ช้าง confirmation
+**Status:** 📝 Documented — awaiting พี่ช้าง authorization to implement
