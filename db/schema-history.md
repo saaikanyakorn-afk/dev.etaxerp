@@ -109,3 +109,54 @@ following the TERTIARY USE procedure so index.ts is no longer touched for column
 **Reason:** VAT rate configurable at company level. Previously hardcoded 7% everywhere. Companies can now set their own default VAT rate (7% / 0%) per company in general settings.
 
 **Status:** 🔄 Migration active — awaiting deploy + verify + comment-out
+
+---
+
+## 2026-05-09 — Orphan stock_movements from warehouse CSV import (ENTRY #006)
+
+**Type:** Data cleanup (DELETE) — not a schema change
+
+**The unwanted record:**
+- Table: `stock_movements`
+- `id = 1463`, `product_id = 520`, `movement_type = "initial"`, `notes = "นำเข้าจากไฟล์"`
+- `reference_type = NULL`, `reference_id = NULL` — no link to any document
+
+---
+
+**Cause — how this record was created:**
+
+`warehouse.tsx` has a "นำเข้าสต๊อกจากไฟล์ CSV" feature with `importType` defaulting to `"initial"`.
+When a user imports stock quantities from a CSV file, the frontend calls
+`POST /api/product-stock/bulk-adjust` with `movementType: "initial"` and `notes: "นำเข้าจากไฟล์"`.
+The server calls `storage.adjustStock()` which INSERTs a row into `stock_movements`
+with no `reference_type` and no `reference_id` — because there is no document behind it.
+This is by design for initial stock setup. The record is legitimate at the time of creation.
+
+---
+
+**Mistake — what turned a legitimate record into a problem:**
+
+Product `5ST-6-CCTV100B` was imported from Excel more than once.
+The second import created a duplicate product row in the `products` table (`product_id = 520`, `active = false`).
+The initial stock entry (`stock_movements id = 1463`) was attached to this duplicate product — not the active one.
+Nobody noticed, because the duplicate was marked inactive and hidden from all dropdowns.
+
+The mistake was not in the stock movement itself. The mistake was that the product import
+did not prevent duplicate product codes from creating new rows. It silently created a second
+product pointing to the same code, and the stock movement followed it.
+
+---
+
+**Result — why it blocked everything:**
+
+When `delete-inactive-duplicates` tried to remove `product_id = 520`:
+- PostgreSQL FK constraint `stock_movements.product_id → products.id` fired
+- The delete was rejected because `stock_movements id = 1463` still references `product_id = 520`
+- The record has no document (reference_type = NULL) so it appears in no history, no report, no UI
+- It exists only as a silent FK blocker — invisible to the user, impossible to remove without handling it first
+
+---
+
+**Fix procedure:** (to be filled in after พี่ช้าง confirms the approach)
+
+**Status:** 📝 Documented — fix pending
