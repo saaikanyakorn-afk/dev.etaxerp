@@ -123,27 +123,39 @@ following the TERTIARY USE procedure so index.ts is no longer touched for column
 
 ---
 
-**Cause — how this record was created:**
+**Cause — the reckless design that made this possible:**
 
-`warehouse.tsx` has a "นำเข้าสต๊อกจากไฟล์ CSV" feature with `importType` defaulting to `"initial"`.
-When a user imports stock quantities from a CSV file, the frontend calls
-`POST /api/product-stock/bulk-adjust` with `movementType: "initial"` and `notes: "นำเข้าจากไฟล์"`.
-The server calls `storage.adjustStock()` which INSERTs a row into `stock_movements`
-with no `reference_type` and no `reference_id` — because there is no document behind it.
-This is by design for initial stock setup. The record is legitimate at the time of creation.
+`warehouse.tsx` has a "นำเข้าสต๊อกจากไฟล์ CSV" feature. When a user imports stock quantities,
+the frontend calls `POST /api/product-stock/bulk-adjust` → server calls `storage.adjustStock()`
+→ INSERTs a row into `stock_movements` with `reference_type = NULL` and `reference_id = NULL`.
+
+This is reckless. A programmer who writes a feature that accepts user-supplied data and writes
+it unconditionally into a table with no guard, no duplicate check, and no reference anchor,
+has chosen to trust that the user will never make a mistake. That is not a boundary a programmer
+can control. Any person can import the same Excel file twice — this takes no imagination at all
+to foresee. Calling this "by design" and moving on is not production-grade thinking.
+At minimum, the programmer should detect that the same product already has an existing initial
+stock entry and warn the user: "this looks like it may have already been imported — are you sure?"
+Instead, the risk was handed entirely to the user and to chance.
+
+There is no single clear culprit here — the product import also did not prevent duplicate
+product codes from creating new rows. Both features failed to respect the boundary between
+what the programmer controls (the code) and what the programmer cannot control (the user).
 
 ---
 
-**Mistake — what turned a legitimate record into a problem:**
+**Mistake — what each side failed to do:**
 
-Product `5ST-6-CCTV100B` was imported from Excel more than once.
-The second import created a duplicate product row in the `products` table (`product_id = 520`, `active = false`).
-The initial stock entry (`stock_movements id = 1463`) was attached to this duplicate product — not the active one.
-Nobody noticed, because the duplicate was marked inactive and hidden from all dropdowns.
+1. `POST /api/product-stock/bulk-adjust`: accepted the import without checking whether an
+   `initial` stock_movement already existed for the same product_id. Wrote blindly.
 
-The mistake was not in the stock movement itself. The mistake was that the product import
-did not prevent duplicate product codes from creating new rows. It silently created a second
-product pointing to the same code, and the stock movement followed it.
+2. Product import (Excel → `/api/products/import`): when a product code already existed,
+   it silently created a second product row instead of rejecting or merging.
+   The result was `product_id = 520` (`5ST-6-CCTV100B`, `active = false`) — a duplicate
+   that no one could see, because inactive products are hidden across all UI dropdowns.
+
+3. The initial stock movement (`stock_movements id = 1463`) then followed the duplicate product,
+   not the active one — because it was imported at the time the duplicate existed.
 
 ---
 
@@ -152,11 +164,29 @@ product pointing to the same code, and the stock movement followed it.
 When `delete-inactive-duplicates` tried to remove `product_id = 520`:
 - PostgreSQL FK constraint `stock_movements.product_id → products.id` fired
 - The delete was rejected because `stock_movements id = 1463` still references `product_id = 520`
-- The record has no document (reference_type = NULL) so it appears in no history, no report, no UI
-- It exists only as a silent FK blocker — invisible to the user, impossible to remove without handling it first
+- The record has no document (reference_type = NULL) — invisible in history, reports, and all UI
+- It exists only as a silent FK blocker that no user action can reach and no screen can display
 
 ---
 
-**Fix procedure:** (to be filled in after พี่ช้าง confirms the approach)
+**Fix procedure:**
 
-**Status:** 📝 Documented — fix pending
+Because there is no single clear culprit (two features both contributed), the fix is handled
+via a one-time cleanup migration in `server/schema-extra.ts` — the same pattern used for
+schema migrations, applied here to data cleanup (DELETE instead of DDL).
+
+Steps:
+1. Write a cleanup function in `server/schema-extra.ts` (e.g. `runOrphanStockMovementCleanup()`)
+   - DELETE from `stock_movements` WHERE `movement_type = 'initial'` AND `reference_type IS NULL`
+     AND `reference_id IS NULL` AND `product_id` IN (the inactive duplicate product IDs)
+   - Guard with a flag in `system_config` to prevent re-running
+2. Call it from the relevant route file (top-level, outside any handler)
+3. Push schema-extra.ts + caller file → tell พี่ช้าง to run standard 4-step server command
+4. Verify the record is gone (Phase 1c — connect to production DB, confirm DELETE took effect)
+5. Comment out the function body immediately → replace with no-op + date + reason note (Phase 1b)
+6. Push clean schema-extra.ts → log in this file with timestamp and FLAG value
+
+**Backup required:** Yes — backup `stock_movements` rows to be deleted before the function runs.
+Backup location: `db/backups/YYYY-MM-DD_orphan_stock_movements_cleanup.sql`
+
+**Status:** 📝 Documented — fix pending พี่ช้าง confirmation
