@@ -1129,15 +1129,18 @@ export default function SalesOrderForm() {
                       <td className="px-1 pt-1.5">
                         <Input data-testid={`input-qty-${idx}`} inputMode="decimal" className="h-9 text-sm text-center border-dashed w-full min-w-0 px-1" value={item.qty} onChange={e => { const v = e.target.value; if (/^\d*\.?\d*$/.test(v)) updateItem(idx, "qty", v); }} />
                         {item.productId && (() => {
-                          const selectedWh = item.warehouseId ? warehouses.find((wh: any) => wh.id === item.warehouseId) : null;
-                          const levels = stockByWarehouse[item.productId];
-                          const displayQty = selectedWh && levels
-                            ? (levels.find((w: any) => w.warehouseName === selectedWh.name)?.qty ?? 0)
-                            : stockMap[item.productId];
+                          const pid = Number(item.productId);
+                          const wid = Number(item.warehouseId) || null;
+                          const selectedWh = wid ? warehouses.find((wh: any) => Number(wh.id) === wid) : null;
+                          const levels: { warehouseName: string; qty: number }[] | undefined =
+                            (stockByWarehouse as any)[pid] || (stockByWarehouse as any)[String(pid)];
+                          const displayQty = selectedWh && levels && levels.length > 0
+                            ? (levels.find((w) => w.warehouseName === selectedWh.name)?.qty ?? stockMap[pid])
+                            : stockMap[pid];
                           if (displayQty === undefined) return null;
                           return (
                             <div className={`text-[10px] text-center mt-0.5 ${displayQty <= 0 ? "text-red-500" : "text-slate-400"}`}>
-                              Bal. {displayQty.toLocaleString("th-TH", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
+                              Bal. {Number(displayQty).toLocaleString("th-TH", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
                             </div>
                           );
                         })()}
