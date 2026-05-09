@@ -175,11 +175,15 @@ This case has a clear source: the product import screen. The fix lives there, no
 schema-extra.ts is reserved for cases where there is no single screen or feature to blame.
 Here, import is the culprit — so import is where the cleanup goes.
 
-Why this method requires user interaction:
+Why this method requires user interaction — two reasons, not one:
 The import screen is also receiving a new safety-net (warn user when importing a product code
-that already exists). We do not silently fix data behind the user's back. The one-time cleanup
-runs when the user next opens and uses the import screen — making them an active participant
-in acknowledging the new safety behavior, not a passive bystander.
+that already exists). We do not silently fix data behind the user's back. When the user next
+uses the import screen, two things happen at once:
+  (1) The one-time DELETE runs — cleaning up the orphan record.
+  (2) The user deliberately tries to import the same duplicate product code again —
+      to verify with their own eyes that the safety-net fires correctly and warns them.
+This is a real-life production test, not just an acknowledgement. We want confirmation
+that the guard actually works under real conditions, not just in dev.
 
 Steps:
 1. Add a one-time DELETE block inside the import screen's server handler
