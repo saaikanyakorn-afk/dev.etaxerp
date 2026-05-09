@@ -380,6 +380,15 @@ export default function InventoryList(props: { Wrapper?: React.ComponentType<{ c
 
               {importStep === "preview" && importPreview && (
                 <div className="space-y-4 py-2">
+                  {importPreview.preview.some((p: any) => p.issues.some((i: string) => i.includes("เลิกใช้งาน"))) && (
+                    <div className="rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-700 flex gap-2 items-start" data-testid="warning-inactive-duplicate">
+                      <AlertCircle className="h-4 w-4 mt-0.5 shrink-0 text-red-500" />
+                      <span>
+                        <strong>คำเตือน: พบรหัสสินค้าที่เคยนำเข้ามาแล้ว</strong><br />
+                        ไฟล์นี้มีรหัสสินค้าที่มีอยู่ในระบบแล้ว (แม้สินค้านั้นจะเลิกใช้งาน) — กรุณาตรวจสอบว่าคุณไม่ได้นำเข้าไฟล์ Excel เดิมซ้ำ รายการเหล่านี้จะถูกข้ามโดยอัตโนมัติ ไม่มีการสร้างสินค้าซ้ำ
+                      </span>
+                    </div>
+                  )}
                   <div className="flex items-center gap-4">
                     <div className="flex items-center gap-2 text-sm">
                       <CheckCircle2 className="h-4 w-4 text-green-600" />

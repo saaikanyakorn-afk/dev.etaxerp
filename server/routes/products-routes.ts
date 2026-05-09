@@ -296,7 +296,7 @@ app.post("/api/products/import/preview", requireAuth, requireModule("inventory")
       const isExistingProduct = mapped.code && existingCodes.has(mapped.code);
       const isInactiveProduct = mapped.code && !isExistingProduct && inactiveCodes.has(mapped.code);
       if (isExistingProduct) issues.push(`รหัส "${mapped.code}" มีในระบบแล้ว`);
-      if (isInactiveProduct) issues.push(`รหัส "${mapped.code}" มีในระบบแล้ว (เลิกใช้งาน) — จะสร้างซ้ำ`);
+      if (isInactiveProduct) issues.push(`รหัส "${mapped.code}" มีในระบบแล้ว (เลิกใช้งาน) — จะถูกข้ามโดยอัตโนมัติ ตรวจสอบว่าไม่ได้นำเข้าไฟล์ซ้ำ`);
 
       if (mapped.category) {
         const c = mapped.category.toLowerCase();
@@ -405,6 +405,24 @@ app.post("/api/products/import/execute", requireAuth, requireModule("inventory")
     if (!companyId || !productList || !Array.isArray(productList)) {
       return res.status(400).json({ message: "ข้อมูลไม่ถูกต้อง" });
     }
+
+    // ── ONE-TIME CLEANUP: ENTRY #006 (2026-05-09) ──
+    // Removes orphan stock_movements (movement_type='initial', no reference doc) that silently
+    // block deletion of inactive duplicate products. Triggered on first use of this endpoint.
+    // Root cause: warehouse CSV import wrote stock_movements without reference anchor, and product
+    // import allowed duplicate codes to create new rows silently. See db/schema-history.md ENTRY #006.
+    const CLEANUP_FLAG_006 = "ORPHAN_STOCK_MOVEMENT_CLEANUP_20260509";
+    try {
+      const flagRows = await db.execute(sql.raw(`SELECT config_value FROM system_config WHERE config_key = '${CLEANUP_FLAG_006}' LIMIT 1`));
+      if ((flagRows.rows || []).length === 0) {
+        await db.execute(sql.raw(`DELETE FROM stock_movements WHERE movement_type = 'initial' AND reference_type IS NULL AND reference_id IS NULL AND product_id IN (SELECT p1.id FROM products p1 WHERE p1.active = false AND EXISTS (SELECT 1 FROM products p2 WHERE p2.code = p1.code AND p2.company_id = p1.company_id AND p2.id != p1.id))`));
+        await db.execute(sql.raw(`INSERT INTO system_config (config_key, config_value) VALUES ('${CLEANUP_FLAG_006}', 'done_${new Date().toISOString()}') ON CONFLICT (config_key) DO NOTHING`));
+        console.log("[cleanup] \u2705 ENTRY #006: orphan initial stock_movements for inactive duplicate products removed");
+      }
+    } catch (cleanupErr: any) {
+      console.error("[cleanup] \u274C ENTRY #006 failed:", cleanupErr.message);
+    }
+    // ── END ONE-TIME CLEANUP ──
 
     const existingProducts = await storage.getProducts(companyId);
     const existingCodes = new Set(existingProducts.filter(p => p.active).map(p => p.code));
