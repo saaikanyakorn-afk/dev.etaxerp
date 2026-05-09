@@ -821,6 +821,94 @@ app.post("/api/products/bulk-permanent-delete", requireAuth, requireModule("inve
   }
 });
 
+// ==================== Delete Inactive Duplicates ====================
+app.post("/api/products/delete-inactive-duplicates", requireAuth, requireModule("inventory"), async (req, res) => {
+  try {
+    const { companyId } = req.body as { companyId: number };
+    if (!companyId) return res.status(400).json({ message: "กรุณาระบุ companyId" });
+    { const ac = await checkDocOwnership(companyId, req.user); if (!ac.allowed) return res.status(403).json({ message: ac.message }); }
+
+    // Find inactive products whose code exists in an active product of the same company
+    const duplicateRows = await db.execute(sql`
+      SELECT p.id, p.code, p.name
+      FROM products p
+      WHERE p.company_id = ${companyId}
+        AND p.active = false
+        AND EXISTS (
+          SELECT 1 FROM products a
+          WHERE a.company_id = ${companyId}
+            AND a.active = true
+            AND a.code = p.code
+        )
+    `);
+    const duplicates = duplicateRows.rows as { id: number; code: string; name: string }[];
+    if (duplicates.length === 0) {
+      return res.json({ found: 0, deleted: 0, skipped: [] });
+    }
+
+    const dupIds = duplicates.map(d => d.id);
+    const pgIds = sql.raw(`ARRAY[${dupIds.join(',')}]::int[]`);
+
+    // FK ref check (same pattern as bulk-permanent-delete)
+    const usedRows = await db.execute(sql`
+      SELECT DISTINCT product_id FROM (
+        SELECT product_id FROM pos_transaction_items WHERE product_id = ANY(${pgIds})
+        UNION ALL SELECT product_id FROM invoice_items WHERE product_id = ANY(${pgIds})
+        UNION ALL SELECT product_id FROM stock_movements WHERE product_id = ANY(${pgIds})
+        UNION ALL SELECT product_id FROM quotation_items WHERE product_id = ANY(${pgIds})
+        UNION ALL SELECT product_id FROM sales_order_items WHERE product_id = ANY(${pgIds})
+        UNION ALL SELECT product_id FROM tax_invoice_items WHERE product_id = ANY(${pgIds})
+        UNION ALL SELECT product_id FROM receipt_items WHERE product_id = ANY(${pgIds})
+        UNION ALL SELECT product_id FROM purchase_order_items WHERE product_id = ANY(${pgIds})
+        UNION ALL SELECT product_id FROM purchase_invoice_items WHERE product_id = ANY(${pgIds})
+        UNION ALL SELECT product_id FROM ecommerce_order_items WHERE product_id = ANY(${pgIds})
+        UNION ALL SELECT product_id FROM goods_receiving_items WHERE product_id = ANY(${pgIds})
+      ) t
+    `);
+    const usedIds = new Set((usedRows.rows as any[]).map(r => r.product_id));
+    const canDeleteIds = dupIds.filter(id => !usedIds.has(id));
+    const skipped = duplicates.filter(d => usedIds.has(d.id));
+
+    let deleted = 0;
+    if (canDeleteIds.length > 0) {
+      const pgDelIds = sql.raw(`ARRAY[${canDeleteIds.join(',')}]::int[]`);
+      await db.transaction(async (tx) => {
+        await tx.execute(sql`DELETE FROM product_stock WHERE product_id = ANY(${pgDelIds})`);
+        await tx.execute(sql`DELETE FROM product_bundles WHERE bundle_product_id = ANY(${pgDelIds}) OR component_product_id = ANY(${pgDelIds})`);
+        await tx.execute(sql`DELETE FROM ecommerce_product_mappings WHERE product_id = ANY(${pgDelIds})`);
+        await tx.delete(warehouseStockLevels).where(inArray(warehouseStockLevels.productId, canDeleteIds));
+        await tx.delete(productLots).where(inArray(productLots.productId, canDeleteIds));
+        await tx.execute(sql`DELETE FROM demand_forecasts WHERE product_id = ANY(${pgDelIds})`);
+        await tx.execute(sql`DELETE FROM product_bin_assignments WHERE product_id = ANY(${pgDelIds})`);
+        await tx.execute(sql`DELETE FROM menu_items WHERE product_id = ANY(${pgDelIds})`);
+        await tx.execute(sql`DELETE FROM promotion_rules WHERE buy_product_id = ANY(${pgDelIds}) OR get_product_id = ANY(${pgDelIds})`);
+        await tx.execute(sql`DELETE FROM product_mappings WHERE buy_product_id = ANY(${pgDelIds}) OR sell_product_id = ANY(${pgDelIds})`);
+        await tx.execute(sql`DELETE FROM supplier_quote_items WHERE product_id = ANY(${pgDelIds})`);
+        const result = await tx.delete(products).where(and(eq(products.companyId, companyId), inArray(products.id, canDeleteIds)));
+        deleted = result.rowCount || canDeleteIds.length;
+      });
+    }
+
+    await logActivity({
+      userId: (req.user as any).id,
+      companyId,
+      action: "delete_inactive_duplicates",
+      entityType: "product",
+      entityId: canDeleteIds.join(","),
+      entityName: `ลบสินค้าซ้ำ inactive ${deleted} รายการ (ข้าม ${skipped.length})`,
+    });
+
+    res.json({
+      found: duplicates.length,
+      deleted,
+      skipped: skipped.map(s => ({ id: s.id, code: s.code, name: s.name, reason: "ยังถูกอ้างอิงในเอกสาร" })),
+    });
+  } catch (err: any) {
+    console.error("[delete-inactive-duplicates] error:", err);
+    res.status(500).json({ message: err.message });
+  }
+});
+
 // ===== Bundle Components =====
 app.get("/api/products/:id/bundle-components", requireAuth, async (req, res) => {
   try {

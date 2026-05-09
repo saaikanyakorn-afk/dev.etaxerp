@@ -57,6 +57,8 @@ export default function InventoryList(props: { Wrapper?: React.ComponentType<{ c
   const [selectedInactiveIds, setSelectedInactiveIds] = useState<Set<number>>(new Set());
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
   const [bulkDeleteResult, setBulkDeleteResult] = useState<{ deleted: number; skipped: { id: number; code: string; name: string; reason: string }[] } | null>(null);
+  const [showDeleteDupConfirm, setShowDeleteDupConfirm] = useState(false);
+  const [deleteDupResult, setDeleteDupResult] = useState<{ found: number; deleted: number; skipped: { id: number; code: string; name: string; reason: string }[] } | null>(null);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [importStep, setImportStep] = useState<"upload" | "preview" | "done">("upload");
   const [importPreview, setImportPreview] = useState<any>(null);
@@ -121,6 +123,34 @@ export default function InventoryList(props: { Wrapper?: React.ComponentType<{ c
     },
     onError: (err: any) => {
       setShowBulkDeleteConfirm(false);
+      toast({ title: "ลบไม่สำเร็จ", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const deleteInactiveDuplicatesMutation = useMutation({
+    mutationFn: async () => {
+      const r = await fetch("/api/products/delete-inactive-duplicates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ companyId: selectedCompanyId }),
+      });
+      if (!r.ok) throw new Error((await r.json()).message);
+      return r.json() as Promise<{ found: number; deleted: number; skipped: { id: number; code: string; name: string; reason: string }[] }>;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/products"] });
+      setShowDeleteDupConfirm(false);
+      setDeleteDupResult(data);
+      if (data.deleted === 0 && data.found === 0) {
+        toast({ title: "ไม่พบสินค้าซ้ำที่ inactive", variant: "success" as any });
+      } else {
+        const skippedMsg = data.skipped.length > 0 ? ` ข้าม ${data.skipped.length} รายการ (ยังมีเอกสารอ้างอิง)` : "";
+        toast({ title: `ลบสินค้าซ้ำสำเร็จ ${data.deleted} รายการ${skippedMsg}`, variant: "success" as any });
+      }
+    },
+    onError: (err: any) => {
+      setShowDeleteDupConfirm(false);
       toast({ title: "ลบไม่สำเร็จ", description: err.message, variant: "destructive" });
     },
   });
@@ -295,6 +325,14 @@ export default function InventoryList(props: { Wrapper?: React.ComponentType<{ c
             fileName="รายการสินค้า"
             sheetName="สินค้า"
           />
+          <Button
+            data-testid="btn-delete-dup"
+            variant="outline"
+            className="gap-2 border-red-400 text-red-500 hover:bg-red-50"
+            onClick={() => setShowDeleteDupConfirm(true)}
+          >
+            <Trash2 className="h-4 w-4" /> ลบสินค้าซ้ำ (inactive)
+          </Button>
           <Button data-testid="btn-stock-transfer" variant="outline" className="gap-2 border-[#fb9678] text-[#fb9678]"
             onClick={() => navigate("/inventory/stock-transfer")}>
             <Send className="h-4 w-4" /> กระจายสินค้าไปสาขา
@@ -790,6 +828,66 @@ export default function InventoryList(props: { Wrapper?: React.ComponentType<{ c
             </AlertDialogContent>
           </AlertDialog>
         )}
+        <AlertDialog open={showDeleteDupConfirm} onOpenChange={setShowDeleteDupConfirm}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle className="text-red-600">
+                <Trash2 className="h-5 w-5 inline mr-2" />
+                ยืนยันลบสินค้าซ้ำ (inactive)
+              </AlertDialogTitle>
+              <AlertDialogDescription asChild>
+                <div className="space-y-2 text-sm">
+                  <div className="text-red-700 font-medium">การลบนี้ <span className="underline">ไม่สามารถกู้คืนได้</span></div>
+                  <div className="text-muted-foreground">
+                    ระบบจะค้นหาสินค้าที่ <strong>เลิกใช้งาน</strong> ซึ่งมีรหัสซ้ำกับสินค้าที่ active อยู่ แล้วลบออกทั้งหมด
+                    สินค้าที่ยังถูกอ้างอิงในเอกสาร (invoice/SO/PO) จะถูกข้ามและรายงานกลับมา
+                  </div>
+                </div>
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel data-testid="button-cancel-delete-dup">ยกเลิก</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => deleteInactiveDuplicatesMutation.mutate()}
+                disabled={deleteInactiveDuplicatesMutation.isPending}
+                className="bg-red-600 hover:bg-red-700"
+                data-testid="button-confirm-delete-dup"
+              >
+                {deleteInactiveDuplicatesMutation.isPending ? "กำลังลบ..." : "ลบสินค้าซ้ำทั้งหมด"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {deleteDupResult && (
+          <AlertDialog open={!!deleteDupResult} onOpenChange={(o) => { if (!o) setDeleteDupResult(null); }}>
+            <AlertDialogContent className="max-h-[90vh] overflow-y-auto">
+              <AlertDialogHeader>
+                <AlertDialogTitle>ผลการลบสินค้าซ้ำ</AlertDialogTitle>
+                <AlertDialogDescription asChild>
+                  <div className="space-y-2 text-sm">
+                    <div className="text-muted-foreground">พบสินค้าซ้ำทั้งหมด <span className="font-bold">{deleteDupResult.found}</span> รายการ</div>
+                    <div className="text-emerald-700">✓ ลบสำเร็จ <span className="font-bold">{deleteDupResult.deleted}</span> รายการ</div>
+                    {deleteDupResult.skipped.length > 0 && (
+                      <>
+                        <div className="text-amber-700">⚠ ข้าม <span className="font-bold">{deleteDupResult.skipped.length}</span> รายการ (ยังมีเอกสารอ้างอิง)</div>
+                        <div className="mt-2 max-h-48 overflow-y-auto border rounded p-2 bg-amber-50 text-xs">
+                          {deleteDupResult.skipped.map(s => (
+                            <div key={s.id} className="py-0.5">• [{s.id}] {s.code} — {s.name}</div>
+                          ))}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogAction onClick={() => setDeleteDupResult(null)} data-testid="button-close-dup-result">ปิด</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        )}
+
         {showCostLogs && costUpdateLogs.length > 0 && (
           <Dialog open={showCostLogs} onOpenChange={setShowCostLogs}>
             <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
