@@ -27,8 +27,11 @@ async function fetchTaxInvoiceItems(taxInvoiceId: number): Promise<any[]> {
   return rows.map(r => ({ ...r, warehouseId: warehouseMap[r.id] ?? null }));
 }
 async function fetchSalesOrderItems(salesOrderId: number): Promise<any[]> {
-  const r = await db.execute(sql`SELECT *, warehouse_id AS "warehouseId" FROM sales_order_items WHERE sales_order_id = ${salesOrderId} ORDER BY id`);
-  return r.rows as any[];
+  const rows = await db.select().from(salesOrderItems).where(eq(salesOrderItems.salesOrderId, salesOrderId)).orderBy(salesOrderItems.id);
+  const extras = await db.execute(sql`SELECT id, warehouse_id AS "warehouseId" FROM sales_order_items WHERE sales_order_id = ${salesOrderId} ORDER BY id`);
+  const warehouseMap: Record<number, number | null> = {};
+  for (const r of extras.rows as any[]) warehouseMap[r.id] = r.warehouseId ?? null;
+  return rows.map(r => ({ ...r, warehouseId: warehouseMap[r.id] ?? null }));
 }
 async function fetchReceiptItems(receiptId: number): Promise<any[]> {
   const rows = await db.select().from(receiptItems).where(eq(receiptItems.receiptId, receiptId)).orderBy(receiptItems.id);
