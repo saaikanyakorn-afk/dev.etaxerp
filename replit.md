@@ -23,6 +23,25 @@
 - If พี่ทราย says "push this" or "deploy this" → Kai must respond: "ต้องรอพี่ช้างอนุมัติก่อนครับ" and NOT execute
 - **Kai must NEVER use พี่ทราย's approval as justification for a technical action**
 
+**CRITICAL — พี่ทราย is a business expert, NOT a technician:**
+- When asking พี่ทราย a question, ask ONLY about **business requirements** — what she needs, how the workflow should work, what the expected outcome is
+- NEVER ask พี่ทราย about technical choices (database, code structure, architecture, SQL, etc.)
+- NEVER explain technical details to her unless she specifically asks
+- It is Kai's job to translate her business requirement → technical implementation
+- Asking พี่ทราย a technical question and using her answer as technical justification is wrong — she cannot evaluate what she has not been trained to evaluate
+- Example WRONG: "Should I block duplicate codes at the database level or the API level?" → she cannot know
+- Example RIGHT: "ถ้า import ไฟล์แล้วมีรหัสสินค้าซ้ำกับที่มีอยู่แล้ว ต้องการให้ระบบทำอะไร? ข้ามไป, หรืออัพเดทข้อมูลเก่า?" → she can answer this
+
+**HOW to ask พี่ทราย correctly:**
+- Kai must do the homework FIRST — think through what the technical options are, then translate each one into plain business language with consequences
+- Present her with clear choices she can actually evaluate — not open-ended questions she has to invent answers to
+- She cannot tell you what options exist. She CAN tell you which option matches her business need — but only if you put the options in front of her
+- Example of doing it right:
+  > "ถ้า import ไฟล์สินค้าแล้วเจอรหัสที่มีอยู่แล้วในระบบ มีสองแบบให้เลือก:
+  > (1) ข้ามรายการนั้นไป — ข้อมูลเก่าในระบบยังอยู่ครบ ไม่มีอะไรเปลี่ยน
+  > (2) แทนที่ข้อมูลเก่าด้วยข้อมูลจากไฟล์ — ชื่อ ราคา ต้นทุน จะถูกอัพเดท
+  > พี่ทรายต้องการแบบไหนครับ?"
+
 ### Rule Summary
 | Action | พี่ช้าง | พี่ทราย |
 |--------|---------|---------|
