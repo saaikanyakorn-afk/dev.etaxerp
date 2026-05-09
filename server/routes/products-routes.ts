@@ -274,6 +274,7 @@ app.post("/api/products/import/preview", requireAuth, requireModule("inventory")
 
     const existingProducts = await storage.getProducts(companyId);
     const existingCodes = new Set(existingProducts.filter(p => p.active).map(p => p.code));
+    const inactiveCodes = new Set(existingProducts.filter(p => !p.active).map(p => p.code));
 
     const catMap: Record<string, string> = {
       "สินค้า": "product", "product": "product",
@@ -293,7 +294,9 @@ app.post("/api/products/import/preview", requireAuth, requireModule("inventory")
       if (!mapped.code) issues.push("ไม่มีรหัสสินค้า");
       if (!mapped.name) issues.push("ไม่มีชื่อสินค้า");
       const isExistingProduct = mapped.code && existingCodes.has(mapped.code);
+      const isInactiveProduct = mapped.code && !isExistingProduct && inactiveCodes.has(mapped.code);
       if (isExistingProduct) issues.push(`รหัส "${mapped.code}" มีในระบบแล้ว`);
+      if (isInactiveProduct) issues.push(`รหัส "${mapped.code}" มีในระบบแล้ว (เลิกใช้งาน) — จะสร้างซ้ำ`);
 
       if (mapped.category) {
         const c = mapped.category.toLowerCase();
@@ -405,11 +408,13 @@ app.post("/api/products/import/execute", requireAuth, requireModule("inventory")
 
     const existingProducts = await storage.getProducts(companyId);
     const existingCodes = new Set(existingProducts.filter(p => p.active).map(p => p.code));
+    const inactiveCodes = new Set(existingProducts.filter(p => !p.active).map(p => p.code));
+    const allBlockedCodes = new Set([...existingCodes, ...inactiveCodes]);
     const existingCodeMap = new Map(existingProducts.filter(p => p.active).map(p => [p.code, p.id]));
 
     const uniqueProducts = new Map<string, any>();
     for (const p of productList) {
-      if (!p.code || !p.name || existingCodes.has(p.code)) continue;
+      if (!p.code || !p.name || allBlockedCodes.has(p.code)) continue;
       if (!uniqueProducts.has(p.code)) {
         uniqueProducts.set(p.code, {
           companyId,
