@@ -565,8 +565,6 @@ app.delete("/api/quotations/:id", requireAuth, requireAnyModule("sales", "ecomme
     { const ac = await checkDocOwnership(existing.companyId, req.user); if (!ac.allowed) return res.status(403).json({ message: ac.message }); }
     // cascade protection: ต้องลบเอกสารปลายทางก่อน
     const blockers: string[] = [];
-    const linkedSO = await db.select({ id: salesOrders.id, no: salesOrders.orderNo }).from(salesOrders).where(eq(salesOrders.quotationId, existing.id));
-    if (linkedSO.length > 0) blockers.push(`ใบสั่งขาย: ${linkedSO.map(r => r.no).join(", ")}`);
     const linkedIV = await db.select({ id: invoices.id, no: invoices.invoiceNo }).from(invoices).where(eq(invoices.quotationId, existing.id));
     if (linkedIV.length > 0) blockers.push(`ใบแจ้งหนี้: ${linkedIV.map(r => r.no).join(", ")}`);
     if (blockers.length > 0) return res.status(400).json({ message: `ไม่สามารถลบได้ เนื่องจากมีเอกสารเชื่อมอยู่:\n${blockers.join("\n")}\nกรุณาลบเอกสารที่เชื่อมก่อน` });
