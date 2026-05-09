@@ -568,6 +568,7 @@ export default function InventoryList(props: { Wrapper?: React.ComponentType<{ c
                     ) : null}
                   </TableHead>
                   <TableHead className="w-10 text-center text-muted-foreground">#</TableHead>
+                  <TableHead className="w-14 text-center text-muted-foreground">ID</TableHead>
                   <TableHead className="w-24">รหัส</TableHead>
                   <TableHead>ชื่อสินค้า/บริการ</TableHead>
                   <TableHead className="w-28">หมวดหมู่</TableHead>
@@ -582,11 +583,11 @@ export default function InventoryList(props: { Wrapper?: React.ComponentType<{ c
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={11} className="text-center py-8 text-muted-foreground">กำลังโหลด...</TableCell>
+                    <TableCell colSpan={12} className="text-center py-8 text-muted-foreground">กำลังโหลด...</TableCell>
                   </TableRow>
                 ) : filtered.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={11} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={12} className="text-center py-8 text-muted-foreground">
                       {activeProducts.length === 0 ? "ยังไม่มีข้อมูลสินค้า กด \"เพิ่มสินค้า/บริการ\" เพื่อเริ่มต้น" : "ไม่พบข้อมูลที่ค้นหา"}
                     </TableCell>
                   </TableRow>
@@ -603,6 +604,7 @@ export default function InventoryList(props: { Wrapper?: React.ComponentType<{ c
                       ) : null}
                     </TableCell>
                     <TableCell className="text-center text-xs text-muted-foreground">{index + 1}</TableCell>
+                    <TableCell className="text-center text-xs text-slate-400" data-testid={`text-product-id-${product.id}`}>{product.id}</TableCell>
                     <TableCell className="text-sm">{product.code}</TableCell>
                     <TableCell>
                       <div className="font-medium flex items-center gap-2">
