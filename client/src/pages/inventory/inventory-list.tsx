@@ -58,7 +58,7 @@ export default function InventoryList(props: { Wrapper?: React.ComponentType<{ c
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
   const [bulkDeleteResult, setBulkDeleteResult] = useState<{ deleted: number; skipped: { id: number; code: string; name: string; reason: string }[] } | null>(null);
   const [showDeleteDupConfirm, setShowDeleteDupConfirm] = useState(false);
-  const [deleteDupResult, setDeleteDupResult] = useState<{ found: number; deleted: number; keptInactive: { id: number; code: string; name: string; reason: string }[] } | null>(null);
+  const [deleteDupResult, setDeleteDupResult] = useState<{ found: number; deleted: number; keptInactive: { id: number; code: string; name: string; reason: string; docs: string[] }[] } | null>(null);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [importStep, setImportStep] = useState<"upload" | "preview" | "done">("upload");
   const [importPreview, setImportPreview] = useState<any>(null);
@@ -873,7 +873,15 @@ export default function InventoryList(props: { Wrapper?: React.ComponentType<{ c
                         <div className="text-amber-700">⚠ คงไว้เป็นเลิกใช้งาน <span className="font-bold">{deleteDupResult.keptInactive.length}</span> รายการ (ยังมีเอกสารอ้างอิงอยู่ — ลบไม่ได้)</div>
                         <div className="mt-2 max-h-48 overflow-y-auto border rounded p-2 bg-amber-50 text-xs">
                           {deleteDupResult.keptInactive.map(s => (
-                            <div key={s.id} className="py-0.5">• [ID:{s.id}] {s.code} — {s.name}</div>
+                            <div key={s.id} className="py-1 border-b last:border-b-0">
+                              <div>• [ID:{s.id}] {s.code} — {s.name}</div>
+                              {s.docs.length > 0 && (
+                                <div className="pl-3 text-amber-800 mt-0.5">
+                                  {s.docs.map((doc, i) => <div key={i} className="text-[11px]">↳ {doc}</div>)}
+                                </div>
+                              )}
+                              {s.docs.length === 0 && <div className="pl-3 text-gray-500 text-[11px]">↳ (ไม่พบรายละเอียดเอกสาร)</div>}
+                            </div>
                           ))}
                         </div>
                       </>

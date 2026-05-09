@@ -873,6 +873,27 @@ app.post("/api/products/delete-inactive-duplicates", requireAuth, requireModule(
     const canDeleteIds = dupIds.filter(id => !usedIds.has(id));
     const skipped = duplicates.filter(d => usedIds.has(d.id));
 
+    // Fetch actual document details for skipped products
+    const skippedDocMap: Record<number, string[]> = {};
+    if (skipped.length > 0) {
+      const skippedPgIds = sql.raw(`ARRAY[${skipped.map(s => s.id).join(',')}]::int[]`);
+      const docRows = await db.execute(sql`
+        SELECT product_id, 'ใบเสนอราคา ' || q.quotation_no as doc FROM quotation_items qi JOIN quotations q ON q.id=qi.quotation_id WHERE qi.product_id = ANY(${skippedPgIds})
+        UNION ALL SELECT product_id, 'ใบสั่งขาย ' || so.order_no as doc FROM sales_order_items soi JOIN sales_orders so ON so.id=soi.sales_order_id WHERE soi.product_id = ANY(${skippedPgIds})
+        UNION ALL SELECT product_id, 'ใบแจ้งหนี้ ' || i.invoice_no as doc FROM invoice_items ii JOIN invoices i ON i.id=ii.invoice_id WHERE ii.product_id = ANY(${skippedPgIds})
+        UNION ALL SELECT product_id, 'ใบกำกับภาษี ' || ti.tax_invoice_no as doc FROM tax_invoice_items tii JOIN tax_invoices ti ON ti.id=tii.tax_invoice_id WHERE tii.product_id = ANY(${skippedPgIds})
+        UNION ALL SELECT product_id, 'ใบเสร็จรับเงิน ' || r.receipt_no as doc FROM receipt_items ri JOIN receipts r ON r.id=ri.receipt_id WHERE ri.product_id = ANY(${skippedPgIds})
+        UNION ALL SELECT product_id, 'ใบสั่งซื้อ ' || po.po_no as doc FROM purchase_order_items poi JOIN purchase_orders po ON po.id=poi.purchase_order_id WHERE poi.product_id = ANY(${skippedPgIds})
+        UNION ALL SELECT product_id, 'ใบแจ้งหนี้ซื้อ ' || pi2.ap_no as doc FROM purchase_invoice_items pii JOIN purchase_invoices pi2 ON pi2.id=pii.purchase_invoice_id WHERE pii.product_id = ANY(${skippedPgIds})
+        UNION ALL SELECT product_id, 'รายการ POS ' || pt.transaction_no as doc FROM pos_transaction_items pti JOIN pos_transactions pt ON pt.id=pti.transaction_id WHERE pti.product_id = ANY(${skippedPgIds})
+        UNION ALL SELECT product_id, 'รับสินค้า ' || gr.gr_no as doc FROM goods_receiving_items gri JOIN goods_receivings gr ON gr.id=gri.goods_receiving_id WHERE gri.product_id = ANY(${skippedPgIds})
+      `);
+      for (const row of docRows.rows as any[]) {
+        if (!skippedDocMap[row.product_id]) skippedDocMap[row.product_id] = [];
+        if (!skippedDocMap[row.product_id].includes(row.doc)) skippedDocMap[row.product_id].push(row.doc);
+      }
+    }
+
     let deleted = 0;
     if (canDeleteIds.length > 0) {
       const pgDelIds = sql.raw(`ARRAY[${canDeleteIds.join(',')}]::int[]`);
@@ -907,7 +928,7 @@ app.post("/api/products/delete-inactive-duplicates", requireAuth, requireModule(
     res.json({
       found: duplicates.length,
       deleted,
-      keptInactive: skipped.map(s => ({ id: s.id, code: s.code, name: s.name, reason: "ยังถูกอ้างอิงในเอกสาร — คงไว้เป็นเลิกใช้งาน" })),
+      keptInactive: skipped.map(s => ({ id: s.id, code: s.code, name: s.name, reason: "ยังถูกอ้างอิงในเอกสาร — คงไว้เป็นเลิกใช้งาน", docs: skippedDocMap[s.id] || [] })),
     });
   } catch (err: any) {
     console.error("[delete-inactive-duplicates] error:", err);
