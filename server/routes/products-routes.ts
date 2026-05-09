@@ -854,12 +854,11 @@ app.post("/api/products/delete-inactive-duplicates", requireAuth, requireModule(
     const dupIds = duplicates.map(d => d.id);
     const pgIds = sql.raw(`ARRAY[${dupIds.join(',')}]::int[]`);
 
-    // FK ref check (same pattern as bulk-permanent-delete)
+    // FK ref check — ไม่นับ stock_movements เพราะ initial entries ไม่ใช่เอกสาร (จะถูกลบใน cleanup)
     const usedRows = await db.execute(sql`
       SELECT DISTINCT product_id FROM (
         SELECT product_id FROM pos_transaction_items WHERE product_id = ANY(${pgIds})
         UNION ALL SELECT product_id FROM invoice_items WHERE product_id = ANY(${pgIds})
-        UNION ALL SELECT product_id FROM stock_movements WHERE product_id = ANY(${pgIds})
         UNION ALL SELECT product_id FROM quotation_items WHERE product_id = ANY(${pgIds})
         UNION ALL SELECT product_id FROM sales_order_items WHERE product_id = ANY(${pgIds})
         UNION ALL SELECT product_id FROM tax_invoice_items WHERE product_id = ANY(${pgIds})
@@ -878,6 +877,7 @@ app.post("/api/products/delete-inactive-duplicates", requireAuth, requireModule(
     if (canDeleteIds.length > 0) {
       const pgDelIds = sql.raw(`ARRAY[${canDeleteIds.join(',')}]::int[]`);
       await db.transaction(async (tx) => {
+        await tx.execute(sql`DELETE FROM stock_movements WHERE product_id = ANY(${pgDelIds})`);
         await tx.execute(sql`DELETE FROM product_stock WHERE product_id = ANY(${pgDelIds})`);
         await tx.execute(sql`DELETE FROM product_bundles WHERE bundle_product_id = ANY(${pgDelIds}) OR component_product_id = ANY(${pgDelIds})`);
         await tx.execute(sql`DELETE FROM ecommerce_product_mappings WHERE product_id = ANY(${pgDelIds})`);
