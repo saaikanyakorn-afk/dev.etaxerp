@@ -903,10 +903,11 @@ app.post("/api/products/delete-inactive-duplicates", requireAuth, requireModule(
       entityName: `ลบสินค้าซ้ำ inactive ${deleted} รายการ (ข้าม ${skipped.length})`,
     });
 
+    // Products with FK refs: keep as inactive (already inactive), just report them back
     res.json({
       found: duplicates.length,
       deleted,
-      skipped: skipped.map(s => ({ id: s.id, code: s.code, name: s.name, reason: "ยังถูกอ้างอิงในเอกสาร" })),
+      keptInactive: skipped.map(s => ({ id: s.id, code: s.code, name: s.name, reason: "ยังถูกอ้างอิงในเอกสาร — คงไว้เป็นเลิกใช้งาน" })),
     });
   } catch (err: any) {
     console.error("[delete-inactive-duplicates] error:", err);

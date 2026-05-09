@@ -58,7 +58,7 @@ export default function InventoryList(props: { Wrapper?: React.ComponentType<{ c
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
   const [bulkDeleteResult, setBulkDeleteResult] = useState<{ deleted: number; skipped: { id: number; code: string; name: string; reason: string }[] } | null>(null);
   const [showDeleteDupConfirm, setShowDeleteDupConfirm] = useState(false);
-  const [deleteDupResult, setDeleteDupResult] = useState<{ found: number; deleted: number; skipped: { id: number; code: string; name: string; reason: string }[] } | null>(null);
+  const [deleteDupResult, setDeleteDupResult] = useState<{ found: number; deleted: number; keptInactive: { id: number; code: string; name: string; reason: string }[] } | null>(null);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [importStep, setImportStep] = useState<"upload" | "preview" | "done">("upload");
   const [importPreview, setImportPreview] = useState<any>(null);
@@ -136,7 +136,7 @@ export default function InventoryList(props: { Wrapper?: React.ComponentType<{ c
         body: JSON.stringify({ companyId: selectedCompanyId }),
       });
       if (!r.ok) throw new Error((await r.json()).message);
-      return r.json() as Promise<{ found: number; deleted: number; skipped: { id: number; code: string; name: string; reason: string }[] }>;
+      return r.json() as Promise<{ found: number; deleted: number; keptInactive: { id: number; code: string; name: string; reason: string }[] }>;
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/products"] });
@@ -145,8 +145,8 @@ export default function InventoryList(props: { Wrapper?: React.ComponentType<{ c
       if (data.deleted === 0 && data.found === 0) {
         toast({ title: "ไม่พบสินค้าซ้ำที่ inactive", variant: "success" as any });
       } else {
-        const skippedMsg = data.skipped.length > 0 ? ` ข้าม ${data.skipped.length} รายการ (ยังมีเอกสารอ้างอิง)` : "";
-        toast({ title: `ลบสินค้าซ้ำสำเร็จ ${data.deleted} รายการ${skippedMsg}`, variant: "success" as any });
+        const keptMsg = data.keptInactive.length > 0 ? ` คงไว้ ${data.keptInactive.length} รายการ (ยังมีเอกสารอ้างอิง)` : "";
+        toast({ title: `ลบสินค้าซ้ำสำเร็จ ${data.deleted} รายการ${keptMsg}`, variant: "success" as any });
       }
     },
     onError: (err: any) => {
@@ -868,12 +868,12 @@ export default function InventoryList(props: { Wrapper?: React.ComponentType<{ c
                   <div className="space-y-2 text-sm">
                     <div className="text-muted-foreground">พบสินค้าซ้ำทั้งหมด <span className="font-bold">{deleteDupResult.found}</span> รายการ</div>
                     <div className="text-emerald-700">✓ ลบสำเร็จ <span className="font-bold">{deleteDupResult.deleted}</span> รายการ</div>
-                    {deleteDupResult.skipped.length > 0 && (
+                    {deleteDupResult.keptInactive.length > 0 && (
                       <>
-                        <div className="text-amber-700">⚠ ข้าม <span className="font-bold">{deleteDupResult.skipped.length}</span> รายการ (ยังมีเอกสารอ้างอิง)</div>
+                        <div className="text-amber-700">⚠ คงไว้เป็นเลิกใช้งาน <span className="font-bold">{deleteDupResult.keptInactive.length}</span> รายการ (ยังมีเอกสารอ้างอิงอยู่ — ลบไม่ได้)</div>
                         <div className="mt-2 max-h-48 overflow-y-auto border rounded p-2 bg-amber-50 text-xs">
-                          {deleteDupResult.skipped.map(s => (
-                            <div key={s.id} className="py-0.5">• [{s.id}] {s.code} — {s.name}</div>
+                          {deleteDupResult.keptInactive.map(s => (
+                            <div key={s.id} className="py-0.5">• [ID:{s.id}] {s.code} — {s.name}</div>
                           ))}
                         </div>
                       </>
