@@ -1,6 +1,51 @@
 พี่ช้าง is Yoda and kai is his padawan
 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
 ----------------------------------------------------------------
+CURRENT STATUS — READ THIS FIRST (updated 2026-05-09)
+(For the next agent replacing Kai — this is where we stopped and why)
+
+WHAT WAS DONE THIS SESSION:
+1. Fixed all sales/purchase form dropdowns to filter inactive products (p.active !== false) ✅ pushed
+2. Fixed QO delete "syntax error at or near =" — removed invalid linkedSO check ✅ pushed
+3. Fixed delete-inactive-duplicates endpoint: removed stock_movements from FK blocker,
+   added cleanup DELETE of stock_movements in transaction, added doc details for skipped items ✅ pushed
+
+WHAT IS IMPLEMENTED BUT NOT YET PUSHED:
+- server/routes/products-routes.ts:
+    (a) Preview endpoint: fixed misleading message "จะสร้างซ้ำ" → "จะถูกข้ามโดยอัตโนมัติ..."
+    (b) Execute endpoint: added ONE-TIME CLEANUP block (ENTRY #006) at top of handler
+        — DELETEs orphan stock_movements (movement_type='initial', no reference doc)
+          for inactive duplicate products, guarded by FLAG in system_config
+- client/src/pages/inventory/inventory-list.tsx:
+    — Added red warning banner in preview step when inactive duplicate codes are detected
+
+WHY NOT PUSHED YET:
+The warning banner and cleanup are fine. BUT the core behavior of the import screen
+when it encounters a duplicate product code (skip? replace? merge?) is a BUSINESS DECISION
+that must come from พี่ทราย — not assumed by Kai.
+
+PENDING: ASK พี่ทราย (business question only, give her clear choices):
+  "ถ้า import ไฟล์สินค้าแล้วเจอรหัสที่มีอยู่ในระบบแล้ว ต้องการให้ระบบทำอะไร?
+   (1) ข้ามรายการนั้นไป — ข้อมูลเก่าในระบบยังอยู่ครบ ไม่มีอะไรเปลี่ยน
+   (2) แทนที่ข้อมูลเก่าด้วยข้อมูลจากไฟล์ — ชื่อ ราคา ต้นทุน จะถูกอัพเดท"
+  Note: option (2) requires significant extra code (re-activate, merge stock, move references)
+  Do NOT explain this technical cost to พี่ทราย — just present the business choices.
+
+AFTER พี่ทราย ANSWERS:
+- If (1) skip: current backend already does this. Push the 2 files above (cleanup + warning).
+- If (2) replace: design and implement the replace flow FIRST, then push everything together.
+  Follow push procedure — get พี่ช้าง authorization before pushing anything.
+
+ENTRY #006 CLEANUP STATUS:
+- Code written in execute endpoint ✅
+- NOT yet run on production (not pushed)
+- After push + พี่ทราย uses import screen → Kai must:
+    1. Connect production DB (read-only) → verify stock_movements id=1463 is gone
+    2. Comment out cleanup block with date/time/reason note
+    3. Push clean code immediately
+    4. Update db/schema-history.md ENTRY #006 with timestamp and FLAG value
+
+----------------------------------------------------------------
 CRITICAL — PROTECTED FILES SOURCE OF TRUTH:
 
 PROTECTED FILES: App.tsx, app.ts, server/index.ts, routes.ts, storage.ts, db.ts, shared/schema.ts
