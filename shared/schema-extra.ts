@@ -153,7 +153,7 @@ import { pgTable, serial, integer, text, varchar, decimal, date, timestamp, bool
 import { createInsertSchema } from "drizzle-zod";
 import { sql } from "drizzle-orm";
 import { z } from "zod";
-import { companies, users, tenants, subscriptionPlans, employees } from "./schema";
+import { companies, users, tenants, subscriptionPlans, employees, products } from "./schema";
 
 export const employeeHourSettings = pgTable("employee_hour_settings", {
   id: serial("id").primaryKey(),
@@ -645,3 +645,203 @@ export async function runExpenseCurrencyMigration(_db: any) {}
  * default_vat_rate TEXT DEFAULT '7' confirmed in general_settings
  */
 export async function runDefaultVatRateMigration(_db: any) {}
+
+// =============================================================================
+// PRODUCT SPLIT — active_products + inactive_products (ENTRY #007, 2026-05-10)
+// Middle-man pattern: products (schema.ts) stays as registry, all 34 FK tables
+// still point to products.id — integrity maintained at DB level.
+// active_products + inactive_products each hold a 1:1 row keyed to products.id.
+// Moving a product between active/inactive = move row between these 2 tables only.
+// =============================================================================
+
+export const activeProducts = pgTable("active_products", {
+  id: integer("id").primaryKey().references(() => products.id, { onDelete: "cascade" }),
+  companyId: integer("company_id").references(() => companies.id).notNull(),
+  code: text("code").notNull(),
+  name: text("name").notNull(),
+  nameEn: text("name_en"),
+  nameZh: text("name_zh"),
+  description: text("description"),
+  category: text("category").notNull().default("product"),
+  productType: text("product_type").notNull().default("simple"),
+  unit: text("unit").notNull().default("ชิ้น"),
+  price: decimal("price", { precision: 15, scale: 2 }).notNull().default("0"),
+  cost: decimal("cost", { precision: 15, scale: 2 }).default("0"),
+  priceRetail: decimal("price_retail", { precision: 15, scale: 2 }).default("0"),
+  priceWholesale: decimal("price_wholesale", { precision: 15, scale: 2 }).default("0"),
+  priceAgent: decimal("price_agent", { precision: 15, scale: 2 }).default("0"),
+  priceSpecial: decimal("price_special", { precision: 15, scale: 2 }).default("0"),
+  priceVip: decimal("price_vip", { precision: 15, scale: 2 }).default("0"),
+  vatType: text("vat_type").notNull().default("vat7"),
+  vatIncluded: boolean("vat_included").notNull().default(false),
+  accountCode: text("account_code"),
+  barcode: text("barcode"),
+  imageUrl: text("image_url"),
+  lowStockThreshold: integer("low_stock_threshold").default(0),
+  trackLots: boolean("track_lots").notNull().default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export const insertActiveProductSchema = createInsertSchema(activeProducts).omit({ createdAt: true });
+export type InsertActiveProduct = z.infer<typeof insertActiveProductSchema>;
+export type ActiveProduct = typeof activeProducts.$inferSelect;
+
+export const inactiveProducts = pgTable("inactive_products", {
+  id: integer("id").primaryKey().references(() => products.id, { onDelete: "cascade" }),
+  companyId: integer("company_id").references(() => companies.id).notNull(),
+  code: text("code").notNull(),
+  name: text("name").notNull(),
+  nameEn: text("name_en"),
+  nameZh: text("name_zh"),
+  description: text("description"),
+  category: text("category").notNull().default("product"),
+  productType: text("product_type").notNull().default("simple"),
+  unit: text("unit").notNull().default("ชิ้น"),
+  price: decimal("price", { precision: 15, scale: 2 }).notNull().default("0"),
+  cost: decimal("cost", { precision: 15, scale: 2 }).default("0"),
+  priceRetail: decimal("price_retail", { precision: 15, scale: 2 }).default("0"),
+  priceWholesale: decimal("price_wholesale", { precision: 15, scale: 2 }).default("0"),
+  priceAgent: decimal("price_agent", { precision: 15, scale: 2 }).default("0"),
+  priceSpecial: decimal("price_special", { precision: 15, scale: 2 }).default("0"),
+  priceVip: decimal("price_vip", { precision: 15, scale: 2 }).default("0"),
+  vatType: text("vat_type").notNull().default("vat7"),
+  vatIncluded: boolean("vat_included").notNull().default(false),
+  accountCode: text("account_code"),
+  barcode: text("barcode"),
+  imageUrl: text("image_url"),
+  lowStockThreshold: integer("low_stock_threshold").default(0),
+  trackLots: boolean("track_lots").notNull().default(false),
+  deactivatedAt: timestamp("deactivated_at").defaultNow(),
+  createdAt: timestamp("created_at"),
+});
+export const insertInactiveProductSchema = createInsertSchema(inactiveProducts).omit({ deactivatedAt: true });
+export type InsertInactiveProduct = z.infer<typeof insertInactiveProductSchema>;
+export type InactiveProduct = typeof inactiveProducts.$inferSelect;
+
+// Migration: create tables + backfill from products (runs once via FLAG)
+export async function runProductSplitMigration(db: any) {
+  // ── Phase 1: DDL — CREATE TABLE IF NOT EXISTS (idempotent, no flag needed) ──
+  try {
+    await db.execute(sql.raw(`
+      CREATE TABLE IF NOT EXISTS active_products (
+        id INTEGER PRIMARY KEY REFERENCES products(id) ON DELETE CASCADE,
+        company_id INTEGER NOT NULL REFERENCES companies(id),
+        code TEXT NOT NULL,
+        name TEXT NOT NULL,
+        name_en TEXT,
+        name_zh TEXT,
+        description TEXT,
+        category TEXT NOT NULL DEFAULT 'product',
+        product_type TEXT NOT NULL DEFAULT 'simple',
+        unit TEXT NOT NULL DEFAULT 'ชิ้น',
+        price DECIMAL(15,2) NOT NULL DEFAULT 0,
+        cost DECIMAL(15,2) DEFAULT 0,
+        price_retail DECIMAL(15,2) DEFAULT 0,
+        price_wholesale DECIMAL(15,2) DEFAULT 0,
+        price_agent DECIMAL(15,2) DEFAULT 0,
+        price_special DECIMAL(15,2) DEFAULT 0,
+        price_vip DECIMAL(15,2) DEFAULT 0,
+        vat_type TEXT NOT NULL DEFAULT 'vat7',
+        vat_included BOOLEAN NOT NULL DEFAULT false,
+        account_code TEXT,
+        barcode TEXT,
+        image_url TEXT,
+        low_stock_threshold INTEGER DEFAULT 0,
+        track_lots BOOLEAN NOT NULL DEFAULT false,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `));
+    await db.execute(sql.raw(`
+      CREATE TABLE IF NOT EXISTS inactive_products (
+        id INTEGER PRIMARY KEY REFERENCES products(id) ON DELETE CASCADE,
+        company_id INTEGER NOT NULL REFERENCES companies(id),
+        code TEXT NOT NULL,
+        name TEXT NOT NULL,
+        name_en TEXT,
+        name_zh TEXT,
+        description TEXT,
+        category TEXT NOT NULL DEFAULT 'product',
+        product_type TEXT NOT NULL DEFAULT 'simple',
+        unit TEXT NOT NULL DEFAULT 'ชิ้น',
+        price DECIMAL(15,2) NOT NULL DEFAULT 0,
+        cost DECIMAL(15,2) DEFAULT 0,
+        price_retail DECIMAL(15,2) DEFAULT 0,
+        price_wholesale DECIMAL(15,2) DEFAULT 0,
+        price_agent DECIMAL(15,2) DEFAULT 0,
+        price_special DECIMAL(15,2) DEFAULT 0,
+        price_vip DECIMAL(15,2) DEFAULT 0,
+        vat_type TEXT NOT NULL DEFAULT 'vat7',
+        vat_included BOOLEAN NOT NULL DEFAULT false,
+        account_code TEXT,
+        barcode TEXT,
+        image_url TEXT,
+        low_stock_threshold INTEGER DEFAULT 0,
+        track_lots BOOLEAN NOT NULL DEFAULT false,
+        deactivated_at TIMESTAMP DEFAULT NOW(),
+        created_at TIMESTAMP
+      )
+    `));
+    console.log("[migration] ✅ active_products + inactive_products tables ready (DDL)");
+  } catch (e: any) {
+    console.error("[migration] ❌ runProductSplitMigration DDL FAILED:", e.message);
+    return;
+  }
+
+  // ── Phase 2: Data backfill — guarded by FLAG (runs exactly once) ──
+  const FLAG = "PRODUCT_SPLIT_MIGRATION_20260510";
+  try {
+    const flagRows = await db.execute(sql.raw(
+      `SELECT 1 FROM system_config WHERE config_key = '${FLAG}' LIMIT 1`
+    ));
+    if ((flagRows.rows || []).length > 0) {
+      console.log("[migration] product split backfill already done — skipping");
+      return;
+    }
+
+    await db.execute(sql.raw(`
+      INSERT INTO active_products (
+        id, company_id, code, name, name_en, name_zh, description,
+        category, product_type, unit, price, cost,
+        price_retail, price_wholesale, price_agent, price_special, price_vip,
+        vat_type, vat_included, account_code, barcode, image_url,
+        low_stock_threshold, track_lots, created_at
+      )
+      SELECT
+        id, company_id, code, name, name_en, name_zh, description,
+        category, product_type, unit, price, cost,
+        price_retail, price_wholesale, price_agent, price_special, price_vip,
+        vat_type, vat_included, account_code, barcode, image_url,
+        low_stock_threshold, track_lots, created_at
+      FROM products
+      WHERE active = true
+      ON CONFLICT (id) DO NOTHING
+    `));
+
+    await db.execute(sql.raw(`
+      INSERT INTO inactive_products (
+        id, company_id, code, name, name_en, name_zh, description,
+        category, product_type, unit, price, cost,
+        price_retail, price_wholesale, price_agent, price_special, price_vip,
+        vat_type, vat_included, account_code, barcode, image_url,
+        low_stock_threshold, track_lots, created_at, deactivated_at
+      )
+      SELECT
+        id, company_id, code, name, name_en, name_zh, description,
+        category, product_type, unit, price, cost,
+        price_retail, price_wholesale, price_agent, price_special, price_vip,
+        vat_type, vat_included, account_code, barcode, image_url,
+        low_stock_threshold, track_lots, created_at, NOW()
+      FROM products
+      WHERE active = false
+      ON CONFLICT (id) DO NOTHING
+    `));
+
+    await db.execute(sql.raw(
+      `INSERT INTO system_config (config_key, config_value)
+       VALUES ('${FLAG}', 'done_${new Date().toISOString()}')
+       ON CONFLICT (config_key) DO NOTHING`
+    ));
+    console.log("[migration] ✅ product split backfill done — active + inactive tables populated");
+  } catch (e: any) {
+    console.error("[migration] ❌ runProductSplitMigration backfill FAILED:", e.message);
+  }
+}
