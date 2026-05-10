@@ -1773,6 +1773,9 @@ export class DatabaseStorage implements IStorage {
   async bulkCreateProducts(productList: InsertProduct[]): Promise<Product[]> {
     if (productList.length === 0) return [];
     const created = await db.insert(products).values(productList).returning();
+    for (const p of created) {
+      await syncProductSplit(p.id, p.active !== false);
+    }
     return created;
   }
 
