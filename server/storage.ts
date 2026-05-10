@@ -109,13 +109,19 @@ const _PCOLS = `id, company_id, code, name, name_en, name_zh, description, categ
 const _PSET  = `code=EXCLUDED.code, name=EXCLUDED.name, name_en=EXCLUDED.name_en, name_zh=EXCLUDED.name_zh, description=EXCLUDED.description, category=EXCLUDED.category, product_type=EXCLUDED.product_type, unit=EXCLUDED.unit, price=EXCLUDED.price, cost=EXCLUDED.cost, price_retail=EXCLUDED.price_retail, price_wholesale=EXCLUDED.price_wholesale, price_agent=EXCLUDED.price_agent, price_special=EXCLUDED.price_special, price_vip=EXCLUDED.price_vip, vat_type=EXCLUDED.vat_type, vat_included=EXCLUDED.vat_included, account_code=EXCLUDED.account_code, barcode=EXCLUDED.barcode, image_url=EXCLUDED.image_url, low_stock_threshold=EXCLUDED.low_stock_threshold, track_lots=EXCLUDED.track_lots`;
 
 async function syncProductSplit(id: number, isActive: boolean): Promise<void> {
-  if (isActive) {
-    await db.execute(sql.raw(`DELETE FROM inactive_products WHERE id = ${id}`));
-    await db.execute(sql.raw(`INSERT INTO active_products (${_PCOLS}) SELECT ${_PCOLS} FROM products WHERE id = ${id} ON CONFLICT (id) DO UPDATE SET ${_PSET}`));
-  } else {
-    await db.execute(sql.raw(`DELETE FROM active_products WHERE id = ${id}`));
-    await db.execute(sql.raw(`INSERT INTO inactive_products (${_PCOLS}, deactivated_at) SELECT ${_PCOLS}, NOW() FROM products WHERE id = ${id} ON CONFLICT (id) DO UPDATE SET ${_PSET}, deactivated_at=NOW()`));
-  }
+  await db.transaction(async (tx) => {
+    if (isActive) {
+      // Step 1: Upsert into target — data is safe before we touch source
+      await tx.execute(sql.raw(`INSERT INTO active_products (${_PCOLS}) SELECT ${_PCOLS} FROM products WHERE id = ${id} ON CONFLICT (id) DO UPDATE SET ${_PSET}`));
+      // Step 2: Remove from source only after target insert committed
+      await tx.execute(sql.raw(`DELETE FROM inactive_products WHERE id = ${id}`));
+    } else {
+      // Step 1: Upsert into target — data is safe before we touch source
+      await tx.execute(sql.raw(`INSERT INTO inactive_products (${_PCOLS}, deactivated_at) SELECT ${_PCOLS}, NOW() FROM products WHERE id = ${id} ON CONFLICT (id) DO UPDATE SET ${_PSET}, deactivated_at=NOW()`));
+      // Step 2: Remove from source only after target insert committed
+      await tx.execute(sql.raw(`DELETE FROM active_products WHERE id = ${id}`));
+    }
+  });
 }
 
 export interface IStorage {
