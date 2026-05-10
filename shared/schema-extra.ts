@@ -720,8 +720,7 @@ export type InactiveProduct = typeof inactiveProducts.$inferSelect;
 // Migration: create tables + backfill from products (runs once via FLAG)
 export async function runProductSplitMigration(db: any) {
   // ── Phase 1: DDL — CREATE TABLE IF NOT EXISTS (idempotent, no flag needed) ──
-  try {
-    await db.execute(sql.raw(`
+  await db.execute(sql.raw(`
       CREATE TABLE IF NOT EXISTS active_products (
         id INTEGER PRIMARY KEY REFERENCES products(id) ON DELETE CASCADE,
         company_id INTEGER NOT NULL REFERENCES companies(id),
@@ -749,99 +748,91 @@ export async function runProductSplitMigration(db: any) {
         track_lots BOOLEAN NOT NULL DEFAULT false,
         created_at TIMESTAMP DEFAULT NOW()
       )
-    `));
-    await db.execute(sql.raw(`
-      CREATE TABLE IF NOT EXISTS inactive_products (
-        id INTEGER PRIMARY KEY REFERENCES products(id) ON DELETE CASCADE,
-        company_id INTEGER NOT NULL REFERENCES companies(id),
-        code TEXT NOT NULL,
-        name TEXT NOT NULL,
-        name_en TEXT,
-        name_zh TEXT,
-        description TEXT,
-        category TEXT NOT NULL DEFAULT 'product',
-        product_type TEXT NOT NULL DEFAULT 'simple',
-        unit TEXT NOT NULL DEFAULT 'ชิ้น',
-        price DECIMAL(15,2) NOT NULL DEFAULT 0,
-        cost DECIMAL(15,2) DEFAULT 0,
-        price_retail DECIMAL(15,2) DEFAULT 0,
-        price_wholesale DECIMAL(15,2) DEFAULT 0,
-        price_agent DECIMAL(15,2) DEFAULT 0,
-        price_special DECIMAL(15,2) DEFAULT 0,
-        price_vip DECIMAL(15,2) DEFAULT 0,
-        vat_type TEXT NOT NULL DEFAULT 'vat7',
-        vat_included BOOLEAN NOT NULL DEFAULT false,
-        account_code TEXT,
-        barcode TEXT,
-        image_url TEXT,
-        low_stock_threshold INTEGER DEFAULT 0,
-        track_lots BOOLEAN NOT NULL DEFAULT false,
-        deactivated_at TIMESTAMP DEFAULT NOW(),
-        created_at TIMESTAMP
-      )
-    `));
-    console.log("[migration] ✅ active_products + inactive_products tables ready (DDL)");
-  } catch (e: any) {
-    console.error("[migration] ❌ runProductSplitMigration DDL FAILED:", e.message);
-    return;
-  }
+  `));
+  await db.execute(sql.raw(`
+    CREATE TABLE IF NOT EXISTS inactive_products (
+      id INTEGER PRIMARY KEY REFERENCES products(id) ON DELETE CASCADE,
+      company_id INTEGER NOT NULL REFERENCES companies(id),
+      code TEXT NOT NULL,
+      name TEXT NOT NULL,
+      name_en TEXT,
+      name_zh TEXT,
+      description TEXT,
+      category TEXT NOT NULL DEFAULT 'product',
+      product_type TEXT NOT NULL DEFAULT 'simple',
+      unit TEXT NOT NULL DEFAULT 'ชิ้น',
+      price DECIMAL(15,2) NOT NULL DEFAULT 0,
+      cost DECIMAL(15,2) DEFAULT 0,
+      price_retail DECIMAL(15,2) DEFAULT 0,
+      price_wholesale DECIMAL(15,2) DEFAULT 0,
+      price_agent DECIMAL(15,2) DEFAULT 0,
+      price_special DECIMAL(15,2) DEFAULT 0,
+      price_vip DECIMAL(15,2) DEFAULT 0,
+      vat_type TEXT NOT NULL DEFAULT 'vat7',
+      vat_included BOOLEAN NOT NULL DEFAULT false,
+      account_code TEXT,
+      barcode TEXT,
+      image_url TEXT,
+      low_stock_threshold INTEGER DEFAULT 0,
+      track_lots BOOLEAN NOT NULL DEFAULT false,
+      deactivated_at TIMESTAMP DEFAULT NOW(),
+      created_at TIMESTAMP
+    )
+  `));
+  console.log("[migration] ✅ active_products + inactive_products tables ready (DDL)");
 
   // ── Phase 2: Data backfill — guarded by FLAG (runs exactly once) ──
   const FLAG = "PRODUCT_SPLIT_MIGRATION_20260510";
-  try {
-    const flagRows = await db.execute(sql.raw(
-      `SELECT 1 FROM system_config WHERE config_key = '${FLAG}' LIMIT 1`
-    ));
-    if ((flagRows.rows || []).length > 0) {
-      console.log("[migration] product split backfill already done — skipping");
-      return;
-    }
-
-    await db.execute(sql.raw(`
-      INSERT INTO active_products (
-        id, company_id, code, name, name_en, name_zh, description,
-        category, product_type, unit, price, cost,
-        price_retail, price_wholesale, price_agent, price_special, price_vip,
-        vat_type, vat_included, account_code, barcode, image_url,
-        low_stock_threshold, track_lots, created_at
-      )
-      SELECT
-        id, company_id, code, name, name_en, name_zh, description,
-        category, product_type, unit, price, cost,
-        price_retail, price_wholesale, price_agent, price_special, price_vip,
-        vat_type, vat_included, account_code, barcode, image_url,
-        low_stock_threshold, track_lots, created_at
-      FROM products
-      WHERE active = true
-      ON CONFLICT (id) DO NOTHING
-    `));
-
-    await db.execute(sql.raw(`
-      INSERT INTO inactive_products (
-        id, company_id, code, name, name_en, name_zh, description,
-        category, product_type, unit, price, cost,
-        price_retail, price_wholesale, price_agent, price_special, price_vip,
-        vat_type, vat_included, account_code, barcode, image_url,
-        low_stock_threshold, track_lots, created_at, deactivated_at
-      )
-      SELECT
-        id, company_id, code, name, name_en, name_zh, description,
-        category, product_type, unit, price, cost,
-        price_retail, price_wholesale, price_agent, price_special, price_vip,
-        vat_type, vat_included, account_code, barcode, image_url,
-        low_stock_threshold, track_lots, created_at, NOW()
-      FROM products
-      WHERE active = false
-      ON CONFLICT (id) DO NOTHING
-    `));
-
-    await db.execute(sql.raw(
-      `INSERT INTO system_config (config_key, config_value)
-       VALUES ('${FLAG}', 'done_${new Date().toISOString()}')
-       ON CONFLICT (config_key) DO NOTHING`
-    ));
-    console.log("[migration] ✅ product split backfill done — active + inactive tables populated");
-  } catch (e: any) {
-    console.error("[migration] ❌ runProductSplitMigration backfill FAILED:", e.message);
+  const flagRows = await db.execute(sql.raw(
+    `SELECT 1 FROM system_config WHERE config_key = '${FLAG}' LIMIT 1`
+  ));
+  if ((flagRows.rows || []).length > 0) {
+    console.log("[migration] product split backfill already done — skipping");
+    return;
   }
+
+  await db.execute(sql.raw(`
+    INSERT INTO active_products (
+      id, company_id, code, name, name_en, name_zh, description,
+      category, product_type, unit, price, cost,
+      price_retail, price_wholesale, price_agent, price_special, price_vip,
+      vat_type, vat_included, account_code, barcode, image_url,
+      low_stock_threshold, track_lots, created_at
+    )
+    SELECT
+      id, company_id, code, name, name_en, name_zh, description,
+      category, product_type, unit, price, cost,
+      price_retail, price_wholesale, price_agent, price_special, price_vip,
+      vat_type, vat_included, account_code, barcode, image_url,
+      low_stock_threshold, track_lots, created_at
+    FROM products
+    WHERE active = true
+    ON CONFLICT (id) DO NOTHING
+  `));
+
+  await db.execute(sql.raw(`
+    INSERT INTO inactive_products (
+      id, company_id, code, name, name_en, name_zh, description,
+      category, product_type, unit, price, cost,
+      price_retail, price_wholesale, price_agent, price_special, price_vip,
+      vat_type, vat_included, account_code, barcode, image_url,
+      low_stock_threshold, track_lots, created_at, deactivated_at
+    )
+    SELECT
+      id, company_id, code, name, name_en, name_zh, description,
+      category, product_type, unit, price, cost,
+      price_retail, price_wholesale, price_agent, price_special, price_vip,
+      vat_type, vat_included, account_code, barcode, image_url,
+      low_stock_threshold, track_lots, created_at, NOW()
+    FROM products
+    WHERE active = false
+    ON CONFLICT (id) DO NOTHING
+  `));
+
+  await db.execute(sql.raw(
+    `INSERT INTO system_config (config_key, config_value)
+     VALUES ('${FLAG}', 'done_${new Date().toISOString()}')
+     ON CONFLICT (config_key) DO NOTHING`
+  ));
+  console.log("[migration] ✅ product split backfill done — active + inactive tables populated");
 }
