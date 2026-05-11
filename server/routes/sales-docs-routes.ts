@@ -1012,7 +1012,7 @@ app.post("/api/invoices", requireAuth, requireAnyModule("sales", "ecommerce"), a
         const invCreateTriggers = await getInventoryTriggers(result.companyId);
         if (invCreateTriggers.invoice_deduct) {
           const docLabel = `ขายสินค้า ${result.invoiceNo}${result.customerName ? ` (${result.customerName})` : ""}`;
-          await deductStockBundleAware(deductItems, result.companyId, docLabel, "invoice", result.id, user.id).catch(() => {});
+          await deductStockBundleAware(deductItems, result.companyId, docLabel, "invoice", result.id, user.id).catch((err: any) => { console.error(`[Invoice-CREATE] deductStock failed for invoice#${result.id}:`, err.message); });
         }
       }
     }
@@ -2035,7 +2035,7 @@ app.post("/api/tax-invoices", requireAuth, requireAnyModule("sales", "ecommerce"
         const tiCreateTriggers = await getInventoryTriggers(result.companyId);
         if (tiCreateTriggers.invoice_deduct) {
           const docLabelTi = `ขายสินค้า ${result.taxInvoiceNo}${result.customerName ? ` (${result.customerName})` : ""}`;
-          await deductStockBundleAware(deductTiItems, result.companyId, docLabelTi, "tax_invoice", result.id, user.id).catch(() => {});
+          await deductStockBundleAware(deductTiItems, result.companyId, docLabelTi, "tax_invoice", result.id, user.id).catch((err: any) => { console.error(`[TIV-CREATE] deductStock failed for tiv#${result.id}:`, err.message); });
         }
       }
     }

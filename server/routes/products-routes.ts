@@ -523,6 +523,7 @@ app.post("/api/products/import/execute", requireAuth, requireModule("inventory")
             eq(warehouseStockLevels.warehouseId, warehouseId),
           ));
 
+        const prevQty = existing.length > 0 ? Number(existing[0].quantity) : 0;
         if (existing.length > 0) {
           await db.update(warehouseStockLevels)
             .set({ quantity: String(qty) })
@@ -534,6 +535,25 @@ app.post("/api/products/import/execute", requireAuth, requireModule("inventory")
             warehouseId,
             quantity: String(qty),
           });
+        }
+        // บันทึก stock_movement สำหรับ initial stock ที่ตั้งจาก Excel import
+        const delta = qty - prevQty;
+        if (delta !== 0) {
+          try {
+            await db.insert(stockMovements).values({
+              companyId,
+              productId,
+              movementType: "initial",
+              quantity: String(delta),
+              notes: `ตั้งต้นสต๊อก (นำเข้า Excel) คลัง ${entry.warehouseName || warehouseId}`,
+              referenceType: null,
+              referenceId: null,
+              unitCost: "0",
+              totalCost: "0",
+            });
+          } catch (mvErr: any) {
+            console.error(`[ProductImport] stock_movement insert failed pid=${productId}:`, mvErr.message);
+          }
         }
         stockSetCount++;
       }
