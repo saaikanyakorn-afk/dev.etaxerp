@@ -719,39 +719,69 @@ export type InactiveProduct = typeof inactiveProducts.$inferSelect;
 
 // Migration: create tables + backfill from products (runs once via FLAG)
 export async function runProductSplitMigration(db: any) {
-  // ── Phase 1: DDL — CREATE TABLE IF NOT EXISTS (idempotent, no flag needed) ──
+  const FLAG = "PRODUCT_SPLIT_MIGRATION_20260510";
+
+  // ── Phase 0: FLAG check — if already done, skip everything (protects DROP from re-running) ──
+  let flagRows: any;
+  try {
+    flagRows = await db.execute(sql.raw(
+      `SELECT 1 FROM system_config WHERE config_key = '${FLAG}' LIMIT 1`
+    ));
+  } catch (err: any) {
+    console.error("[migration] ❌ Phase 0 flag check failed — could not read system_config:", err.message);
+    throw new Error(`[runProductSplitMigration] Phase 0 flag check failed: ${err.message}`);
+  }
+
+  if ((flagRows.rows || []).length > 0) {
+    console.log("[migration] product split already done — skipping");
+    return;
+  }
+
+  // ── Phase 1: DROP existing tables (hard delete — no soft delete, no hiding) ──
+  // Production had tables created without FK constraints and with stale/orphan data.
+  // พี่ทราย confirmed 2026-05-11: delete for real, not hide. Drop and recreate clean.
+  try {
+    await db.execute(sql.raw(`DROP TABLE IF EXISTS active_products`));
+    await db.execute(sql.raw(`DROP TABLE IF EXISTS inactive_products`));
+    console.log("[migration] ✅ Phase 1 — old active_products + inactive_products dropped");
+  } catch (err: any) {
+    console.error("[migration] ❌ Phase 1 DROP failed — could not drop active_products / inactive_products:", err.message);
+    throw new Error(`[runProductSplitMigration] Phase 1 DROP failed: ${err.message}`);
+  }
+
+  // ── Phase 2: CREATE tables fresh with correct FK CASCADE constraints ──
   try {
     await db.execute(sql.raw(`
-        CREATE TABLE IF NOT EXISTS active_products (
-          id INTEGER PRIMARY KEY REFERENCES products(id) ON DELETE CASCADE,
-          company_id INTEGER NOT NULL REFERENCES companies(id),
-          code TEXT NOT NULL,
-          name TEXT NOT NULL,
-          name_en TEXT,
-          name_zh TEXT,
-          description TEXT,
-          category TEXT NOT NULL DEFAULT 'product',
-          product_type TEXT NOT NULL DEFAULT 'simple',
-          unit TEXT NOT NULL DEFAULT 'ชิ้น',
-          price DECIMAL(15,2) NOT NULL DEFAULT 0,
-          cost DECIMAL(15,2) DEFAULT 0,
-          price_retail DECIMAL(15,2) DEFAULT 0,
-          price_wholesale DECIMAL(15,2) DEFAULT 0,
-          price_agent DECIMAL(15,2) DEFAULT 0,
-          price_special DECIMAL(15,2) DEFAULT 0,
-          price_vip DECIMAL(15,2) DEFAULT 0,
-          vat_type TEXT NOT NULL DEFAULT 'vat7',
-          vat_included BOOLEAN NOT NULL DEFAULT false,
-          account_code TEXT,
-          barcode TEXT,
-          image_url TEXT,
-          low_stock_threshold INTEGER DEFAULT 0,
-          track_lots BOOLEAN NOT NULL DEFAULT false,
-          created_at TIMESTAMP DEFAULT NOW()
-        )
+      CREATE TABLE active_products (
+        id INTEGER PRIMARY KEY REFERENCES products(id) ON DELETE CASCADE,
+        company_id INTEGER NOT NULL REFERENCES companies(id),
+        code TEXT NOT NULL,
+        name TEXT NOT NULL,
+        name_en TEXT,
+        name_zh TEXT,
+        description TEXT,
+        category TEXT NOT NULL DEFAULT 'product',
+        product_type TEXT NOT NULL DEFAULT 'simple',
+        unit TEXT NOT NULL DEFAULT 'ชิ้น',
+        price DECIMAL(15,2) NOT NULL DEFAULT 0,
+        cost DECIMAL(15,2) DEFAULT 0,
+        price_retail DECIMAL(15,2) DEFAULT 0,
+        price_wholesale DECIMAL(15,2) DEFAULT 0,
+        price_agent DECIMAL(15,2) DEFAULT 0,
+        price_special DECIMAL(15,2) DEFAULT 0,
+        price_vip DECIMAL(15,2) DEFAULT 0,
+        vat_type TEXT NOT NULL DEFAULT 'vat7',
+        vat_included BOOLEAN NOT NULL DEFAULT false,
+        account_code TEXT,
+        barcode TEXT,
+        image_url TEXT,
+        low_stock_threshold INTEGER DEFAULT 0,
+        track_lots BOOLEAN NOT NULL DEFAULT false,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
     `));
     await db.execute(sql.raw(`
-      CREATE TABLE IF NOT EXISTS inactive_products (
+      CREATE TABLE inactive_products (
         id INTEGER PRIMARY KEY REFERENCES products(id) ON DELETE CASCADE,
         company_id INTEGER NOT NULL REFERENCES companies(id),
         code TEXT NOT NULL,
@@ -780,29 +810,13 @@ export async function runProductSplitMigration(db: any) {
         created_at TIMESTAMP
       )
     `));
-    console.log("[migration] ✅ active_products + inactive_products tables ready (DDL)");
+    console.log("[migration] ✅ Phase 2 — active_products + inactive_products created with FK CASCADE");
   } catch (err: any) {
-    console.error("[migration] ❌ Phase 1 DDL failed — active_products / inactive_products could not be created:", err.message);
-    throw new Error(`[runProductSplitMigration] Phase 1 DDL failed: ${err.message}`);
+    console.error("[migration] ❌ Phase 2 CREATE failed — active_products / inactive_products could not be created:", err.message);
+    throw new Error(`[runProductSplitMigration] Phase 2 CREATE failed: ${err.message}`);
   }
 
-  // ── Phase 2: Data backfill — guarded by FLAG (runs exactly once) ──
-  const FLAG = "PRODUCT_SPLIT_MIGRATION_20260510";
-  let flagRows: any;
-  try {
-    flagRows = await db.execute(sql.raw(
-      `SELECT 1 FROM system_config WHERE config_key = '${FLAG}' LIMIT 1`
-    ));
-  } catch (err: any) {
-    console.error("[migration] ❌ Phase 2 flag check failed — could not read system_config:", err.message);
-    throw new Error(`[runProductSplitMigration] Phase 2 flag check failed: ${err.message}`);
-  }
-
-  if ((flagRows.rows || []).length > 0) {
-    console.log("[migration] product split backfill already done — skipping");
-    return;
-  }
-
+  // ── Phase 3: Backfill from current products table ──
   try {
     await db.execute(sql.raw(`
       INSERT INTO active_products (
@@ -820,7 +834,6 @@ export async function runProductSplitMigration(db: any) {
         low_stock_threshold, track_lots, created_at
       FROM products
       WHERE active = true
-      ON CONFLICT (id) DO NOTHING
     `));
 
     await db.execute(sql.raw(`
@@ -839,7 +852,6 @@ export async function runProductSplitMigration(db: any) {
         low_stock_threshold, track_lots, created_at, NOW()
       FROM products
       WHERE active = false
-      ON CONFLICT (id) DO NOTHING
     `));
 
     await db.execute(sql.raw(
@@ -847,9 +859,9 @@ export async function runProductSplitMigration(db: any) {
        VALUES ('${FLAG}', 'done_${new Date().toISOString()}')
        ON CONFLICT (config_key) DO NOTHING`
     ));
-    console.log("[migration] ✅ product split backfill done — active + inactive tables populated");
+    console.log("[migration] ✅ Phase 3 — backfill done: active_products + inactive_products populated from products");
   } catch (err: any) {
-    console.error("[migration] ❌ Phase 2 backfill failed — INSERT INTO active_products / inactive_products error. ON CONFLICT DO NOTHING means partial rows may exist; safe to retry on next restart:", err.message);
-    throw new Error(`[runProductSplitMigration] Phase 2 backfill failed: ${err.message}`);
+    console.error("[migration] ❌ Phase 3 backfill failed — tables were created but INSERT failed. Tables are empty. Safe to retry on next restart (Phase 0 flag not set yet):", err.message);
+    throw new Error(`[runProductSplitMigration] Phase 3 backfill failed: ${err.message}`);
   }
 }
