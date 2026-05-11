@@ -89,7 +89,7 @@ export default function InventoryList(props: { Wrapper?: React.ComponentType<{ c
     enabled: !!selectedCompanyId,
   });
 
-  const deleteMutation = useMutation({
+  const deactivateMutation = useMutation({
     mutationFn: async (id: number) => {
       const r = await fetch(`/api/products/${id}`, { method: "DELETE", credentials: "include" });
       if (!r.ok) throw new Error((await r.json()).message);
@@ -97,7 +97,25 @@ export default function InventoryList(props: { Wrapper?: React.ComponentType<{ c
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/products"] });
-      toast({ title: "ลบสินค้าสำเร็จ", variant: "success" as any });
+      toast({ title: "เลิกใช้งานสินค้าสำเร็จ", variant: "success" as any });
+    },
+    onError: (err: any) => toast({ title: "เกิดข้อผิดพลาด", description: err.message, variant: "destructive" }),
+  });
+
+  const reactivateMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const r = await fetch(`/api/products/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ active: true }),
+      });
+      if (!r.ok) throw new Error((await r.json()).message);
+      return r.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/products"] });
+      toast({ title: "เปิดใช้งานสินค้าสำเร็จ", variant: "success" as any });
     },
     onError: (err: any) => toast({ title: "เกิดข้อผิดพลาด", description: err.message, variant: "destructive" }),
   });
@@ -736,14 +754,30 @@ export default function InventoryList(props: { Wrapper?: React.ComponentType<{ c
                         <Button data-testid={`button-stockcard-${product.id}`} variant="ghost" size="icon" className="h-7 w-7 text-blue-600 hover:text-blue-700" title="สต๊อกการ์ด" onClick={() => navigate(`${basePath}/stock-card?productId=${product.id}`)}>
                           <ClipboardList className="h-3.5 w-3.5" />
                         </Button>
-                        <Button data-testid={`button-edit-${product.id}`} variant="ghost" size="icon" className="h-7 w-7" onClick={() => navigate(`${basePath}/list/edit/${product.id}`)}>
+                        <Button data-testid={`button-edit-${product.id}`} variant="ghost" size="icon" className="h-7 w-7" title="แก้ไข" onClick={() => navigate(`${basePath}/list/edit/${product.id}`)}>
                           <Pencil className="h-3.5 w-3.5" />
                         </Button>
-                        <Button data-testid={`button-delete-${product.id}`} variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => {
-                          if (confirm("ต้องการลบสินค้านี้?")) deleteMutation.mutate(product.id);
-                        }}>
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
+                        {product.active ? (
+                          <Button
+                            data-testid={`button-deactivate-${product.id}`}
+                            variant="ghost" size="icon"
+                            className="h-7 w-7 text-amber-600 hover:text-amber-700"
+                            title="เลิกใช้งาน"
+                            onClick={() => { if (confirm(`เลิกใช้งานสินค้า "${product.name}"?\nสินค้าจะถูกซ่อน แต่ยังคงอยู่ในระบบ สามารถเปิดใช้งานได้ในภายหลัง`)) deactivateMutation.mutate(product.id); }}
+                          >
+                            <XCircle className="h-3.5 w-3.5" />
+                          </Button>
+                        ) : (
+                          <Button
+                            data-testid={`button-reactivate-${product.id}`}
+                            variant="ghost" size="icon"
+                            className="h-7 w-7 text-green-600 hover:text-green-700"
+                            title="เปิดใช้งาน"
+                            onClick={() => { if (confirm(`เปิดใช้งานสินค้า "${product.name}" อีกครั้ง?`)) reactivateMutation.mutate(product.id); }}
+                          >
+                            <CheckCircle2 className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>
