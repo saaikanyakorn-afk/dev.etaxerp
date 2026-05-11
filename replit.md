@@ -201,6 +201,20 @@ Ask yourself: did I connect to production and look at the actual state before wr
 If the answer is no — do Step 1 first. Then come back and write.
 If the answer is yes — then you do not need a fallback. You already know what is there.
 
+**There is a fourth moment that agents always skip — writing to `db/schema-history.md`.**
+
+After Step 3 (you looked and confirmed the change is there), before you do anything else, you must write an entry to `db/schema-history.md`. Not because a rule says so. Because of this:
+
+You will not exist tomorrow. The next agent has no memory of what you did today. The code you commented out is gone. The backup file sitting in `db/backups/` has no label on it that says why it exists. The flag sitting in `system_config` has no story attached to it.
+
+`db/schema-history.md` is the only place where a future agent — or พี่ช้าง six months from now — can open one file and understand: what changed, which table, which columns, when it ran, where the backup is, and why it was needed.
+
+If you skip this, you have done the work but erased the evidence. The next agent will look at a backup file named `2026-05-10_products_before_split.sql` and have no idea what split means, why it happened, or whether it is safe to delete. They will look at a flag in system_config and not know if it is safe to re-run the migration or not.
+
+**The rule is: write to `db/schema-history.md` BEFORE you comment out the migration block.** Once the block is commented out, the context is gone from the code. The history file is the last moment you still have all the facts in front of you — use it.
+
+Every entry must have four things: what changed (table + columns), where the backup is (or "no backup needed — additive only"), when it ran (datetime), and why it was needed (the reason, the feature, the ticket). No exceptions, no matter how small the migration seems.
+
 ---
 
 ### Rule 2 — The 10-Step Migration Checklist (follow every time, no shortcuts)
