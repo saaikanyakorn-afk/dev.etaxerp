@@ -24,7 +24,9 @@ const DEFAULT_CATEGORIES = [
 ];
 
 export function registerProductsRoutes(app: Express) {
-  runProductSplitMigration(db);
+  runProductSplitMigration(db).catch((err: any) => {
+    console.error("[migration] ❌ runProductSplitMigration failed — server continues but product split tables may be incomplete:", err.message);
+  });
 
 // ==================== Product Categories ====================
 app.get("/api/product-categories", requireAuth, async (req, res) => {
