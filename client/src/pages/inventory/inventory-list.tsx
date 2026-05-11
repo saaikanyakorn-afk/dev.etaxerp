@@ -56,7 +56,7 @@ export default function InventoryList(props: { Wrapper?: React.ComponentType<{ c
   const [pageSize, setPageSize] = useState<number>(50);
   const [selectedInactiveIds, setSelectedInactiveIds] = useState<Set<number>>(new Set());
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
-  const [bulkDeleteResult, setBulkDeleteResult] = useState<{ deleted: number; skipped: { id: number; code: string; name: string; reason: string }[] } | null>(null);
+  const [bulkDeleteResult, setBulkDeleteResult] = useState<{ deleted: number; skipped: { id: number; code: string; name: string; reason: string; docs: string[] }[] } | null>(null);
   const [showDeleteDupConfirm, setShowDeleteDupConfirm] = useState(false);
   const [deleteDupResult, setDeleteDupResult] = useState<{ found: number; deleted: number; keptInactive: { id: number; code: string; name: string; reason: string; docs: string[] }[] } | null>(null);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
@@ -129,7 +129,7 @@ export default function InventoryList(props: { Wrapper?: React.ComponentType<{ c
         body: JSON.stringify({ companyId: selectedCompanyId, productIds }),
       });
       if (!r.ok) throw new Error((await r.json()).message);
-      return r.json() as Promise<{ deleted: number; skipped: { id: number; code: string; name: string; reason: string }[] }>;
+      return r.json() as Promise<{ deleted: number; skipped: { id: number; code: string; name: string; reason: string; docs: string[] }[] }>;
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/products"] });
@@ -857,9 +857,20 @@ export default function InventoryList(props: { Wrapper?: React.ComponentType<{ c
                     <div className="text-amber-700">
                       ⚠ ข้าม <span className="font-bold">{bulkDeleteResult.skipped.length}</span> รายการ (ยังถูกอ้างอิงในเอกสาร)
                     </div>
-                    <div className="mt-2 max-h-64 overflow-y-auto border rounded p-2 bg-amber-50 text-xs">
+                    <div className="mt-2 max-h-64 overflow-y-auto border rounded p-2 bg-amber-50 text-xs space-y-2">
                       {bulkDeleteResult.skipped.map(s => (
-                        <div key={s.id} className="py-0.5">• {s.code} — {s.name}</div>
+                        <div key={s.id}>
+                          <div className="font-medium">• {s.code} — {s.name}</div>
+                          {s.docs && s.docs.length > 0 && (
+                            <div className="pl-3 text-amber-800 space-y-0.5">
+                              {s.docs.map((doc, i) => (
+                                <div key={i} className="flex items-center gap-1">
+                                  <span className="text-amber-500">↳</span> {doc}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                       ))}
                     </div>
                   </div>
