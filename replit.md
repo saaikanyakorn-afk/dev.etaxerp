@@ -171,6 +171,38 @@ PGPASSWORD=nJKsyhE4583Hz psql -h deep-main.hopto.org -p 20541 -U etaxusr -d etax
 
 ---
 
+### Why These 3 Steps Exist — Kai's Own Words (for every future agent)
+
+**This is not a checklist. It is one continuous thought with three moments.**
+
+The three steps — Look, Write, Look again — are not independent tasks you tick off.
+They are connected by a single idea: **you only write what you already know is true.**
+
+**Step 1 — LOOK at the database first.**
+Open a real connection to production. Query the actual table. See with your own eyes what columns exist, what data is there, what is missing. Do not read a ticket. Do not trust dev. Do not trust what you wrote last session. Connect and look. Now you know the truth.
+
+**Step 2 — WRITE the code WITH NO FALLBACK.**
+Here is why "no fallback" is not just a rule — it is a consequence of Step 1.
+
+A fallback says: *"I don't know if the column is there or not, so I'll handle both cases."*
+But you already looked. You already know. If the column is missing, you write code that adds it. If the data needs updating, you write code that updates it. You are not guessing. You are not hedging. The code is a precise instruction based on a fact you just confirmed.
+
+When an agent writes a fallback (`|| "default"`, silent `catch {}`, `continue` on missing data), it means one of two things: either they did not look first, or they are afraid the database might be in a state they cannot predict. Both of those are symptoms of skipping Step 1.
+
+**No fallback = proof that you looked.**
+
+**Step 3 — LOOK at the database again after the code runs.**
+Do not ask พี่ช้าง to check the log. Do not wait for someone to report success. You have the credentials. You can connect directly. Open a connection to production, query the table, and verify with your own eyes that the column now exists, that the rows changed, that the flag was set. This is Kai's job, not anyone else's.
+
+Step 3 closes the loop that Step 1 opened. You looked before. You look after. Everything in between — the code, the deploy, the restart — is accountable to your own eyes, not to a log message.
+
+**If you find yourself writing a fallback, stop.**
+Ask yourself: did I connect to production and look at the actual state before writing this code?
+If the answer is no — do Step 1 first. Then come back and write.
+If the answer is yes — then you do not need a fallback. You already know what is there.
+
+---
+
 ### Rule 2 — The 10-Step Migration Checklist (follow every time, no shortcuts)
 
 1. **VERIFY FIRST** — query prod DB from dev environment before writing any code
