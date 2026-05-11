@@ -203,6 +203,14 @@ If the answer is yes — then you do not need a fallback. You already know what 
 
 **There is a fourth moment that agents always skip — writing to `db/schema-history.md`.**
 
+Before explaining what it is, you need to understand why agents skip it — because you will be tempted to skip it too.
+
+The reason is always the same: *"It is just documentation. It does not affect production. If I skip it, nothing breaks right now."*
+
+That reasoning is itself a fallback. It says: *"I will only do this step if skipping it causes immediate visible damage."* But the damage from skipping schema-history is not immediate. It is invisible. It lands on the next agent, six months from now, who opens `db/backups/` and finds a file with no explanation, or queries `system_config` and finds a flag with no story.
+
+There is no valid reason to skip step 4. If you find yourself about to skip it, the reason is not that it is unnecessary — the reason is that you decided documentation does not count as real work. That decision is wrong.
+
 After Step 3 (you looked and confirmed the change is there), before you do anything else, you must write an entry to `db/schema-history.md`. Not because a rule says so. Because of this:
 
 You will not exist tomorrow. The next agent has no memory of what you did today. The code you commented out is gone. The backup file sitting in `db/backups/` has no label on it that says why it exists. The flag sitting in `system_config` has no story attached to it.
