@@ -203,3 +203,33 @@ Steps:
 Backup location: `db/backups/YYYY-MM-DD_orphan_stock_movements_before_cleanup.sql`
 
 **Status:** 📝 Documented — awaiting พี่ช้าง authorization to implement
+
+---
+
+## 2026-05-11 — active_products + inactive_products DROP + RECREATE + BACKFILL (ENTRY #007)
+
+**Type:** Destructive DDL + data backfill — DROP TABLE, CREATE TABLE with FK CASCADE, INSERT from products
+
+**What changed:**
+- `active_products` — DROP TABLE (no FK constraints on old table) → CREATE with `id REFERENCES products(id) ON DELETE CASCADE` → backfill from `products WHERE active = true`
+- `inactive_products` — DROP TABLE (no FK constraints on old table) → CREATE with `id REFERENCES products(id) ON DELETE CASCADE` → backfill from `products WHERE active = false`
+
+**Root cause:**
+- 1,094 orphan rows in `active_products` (rows with no matching `products.id` — FK never enforced)
+- 1,788 rows missing from `active_products` (products with `active = true` not reflected in split table)
+- Tables were created in a previous migration without FK constraints — stale/orphan data accumulated silently
+
+**Backup location:**
+- `backup_active_products_20260510` — PostgreSQL table (CREATE TABLE AS SELECT * inside migration Phase 0b, before DROP)
+- `backup_inactive_products_20260510` — PostgreSQL table (CREATE TABLE AS SELECT * inside migration Phase 0b, before DROP)
+- Backup tables remain in DB until พี่ช้าง manually reviews and clears
+
+**Migration code:** `shared/schema-extra.ts` → `runProductSplitMigration()`
+**Caller:** `server/routes/products-routes.ts` → `runProductSplitMigration(db)` inside `registerProductRoutes`
+**Flag:** `PRODUCT_SPLIT_MIGRATION_20260510` in `system_config`
+
+**Authorization:** พี่ทราย confirmed 2026-05-11: Choice A — hard DELETE ("ลบแล้วนำเข้าใหม่ได้ แต่ขอให้ลบให้จริงไม่ใช่ซ่อนที่ลบไว้")
+
+**Reason:** active_products and inactive_products are denormalized views of the products table used for performance. The split tables had drifted permanently from the source of truth (products table) because they were never enforced by FK constraints. The only safe recovery was DROP + RECREATE + BACKFILL from the authoritative source.
+
+**Status:** 📝 Code ready — awaiting พี่ช้าง authorization to deploy
