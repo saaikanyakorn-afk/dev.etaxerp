@@ -737,6 +737,18 @@ export async function runProductSplitMigration(db: any) {
     return;
   }
 
+  // ── Phase 0b: BACKUP existing tables before any DROP (Rule 4 — destructive SQL safety) ──
+  // CREATE TABLE ... AS SELECT * preserves all current rows in case rollback is needed.
+  // Backup tables are NOT dropped after migration — they remain until พี่ช้าง manually reviews and clears.
+  try {
+    await db.execute(sql.raw(`CREATE TABLE IF NOT EXISTS backup_active_products_20260510 AS SELECT * FROM active_products`));
+    await db.execute(sql.raw(`CREATE TABLE IF NOT EXISTS backup_inactive_products_20260510 AS SELECT * FROM inactive_products`));
+    console.log("[migration] ✅ Phase 0b — backup_active_products_20260510 + backup_inactive_products_20260510 created");
+  } catch (err: any) {
+    console.error("[migration] ❌ Phase 0b BACKUP failed — aborting before DROP:", err.message);
+    throw new Error(`[runProductSplitMigration] Phase 0b backup failed: ${err.message}`);
+  }
+
   // ── Phase 1: DROP existing tables (hard delete — no soft delete, no hiding) ──
   // Production had tables created without FK constraints and with stale/orphan data.
   // พี่ทราย confirmed 2026-05-11: delete for real, not hide. Drop and recreate clean.
