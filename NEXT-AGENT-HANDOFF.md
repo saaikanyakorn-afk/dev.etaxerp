@@ -11,6 +11,30 @@ Read this file first before touching anything.
 
 ---
 
+## ENTRY #009: Expense 400 timeout — root cause found & fixed (2026-05-11)
+
+### Root cause
+`getNextJournalEntryNo()` ถูกเรียก **ภายใน** `db.transaction(async (tx) => { ... })` ทั้ง 3 จุด แต่ไม่ส่ง `tx` ไปด้วย ทำให้ function ใช้ `db` (global pool) แทน → ทุก expense POST/PATCH ต้อง acquire **2 DB connections** พร้อมกัน (1 สำหรับ transaction + 1 สำหรับ helper) แทนที่จะใช้แค่ 1
+
+เมื่อ production มี concurrent users หลายคน pool (max=25) หมดเร็ว → `connectionTimeoutMillis: 10000` หมด → pg throw `"timeout exceeded when trying to connect"` → catch block คืน HTTP 400
+
+### Fix (expense-routes.ts — 3 lines เปลี่ยน)
+| Route | Line เดิม | Fix |
+|---|---|---|
+| POST /api/expenses | `getNextJournalEntryNo(doc.companyId, "payment", doc.expDate)` | + `, tx` |
+| PATCH /api/expenses/:id | `getNextJournalEntryNo(txUpdated.companyId, "payment", txUpdated.expDate)` | + `, tx` |
+| POST /api/expenses/:id/clone | `getNextJournalEntryNo(newDoc.companyId, "payment", newDoc.expDate)` | + `, tx` |
+
+Dev server compiles & starts OK ✓
+
+### Files to add to push list
+- `server/routes/expense-routes.ts` — 3 lines fixed
+
+### Note for next session
+`resolvePaymentMethodAccountCode()` in route-helpers.ts ก็ hardcode `db` (ไม่รับ tx) และถูกเรียกใน transaction เช่นกัน (expense lines 414, 647) — เป็น secondary leak แก้ได้โดยเพิ่ม optional `dbConn` param เหมือน getNextDocNo แต่ยังไม่ emergency
+
+---
+
 ## What was done this session (2026-05-11) — ENTRY #008: Inventory fixes
 
 ### 1. Deactivate/Reactivate buttons (inventory-list.tsx)

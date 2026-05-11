@@ -460,7 +460,7 @@ export function registerExpenseRoutes(app: Express) {
             if (!acctMap.has(ln.accountCode)) throw new Error(`ไม่พบบัญชีรหัส ${ln.accountCode} ในผังบัญชี`);
           }
 
-          const entryNo = await getNextJournalEntryNo(doc.companyId, "payment", doc.expDate);
+          const entryNo = await getNextJournalEntryNo(doc.companyId, "payment", doc.expDate, tx);
           const [entry] = await tx.insert(journalEntries).values({
             companyId: doc.companyId, entryDate: doc.expDate, reference: doc.expNo,
             description: `${doc.vendorName || ""}${txItems[0]?.description ? " - " + txItems[0].description : (doc.notes ? " - " + doc.notes : "")}`.trim() || `บันทึกบัญชีจากค่าใช้จ่าย ${doc.expNo}`,
@@ -693,7 +693,7 @@ export function registerExpenseRoutes(app: Express) {
             if (!acctMap.has(ln.accountCode)) throw new Error(`ไม่พบบัญชีรหัส ${ln.accountCode} ในผังบัญชี`);
           }
 
-          const entryNoUp = await getNextJournalEntryNo(txUpdated.companyId, "payment", txUpdated.expDate);
+          const entryNoUp = await getNextJournalEntryNo(txUpdated.companyId, "payment", txUpdated.expDate, tx);
           const [entry] = await tx.insert(journalEntries).values({
             companyId: txUpdated.companyId, entryDate: txUpdated.expDate, reference: txUpdated.expNo,
             description: `${txUpdated.vendorName || ""}${txItems[0]?.description ? " - " + txItems[0].description : (txUpdated.notes ? " - " + txUpdated.notes : "")}`.trim() || `บันทึกบัญชีจากค่าใช้จ่าย ${txUpdated.expNo}`,
@@ -1178,7 +1178,7 @@ export function registerExpenseRoutes(app: Express) {
                 if (!amJ.has(ln.accountCode)) throw new Error(`ไม่พบบัญชีรหัส ${ln.accountCode} ในผังบัญชี`);
               }
 
-              const entryNoJ = await getNextJournalEntryNo(newDoc.companyId, "payment", newDoc.expDate);
+              const entryNoJ = await getNextJournalEntryNo(newDoc.companyId, "payment", newDoc.expDate, tx);
               const [entJ] = await tx.insert(journalEntries).values({
                 companyId: newDoc.companyId, entryDate: newDoc.expDate, reference: newDoc.expNo,
                 description: `${newDoc.vendorName || ""}${expItemsJ[0]?.description ? " - " + expItemsJ[0].description : (newDoc.notes ? " - " + newDoc.notes : "")}`.trim() || `บันทึกบัญชีจากค่าใช้จ่าย ${newDoc.expNo}`,
