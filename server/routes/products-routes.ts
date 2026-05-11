@@ -806,7 +806,6 @@ app.post("/api/products/bulk-permanent-delete", requireAuth, requireModule("inve
       SELECT DISTINCT product_id FROM (
         SELECT product_id FROM pos_transaction_items WHERE product_id = ANY(${pgIds})
         UNION ALL SELECT product_id FROM invoice_items WHERE product_id = ANY(${pgIds})
-        UNION ALL SELECT product_id FROM stock_movements WHERE product_id = ANY(${pgIds})
         UNION ALL SELECT product_id FROM quotation_items WHERE product_id = ANY(${pgIds})
         UNION ALL SELECT product_id FROM sales_order_items WHERE product_id = ANY(${pgIds})
         UNION ALL SELECT product_id FROM tax_invoice_items WHERE product_id = ANY(${pgIds})
@@ -848,6 +847,7 @@ app.post("/api/products/bulk-permanent-delete", requireAuth, requireModule("inve
       await db.transaction(async (tx) => {
         const pgDelIds = sql.raw(`ARRAY[${canDeleteIds.join(',')}]::int[]`);
         // Mirror cleanup pattern from import-batch-routes.ts product case
+        await tx.execute(sql`DELETE FROM stock_movements WHERE product_id = ANY(${pgDelIds})`);
         await tx.execute(sql`DELETE FROM product_stock WHERE product_id = ANY(${pgDelIds})`);
         await tx.execute(sql`DELETE FROM product_bundles WHERE bundle_product_id = ANY(${pgDelIds}) OR component_product_id = ANY(${pgDelIds})`);
         await tx.execute(sql`DELETE FROM ecommerce_product_mappings WHERE product_id = ANY(${pgDelIds})`);
