@@ -1574,7 +1574,7 @@ app.get("/api/inventory-reports/stock-card", requireAuth, requireAnyModule("inve
     const method = (req.query.method as string) || company?.inventoryCostingMethod || "moving_average";
     const startDate = req.query.startDate as string | undefined;
     const endDate = req.query.endDate as string | undefined;
-    const { getStockCardWithCost } = await import("./inventory-costing");
+    const { getStockCardWithCost } = await import("../inventory-costing");
     const result = await getStockCardWithCost(companyId, productId, method as any, startDate, endDate);
     res.json({ method, movements: result.movements, balanceBF: result.balanceBF });
   } catch (err: any) { res.status(400).json({ message: err.message }); }
@@ -1587,7 +1587,7 @@ app.get("/api/inventory-reports/valuation", requireAuth, requireAnyModule("inven
     const [company] = await db.select().from(companies).where(eq(companies.id, companyId));
     const method = (req.query.method as string) || company?.inventoryCostingMethod || "moving_average";
     const asOfDate = req.query.asOfDate as string | undefined;
-    const { getInventoryValuation } = await import("./inventory-costing");
+    const { getInventoryValuation } = await import("../inventory-costing");
     const result = await getInventoryValuation(companyId, method as any, asOfDate);
     const totalValue = result.reduce((sum, r) => sum + r.totalValue, 0);
     res.json({ method, asOfDate: asOfDate || new Date().toISOString().split("T")[0], items: result, totalValue });
@@ -1602,7 +1602,7 @@ app.get("/api/inventory-reports/movement-summary", requireAuth, requireAnyModule
     const method = (req.query.method as string) || company?.inventoryCostingMethod || "moving_average";
     const startDate = req.query.startDate as string | undefined;
     const endDate = req.query.endDate as string | undefined;
-    const { getMovementSummary } = await import("./inventory-costing");
+    const { getMovementSummary } = await import("../inventory-costing");
     const result = await getMovementSummary(companyId, method as any, startDate, endDate);
     res.json({ method, startDate, endDate, items: result });
   } catch (err: any) { res.status(400).json({ message: err.message }); }
@@ -1613,7 +1613,7 @@ app.get("/api/inventory-reports/slow-moving", requireAuth, requireAnyModule("inv
     const companyId = Number(req.query.companyId);
     if (!companyId) return res.status(400).json({ message: "companyId required" });
     const days = Number(req.query.days) || 30;
-    const { getSlowMovingProducts } = await import("./inventory-costing");
+    const { getSlowMovingProducts } = await import("../inventory-costing");
     const result = await getSlowMovingProducts(companyId, days);
     res.json({ daysThreshold: days, items: result });
   } catch (err: any) { res.status(400).json({ message: err.message }); }
