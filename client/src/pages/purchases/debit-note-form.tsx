@@ -101,7 +101,7 @@ export default function DebitNoteForm() {
     vendorName: "",
     vendorAddress: "",
     vendorTaxId: "",
-    branch: "",
+    branch: "สำนักงานใหญ่",
     sellerBranchId: "",
     refPurchaseInvoiceNo: "",
     refPurchaseInvoiceDate: "",
@@ -146,7 +146,7 @@ export default function DebitNoteForm() {
     },
     enabled: !!companyId,
   });
-  const activePaymentMethods = paymentMethodsList.filter((m: any) => m.active !== false);
+  const activePaymentMethods = paymentMethodsList.filter((m: any) => m.active !== false && (m.paymentType || "receive") === "pay");
 
   const { data: approvedInvoices = [] } = useQuery<any[]>({
     queryKey: ["/api/purchase-invoices", companyId, "approved"],
@@ -246,6 +246,7 @@ export default function DebitNoteForm() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/purchase-debit-notes"] });
       toast({ title: "อัพเดทใบลดหนี้ซื้อสำเร็จ", variant: "success" as any });
+      navigate("/purchases/debit-note");
     },
     onError: (err: any) => toast({ title: "เกิดข้อผิดพลาด", description: err.message, variant: "destructive" }),
   });
@@ -335,7 +336,7 @@ export default function DebitNoteForm() {
       vendorName: "",
       vendorAddress: "",
       vendorTaxId: "",
-      branch: "",
+      branch: "สำนักงานใหญ่",
       sellerBranchId: "",
       refPurchaseInvoiceNo: "",
       refPurchaseInvoiceDate: "",
@@ -558,26 +559,30 @@ export default function DebitNoteForm() {
                     </td>
                     <td className="px-3 pt-1.5 pb-1 align-top bg-amber-50/70" colSpan={2}>
                       <div className="text-[10px] text-amber-600 font-semibold mb-0.5">วิธีชำระเงิน</div>
-                      <Select value={form.paymentMethod} onValueChange={v => setForm(p => ({ ...p, paymentMethod: v }))}>
+                      <Select
+                        value={(() => {
+                          const pm = form.paymentMethod;
+                          if (!pm) return "";
+                          const found = activePaymentMethods.find((m: any) => m.accountCode === pm && m.isDefault)
+                            || activePaymentMethods.find((m: any) => m.accountCode === pm);
+                          return found ? `pm_${found.id}` : pm;
+                        })()}
+                        onValueChange={v => {
+                          const pm = activePaymentMethods.find((m: any) => `pm_${m.id}` === v);
+                          setForm(p => ({ ...p, paymentMethod: pm ? pm.accountCode : v }));
+                        }}
+                      >
                         <SelectTrigger data-testid="select-payment-method" className="h-7 text-xs border-dashed">
                           <SelectValue placeholder="เลือกวิธีชำระเงิน" />
                         </SelectTrigger>
                         <SelectContent>
                           {activePaymentMethods.length > 0 ? (
                             activePaymentMethods.map((m: any) => (
-                              <SelectItem key={m.id} value={m.accountCode}>
+                              <SelectItem key={m.id} value={`pm_${m.id}`}>
                                 {acctName(m)} ({m.accountCode})
                               </SelectItem>
                             ))
-                          ) : (
-                            <>
-                              <SelectItem value="cash">เงินสด</SelectItem>
-                              <SelectItem value="transfer">โอนเงิน</SelectItem>
-                              <SelectItem value="cheque">เช็ค</SelectItem>
-                              <SelectItem value="credit_card">บัตรเครดิต</SelectItem>
-                              <SelectItem value="other">อื่นๆ</SelectItem>
-                            </>
-                          )}
+                          ) : null}
                         </SelectContent>
                       </Select>
                     </td>
